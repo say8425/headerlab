@@ -2535,9 +2535,13 @@ after a hidden tracker was found in it.
 
 ## Development
 
+WXT writes a separate output directory per mode: `.output/chrome-mv3` for a production
+build, `-dev` while `npm run dev` is running, and `-e2e` for the end-to-end build. Load
+the one matching what you are doing.
+
 ```bash
 npm install
-npm run dev          # load .output/chrome-mv3 as an unpacked extension
+npm run dev          # load .output/chrome-mv3-dev as an unpacked extension
 npm test             # unit tests, no browser required
 npm run test:e2e     # end-to-end, proves headers change on the wire
 npm run compile      # type check
