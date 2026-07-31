@@ -17,6 +17,12 @@ export function compileHeaders(headers: HeaderRule[]): {
 
   for (const rule of headers) {
     if (!rule.enabled) continue;
+    // A blank name would produce a rule Chrome's validator rejects, and updates are
+    // transactional — one blank row would stop every other rule from applying. The UI
+    // creates exactly this state: a new header row starts with an empty name and is
+    // persisted before the user types. Full RFC-token validation is Phase 2; declining
+    // to emit an unusable rule is this layer's job now.
+    if (rule.name.trim() === '') continue;
     const target = rule.target === 'request' ? requestHeaders : responseHeaders;
     target.push(toModifyHeaderInfo(rule));
   }
