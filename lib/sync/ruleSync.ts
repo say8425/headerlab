@@ -44,9 +44,40 @@ export async function syncRules(
 
 /**
  * The single entry point every trigger funnels into: recompile from storage and
- * replace everything. Idempotent, so there is nowhere for state drift to hide.
+ * replace everything. Idempotent, so there is nowhere for state drift to hide —
+ * but idempotence alone does not serialize concurrent calls, and replace()
+ * above is a read-then-write (getDynamicRules() then updateDynamicRules()). The
+ * popup saves on every keystroke and the background re-triggers on every
+ * storage change, so two reconciles overlap routinely; without a guard, the
+ * one that started earlier (and read older state) can finish later and leave
+ * a stale rule set registered.
+ *
+ * The fix is an in-flight latch with a trailing rerun: a call that arrives
+ * while one is already running does not start a second, independent pass — it
+ * marks a rerun and rides the same in-flight promise, which loops once more
+ * before settling. Every caller in the overlap window resolves only once the
+ * latest state has actually been applied.
  */
+let inFlight: Promise<void> | null = null;
+let rerunQueued = false;
+
 export async function reconcile(): Promise<void> {
-  const state = await getState();
-  await syncRules(compile(state));
+  if (inFlight) {
+    rerunQueued = true;
+    return inFlight;
+  }
+
+  inFlight = (async () => {
+    try {
+      do {
+        rerunQueued = false;
+        const state = await getState();
+        await syncRules(compile(state));
+      } while (rerunQueued);
+    } finally {
+      inFlight = null;
+    }
+  })();
+
+  return inFlight;
 }

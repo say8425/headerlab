@@ -1,9 +1,33 @@
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { syncRules } from '@/lib/sync/ruleSync';
-import type { DnrRule } from '@/lib/model/types';
+import { compile } from '@/lib/compile/compile';
+import { reconcile, syncRules } from '@/lib/sync/ruleSync';
+import * as stateModule from '@/lib/storage/state';
+import type { AppState, DnrRule } from '@/lib/model/types';
 
 const dnr = () => fakeBrowser.declarativeNetRequest;
+
+function appState(headerName: string): AppState {
+  return {
+    version: 1,
+    globalPause: false,
+    theme: 'system',
+    profiles: [
+      {
+        id: 'p1', name: 'P', color: 'green', enabled: true, order: 0,
+        filter: {
+          mode: 'structured', domains: ['api.example.com'],
+          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+        },
+        tabLock: { enabled: false, tabId: null, tabTitle: null },
+        headers: [{
+          id: 'h1', enabled: true, target: 'request',
+          operation: 'set', name: headerName, value: '1',
+        }],
+      },
+    ],
+  };
+}
 
 function rule(id: number): DnrRule {
   return {
@@ -65,5 +89,61 @@ describe('syncRules', () => {
   it('propagates a failure instead of swallowing it — updates are transactional', async () => {
     vi.spyOn(dnr(), 'updateDynamicRules').mockRejectedValue(new Error('quota exceeded'));
     await expect(syncRules({ dynamic: [rule(1)], session: [] })).rejects.toThrow('quota exceeded');
+  });
+});
+
+describe('reconcile', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+    vi.spyOn(dnr(), 'getDynamicRules').mockResolvedValue([] as never);
+    vi.spyOn(dnr(), 'getSessionRules').mockResolvedValue([] as never);
+    vi.spyOn(dnr(), 'updateDynamicRules').mockResolvedValue(undefined);
+    vi.spyOn(dnr(), 'updateSessionRules').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not start a second pass while one is already running — a call rides the in-flight promise', async () => {
+    const stateA = appState('X-A');
+    const stateB = appState('X-B');
+    let calls = 0;
+    const getStateSpy = vi.spyOn(stateModule, 'getState').mockImplementation(async () => {
+      calls += 1;
+      return calls === 1 ? stateA : stateB;
+    });
+
+    const p1 = reconcile();
+    const p2 = reconcile();
+
+    // p2 arrived while p1 was still awaiting getState() — it must not have
+    // triggered its own, independent recompile.
+    expect(getStateSpy).toHaveBeenCalledTimes(1);
+
+    await Promise.all([p1, p2]);
+  });
+
+  it('settles both callers only once a trailing rerun applies the latest state', async () => {
+    const stateA = appState('X-A');
+    const stateB = appState('X-B');
+    let calls = 0;
+    vi.spyOn(stateModule, 'getState').mockImplementation(async () => {
+      calls += 1;
+      return calls === 1 ? stateA : stateB;
+    });
+
+    const p1 = reconcile();
+    const p2 = reconcile();
+    await Promise.all([p1, p2]);
+
+    // One pass for the call already running, one coalesced trailing pass for
+    // the overlapping call — not one independent pass per caller.
+    expect(dnr().updateDynamicRules).toHaveBeenCalledTimes(2);
+    // The final registered set reflects the latest state, not the one that
+    // happened to be read first.
+    expect(dnr().updateDynamicRules).toHaveBeenLastCalledWith(
+      expect.objectContaining({ addRules: compile(stateB).dynamic }),
+    );
   });
 });
