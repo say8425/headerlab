@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "",
+  "description": "Add, modify and remove HTTP request and response headers.",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
