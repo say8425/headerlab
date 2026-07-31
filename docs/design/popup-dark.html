@@ -1,0 +1,640 @@
+<div id="mock-grid" class="mockroot">
+<style>
+#mock-grid {
+  /* ---- palette: cool graphite, tuned to sit beside DevTools dark ---- */
+  --bg:      #0e1116;
+  --bar:     #141922;
+  --bar2:    #11151c;
+  --panel:   #10141a;
+  --row:     #0e1116;
+  --row-hi:  #151a22;
+  --line:    #1d232d;
+  --line2:   #272f3b;
+  --cell:    #171c24;      /* interior vertical / horizontal rules */
+  --txt:     #dde4ee;
+  --txt2:    #94a2b6;
+  --txt3:    #626e7f;
+
+  /* five hues, one meaning each */
+  --acc:     #7aa2f7;      /* focus / active cell */
+  --grn:     #62c98d;      /* applying */
+  --amb:     #e0af68;      /* tab lock */
+  --cyn:     #74cbf0;      /* needs host access */
+  --red:     #f2708b;      /* removal */
+
+  /* one column definition — header, group rows, data rows, sub-row, add-row */
+  --cols: 38px 64px 186px 1fr 26px;
+  /* one scrollbar width — body gutter and header padding read from it */
+  --sbw: 9px;
+
+  position: relative;
+  width: 560px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px #000, 0 18px 50px rgba(0,0,0,.55);
+}
+#mock-grid *, #mock-grid *::before, #mock-grid *::after { box-sizing: border-box; }
+#mock-grid button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: default; }
+#mock-grid svg { display: block; }
+#mock-grid .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace; }
+/* chrome is not selectable; data is */
+#mock-grid .topbar,
+#mock-grid .profbar,
+#mock-grid .filters,
+#mock-grid .ghead,
+#mock-grid .grp,
+#mock-grid .addrow,
+#mock-grid .foot { user-select: none; }
+
+/* =================== top bar (36px) =================== */
+#mock-grid .topbar {
+  height: 36px; flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 8px 0 10px;
+  background: var(--bar);
+  border-bottom: 1px solid var(--line);
+}
+#mock-grid .brand { display: flex; align-items: center; gap: 7px; }
+#mock-grid .brand .mark {
+  width: 16px; height: 16px; border-radius: 4px;
+  background: linear-gradient(180deg, #2b3a55, #1d2738);
+  border: 1px solid #35486b;
+  display: flex; align-items: center; justify-content: center;
+}
+#mock-grid .brand .name { font-size: 12px; letter-spacing: -.01em; color: #c8d3e2; font-weight: 500; }
+#mock-grid .brand .name b { color: #fff; font-weight: 650; }
+
+#mock-grid .top-right { display: flex; align-items: center; gap: 6px; }
+
+/* global pause — two-state segmented control */
+#mock-grid .runstate {
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px; border-radius: 6px;
+  background: #0d1117; border: 1px solid var(--line2);
+}
+#mock-grid .runstate .seg {
+  display: flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 8px; border-radius: 4px;
+  font-size: 10.5px; color: var(--txt3); letter-spacing: .01em;
+}
+#mock-grid .runstate .seg.on {
+  background: #1b2b22; color: #b9e6cc;
+  box-shadow: inset 0 0 0 1px rgba(98,201,141,.28);
+}
+#mock-grid .runstate .seg .pdot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--grn); box-shadow: 0 0 0 2px rgba(98,201,141,.16);
+}
+#mock-grid .iconbtn {
+  width: 24px; height: 24px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt2);
+}
+
+/* =================== profile bar (30px) =================== */
+#mock-grid .profbar {
+  height: 30px; flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 9px 0 6px;
+  background: var(--bar2);
+  border-bottom: 1px solid var(--line);
+}
+#mock-grid .profs { display: flex; align-items: center; gap: 2px; }
+#mock-grid .prof {
+  display: flex; align-items: center; gap: 6px;
+  height: 21px; padding: 0 9px; border-radius: 5px;
+  font-size: 11.5px; color: var(--txt2);
+  border: 1px solid transparent;
+}
+#mock-grid .prof.active {
+  background: #1a2130; border-color: #2d3a52; color: #eaf0f8; font-weight: 500;
+}
+/* profile dots are identity swatches, not status — only the active one is saturated */
+#mock-grid .prof .pdot2 { width: 6px; height: 6px; border-radius: 50%; flex: none; opacity: .45; }
+#mock-grid .prof.active .pdot2 { opacity: 1; box-shadow: 0 0 0 2.5px rgba(98,201,141,.16); }
+#mock-grid .pdot2.tone-green { background: var(--grn); }
+#mock-grid .pdot2.tone-amber { background: var(--amb); }
+#mock-grid .pdot2.tone-red   { background: var(--red); }
+#mock-grid .prof.add {
+  width: 21px; padding: 0; justify-content: center; color: var(--txt3);
+  margin-left: 2px;
+}
+#mock-grid .prof-meta {
+  font-size: 9.5px; color: var(--txt3); letter-spacing: .09em; text-transform: uppercase;
+}
+#mock-grid .prof-meta b { color: var(--txt2); font-weight: 600; }
+
+/* =================== filter block (61px) =================== */
+#mock-grid .filters {
+  flex: none; padding: 6px 9px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 5px;
+}
+#mock-grid .frow { display: flex; align-items: center; gap: 8px; height: 22px; }
+#mock-grid .flabel {
+  font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--txt3); flex: none; width: 44px;
+}
+#mock-grid .field {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 7px; min-width: 0;
+  background: #0b0e13; border: 1px solid var(--line2); border-radius: 5px;
+}
+#mock-grid .field .pat {
+  font-size: 11.5px; color: #cdd8e8; user-select: text;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#mock-grid .field .pat em { font-style: normal; color: var(--acc); }
+#mock-grid .field .edit { margin-left: auto; color: var(--txt3); flex: none; }
+
+#mock-grid .chips { display: flex; align-items: center; gap: 4px; }
+#mock-grid .chip {
+  height: 20px; padding: 0 7px; border-radius: 4px;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10.5px; color: var(--txt2);
+  border: 1px solid var(--line2); background: #0d1117;
+}
+#mock-grid .chip.sel {
+  color: #cfe0ff; background: rgba(122,162,247,.10); border-color: rgba(122,162,247,.28);
+}
+#mock-grid .chip.sel .tick { color: var(--acc); }
+#mock-grid .chip.ghost { color: var(--txt3); border-style: dashed; }
+#mock-grid .vsep { width: 1px; height: 15px; background: var(--line); margin: 0 3px; }
+
+#mock-grid .tablock { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
+#mock-grid .tablock .tab {
+  display: flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 7px 0 6px; border-radius: 4px;
+  background: rgba(224,175,104,.08); border: 1px solid rgba(224,175,104,.26);
+  color: #f0d5a8; font-size: 10.5px; max-width: 164px;
+}
+#mock-grid .tablock .tab .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* switch — the only control of its scale in the leftmost column */
+#mock-grid .sw {
+  width: 24px; height: 13px; border-radius: 7px; flex: none;
+  background: #232b37; border: 1px solid #2f3947; position: relative;
+}
+#mock-grid .sw i {
+  position: absolute; top: 1px; left: 1px;
+  width: 9px; height: 9px; border-radius: 50%; background: #6b7789;
+}
+#mock-grid .sw.on { background: rgba(98,201,141,.22); border-color: rgba(98,201,141,.5); }
+#mock-grid .sw.on i { left: auto; right: 1px; background: var(--grn); }
+#mock-grid .sw.amber { background: rgba(224,175,104,.2); border-color: rgba(224,175,104,.5); }
+#mock-grid .sw.amber i { left: auto; right: 1px; background: var(--amb); }
+
+/* =================== column header (24px) =================== */
+/* lives INSIDE the scroller and sticks — so it is laid out in the exact same
+   content box as every row, and the vertical rules register whether or not the
+   platform reserves a scrollbar gutter */
+#mock-grid .ghead {
+  position: sticky; top: 0; z-index: 2;
+  display: grid; grid-template-columns: var(--cols);
+  height: 24px; align-items: center;
+  background: #131820; border-bottom: 1px solid var(--line2);
+}
+#mock-grid .ghead .h {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: #7c889d; height: 100%; display: flex; align-items: center;
+  border-right: 1px solid var(--line);
+}
+#mock-grid .ghead .h:last-child { border-right: 0; }
+#mock-grid .h.h-on  { justify-content: center; }
+#mock-grid .h.h-op  { padding-left: 9px; }
+#mock-grid .h.h-name{ padding-left: 9px; }
+#mock-grid .h.h-val { padding-left: 9px; background: rgba(255,255,255,.02); }
+
+/* =================== grid body =================== */
+#mock-grid .gbody {
+  flex: 1 1 auto; overflow-y: scroll; overflow-x: hidden;
+  overscroll-behavior: contain;
+  background: var(--row);
+}
+#mock-grid .gbody::-webkit-scrollbar { width: var(--sbw); }
+#mock-grid .gbody::-webkit-scrollbar-track { background: transparent; }
+#mock-grid .gbody::-webkit-scrollbar-thumb { background: #29313d; border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+
+/* group divider row — same template, so the value tint runs unbroken */
+#mock-grid .grp {
+  display: grid; grid-template-columns: var(--cols);
+  height: 22px; align-items: center;
+  background: #12161d;
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+#mock-grid .grp:first-child { border-top: 0; }
+#mock-grid .grp .glabel {
+  grid-column: 1 / 4; padding-left: 10px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: #8794a8; font-weight: 600;
+}
+#mock-grid .grp .gcount {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9.5px; letter-spacing: 0; color: var(--txt3);
+  background: #1a2029; border: 1px solid var(--line2); border-radius: 3px;
+  padding: 0 4px; line-height: 14px;
+}
+#mock-grid .grp .gright {
+  grid-column: 4 / -1; padding-right: 10px; height: 100%;
+  display: flex; align-items: center; justify-content: flex-end; gap: 5px;
+  font-size: 9.5px; letter-spacing: .04em; color: var(--txt3);
+  background: rgba(255,255,255,.02);
+  border-left: 1px solid var(--line);
+}
+
+/* =================== data row =================== */
+#mock-grid .r {
+  display: grid; grid-template-columns: var(--cols);
+  min-height: 30px; align-items: stretch;
+  border-bottom: 1px solid var(--cell);
+}
+#mock-grid .r .c {
+  display: flex; align-items: center;
+  border-right: 1px solid var(--cell);
+  min-width: 0;
+}
+#mock-grid .r .c:last-child { border-right: 0; }
+#mock-grid .c-on  { justify-content: center; }
+#mock-grid .c-op  { padding-left: 9px; }
+#mock-grid .c-name{ padding-left: 9px; }
+#mock-grid .c-val { padding: 6px 8px 6px 9px; background: rgba(255,255,255,.02); gap: 6px; }
+#mock-grid .c-act { justify-content: center; }
+
+#mock-grid .r.hov { background: var(--row-hi); }
+#mock-grid .r.hov .c-val { background: rgba(255,255,255,.035); }
+#mock-grid .r.off .c-op, #mock-grid .r.off .c-name, #mock-grid .r.off .c-val { opacity: .5; }
+
+/* op column — minimum ink on the common case, colour only on removal */
+#mock-grid .op {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10.5px; letter-spacing: -.01em; color: #8b98ad;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+/* fixed-width marker slot: every op WORD starts at the same x, and `set` — the
+   common case — spends no ink at all */
+#mock-grid .op .sig {
+  display: inline-block; flex: none; width: 8px; text-align: center;
+  color: var(--txt3); font-size: 10.5px;
+}
+#mock-grid .op-del { color: #e8899e; }
+#mock-grid .op-del .sig { color: var(--red); }
+
+/* name + value */
+#mock-grid .nm {
+  font-size: 11.5px; color: #dbe3ef; letter-spacing: -.005em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: text;
+}
+/* values wrap to two lines AT REST — the long one is legible with no interaction */
+#mock-grid .vl {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px; line-height: 15px; color: #b9c7dc; letter-spacing: -.01em;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; word-break: break-all;
+  flex: 1 1 auto; min-width: 0;
+  user-select: text;
+}
+#mock-grid .vl.empty { color: #4f5a6b; word-break: normal; }
+#mock-grid .vl .unit { color: #4f5a6b; }
+#mock-grid .vacts { display: flex; align-items: center; gap: 2px; flex: none; align-self: flex-start; }
+#mock-grid .vbtn {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  color: #7d8ba0; background: #1b222c; border: 1px solid #2a3340;
+}
+#mock-grid .vbtn.edit { color: #9fbcf5; border-color: rgba(122,162,247,.3); background: rgba(122,162,247,.10); }
+#mock-grid .rowmenu { color: #5d6a7d; }
+
+/* expanded cell — READ first: full value, height-capped, copy + explicit edit */
+#mock-grid .r.expanded .c-val { padding: 4px 6px 4px 7px; align-items: stretch; }
+#mock-grid .r.expanded .c { align-items: flex-start; }
+#mock-grid .r.expanded .c-on,
+#mock-grid .r.expanded .c-op,
+#mock-grid .r.expanded .c-name,
+#mock-grid .r.expanded .c-act { padding-top: 8px; }
+#mock-grid .r.expanded .c-op { padding-left: 9px; }
+#mock-grid .r.expanded .c-name { padding-left: 9px; }
+#mock-grid .cellpanel {
+  flex: 1 1 auto; min-width: 0;
+  background: #080b0f; border: 1px solid var(--acc);
+  box-shadow: 0 0 0 2px rgba(122,162,247,.14);
+  border-radius: 4px; padding: 3px 6px;
+  display: flex; flex-direction: column;
+}
+#mock-grid .cellpanel .ptxt {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px; line-height: 14px; color: #e7eefb; letter-spacing: -.01em;
+  word-break: break-all; user-select: text;
+  max-height: 56px; overflow-y: auto;      /* a 2KB paste cannot grow the row */
+}
+#mock-grid .cellpanel .pmeta {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 2px; height: 14px;
+  font-size: 9.5px; color: #626e7f; letter-spacing: .04em;
+}
+#mock-grid .cellpanel .pacts { display: flex; align-items: center; gap: 4px; }
+#mock-grid .pbtn {
+  display: flex; align-items: center; gap: 3px;
+  height: 15px; padding: 0 5px; border-radius: 3px;
+  font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: #94a2b6; border: 1px solid #232b36;
+}
+#mock-grid .pbtn.primary { color: #b9d0fb; border-color: rgba(122,162,247,.34); background: rgba(122,162,247,.12); }
+
+/* =================== permission state =================== */
+#mock-grid .r.pend { background: rgba(116,203,240,.055); border-bottom: 0; box-shadow: inset 2px 0 0 rgba(116,203,240,.55); }
+#mock-grid .r.pend .c-val { background: rgba(116,203,240,.05); }
+#mock-grid .subrow {
+  display: grid; grid-template-columns: var(--cols);
+  background: rgba(116,203,240,.055);
+  border-bottom: 1px solid var(--cell);
+  box-shadow: inset 2px 0 0 rgba(116,203,240,.55);
+}
+#mock-grid .subrow .sub {
+  grid-column: 3 / -1;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 9px 5px 9px;
+  font-size: 10.5px; color: #9db3c2;
+}
+#mock-grid .subrow .sub .key { color: var(--cyn); flex: none; }
+#mock-grid .subrow .sub code {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10.5px; color: #bfe3f5; user-select: text;
+  background: rgba(116,203,240,.09); border: 1px solid rgba(116,203,240,.2);
+  border-radius: 3px; padding: 0 4px;
+}
+#mock-grid .grant {
+  margin-left: auto; flex: none;
+  height: 18px; padding: 0 9px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 600; color: #0c1620;
+  background: var(--cyn); letter-spacing: .01em;
+}
+
+/* =================== add row =================== */
+#mock-grid .addrow {
+  display: grid; grid-template-columns: var(--cols);
+  height: 26px; align-items: center;
+  border-bottom: 1px solid var(--cell);
+}
+#mock-grid .addrow .ghosttext {
+  grid-column: 3 / -1; padding-left: 9px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: #5f6b7c;
+}
+#mock-grid .kbd {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace; font-size: 9.5px;
+  border: 1px solid #232b36; border-radius: 3px; padding: 0 3px; color: #55606f;
+  margin-left: 2px;
+}
+
+/* =================== footer (26px) =================== */
+#mock-grid .foot {
+  height: 26px; flex: none;
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 10px;
+  background: var(--bar);
+  border-top: 1px solid var(--line);
+  font-size: 10.5px; color: var(--txt2);
+}
+#mock-grid .foot .fdot { width: 6px; height: 6px; border-radius: 50%; background: var(--grn); box-shadow: 0 0 0 2.5px rgba(98,201,141,.15); }
+#mock-grid .foot b { color: #e6ecf6; font-weight: 600; }
+#mock-grid .foot .sep { color: #333c49; }
+#mock-grid .foot .pendtag { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--cyn); }
+</style>
+
+  <!-- ============ top bar ============ -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">
+        <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+          <rect x=".5" y=".5" width="9" height="9" rx="1.5" stroke="#8fb3f5"/>
+          <path d="M.5 3.7h9M4 3.7V9.5" stroke="#8fb3f5"/>
+        </svg>
+      </span>
+      <span class="name">Header<b>Lab</b></span>
+    </div>
+    <div class="top-right">
+      <div class="runstate">
+        <span class="seg on"><span class="pdot"></span>Running</span>
+        <span class="seg">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0.5" width="2" height="7" rx=".6"/><rect x="5" y="0.5" width="2" height="7" rx=".6"/></svg>
+          Pause all
+        </span>
+      </div>
+      <button class="iconbtn" aria-label="Export, import, settings" title="Export · Import · Settings">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="3" cy="7" r="1.15"/><circle cx="7" cy="7" r="1.15"/><circle cx="11" cy="7" r="1.15"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ profiles ============ -->
+  <div class="profbar">
+    <div class="profs">
+      <span class="prof active"><span class="pdot2 tone-green"></span>Local</span>
+      <span class="prof"><span class="pdot2 tone-amber"></span>Staging</span>
+      <span class="prof"><span class="pdot2 tone-red"></span>Prod debug</span>
+      <button class="prof add" aria-label="New profile">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M5 1.6v6.8M1.6 5h6.8"/></svg>
+      </button>
+    </div>
+    <span class="prof-meta"><b>8</b> rules</span>
+  </div>
+
+  <!-- ============ filters ============ -->
+  <div class="filters">
+    <div class="frow">
+      <span class="flabel">Match</span>
+      <div class="field">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#5f6b7c" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M1.5 6h9M6 1.5c1.6 1.6 1.6 7.4 0 9M6 1.5c-1.6 1.6-1.6 7.4 0 9"/></svg>
+        <span class="pat mono"><em>*</em>://<em>*</em>.api.example.com/<em>*</em></span>
+        <span class="edit">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"><path d="M8.3 1.7l2 2-6 6-2.6.6.6-2.6 6-6z"/></svg>
+        </span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="flabel">Types</span>
+      <div class="chips">
+        <span class="chip sel"><span class="tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.2 4.2l1.9 1.9L6.8 2"/></svg></span>XHR</span>
+        <span class="chip sel"><span class="tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.2 4.2l1.9 1.9L6.8 2"/></svg></span>Fetch</span>
+        <span class="chip sel"><span class="tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.2 4.2l1.9 1.9L6.8 2"/></svg></span>Document</span>
+        <span class="chip ghost">+5</span>
+      </div>
+      <div class="vsep"></div>
+      <div class="tablock">
+        <span class="flabel" style="width:auto">Tab lock</span>
+        <span class="sw amber"><i></i></span>
+        <span class="tab">
+          <svg width="9" height="10" viewBox="0 0 10 11" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.1" y="4.4" width="7.8" height="6" rx="1.4"/><path d="M3 4.4V3a2 2 0 014 0v1.4"/></svg>
+          <span class="ttl">Checkout — staging</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ grid ============ -->
+  <div class="gbody">
+
+    <!-- column header: same template, same box as the rows -->
+    <div class="ghead">
+      <span class="h h-on">On</span>
+      <span class="h h-op">Op</span>
+      <span class="h h-name">Header name</span>
+      <span class="h h-val">Value</span>
+      <span class="h h-act"></span>
+    </div>
+
+    <div class="grp">
+      <span class="glabel">Request headers <span class="gcount mono">5</span></span>
+      <span class="gright">3 of 5 applying</span>
+    </div>
+
+    <!-- long value: fully legible at rest, wrapped to two lines, no state needed -->
+    <div class="r">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">Authorization</span></span>
+      <span class="c c-val"><span class="vl">Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0</span></span>
+      <span class="c c-act"></span>
+    </div>
+
+    <!-- hovered row: copy + explicit edit affordance appear in the value cell -->
+    <div class="r hov">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">X-Debug-Mode</span></span>
+      <span class="c c-val">
+        <span class="vl">true</span>
+        <span class="vacts">
+          <span class="vbtn" title="Copy value"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="3.7" y="3.7" width="6.3" height="6.3" rx="1.2"/><path d="M8 2.2H2.9a.7.7 0 00-.7.7v5.2" stroke-linecap="round"/></svg></span>
+          <span class="vbtn edit" title="Edit value"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"><path d="M8.3 1.7l2 2-6 6-2.6.6.6-2.6 6-6z"/></svg></span>
+        </span>
+      </span>
+      <span class="c c-act">
+        <span class="rowmenu"><svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><circle cx="7" cy="2.6" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="7" cy="11.4" r="1.1"/></svg></span>
+      </span>
+    </div>
+
+    <!-- permission required — informative sub-line hanging off the row -->
+    <div class="r pend">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">X-Tenant-Id</span></span>
+      <span class="c c-val"><span class="vl">musinsa-dev</span></span>
+      <span class="c c-act"></span>
+    </div>
+    <div class="subrow">
+      <span class="sub">
+        <span class="key">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="3.9" cy="8.1" r="2.4"/><path d="M5.7 6.3l4.4-4.4M8.4 3.6l1 1M7.2 4.8l1 1" stroke-linecap="round"/></svg>
+        </span>
+        <span>Row filter <code>*://*.internal.corp/*</code> — host access not granted yet</span>
+        <button class="grant">Grant</button>
+      </span>
+    </div>
+
+    <div class="r off">
+      <span class="c c-on"><span class="sw"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig">+</span>append</span></span>
+      <span class="c c-name"><span class="nm">User-Agent</span></span>
+      <span class="c c-val"><span class="vl">HeaderLab/1.0</span></span>
+      <span class="c c-act"></span>
+    </div>
+
+    <div class="r">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op op-del"><span class="sig">−</span>remove</span></span>
+      <span class="c c-name"><span class="nm">If-None-Match</span></span>
+      <span class="c c-val"><span class="vl empty">— <span class="unit">no value</span></span></span>
+      <span class="c c-act"></span>
+    </div>
+
+    <div class="addrow">
+      <span class="ghosttext">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M5 1.6v6.8M1.6 5h6.8"/></svg>
+        Add request header <span class="kbd">⌘↵</span>
+      </span>
+    </div>
+
+    <div class="grp">
+      <span class="glabel">Response headers <span class="gcount mono">3</span></span>
+      <span class="gright">3 of 3 applying</span>
+    </div>
+
+    <div class="r">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">Access-Control-Allow-Origin</span></span>
+      <span class="c c-val"><span class="vl">*</span></span>
+      <span class="c c-act"></span>
+    </div>
+
+    <div class="r">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">Cache-Control</span></span>
+      <span class="c c-val"><span class="vl">no-store</span></span>
+      <span class="c c-act"></span>
+    </div>
+
+    <!-- active cell expanded in place: read-only, height-capped, copy + explicit edit -->
+    <div class="r expanded">
+      <span class="c c-on"><span class="sw on"><i></i></span></span>
+      <span class="c c-op"><span class="op"><span class="sig"></span>set</span></span>
+      <span class="c c-name"><span class="nm">Access-Control-Allow-Headers</span></span>
+      <span class="c c-val">
+        <span class="cellpanel">
+          <span class="ptxt">authorization, x-tenant-id, x-debug-mode, x-request-id, traceparent</span>
+          <span class="pmeta">
+            <span>67 chars</span>
+            <span class="pacts">
+              <span class="pbtn">
+                <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="3.7" y="3.7" width="6.3" height="6.3" rx="1.2"/><path d="M8 2.2H2.9a.7.7 0 00-.7.7v5.2" stroke-linecap="round"/></svg>
+                Copy
+              </span>
+              <span class="pbtn primary">
+                <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"><path d="M8.3 1.7l2 2-6 6-2.6.6.6-2.6 6-6z"/></svg>
+                Edit
+              </span>
+            </span>
+          </span>
+        </span>
+      </span>
+      <span class="c c-act">
+        <span class="rowmenu"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 7.4L6 4l3.4 3.4"/></svg></span>
+      </span>
+    </div>
+
+    <div class="addrow">
+      <span class="ghosttext">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M5 1.6v6.8M1.6 5h6.8"/></svg>
+        Add response header
+      </span>
+    </div>
+
+  </div>
+
+  <!-- ============ status line ============ -->
+  <div class="foot">
+    <span class="fdot"></span>
+    <span><b>6</b> of 8 rules applying</span>
+    <span class="sep">·</span>
+    <span>1 off</span>
+    <span class="pendtag">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="3.9" cy="8.1" r="2.4"/><path d="M5.7 6.3l4.4-4.4M8.4 3.6l1 1M7.2 4.8l1 1" stroke-linecap="round"/></svg>
+      1 needs access
+    </span>
+  </div>
+</div>
