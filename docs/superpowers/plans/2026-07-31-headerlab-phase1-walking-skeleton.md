@@ -33,7 +33,7 @@ Every task's requirements implicitly include this section.
 
 ## Phase 1 scope
 
-**In:** project scaffold · data model + Zod schemas · header/name validation · filter→condition compilation · header→action compilation · rule ID and priority allocation · origin derivation · the `compile()` assembly · storage with migrations · `ruleSync` + `reconcile()` · a minimal functional popup · echo-server E2E proving a header changed.
+**In:** project scaffold · data model + Zod schemas · filter→condition compilation · header→action compilation · rule ID and priority allocation · origin derivation · the `compile()` assembly · storage with migrations · `ruleSync` + `reconcile()` · a minimal functional popup · echo-server E2E proving a header changed.
 
 **Out — deferred to Phase 2 and 3:** the eight diagnostic kinds and their UI · permission audit and grant flows · the full Data Grid UI and both themes · tab lock · `testMatchOutcome` integration tests · the `check-no-network.ts` CI guard · JSON export/import · global pause UI.
 
@@ -49,7 +49,6 @@ Phase 1 deliberately ships a *correct but small* feature surface. `compile()` is
 | `lib/model/types.ts` | All domain types and the DNR-shaped output types. No dependencies. |
 | `lib/model/schema.ts` | Zod schemas mirroring `types.ts`, for untrusted input |
 | `lib/model/defaults.ts` | Default `AppState` and profile factory |
-| `lib/compile/validate.ts` | Append allowlist, RFC header-name validity |
 | `lib/compile/conditions.ts` | `Filter` → `RuleCondition` |
 | `lib/compile/headers.ts` | `HeaderRule[]` → `ModifyHeaderInfo[]` pair |
 | `lib/compile/priority.ts` | Rule ID and priority allocation |
@@ -437,27 +436,47 @@ git commit -m "feat: 도메인 타입과 DNR 출력 형태 정의
 
 ---
 
-## Task 3: Header validation
+## Task 3: Header validation — MOVED TO PHASE 2
+
+**Do not implement this task. Skip to Task 4.**
+
+`lib/compile/validate.ts` (the 21-header append allowlist, `isValidHeaderName`, `canAppend`)
+has no caller in Phase 1: it is consumed by the `append-not-allowed` and
+`invalid-header-name` diagnostics and by the operation dropdown, all of which are Phase 2.
+Shipping it now would land uncalled code that a reviewer would correctly flag as a YAGNI
+violation.
+
+The allowlist is not at risk of being lost — it is recorded with its per-header join
+delimiters in [`docs/research/2026-07-31-technical-constraints.md`](../../research/2026-07-31-technical-constraints.md) §1.4,
+sourced from Chromium's `kDNRRequestHeaderAppendAllowList`.
+
+Task numbering is unchanged so that every cross-reference in this document stays valid.
+**Phase 1 has 13 executable tasks: 1, 2, and 4 through 14.**
+
+One thing Task 3 was carrying that Phase 1 still needs — the Vitest setup — moves into
+Task 4, which is the first task with a test.
+
+---
+
+## Task 4: Filter → RuleCondition
 
 **Files:**
-- Create: `lib/compile/validate.ts`
-- Create: `vitest.config.ts`
-- Test: `tests/unit/validate.test.ts`
+- Create: `lib/compile/conditions.ts`
+- Test: `tests/unit/conditions.test.ts`
 
 **Interfaces:**
-- Consumes: `HeaderTarget` from `lib/model/types.ts`
-- Produces:
-  - `APPEND_ALLOWED_REQUEST_HEADERS: ReadonlyMap<string, string>` — lowercase header name → join delimiter
-  - `isValidHeaderName(name: string): boolean`
-  - `canAppend(target: HeaderTarget, name: string): boolean`
+- Consumes: `Filter`, `DnrRuleCondition` from `lib/model/types.ts`
+- Produces: `filterToCondition(filter: Filter, tabId?: number | null): DnrRuleCondition`
 
-> **No Phase 1 caller.** These three are consumed by the `append-not-allowed` and
-> `invalid-header-name` diagnostics and by the operation dropdown, all of which land in
-> Phase 2. They are built now because the allowlist is the hardest fact in the plan to
-> get right from memory, and because Phase 2's UI work should not be blocked on
-> re-deriving it. Do not delete them as dead code.
+- [ ] **Step 1: Install and configure Vitest**
 
-- [ ] **Step 1: Write `vitest.config.ts`**
+This is the first task with a test, so the runner is set up here.
+
+```bash
+npm i -D vitest@4.1.10 @vitest/coverage-v8@4.1.10 @webext-core/fake-browser@2.0.1
+```
+
+`vitest.config.ts`:
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -472,161 +491,15 @@ export default defineConfig({
 });
 ```
 
-Install the runner:
+The `WxtVitest` plugin supplies WXT's path aliases (so `@/...` resolves in tests) and
+swaps `wxt/browser` for the fake browser.
 
-```bash
-npm i -D vitest@4.1.10 @vitest/coverage-v8@4.1.10 @webext-core/fake-browser@2.0.1
-```
+Add to `package.json` scripts: `"test": "vitest run"` and `"test:watch": "vitest"`.
 
-Add to `package.json` scripts: `"test": "vitest run"`, `"test:watch": "vitest"`.
+Run: `npx vitest run --passWithNoTests`
+Expected: exits 0.
 
 - [ ] **Step 2: Write the failing test**
-
-`tests/unit/validate.test.ts`:
-
-```ts
-import { describe, expect, it } from 'vitest';
-import {
-  APPEND_ALLOWED_REQUEST_HEADERS,
-  canAppend,
-  isValidHeaderName,
-} from '@/lib/compile/validate';
-
-describe('isValidHeaderName', () => {
-  it.each(['Authorization', 'x-debug-mode', 'X-Tenant-Id', 'If-None-Match', "a'b~c"])(
-    'accepts the RFC token %s',
-    (name) => {
-      expect(isValidHeaderName(name)).toBe(true);
-    },
-  );
-
-  it.each(['', 'has space', 'colon:name', 'paren(s)', 'brack[et]', 'quote"d', 'tab\there'])(
-    'rejects %j',
-    (name) => {
-      expect(isValidHeaderName(name)).toBe(false);
-    },
-  );
-});
-
-describe('APPEND_ALLOWED_REQUEST_HEADERS', () => {
-  it('contains exactly the 21 headers Chromium allows appending', () => {
-    expect(APPEND_ALLOWED_REQUEST_HEADERS.size).toBe(21);
-  });
-
-  it('carries the per-header join delimiters', () => {
-    expect(APPEND_ALLOWED_REQUEST_HEADERS.get('cookie')).toBe('; ');
-    expect(APPEND_ALLOWED_REQUEST_HEADERS.get('user-agent')).toBe(' ');
-    expect(APPEND_ALLOWED_REQUEST_HEADERS.get('trailer')).toBe('');
-    expect(APPEND_ALLOWED_REQUEST_HEADERS.get('accept')).toBe(', ');
-  });
-});
-
-describe('canAppend', () => {
-  it('allows an allowlisted request header regardless of case', () => {
-    expect(canAppend('request', 'User-Agent')).toBe(true);
-    expect(canAppend('request', 'user-agent')).toBe(true);
-  });
-
-  it('rejects a custom request header', () => {
-    expect(canAppend('request', 'x-headerlab-token')).toBe(false);
-  });
-
-  it('allows any valid response header — response has no allowlist', () => {
-    expect(canAppend('response', 'x-anything-at-all')).toBe(true);
-    expect(canAppend('response', 'set-cookie')).toBe(true);
-  });
-
-  it('rejects a syntactically invalid name on either target', () => {
-    expect(canAppend('request', 'bad name')).toBe(false);
-    expect(canAppend('response', 'bad name')).toBe(false);
-  });
-});
-```
-
-- [ ] **Step 3: Run the test to verify it fails**
-
-Run: `npx vitest run tests/unit/validate.test.ts`
-Expected: FAIL — cannot resolve `@/lib/compile/validate`.
-
-- [ ] **Step 4: Write `lib/compile/validate.ts`**
-
-The allowlist is Chromium's `kDNRRequestHeaderAppendAllowList`. Appending a request header outside it fails at **rule registration time** with an error the user never sees, which is why the UI must block it at input.
-
-```ts
-import type { HeaderTarget } from '@/lib/model/types';
-
-/**
- * Request headers that support the `append` operation, mapped to the delimiter
- * Chromium joins values with. Source: kDNRRequestHeaderAppendAllowList.
- * Response headers have no allowlist — append is permitted on any valid name.
- */
-export const APPEND_ALLOWED_REQUEST_HEADERS: ReadonlyMap<string, string> = new Map([
-  ['accept', ', '],
-  ['accept-encoding', ', '],
-  ['accept-language', ', '],
-  ['access-control-request-headers', ', '],
-  ['cache-control', ', '],
-  ['connection', ', '],
-  ['content-language', ', '],
-  ['cookie', '; '],
-  ['forwarded', ', '],
-  ['if-match', ', '],
-  ['if-none-match', ', '],
-  ['keep-alive', ', '],
-  ['range', ', '],
-  ['te', ', '],
-  ['trailer', ''],
-  ['transfer-encoding', ', '],
-  ['upgrade', ', '],
-  ['user-agent', ' '],
-  ['via', ', '],
-  ['want-digest', ', '],
-  ['x-forwarded-for', ', '],
-]);
-
-/** RFC 7230 token: one or more of the allowed separator-free characters. */
-const HEADER_NAME_RE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-
-export function isValidHeaderName(name: string): boolean {
-  return HEADER_NAME_RE.test(name);
-}
-
-export function canAppend(target: HeaderTarget, name: string): boolean {
-  if (!isValidHeaderName(name)) return false;
-  if (target === 'response') return true;
-  return APPEND_ALLOWED_REQUEST_HEADERS.has(name.toLowerCase());
-}
-```
-
-- [ ] **Step 5: Run the test to verify it passes**
-
-Run: `npx vitest run tests/unit/validate.test.ts`
-Expected: PASS — 4 describe blocks, all assertions green.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add vitest.config.ts lib/compile/validate.ts tests/unit/validate.test.ts package.json
-git commit -m "feat: 헤더명 검증과 append 허용목록
-
-요청 헤더 21개만 append 가능하고 응답 헤더는 제한 없음.
-목록 밖 append 는 룰 등록 시점에 실패하고 에러가 사용자에게 도달하지 않으므로
-입력 단계에서 막아야 함."
-```
-
----
-
-## Task 4: Filter → RuleCondition
-
-**Files:**
-- Create: `lib/compile/conditions.ts`
-- Test: `tests/unit/conditions.test.ts`
-
-**Interfaces:**
-- Consumes: `Filter`, `DnrRuleCondition` from `lib/model/types.ts`
-- Produces: `filterToCondition(filter: Filter, tabId?: number | null): DnrRuleCondition`
-
-- [ ] **Step 1: Write the failing test**
 
 `urlFilter` substring-matches the entire serialized URL, not the path — so a bare `/v2/` would also match `?q=/v2/`. The compiler anchors it against the domain instead. `||` is the domain-name anchor and `^` is the separator character.
 
@@ -734,12 +607,12 @@ describe('filterToCondition — shared', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run tests/unit/conditions.test.ts`
 Expected: FAIL — cannot resolve `@/lib/compile/conditions`.
 
-- [ ] **Step 3: Write `lib/compile/conditions.ts`**
+- [ ] **Step 4: Write `lib/compile/conditions.ts`**
 
 ```ts
 import type { DnrRuleCondition, Filter } from '@/lib/model/types';
@@ -802,12 +675,12 @@ export function filterToCondition(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run tests/unit/conditions.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add lib/compile/conditions.ts tests/unit/conditions.test.ts
@@ -1580,7 +1453,7 @@ describe('the pure layer stays pure', () => {
 - [ ] **Step 2: Run the test to verify it passes**
 
 Run: `npx vitest run tests/unit/purity.test.ts`
-Expected: PASS — 6 files checked.
+Expected: PASS — 5 files checked (4 in lib/compile, plus origins.ts).
 
 - [ ] **Step 3: Verify the guard actually catches a violation**
 
@@ -1961,7 +1834,15 @@ async function replace(
   const dnr = browser.declarativeNetRequest;
   const existing =
     scope === 'dynamic' ? await dnr.getDynamicRules() : await dnr.getSessionRules();
-  const update = { removeRuleIds: existing.map((r) => r.id), addRules: rules as never };
+
+  // Our DnrRule is structurally identical to Chrome's Rule but nominally
+  // separate, so lib/compile/ can stay free of browser types (see Task 2).
+  // This boundary is the one place the two meet, and the one place the cast
+  // belongs.
+  const update = {
+    removeRuleIds: existing.map((r) => r.id),
+    addRules: rules as unknown as chrome.declarativeNetRequest.Rule[],
+  };
 
   if (scope === 'dynamic') {
     await dnr.updateDynamicRules(update);
@@ -2604,6 +2485,7 @@ git commit -m "docs: Phase 1 README 및 마무리
 
 For sequencing context only. Each becomes its own plan.
 
-**Phase 2 — the product.** The eight diagnostic kinds and their inline UI treatment · the permission audit (§5.4 candidate-order rule) and grant flows · the full Data Grid popup in both themes, built from `docs/design/popup-dark.html` and `popup-light.html` · tab lock including session-rule rebuild on worker startup · global pause · JSON export/import.
+**Phase 2 — the product.** `lib/compile/validate.ts` (the 21-header append allowlist and
+header-name validity) together with its callers · the eight diagnostic kinds and their inline UI treatment · the permission audit (§5.4 candidate-order rule) and grant flows · the full Data Grid popup in both themes, built from `docs/design/popup-dark.html` and `popup-light.html` · tab lock including session-rule rebuild on worker startup · global pause · JSON export/import.
 
 **Phase 3 — hardening.** `testMatchOutcome` integration tests covering the URL-pattern × resource-type × initiator × method matrix · the `check-no-network.ts` CI guard · resolution of the two open questions in spec §11.7 and §11.8 · an Edge run of the E2E suite.
