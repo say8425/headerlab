@@ -766,6 +766,20 @@ describe('compileHeaders', () => {
     expect(compileHeaders([rule({ enabled: false })])).toEqual({});
   });
 
+  it('skips a rule whose name is blank — the UI creates this on every new row', () => {
+    expect(compileHeaders([rule({ name: '' })])).toEqual({});
+    expect(compileHeaders([rule({ name: '   ' })])).toEqual({});
+  });
+
+  it('does not let one blank row suppress the rules around it', () => {
+    const out = compileHeaders([
+      rule({ id: 'a', name: 'Authorization', value: 'Bearer x' }),
+      rule({ id: 'b', name: '' }),
+      rule({ id: 'c', name: 'X-Tenant-Id', value: 'dev' }),
+    ]);
+    expect(out.requestHeaders!.map((h) => h.header)).toEqual(['Authorization', 'X-Tenant-Id']);
+  });
+
   it('separates request and response targets', () => {
     const out = compileHeaders([
       rule({ id: 'a', target: 'request', name: 'Authorization', value: 'Bearer x' }),
@@ -826,6 +840,12 @@ export function compileHeaders(headers: HeaderRule[]): {
 
   for (const rule of headers) {
     if (!rule.enabled) continue;
+    // A blank name would produce a rule Chrome's validator rejects, and updates are
+    // transactional — one blank row would stop every other rule from applying. The UI
+    // creates exactly this state: a new header row starts with an empty name and is
+    // persisted before the user types. Full RFC-token validation is Phase 2; declining
+    // to emit an unusable rule is this layer's job now.
+    if (rule.name.trim() === '') continue;
     const target = rule.target === 'request' ? requestHeaders : responseHeaders;
     target.push(toModifyHeaderInfo(rule));
   }
