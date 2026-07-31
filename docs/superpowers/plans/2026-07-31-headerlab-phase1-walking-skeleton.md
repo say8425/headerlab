@@ -6,7 +6,7 @@
 
 **Architecture:** All correctness lives in a pure function layer (`lib/compile/`, `lib/permissions/origins.ts`) that never imports `chrome.*` and is unit-tested without a browser. A single thin adapter (`lib/sync/ruleSync.ts`) is the only file that calls `chrome.declarativeNetRequest`. A single `reconcile()` entry point in the background service worker recompiles from storage and replaces all rules atomically. This shape is forced by a hard constraint: `@webext-core/fake-browser` does not implement `declarativeNetRequest` — every method throws `MockNotImplementedError` — so browser-imitation testing is unavailable, and the response is to make the browser irrelevant to the logic.
 
-**Tech Stack:** WXT 0.21.2 · React 19.2.8 · TypeScript 7.0.2 · Vite 8.2.0 · Tailwind CSS 4.3.3 · shadcn/ui 4.16.0 (Radix base) · Zod 4.4.3 · Vitest 4.1.10 · Playwright 1.62.1
+**Tech Stack:** WXT 0.21.1 · React 19.2.8 · TypeScript 7.0.2 · Vite 8.1.5 · Tailwind CSS 4.3.3 · shadcn/ui 4.16.0 (Radix base) · Zod 4.4.3 · Vitest 4.1.10 · Playwright 1.62.0
 
 **Spec:** [`docs/superpowers/specs/2026-07-31-headerlab-design.md`](../specs/2026-07-31-headerlab-design.md)
 **Technical constraints:** [`docs/research/2026-07-31-technical-constraints.md`](../../research/2026-07-31-technical-constraints.md)
@@ -16,11 +16,25 @@
 Every task's requirements implicitly include this section.
 
 - **Target browsers:** Chrome and Edge only. Edge reuses the Chrome ZIP; no separate build.
-- **Dependency versions** (verified latest on 2026-07-31; do not downgrade):
-  `wxt@0.21.2` · `@wxt-dev/module-react@1.2.2` · `react@19.2.8` · `react-dom@19.2.8` ·
-  `typescript@7.0.2` · `vite@8.2.0` · `tailwindcss@4.3.3` · `@tailwindcss/vite@4.3.3` ·
-  `shadcn@4.16.0` · `vitest@4.1.10` · `@playwright/test@1.62.1` ·
-  `@webext-core/fake-browser@2.0.1` · `zod@4.4.3`
+- **Dependency versions** — pin these exactly; do not float or downgrade below them:
+  `wxt@0.21.1` · `@wxt-dev/module-react@1.2.2` · `react@19.2.8` · `react-dom@19.2.8` ·
+  `typescript@7.0.2` · `tailwindcss@4.3.3` · `@tailwindcss/vite@4.3.3` ·
+  `shadcn@4.16.0` · `vitest@4.1.10` · `@playwright/test@1.62.0` ·
+  `@webext-core/fake-browser@2.0.1` · `zod@4.4.3` · `@types/react@19.2.17` ·
+  `@types/react-dom@19.2.3` · `@types/chrome@0.2.2`
+
+  These are the newest versions installable here, not the newest that exist. The npm
+  registry in use (`nexus.mng.musinsa.io`) enforces a rolling 72-hour publish-date
+  quarantine — a supply-chain defence — so anything published in the last three days
+  resolves to `ETARGET`. Five pins were lowered by one patch for this reason on
+  2026-07-31: `wxt` 0.21.2→0.21.1, `@types/react` 19.2.18→19.2.17, `@types/react-dom`
+  19.2.4→19.2.3, `@playwright/test` 1.62.1→1.62.0, and `vite` 8.2.0→whatever WXT
+  resolves (it is no longer pinned directly; WXT brings its own).
+
+  Do not work around the quarantine — no project `.npmrc` overriding `before`, no
+  `--force`, no registry switch. If a pin fails to install, report it rather than
+  substituting a version yourself. `wxt@0.21.1` is in fact the version this project's
+  shadcn integration procedure was empirically verified against.
 - **TypeScript 7 is in use.** `baseUrl` in `tsconfig.json` is a hard error. Never add it.
 - **WXT storage import path** is `#imports` or `wxt/utils/storage`. **Never `wxt/storage`** — it does not compile on 0.21.x.
 - **Every WXT storage key carries an area prefix.** There is no default area. This project uses `local:` only.
@@ -80,8 +94,8 @@ Produces a building, loadable extension. The step order below is load-bearing �
 ```bash
 cd /Users/penguin/dev/headerlab
 npm init -y
-npm i -D wxt@0.21.2 @wxt-dev/module-react@1.2.2 typescript@7.0.2 \
-         @types/react@19.2.18 @types/react-dom@19.2.4 @types/chrome@0.2.2 \
+npm i -D wxt@0.21.1 @wxt-dev/module-react@1.2.2 typescript@7.0.2 \
+         @types/react@19.2.17 @types/react-dom@19.2.3 @types/chrome@0.2.2 \
          tailwindcss@4.3.3 @tailwindcss/vite@4.3.3
 npm i react@19.2.8 react-dom@19.2.8 zod@4.4.3
 ```
@@ -2115,7 +2129,7 @@ The only layer that proves the real thing. `getMatchedRules` and `testMatchOutco
 - [ ] **Step 1: Install Playwright**
 
 ```bash
-npm i -D @playwright/test@1.62.1
+npm i -D @playwright/test@1.62.0
 npx playwright install --with-deps --no-shell chromium
 ```
 
