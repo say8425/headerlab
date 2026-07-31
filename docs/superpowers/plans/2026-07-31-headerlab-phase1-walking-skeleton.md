@@ -1455,16 +1455,50 @@ const FORBIDDEN = [
   /from\s+['"]wxt\/utils\/storage['"]/,
 ];
 
+/**
+ * Removes block and line comments so the guard tests code rather than prose.
+ *
+ * Without this, a comment documenting the constraint — "imports nothing from
+ * chrome.*" — trips the guard it is describing. The comment is good; forbidding
+ * it would be wrong.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 describe('the pure layer stays pure', () => {
   it('finds the files it is supposed to guard', () => {
     expect(PURE_FILES.length).toBeGreaterThanOrEqual(5);
   });
 
   it.each(PURE_FILES)('%s has no browser dependency', (path) => {
-    const source = readFileSync(path, 'utf8');
+    const source = stripComments(readFileSync(path, 'utf8'));
     for (const pattern of FORBIDDEN) {
       expect(source, `${path} matched ${pattern}`).not.toMatch(pattern);
     }
+  });
+});
+
+describe('the guard itself', () => {
+  it('ignores a browser name that appears only in a comment', () => {
+    const source = stripComments(`
+      /** Pure: imports nothing from chrome.*, performs no I/O. */
+      // also not a real use: chrome.runtime
+      export const x = 1;
+    `);
+    expect(source).not.toMatch(/\bchrome\s*\./);
+  });
+
+  it('still catches a real browser reference', () => {
+    const source = stripComments(`export const id = chrome.runtime.id;`);
+    expect(source).toMatch(/\bchrome\s*\./);
+  });
+
+  it('does not mistake a url inside a string for a line comment', () => {
+    const source = stripComments(`export const u = 'https://example.com/a';`);
+    expect(source).toContain('https://example.com/a');
   });
 });
 ```
@@ -1472,7 +1506,12 @@ describe('the pure layer stays pure', () => {
 - [ ] **Step 2: Run the test to verify it passes**
 
 Run: `npx vitest run tests/unit/purity.test.ts`
-Expected: PASS — 5 files checked (4 in lib/compile, plus origins.ts).
+Expected: PASS — 5 guarded files plus the three self-tests of the guard.
+
+If a guarded file fails on `/\bchrome\s*\./`, read the matched line before changing
+anything. `lib/compile/compile.ts` legitimately mentions `chrome.*` in its header comment;
+that is what `stripComments` exists for. A failure there means the stripper is broken, not
+that the file is impure.
 
 - [ ] **Step 3: Verify the guard actually catches a violation**
 
