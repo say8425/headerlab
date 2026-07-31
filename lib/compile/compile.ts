@@ -1,7 +1,7 @@
 import { compileHeaders } from '@/lib/compile/headers';
 import { filterToCondition } from '@/lib/compile/conditions';
 import { allocate } from '@/lib/compile/priority';
-import { originsForFilter } from '@/lib/permissions/origins';
+import { isValidDomain, originsForFilter } from '@/lib/permissions/origins';
 import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
 
 /**
@@ -34,6 +34,18 @@ export function compile(state: AppState): CompileResult {
 
       const action = compileHeaders(profile.headers);
       if (!action.requestHeaders && !action.responseHeaders) continue;
+
+      // A non-ASCII domain makes Chrome reject the whole updateDynamicRules
+      // batch, same as an unusable header name (see headers.ts) — but unlike
+      // headers, a domain cannot be dropped individually: filterToCondition
+      // only sets requestDomains when the list is non-empty, so skipping the
+      // profile's only domain would produce a rule with *no* domain
+      // condition, and DNR matches that against every site. A profile scoped
+      // to one host would silently start modifying headers everywhere — a
+      // privacy regression strictly worse than the transactional failure it
+      // would "fix". Failing the whole profile closed is the only safe
+      // option; other profiles are unaffected.
+      if (!profile.filter.domains.every(isValidDomain)) continue;
 
       const rule: DnrRule = {
         id: alloc.ruleId,

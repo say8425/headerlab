@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { filterToCondition } from '@/lib/compile/conditions';
+import { originsForFilter } from '@/lib/permissions/origins';
 import type { Filter } from '@/lib/model/types';
 
 const base: Filter = {
@@ -54,6 +55,30 @@ describe('filterToCondition — structured mode', () => {
   it('omits urlFilter when the path pattern is blank', () => {
     const f = { ...base, pathPattern: '   ' };
     expect(filterToCondition(f)).not.toHaveProperty('urlFilter');
+  });
+});
+
+describe('filterToCondition — domain normalization', () => {
+  it('normalizes a domain before emitting requestDomains', () => {
+    const f = { ...base, domains: ['API.Example.com'] };
+    expect(filterToCondition(f).requestDomains).toEqual(['api.example.com']);
+  });
+
+  it('produces the same condition for equivalent domain spellings', () => {
+    const upper = filterToCondition({ ...base, domains: ['API.Example.com'] });
+    const lower = filterToCondition({ ...base, domains: ['api.example.com'] });
+    expect(upper).toEqual(lower);
+  });
+
+  it('anchors the urlFilter using the normalized domain, not the raw casing', () => {
+    const f = { ...base, domains: ['API.Example.com'], pathPattern: '/v2/' };
+    expect(filterToCondition(f).urlFilter).toBe('||api.example.com^*/v2/');
+  });
+
+  it('derives requestDomains from the same normalized value the permission audit uses', () => {
+    const f = { ...base, domains: ['API.Example.com'] };
+    expect(filterToCondition(f).requestDomains).toEqual(['api.example.com']);
+    expect(originsForFilter(f)).toEqual(['*://*.api.example.com/*']);
   });
 });
 

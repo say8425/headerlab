@@ -81,6 +81,43 @@ describe('compile', () => {
     expect(compile(state({ profiles: [profile({ enabled: false })] })).dynamic).toHaveLength(0);
   });
 
+  it('suppresses a profile whose only domain is non-ASCII, rather than matching every site', () => {
+    const p = profile({
+      filter: {
+        mode: 'structured', domains: ['한국.com'],
+        excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      },
+    });
+    const out = compile(state({ profiles: [p] }));
+    expect(out.dynamic).toHaveLength(0);
+    expect(out.session).toHaveLength(0);
+  });
+
+  it('suppresses a profile when any one of several domains is invalid', () => {
+    const p = profile({
+      filter: {
+        mode: 'structured', domains: ['api.example.com', '한국.com'],
+        excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      },
+    });
+    const out = compile(state({ profiles: [p] }));
+    expect(out.dynamic).toHaveLength(0);
+  });
+
+  it('does not let one profile\'s invalid domain suppress the others', () => {
+    const bad = profile({
+      id: 'bad', order: 0,
+      filter: {
+        mode: 'structured', domains: ['한국.com'],
+        excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      },
+    });
+    const good = profile({ id: 'good', order: 1 });
+    const out = compile(state({ profiles: [bad, good] }));
+    expect(out.dynamic).toHaveLength(1);
+    expect(out.dynamic[0]!.condition.requestDomains).toEqual(['api.example.com']);
+  });
+
   it('emits no rules at all when globalPause is on', () => {
     const out = compile(state({ globalPause: true }));
     expect(out.dynamic).toHaveLength(0);

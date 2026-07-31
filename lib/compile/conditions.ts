@@ -1,4 +1,5 @@
 import type { DnrRuleCondition, Filter } from '@/lib/model/types';
+import { normalizeDomain } from '@/lib/permissions/origins';
 
 /**
  * Builds the urlFilter fragment for a path pattern.
@@ -26,12 +27,22 @@ export function filterToCondition(
   filter: Filter,
   tabId?: number | null,
 ): DnrRuleCondition {
+  // Normalized once here so requestDomains and the urlFilter anchor agree with
+  // each other and with the permission audit in lib/permissions/origins.ts —
+  // "API.Example.com" and "api.example.com" must compile to the same
+  // condition. Validity (an invalid domain must suppress the whole profile's
+  // rule, not just be dropped here) is decided by the caller — see
+  // lib/compile/compile.ts — because dropping just the bad domain would
+  // leave a rule with no domain condition, which DNR matches against every
+  // site.
+  const domains = filter.domains.map(normalizeDomain);
+
   const condition: DnrRuleCondition = {
     resourceTypes: [...filter.resourceTypes],
   };
 
-  if (filter.domains.length > 0) {
-    condition.requestDomains = [...filter.domains];
+  if (domains.length > 0) {
+    condition.requestDomains = domains;
   }
   if (filter.excludedDomains.length > 0) {
     condition.excludedRequestDomains = [...filter.excludedDomains];
@@ -42,7 +53,7 @@ export function filterToCondition(
     const regex = filter.regex?.trim();
     if (regex) condition.regexFilter = regex;
   } else if (filter.pathPattern) {
-    const urlFilter = buildUrlFilter(filter.pathPattern, filter.domains);
+    const urlFilter = buildUrlFilter(filter.pathPattern, domains);
     if (urlFilter) condition.urlFilter = urlFilter;
   }
 

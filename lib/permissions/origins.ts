@@ -1,11 +1,32 @@
 import type { Filter } from '@/lib/model/types';
 
-/** Normalizes a user-entered domain to a bare host. */
-function normalizeDomain(domain: string): string {
+/**
+ * Normalizes a user-entered domain to a bare host.
+ *
+ * Exported so lib/compile/conditions.ts can normalize the same way this
+ * module does — otherwise the same user string becomes a different value in
+ * the permission audit than in the compiled rule condition.
+ */
+export function normalizeDomain(domain: string): string {
   let d = domain.trim().toLowerCase();
   if (d.startsWith('*.')) d = d.slice(2);
   if (d.startsWith('.')) d = d.slice(1);
   return d;
+}
+
+const ASCII_ONLY = /^[\x00-\x7F]+$/;
+
+/**
+ * A domain is usable here if, after normalization, it is non-empty and
+ * ASCII-only — the exact boundary declarativeNetRequest enforces on a rule's
+ * requestDomains (a real Chrome probe found: "cannot have non-ascii
+ * characters as part of the requestDomains key"). Full hostname grammar is
+ * deliberately not checked: over-tightening would reject inputs Chrome
+ * accepts.
+ */
+export function isValidDomain(domain: string): boolean {
+  const d = normalizeDomain(domain);
+  return d.length > 0 && ASCII_ONLY.test(d);
 }
 
 /**
