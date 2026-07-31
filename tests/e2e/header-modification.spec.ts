@@ -116,13 +116,22 @@ test('a remove rule strips a header the page would otherwise send', async ({
   const page = await context.newPage();
   await page.goto(`${echo.origin}/host`);
   await page.evaluate(async (origin) => {
-    await fetch(`${origin}/xhr`, { headers: { 'X-Remove-Me': 'should-be-gone' } });
+    await fetch(`${origin}/xhr`, {
+      headers: {
+        'X-Remove-Me': 'should-be-gone',
+        // Positive control: the rule does not target this one. If custom headers
+        // stopped reaching the server at all, the absence assertion below would
+        // pass vacuously — this assertion is what makes that impossible.
+        'X-Keep-Me': 'should-survive',
+      },
+    });
   }, echo.origin);
 
   await expect.poll(() => echo.requests.some((r) => r.url === '/xhr')).toBe(true);
 
   const xhr = echo.requests.find((r) => r.url === '/xhr')!;
   expect(xhr.headers['x-remove-me']).toBeUndefined();
+  expect(xhr.headers['x-keep-me']).toBe('should-survive');
 
   await page.close();
 });
