@@ -43,6 +43,28 @@ describe('compileHeaders', () => {
     expect(compileHeaders([rule({ name: '   ' })])).toEqual({});
   });
 
+  it('emits a trailing-space name trimmed rather than dropping it', () => {
+    const out = compileHeaders([rule({ name: 'X-Test ' })]);
+    expect(out.requestHeaders).toEqual([{ header: 'X-Test', operation: 'set', value: 'true' }]);
+  });
+
+  it('emits a leading-space name trimmed the same way', () => {
+    const out = compileHeaders([rule({ name: ' X-Test' })]);
+    expect(out.requestHeaders!.map((h) => h.header)).toEqual(['X-Test']);
+  });
+
+  it('skips a name still invalid after trimming — inner whitespace', () => {
+    expect(compileHeaders([rule({ name: 'X Test' })])).toEqual({});
+  });
+
+  it('skips a name still invalid after trimming — a colon', () => {
+    expect(compileHeaders([rule({ name: 'X-Test:' })])).toEqual({});
+  });
+
+  it('skips a non-ASCII name — Chrome rejects it for the whole batch', () => {
+    expect(compileHeaders([rule({ name: '헤더' })])).toEqual({});
+  });
+
   it('does not let one blank row suppress the rules around it', () => {
     const out = compileHeaders([
       rule({ id: 'a', name: 'Authorization', value: 'Bearer x' }),
