@@ -494,7 +494,7 @@ npm i -D vitest@4.1.10 @vitest/coverage-v8@4.1.10 @webext-core/fake-browser@2.0.
 
 ```ts
 import { defineConfig } from 'vitest/config';
-import { WxtVitest } from 'wxt/testing';
+import { WxtVitest } from 'wxt/testing/vitest-plugin';
 
 export default defineConfig({
   plugins: [WxtVitest()],
@@ -507,6 +507,11 @@ export default defineConfig({
 
 The `WxtVitest` plugin supplies WXT's path aliases (so `@/...` resolves in tests) and
 swaps `wxt/browser` for the fake browser.
+
+The import path is `wxt/testing/vitest-plugin`, **not** `wxt/testing`. wxt@0.21.1 exports
+only `./testing/fake-browser` and `./testing/vitest-plugin`; the bare `wxt/testing` barrel
+does not exist and fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. Verified empirically on
+2026-07-31.
 
 Add to `package.json` scripts: `"test": "vitest run"` and `"test:watch": "vitest"`.
 
