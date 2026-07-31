@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 const MANIFEST_PATH = '.output/chrome-mv3/manifest.json';
 const hasManifest = existsSync(MANIFEST_PATH);
 
-describe('production manifest', () => {
+describe('production manifest (requires "npm run build" to have run)', () => {
   it.skipIf(!hasManifest)(
     'omits host_permissions — checked by key, not substring: "optional_host_permissions" contains that string',
     () => {
