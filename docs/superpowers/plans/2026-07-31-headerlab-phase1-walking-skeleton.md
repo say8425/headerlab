@@ -728,7 +728,7 @@ urlFilter 는 경로가 아니라 URL 전체 부분 문자열 매칭이므로 �
 ```ts
 import { describe, expect, it } from 'vitest';
 import { compileHeaders } from '@/lib/compile/headers';
-import type { HeaderRule } from '@/lib/model/types';
+import type { HeaderRule, Profile } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
   return {
@@ -2041,12 +2041,17 @@ export default function App() {
   const { state, update } = useAppState();
   if (!state) return <div className="w-[560px] p-4 text-sm">Loading…</div>;
 
+  // `noUncheckedIndexedAccess` is on, so this is `Profile | undefined`.
   const profile = state.profiles[0];
 
   const addProfile = () =>
     update((s) => ({ ...s, profiles: [createProfile('Local', 0)] }));
 
-  const patchProfile = (fn: (p: typeof profile) => typeof profile) =>
+  // Typed against `Profile`, not `typeof profile` — the latter would carry the
+  // `undefined` and make `map` produce `(Profile | undefined)[]`, which does not
+  // assign back to `profiles`. The `if (!profile)` guard below is too late to help:
+  // it narrows the render branch, not this closure.
+  const patchProfile = (fn: (p: Profile) => Profile) =>
     update((s) => ({ ...s, profiles: s.profiles.map((p, i) => (i === 0 ? fn(p) : p)) }));
 
   const addHeader = () =>
@@ -2231,11 +2236,15 @@ export async function startEchoServer(): Promise<EchoServer> {
 
 ```ts
 import path from 'node:path';
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { test as base, chromium, type BrowserContext, type Worker } from '@playwright/test';
 
 const EXTENSION_PATH = path.resolve('.output/chrome-mv3');
 
-export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
+export const test = base.extend<{
+  context: BrowserContext;
+  serviceWorker: Worker;
+  extensionId: string;
+}>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
@@ -2248,10 +2257,21 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
     await context.close();
   },
 
-  extensionId: async ({ context }, use) => {
+  // Exposed as a fixture so tests never re-derive it — `context.serviceWorkers()[0]`
+  // is `Worker | undefined` under `noUncheckedIndexedAccess`, and narrowing it once
+  // here beats a non-null assertion in every test.
+  serviceWorker: async ({ context }, use) => {
     let [worker] = context.serviceWorkers();
     if (!worker) worker = await context.waitForEvent('serviceworker');
-    await use(worker.url().split('/')[2]);
+    await use(worker);
+  },
+
+  extensionId: async ({ serviceWorker }, use) => {
+    const id = serviceWorker.url().split('/')[2];
+    if (!id) {
+      throw new Error(`could not derive extension id from ${serviceWorker.url()}`);
+    }
+    await use(id);
   },
 });
 
@@ -2292,8 +2312,8 @@ test.afterEach(async () => {
   await echo.close();
 });
 
-test('a configured set rule reaches the wire', async ({ context, extensionId }) => {
-  const [worker] = context.serviceWorkers();
+test('a configured set rule reaches the wire', async ({ context, serviceWorker }) => {
+  const worker = serviceWorker;
 
   await worker.evaluate(async (state) => {
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
@@ -2348,8 +2368,9 @@ test('a configured set rule reaches the wire', async ({ context, extensionId }) 
 
 test('a remove rule strips a header the page would otherwise send', async ({
   context,
+  serviceWorker,
 }) => {
-  const [worker] = context.serviceWorkers();
+  const worker = serviceWorker;
 
   await worker.evaluate(async (state) => {
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
