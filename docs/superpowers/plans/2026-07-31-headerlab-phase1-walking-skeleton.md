@@ -728,7 +728,7 @@ urlFilter 는 경로가 아니라 URL 전체 부분 문자열 매칭이므로 �
 ```ts
 import { describe, expect, it } from 'vitest';
 import { compileHeaders } from '@/lib/compile/headers';
-import type { HeaderRule, Profile } from '@/lib/model/types';
+import type { HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
   return {
@@ -2041,7 +2041,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { createProfile } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
-import type { HeaderRule } from '@/lib/model/types';
+import type { HeaderRule, Profile } from '@/lib/model/types';
 
 export default function App() {
   const { state, update } = useAppState();
