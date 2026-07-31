@@ -246,6 +246,35 @@ Edge 는 MV2/MV3 모두에서 DNR 과 `chrome.permissions` 를 지원한다고 �
 
 ---
 
+## 2.5 의존성 버전 (2026-07-31 npm 레지스트리 실측)
+
+전부 최근 며칠 내 릴리스된 최신 버전이다. §4.2 의 검증된 설치 절차가 곧 최신 스택 기준이다.
+
+| 패키지 | 버전 | 최종 수정 |
+|---|---|---|
+| `wxt` | 0.21.2 | 2026-07-31 |
+| `@wxt-dev/module-react` | 1.2.2 | 2026-07-31 |
+| `@wxt-dev/storage` | 1.2.8 | 2026-07-07 |
+| `react` / `react-dom` | 19.2.8 | 2026-07-31 |
+| `@types/react` | 19.2.18 | 2026-07-30 |
+| `@types/react-dom` | 19.2.4 | 2026-07-31 |
+| `typescript` | **7.0.2** | 2026-07-29 |
+| `vite` | 8.2.0 | 2026-07-31 |
+| `tailwindcss` / `@tailwindcss/vite` | 4.3.3 | 2026-07-29 |
+| `shadcn` (CLI) | 4.16.0 | 2026-07-28 |
+| `vitest` / `@vitest/coverage-v8` | 4.1.10 | 2026-07-25 |
+| `@playwright/test` | 1.62.1 | 2026-07-31 |
+| `@webext-core/fake-browser` | 2.0.1 | 2026-07-31 |
+| `zod` | 4.4.3 | 2026-07-21 |
+| `eslint` | 10.8.0 | 2026-07-25 |
+| `prettier` | 3.9.6 | 2026-07-21 |
+| `@types/chrome` | 0.2.2 | 2026-07-22 |
+
+**TypeScript 7 을 쓴다는 사실이 §4.1 함정 2 를 더 중요하게 만든다** — shadcn 의 Vite 설치
+안내가 시키는 `baseUrl: "."` 은 TS 7 에서 하드 에러이므로 그 경로는 애초에 막혀 있다.
+
+---
+
 ## 3. WXT
 
 - 현재 안정 버전 **0.21.2**. 스캐폴딩은 `npx wxt@latest init`, React+TS 템플릿 id 는 `react`.
@@ -336,6 +365,19 @@ shadcn 의 Vite 안내는 `baseUrl: "."` 를 시키는데 이는 TypeScript 7 �
 옵셔널 체이닝이나 덕 타이핑으로 우회할 수 없고, 명시적으로 spy 를 씌워야 한다.
 `fakeBrowser.reset()` 은 `resetState()` 를 가진 네임스페이스만 초기화하므로 손으로 만든
 DNR 목은 `vi.restoreAllMocks()` 로 따로 정리해야 한다.
+
+**최신 버전 2.0.1 에서 직접 확인함 (2026-07-31 실측):**
+
+```
+declarativeNetRequest present: true
+updateDynamicRules -> THROWS: MockNotImplementedError
+getDynamicRules    -> THROWS: MockNotImplementedError
+resetState() 를 가진 네임스페이스: action, alarms, notifications, runtime, storage, tabs, windows
+```
+
+네임스페이스와 상수(`MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES` 등)·enum 은 모두 노출되지만
+**모든 메서드가 던진다.** 상수와 enum 은 그대로 쓸 수 있다는 점은 유용하다 —
+컴파일러 테스트에서 쿼터 상수를 하드코딩하지 않아도 된다.
 
 > **설계 반영:** 이 제약이 아키텍처를 정한다. 룰 컴파일러는 `chrome.*` 를 전혀 만지지 않는
 > **순수 함수**여야 하고, 브라우저 없이 테스트되어야 한다. DNR 호출은 얇은 어댑터 하나로
