@@ -1872,7 +1872,7 @@ Expected: FAIL — cannot resolve `@/lib/sync/ruleSync`.
 - [ ] **Step 3: Write `lib/sync/ruleSync.ts`**
 
 ```ts
-import { browser } from 'wxt/browser';
+import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
 import { getState } from '@/lib/storage/state';
 import type { CompileResult, DnrRule } from '@/lib/model/types';
@@ -1893,13 +1893,19 @@ async function replace(
   const existing =
     scope === 'dynamic' ? await dnr.getDynamicRules() : await dnr.getSessionRules();
 
-  // Our DnrRule is structurally identical to Chrome's Rule but nominally
+  // Our DnrRule is structurally identical to the browser's Rule but nominally
   // separate, so lib/compile/ can stay free of browser types (see Task 2).
   // This boundary is the one place the two meet, and the one place the cast
   // belongs.
+  //
+  // The type comes from `wxt/browser`, not the `chrome` global: `@types/chrome`
+  // is installed but not in this project's type program (`.wxt/tsconfig.json`
+  // sets no `types` key), so `chrome.declarativeNetRequest.Rule` does not
+  // resolve — `tsc` reports TS2503. `Browser` is also the namespace of the API
+  // actually being called here, through WXT's `browser` object.
   const update = {
     removeRuleIds: existing.map((r) => r.id),
-    addRules: rules as unknown as chrome.declarativeNetRequest.Rule[],
+    addRules: rules as unknown as Browser.declarativeNetRequest.Rule[],
   };
 
   if (scope === 'dynamic') {
@@ -2301,6 +2307,18 @@ State is seeded directly into storage rather than driven through the popup, so t
 ```ts
 import { expect, test } from './fixtures';
 import { startEchoServer, type EchoServer } from './echo-server';
+
+/**
+ * `worker.evaluate()` callbacks run inside the extension's service worker, where
+ * `chrome` exists at runtime — but `@types/chrome` is not in this project's type
+ * program, so `tsc --noEmit` would report TS2503 without a declaration. Declaring
+ * only the surface these tests touch keeps the dependency explicit rather than
+ * reaching for `any`.
+ */
+declare const chrome: {
+  storage: { local: { set(items: Record<string, unknown>): Promise<void> } };
+  declarativeNetRequest: { getDynamicRules(): Promise<Array<{ id: number }>> };
+};
 
 let echo: EchoServer;
 
