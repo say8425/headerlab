@@ -124,7 +124,7 @@ describe('reconcile', () => {
     await Promise.all([p1, p2]);
   });
 
-  it('settles both callers only once a trailing rerun applies the latest state', async () => {
+  it('runs the two passes in sequence, not interleaved, and settles on the latest state', async () => {
     const stateA = appState('X-A');
     const stateB = appState('X-B');
     let calls = 0;
@@ -133,13 +133,25 @@ describe('reconcile', () => {
       return calls === 1 ? stateA : stateB;
     });
 
+    // A call count alone can't distinguish a serialized rerun from two
+    // independent reconciles that both happen to call updateDynamicRules
+    // twice — both produce the same count and the same final call. What
+    // only the latch produces is each pass reading before it writes, in
+    // full, before the next pass reads again.
+    const order: string[] = [];
+    vi.spyOn(dnr(), 'getDynamicRules').mockImplementation(async () => {
+      order.push('get');
+      return [] as never;
+    });
+    vi.spyOn(dnr(), 'updateDynamicRules').mockImplementation(async () => {
+      order.push('update');
+    });
+
     const p1 = reconcile();
     const p2 = reconcile();
     await Promise.all([p1, p2]);
 
-    // One pass for the call already running, one coalesced trailing pass for
-    // the overlapping call — not one independent pass per caller.
-    expect(dnr().updateDynamicRules).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(['get', 'update', 'get', 'update']);
     // The final registered set reflects the latest state, not the one that
     // happened to be read first.
     expect(dnr().updateDynamicRules).toHaveBeenLastCalledWith(
