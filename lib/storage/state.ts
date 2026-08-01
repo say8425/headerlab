@@ -1,5 +1,6 @@
 import { storage } from '#imports';
 import { DEFAULT_STATE, STATE_VERSION } from '@/lib/model/defaults';
+import { parseAppState } from '@/lib/model/schema';
 import type { AppState } from '@/lib/model/types';
 
 /**
@@ -16,7 +17,17 @@ export const stateItem = storage.defineItem<AppState>('local:state', {
 });
 
 export async function getState(): Promise<AppState> {
-  return stateItem.getValue();
+  const value = await stateItem.getValue();
+  try {
+    return parseAppState(value);
+  } catch (error) {
+    // Whatever sits at local:state is a trust boundary — a hand-edited or
+    // partially-migrated value must not flow into compile() unvalidated.
+    // Not silent: surfaced so a corrupted store is diagnosable, not just
+    // quietly reset.
+    console.error('[HeaderLab] stored state failed validation, falling back to defaults', error);
+    return DEFAULT_STATE;
+  }
 }
 
 export async function setState(next: AppState): Promise<void> {
