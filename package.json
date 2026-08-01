@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Add, modify and remove HTTP request and response headers.",
   "scripts": {
-    "test": "vitest run",
+    "test": "wxt build && vitest run",
     "test:watch": "vitest",
     "dev": "wxt",
     "build": "wxt build",
