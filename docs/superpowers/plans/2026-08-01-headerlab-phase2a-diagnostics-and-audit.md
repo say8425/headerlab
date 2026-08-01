@@ -341,7 +341,11 @@ npx vitest run tests/unit/origins.test.ts
 ```
 npm test
 ```
-기대: 100개 이상 전부 통과. `isValidDomain` 이 엄격해졌으므로 `compile.test.ts` 나 `conditions.test.ts` 가 붉어질 수 있다 — 그렇다면 **테스트를 약화시키지 말고** 그 테스트가 무엇을 기대했는지 보고, 새 동작이 옳으면 기대값을 갱신하고 근거를 주석으로 남긴다.
+기대: 100개 이상 전부 통과.
+
+**`isValidDomain` 이 엄격해졌으므로 `compile.test.ts` 나 `conditions.test.ts` 가 붉어질 수 있다. 그 경우 기대값을 고치지 말고 보고할 것.** 이 계획의 다른 어떤 스텝에서도 기존 단언을 완화하지 않는다.
+
+이유: 붉어지는 단언은 대개 프로필 억제 동작을 지키고 있고, 그 억제는 fail-open 비대칭 때문에 존재한다 — 도메인이 전부 사라진 룰은 모든 사이트에 매칭된다. 통과시키려고 단언을 느슨하게 만들면 그 보호가 사라지는데, 붉은 줄 하나만 보고서는 그것이 보이지 않는다. 어느 테스트가 무엇을 기대하며 붉어졌는지 그대로 보고하면 판단은 계획 쪽에서 한다.
 
 - [ ] **Step 6: 커밋**
 
@@ -1812,11 +1816,17 @@ contains() 는 유효하지 않은 패턴에 예외를 던지고, 배치하면 �
     // adds none: it grants access to one tab at the moment the user clicks the
     // extension icon. The `tabs` permission would have added a "read your
     // browsing history" warning, which is why it is not here.
-    expect(manifest.permissions).toEqual([
+    //
+    // Set equality, not array equality: the claim is "exactly these, nothing
+    // extra". Order was never part of it, and pinning order would couple this
+    // assertion to how the build tool happens to serialize the array.
+    const permissions = manifest.permissions as string[];
+    expect(new Set(permissions)).toEqual(new Set([
       'storage',
       'declarativeNetRequestWithHostAccess',
       'activeTab',
-    ]);
+    ]));
+    expect(permissions).toHaveLength(3); // catches a duplicate entry
   });
 ```
 
@@ -2213,3 +2223,7 @@ ruleSync 테스트가 await 이전에 단언하던 것도 함께 고쳤다 — �
 UI 는 하나도 만들지 않는다. 진단을 보여주는 인라인 행, 권한 부여 버튼, Data Grid, 테마 — 전부 Phase 2b 다. 이 단계의 산출물은 2b 가 렌더할 **데이터와 그 데이터가 옳다는 증거**다.
 
 `tab-lock-stale` 진단과 탭 잠금 생명주기, 전체 일시정지 UI, JSON export/import 는 Phase 2c 다. JSON import 가 `regexFilter` 와 `urlFilter` 표면을 실제로 도달 가능하게 만들므로, **2c 는 Task 3 의 필터 검증보다 나중이어야 한다** — 이 계획이 그 순서를 지킨다.
+
+**2b 가 물려받는 것 하나 — 억제된 프로필의 `<all_urls>`.** `originsForFilter` 는 쓸 수 있는 도메인이 없는 필터에 `['<all_urls>']` 를 반환한다. `compile()` 은 그런 프로필을 통째로 억제하고, Task 6 의 `domainsToAudit` 도 의도적으로 건너뛴다. 그래서 **억제된 프로필이 `requiredOrigins` 에는 계속 `<all_urls>` 를 보탠다.** 인수인계 §2.1 이 "과다 요청 방향이라 프라이버시 후퇴는 아님"으로 이미 기록했고 그 판단은 그대로 유효하다.
+
+다만 Task 3 이후로는 바로 그 프로필들에 `empty-filter` 경고가 뜬다. 2b 의 권한 UI 는 **경고가 붙은 프로필이 동시에 권한 요구를 부풀리고 있는 상태**를 만나게 되므로, 놀라지 말고 설계해야 한다. Phase 2a 는 이것을 고치지 않는다 — 고치려면 `originsForFilter` 가 억제 여부를 알아야 하는데, 그것은 순수 층의 책임 경계를 넘는 신호다.
