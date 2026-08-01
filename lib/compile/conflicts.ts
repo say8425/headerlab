@@ -1,5 +1,5 @@
 import { analyzeDomain } from '@/lib/permissions/origins';
-import type { Diagnostic, Operation, Profile } from '@/lib/model/types';
+import type { Diagnostic, HeaderRule, Operation, Profile } from '@/lib/model/types';
 
 /**
  * What Chromium still allows once an operation has been applied to a header
@@ -59,34 +59,43 @@ export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
     const later = active[i];
     if (!later) continue;
 
+    // Profiles that could actually collide with `later`, still in priority
+    // order. `mayOverlap` doesn't depend on the header row, so this is
+    // computed once per `later` rather than once per row.
+    const earlierCandidates = active.slice(0, i).filter((earlier) => mayOverlap(earlier, later));
+
     for (const rule of later.headers) {
       if (!rule.enabled) continue;
       const key = `${rule.target} ${rule.name.trim().toLowerCase()}`;
 
-      for (let j = 0; j < i; j += 1) {
-        const earlier = active[j];
-        if (!earlier) continue;
-        if (!mayOverlap(earlier, later)) continue;
-
-        const clash = earlier.headers.find(
-          (h) =>
-            h.enabled &&
-            `${h.target} ${h.name.trim().toLowerCase()}` === key &&
-            !allowsAfter(h.operation, rule.operation),
+      // Only the *first* earlier profile to touch this header key ever
+      // reaches Chrome's actual header state — whatever a profile before it
+      // lost against was discarded and never applied. So the search stops at
+      // the first match, whether or not that match clashes: it is the only
+      // state `later` can collide with.
+      let firstToucher: Profile | undefined;
+      let definingRule: HeaderRule | undefined;
+      for (const earlier of earlierCandidates) {
+        const hit = earlier.headers.find(
+          (h) => h.enabled && `${h.target} ${h.name.trim().toLowerCase()}` === key,
         );
-        if (!clash) continue;
-
-        diagnostics.push({
-          kind: 'profile-conflict',
-          severity: 'warning',
-          profileId: later.id,
-          headerRuleId: rule.id,
-          message:
-            `"${earlier.name}" already ${clash.operation}s ${rule.name.trim()} ` +
-            `on a matching site, so this row is discarded.`,
-        });
-        break; // one warning per row is enough to act on
+        if (!hit) continue;
+        firstToucher = earlier;
+        definingRule = hit;
+        break;
       }
+      if (!firstToucher || !definingRule) continue;
+      if (allowsAfter(definingRule.operation, rule.operation)) continue;
+
+      diagnostics.push({
+        kind: 'profile-conflict',
+        severity: 'warning',
+        profileId: later.id,
+        headerRuleId: rule.id,
+        message:
+          `"${firstToucher.name}" already ${definingRule.operation}s ${rule.name.trim()} ` +
+          `on a matching site, so this row is discarded.`,
+      });
     }
   }
 
