@@ -3,3 +3,7 @@ node_modules/
 .output/
 .wxt/
 .worktrees/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

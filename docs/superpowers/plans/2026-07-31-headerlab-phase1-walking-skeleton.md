@@ -6,7 +6,7 @@
 
 **Architecture:** All correctness lives in a pure function layer (`lib/compile/`, `lib/permissions/origins.ts`) that never imports `chrome.*` and is unit-tested without a browser. A single thin adapter (`lib/sync/ruleSync.ts`) is the only file that calls `chrome.declarativeNetRequest`. A single `reconcile()` entry point in the background service worker recompiles from storage and replaces all rules atomically. This shape is forced by a hard constraint: `@webext-core/fake-browser` does not implement `declarativeNetRequest` — every method throws `MockNotImplementedError` — so browser-imitation testing is unavailable, and the response is to make the browser irrelevant to the logic.
 
-**Tech Stack:** WXT 0.21.2 · React 19.2.8 · TypeScript 7.0.2 · Vite 8.2.0 · Tailwind CSS 4.3.3 · shadcn/ui 4.16.0 (Radix base) · Zod 4.4.3 · Vitest 4.1.10 · Playwright 1.62.1
+**Tech Stack:** WXT 0.21.1 · React 19.2.8 · TypeScript 7.0.2 · Vite 8.1.5 · Tailwind CSS 4.3.3 · shadcn/ui 4.16.0 (Radix base) · Zod 4.4.3 · Vitest 4.1.10 · Playwright 1.62.0
 
 **Spec:** [`docs/superpowers/specs/2026-07-31-headerlab-design.md`](../specs/2026-07-31-headerlab-design.md)
 **Technical constraints:** [`docs/research/2026-07-31-technical-constraints.md`](../../research/2026-07-31-technical-constraints.md)
@@ -16,11 +16,25 @@
 Every task's requirements implicitly include this section.
 
 - **Target browsers:** Chrome and Edge only. Edge reuses the Chrome ZIP; no separate build.
-- **Dependency versions** (verified latest on 2026-07-31; do not downgrade):
-  `wxt@0.21.2` · `@wxt-dev/module-react@1.2.2` · `react@19.2.8` · `react-dom@19.2.8` ·
-  `typescript@7.0.2` · `vite@8.2.0` · `tailwindcss@4.3.3` · `@tailwindcss/vite@4.3.3` ·
-  `shadcn@4.16.0` · `vitest@4.1.10` · `@playwright/test@1.62.1` ·
-  `@webext-core/fake-browser@2.0.1` · `zod@4.4.3`
+- **Dependency versions** — pin these exactly; do not float or downgrade below them:
+  `wxt@0.21.1` · `@wxt-dev/module-react@1.2.2` · `react@19.2.8` · `react-dom@19.2.8` ·
+  `typescript@7.0.2` · `tailwindcss@4.3.3` · `@tailwindcss/vite@4.3.3` ·
+  `shadcn@4.16.0` · `vitest@4.1.10` · `@playwright/test@1.62.0` ·
+  `@webext-core/fake-browser@2.0.1` · `zod@4.4.3` · `@types/react@19.2.17` ·
+  `@types/react-dom@19.2.3` · `@types/chrome@0.2.2`
+
+  These are the newest versions installable here, not the newest that exist. The npm
+  registry in use (`nexus.mng.musinsa.io`) enforces a rolling 72-hour publish-date
+  quarantine — a supply-chain defence — so anything published in the last three days
+  resolves to `ETARGET`. Five pins were lowered by one patch for this reason on
+  2026-07-31: `wxt` 0.21.2→0.21.1, `@types/react` 19.2.18→19.2.17, `@types/react-dom`
+  19.2.4→19.2.3, `@playwright/test` 1.62.1→1.62.0, and `vite` 8.2.0→whatever WXT
+  resolves (it is no longer pinned directly; WXT brings its own).
+
+  Do not work around the quarantine — no project `.npmrc` overriding `before`, no
+  `--force`, no registry switch. If a pin fails to install, report it rather than
+  substituting a version yourself. `wxt@0.21.1` is in fact the version this project's
+  shadcn integration procedure was empirically verified against.
 - **TypeScript 7 is in use.** `baseUrl` in `tsconfig.json` is a hard error. Never add it.
 - **WXT storage import path** is `#imports` or `wxt/utils/storage`. **Never `wxt/storage`** — it does not compile on 0.21.x.
 - **Every WXT storage key carries an area prefix.** There is no default area. This project uses `local:` only.
@@ -80,8 +94,8 @@ Produces a building, loadable extension. The step order below is load-bearing �
 ```bash
 cd /Users/penguin/dev/headerlab
 npm init -y
-npm i -D wxt@0.21.2 @wxt-dev/module-react@1.2.2 typescript@7.0.2 \
-         @types/react@19.2.18 @types/react-dom@19.2.4 @types/chrome@0.2.2 \
+npm i -D wxt@0.21.1 @wxt-dev/module-react@1.2.2 typescript@7.0.2 \
+         @types/react@19.2.17 @types/react-dom@19.2.3 @types/chrome@0.2.2 \
          tailwindcss@4.3.3 @tailwindcss/vite@4.3.3
 npm i react@19.2.8 react-dom@19.2.8 zod@4.4.3
 ```
@@ -480,7 +494,7 @@ npm i -D vitest@4.1.10 @vitest/coverage-v8@4.1.10 @webext-core/fake-browser@2.0.
 
 ```ts
 import { defineConfig } from 'vitest/config';
-import { WxtVitest } from 'wxt/testing';
+import { WxtVitest } from 'wxt/testing/vitest-plugin';
 
 export default defineConfig({
   plugins: [WxtVitest()],
@@ -493,6 +507,11 @@ export default defineConfig({
 
 The `WxtVitest` plugin supplies WXT's path aliases (so `@/...` resolves in tests) and
 swaps `wxt/browser` for the fake browser.
+
+The import path is `wxt/testing/vitest-plugin`, **not** `wxt/testing`. wxt@0.21.1 exports
+only `./testing/fake-browser` and `./testing/vitest-plugin`; the bare `wxt/testing` barrel
+does not exist and fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. Verified empirically on
+2026-07-31.
 
 Add to `package.json` scripts: `"test": "vitest run"` and `"test:watch": "vitest"`.
 
@@ -747,6 +766,20 @@ describe('compileHeaders', () => {
     expect(compileHeaders([rule({ enabled: false })])).toEqual({});
   });
 
+  it('skips a rule whose name is blank — the UI creates this on every new row', () => {
+    expect(compileHeaders([rule({ name: '' })])).toEqual({});
+    expect(compileHeaders([rule({ name: '   ' })])).toEqual({});
+  });
+
+  it('does not let one blank row suppress the rules around it', () => {
+    const out = compileHeaders([
+      rule({ id: 'a', name: 'Authorization', value: 'Bearer x' }),
+      rule({ id: 'b', name: '' }),
+      rule({ id: 'c', name: 'X-Tenant-Id', value: 'dev' }),
+    ]);
+    expect(out.requestHeaders!.map((h) => h.header)).toEqual(['Authorization', 'X-Tenant-Id']);
+  });
+
   it('separates request and response targets', () => {
     const out = compileHeaders([
       rule({ id: 'a', target: 'request', name: 'Authorization', value: 'Bearer x' }),
@@ -807,6 +840,12 @@ export function compileHeaders(headers: HeaderRule[]): {
 
   for (const rule of headers) {
     if (!rule.enabled) continue;
+    // A blank name would produce a rule Chrome's validator rejects, and updates are
+    // transactional — one blank row would stop every other rule from applying. The UI
+    // creates exactly this state: a new header row starts with an empty name and is
+    // persisted before the user types. Full RFC-token validation is Phase 2; declining
+    // to emit an unusable rule is this layer's job now.
+    if (rule.name.trim() === '') continue;
     const target = rule.target === 'request' ? requestHeaders : responseHeaders;
     target.push(toModifyHeaderInfo(rule));
   }
@@ -1436,16 +1475,50 @@ const FORBIDDEN = [
   /from\s+['"]wxt\/utils\/storage['"]/,
 ];
 
+/**
+ * Removes block and line comments so the guard tests code rather than prose.
+ *
+ * Without this, a comment documenting the constraint — "imports nothing from
+ * chrome.*" — trips the guard it is describing. The comment is good; forbidding
+ * it would be wrong.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 describe('the pure layer stays pure', () => {
   it('finds the files it is supposed to guard', () => {
     expect(PURE_FILES.length).toBeGreaterThanOrEqual(5);
   });
 
   it.each(PURE_FILES)('%s has no browser dependency', (path) => {
-    const source = readFileSync(path, 'utf8');
+    const source = stripComments(readFileSync(path, 'utf8'));
     for (const pattern of FORBIDDEN) {
       expect(source, `${path} matched ${pattern}`).not.toMatch(pattern);
     }
+  });
+});
+
+describe('the guard itself', () => {
+  it('ignores a browser name that appears only in a comment', () => {
+    const source = stripComments(`
+      /** Pure: imports nothing from chrome.*, performs no I/O. */
+      // also not a real use: chrome.runtime
+      export const x = 1;
+    `);
+    expect(source).not.toMatch(/\bchrome\s*\./);
+  });
+
+  it('still catches a real browser reference', () => {
+    const source = stripComments(`export const id = chrome.runtime.id;`);
+    expect(source).toMatch(/\bchrome\s*\./);
+  });
+
+  it('does not mistake a url inside a string for a line comment', () => {
+    const source = stripComments(`export const u = 'https://example.com/a';`);
+    expect(source).toContain('https://example.com/a');
   });
 });
 ```
@@ -1453,7 +1526,12 @@ describe('the pure layer stays pure', () => {
 - [ ] **Step 2: Run the test to verify it passes**
 
 Run: `npx vitest run tests/unit/purity.test.ts`
-Expected: PASS — 5 files checked (4 in lib/compile, plus origins.ts).
+Expected: PASS — 5 guarded files plus the three self-tests of the guard.
+
+If a guarded file fails on `/\bchrome\s*\./`, read the matched line before changing
+anything. `lib/compile/compile.ts` legitimately mentions `chrome.*` in its header comment;
+that is what `stripComments` exists for. A failure there means the stripper is broken, not
+that the file is impure.
 
 - [ ] **Step 3: Verify the guard actually catches a violation**
 
@@ -1814,7 +1892,7 @@ Expected: FAIL — cannot resolve `@/lib/sync/ruleSync`.
 - [ ] **Step 3: Write `lib/sync/ruleSync.ts`**
 
 ```ts
-import { browser } from 'wxt/browser';
+import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
 import { getState } from '@/lib/storage/state';
 import type { CompileResult, DnrRule } from '@/lib/model/types';
@@ -1835,13 +1913,19 @@ async function replace(
   const existing =
     scope === 'dynamic' ? await dnr.getDynamicRules() : await dnr.getSessionRules();
 
-  // Our DnrRule is structurally identical to Chrome's Rule but nominally
+  // Our DnrRule is structurally identical to the browser's Rule but nominally
   // separate, so lib/compile/ can stay free of browser types (see Task 2).
   // This boundary is the one place the two meet, and the one place the cast
   // belongs.
+  //
+  // The type comes from `wxt/browser`, not the `chrome` global: `@types/chrome`
+  // is installed but not in this project's type program (`.wxt/tsconfig.json`
+  // sets no `types` key), so `chrome.declarativeNetRequest.Rule` does not
+  // resolve — `tsc` reports TS2503. `Browser` is also the namespace of the API
+  // actually being called here, through WXT's `browser` object.
   const update = {
     removeRuleIds: existing.map((r) => r.id),
-    addRules: rules as unknown as chrome.declarativeNetRequest.Rule[],
+    addRules: rules as unknown as Browser.declarativeNetRequest.Rule[],
   };
 
   if (scope === 'dynamic') {
@@ -1977,18 +2061,23 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { createProfile } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
-import type { HeaderRule } from '@/lib/model/types';
+import type { HeaderRule, Profile } from '@/lib/model/types';
 
 export default function App() {
   const { state, update } = useAppState();
   if (!state) return <div className="w-[560px] p-4 text-sm">Loading…</div>;
 
+  // `noUncheckedIndexedAccess` is on, so this is `Profile | undefined`.
   const profile = state.profiles[0];
 
   const addProfile = () =>
     update((s) => ({ ...s, profiles: [createProfile('Local', 0)] }));
 
-  const patchProfile = (fn: (p: typeof profile) => typeof profile) =>
+  // Typed against `Profile`, not `typeof profile` — the latter would carry the
+  // `undefined` and make `map` produce `(Profile | undefined)[]`, which does not
+  // assign back to `profiles`. The `if (!profile)` guard below is too late to help:
+  // it narrows the render branch, not this closure.
+  const patchProfile = (fn: (p: Profile) => Profile) =>
     update((s) => ({ ...s, profiles: s.profiles.map((p, i) => (i === 0 ? fn(p) : p)) }));
 
   const addHeader = () =>
@@ -2115,7 +2204,7 @@ The only layer that proves the real thing. `getMatchedRules` and `testMatchOutco
 - [ ] **Step 1: Install Playwright**
 
 ```bash
-npm i -D @playwright/test@1.62.1
+npm i -D @playwright/test@1.62.0
 npx playwright install --with-deps --no-shell chromium
 ```
 
@@ -2173,11 +2262,15 @@ export async function startEchoServer(): Promise<EchoServer> {
 
 ```ts
 import path from 'node:path';
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { test as base, chromium, type BrowserContext, type Worker } from '@playwright/test';
 
 const EXTENSION_PATH = path.resolve('.output/chrome-mv3');
 
-export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
+export const test = base.extend<{
+  context: BrowserContext;
+  serviceWorker: Worker;
+  extensionId: string;
+}>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
@@ -2190,10 +2283,21 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
     await context.close();
   },
 
-  extensionId: async ({ context }, use) => {
+  // Exposed as a fixture so tests never re-derive it — `context.serviceWorkers()[0]`
+  // is `Worker | undefined` under `noUncheckedIndexedAccess`, and narrowing it once
+  // here beats a non-null assertion in every test.
+  serviceWorker: async ({ context }, use) => {
     let [worker] = context.serviceWorkers();
     if (!worker) worker = await context.waitForEvent('serviceworker');
-    await use(worker.url().split('/')[2]);
+    await use(worker);
+  },
+
+  extensionId: async ({ serviceWorker }, use) => {
+    const id = serviceWorker.url().split('/')[2];
+    if (!id) {
+      throw new Error(`could not derive extension id from ${serviceWorker.url()}`);
+    }
+    await use(id);
   },
 });
 
@@ -2224,6 +2328,18 @@ State is seeded directly into storage rather than driven through the popup, so t
 import { expect, test } from './fixtures';
 import { startEchoServer, type EchoServer } from './echo-server';
 
+/**
+ * `worker.evaluate()` callbacks run inside the extension's service worker, where
+ * `chrome` exists at runtime — but `@types/chrome` is not in this project's type
+ * program, so `tsc --noEmit` would report TS2503 without a declaration. Declaring
+ * only the surface these tests touch keeps the dependency explicit rather than
+ * reaching for `any`.
+ */
+declare const chrome: {
+  storage: { local: { set(items: Record<string, unknown>): Promise<void> } };
+  declarativeNetRequest: { getDynamicRules(): Promise<Array<{ id: number }>> };
+};
+
 let echo: EchoServer;
 
 test.beforeEach(async () => {
@@ -2234,8 +2350,8 @@ test.afterEach(async () => {
   await echo.close();
 });
 
-test('a configured set rule reaches the wire', async ({ context, extensionId }) => {
-  const [worker] = context.serviceWorkers();
+test('a configured set rule reaches the wire', async ({ context, serviceWorker }) => {
+  const worker = serviceWorker;
 
   await worker.evaluate(async (state) => {
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
@@ -2290,8 +2406,9 @@ test('a configured set rule reaches the wire', async ({ context, extensionId }) 
 
 test('a remove rule strips a header the page would otherwise send', async ({
   context,
+  serviceWorker,
 }) => {
-  const [worker] = context.serviceWorkers();
+  const worker = serviceWorker;
 
   await worker.evaluate(async (state) => {
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
@@ -2418,9 +2535,13 @@ after a hidden tracker was found in it.
 
 ## Development
 
+WXT writes a separate output directory per mode: `.output/chrome-mv3` for a production
+build, `-dev` while `npm run dev` is running, and `-e2e` for the end-to-end build. Load
+the one matching what you are doing.
+
 ```bash
 npm install
-npm run dev          # load .output/chrome-mv3 as an unpacked extension
+npm run dev          # load .output/chrome-mv3-dev as an unpacked extension
 npm test             # unit tests, no browser required
 npm run test:e2e     # end-to-end, proves headers change on the wire
 npm run compile      # type check
