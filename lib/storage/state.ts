@@ -33,3 +33,23 @@ export async function getState(): Promise<AppState> {
 export async function setState(next: AppState): Promise<void> {
   await stateItem.setValue(next);
 }
+
+/**
+ * Merges a patch into the stored state, re-reading immediately before the
+ * write.
+ *
+ * The popup used to replace the whole AppState. That made the last writer win
+ * over keys it never touched — and design §6.3 has the background worker
+ * writing state too (releasing a tab lock whose tab is gone). It also made the
+ * unknown-key stripping in `parseAppState` permanent: a key written by a newer
+ * version, read and stripped by an older one, was gone on the next edit.
+ *
+ * Top-level merge only. Concurrent edits to `profiles` itself are Phase 2c,
+ * where tab lock actually starts writing.
+ */
+export async function patchState(patch: Partial<AppState>): Promise<AppState> {
+  const current = await getState();
+  const next: AppState = { ...current, ...patch };
+  await setState(next);
+  return next;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getState, setState, stateItem } from '@/lib/storage/state';
+import { getState, patchState, stateItem } from '@/lib/storage/state';
 import type { AppState } from '@/lib/model/types';
 
 export function useAppState() {
@@ -10,14 +10,20 @@ export function useAppState() {
     return stateItem.watch((next) => setLocal(next));
   }, []);
 
-  const update = (fn: (draft: AppState) => AppState) => {
+  /**
+   * Applies a patch derived from the current state. The optimistic local
+   * update keeps typing responsive; `patchState` re-reads before writing, so a
+   * concurrent writer's untouched keys survive and the watcher corrects any
+   * drift.
+   */
+  const patch = (fn: (draft: AppState) => Partial<AppState>) => {
     setLocal((current) => {
       if (!current) return current;
-      const next = fn(current);
-      void setState(next);
-      return next;
+      const delta = fn(current);
+      void patchState(delta);
+      return { ...current, ...delta };
     });
   };
 
-  return { state, update };
+  return { state, patch };
 }
