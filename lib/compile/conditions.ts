@@ -50,6 +50,15 @@ export function filterToCondition(
   // toward what the domain list already says. The include side is NOT safe
   // this way: dropping every domain leaves a rule with no domain condition,
   // which DNR matches against every site.
+  //
+  // One side effect of normalizing here: a port-bearing exclusion (e.g.
+  // "localhost:3000") silently widens from one port to the whole host,
+  // same as normalizeDomain does for the include side. There is no
+  // diagnostic for it — validateFilter's port-ignored only ever analyzes
+  // filter.domains, not filter.excludedDomains — but this is safe by the
+  // same reasoning as above: the string could never have matched a real
+  // request host with the colon in it, and the change only narrows what
+  // gets rewritten.
   const excluded = [
     ...new Set(filter.excludedDomains.filter(isValidDomain).map(normalizeDomain)),
   ];

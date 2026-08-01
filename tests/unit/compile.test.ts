@@ -149,7 +149,7 @@ describe('compile', () => {
     expect(out.dynamic[0]!.priority).toBeGreaterThan(out.dynamic[1]!.priority);
   });
 
-  it('returns an empty diagnostics array in phase 1', () => {
+  it('returns no diagnostics for a clean default profile', () => {
     expect(compile(state()).diagnostics).toEqual([]);
   });
 
@@ -176,7 +176,11 @@ describe('compile emits diagnostics', () => {
         ],
       })],
     }));
-    expect(result.diagnostics.map((d) => d.kind)).toContain('invalid-header-name');
+    // Exact length, not just toContain: a duplicate push of the same kind
+    // (e.g. validateHeaders called twice for this profile) would slip past a
+    // toContain check but not this one.
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
     expect(result.dynamic).toHaveLength(1);
   });
 
@@ -185,7 +189,8 @@ describe('compile emits diagnostics', () => {
     const result = compile(state({
       profiles: [profile({ filter: { ...base.filter, domains: ['a b.com'] } })],
     }));
-    expect(result.diagnostics.map((d) => d.kind)).toContain('empty-filter');
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('empty-filter');
     expect(result.dynamic).toHaveLength(0);
   });
 
@@ -196,7 +201,11 @@ describe('compile emits diagnostics', () => {
         profile({ id: 'p2', name: 'Staging', order: 1, headers: [header({ name: 'Authorization' })] }),
       ],
     }));
-    expect(result.diagnostics.map((d) => d.kind)).toContain('profile-conflict');
+    // Exact length pins detectConflicts being called once, outside the
+    // per-profile loop — calling it once per profile would duplicate this
+    // entry, which a toContain check would not catch.
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('profile-conflict');
   });
 
   it('keeps diagnostics when globalPause is on — the user still needs to see them', () => {
@@ -205,7 +214,8 @@ describe('compile emits diagnostics', () => {
       profiles: [profile({ headers: [header({ name: '' })] })],
     }));
     expect(result.dynamic).toHaveLength(0);
-    expect(result.diagnostics.map((d) => d.kind)).toContain('invalid-header-name');
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
   });
 
   it('does not report on a disabled profile', () => {
