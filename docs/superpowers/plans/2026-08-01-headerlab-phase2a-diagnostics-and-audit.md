@@ -1017,6 +1017,29 @@ describe('detectConflicts', () => {
       p('b', 'B', ['x.com'], [{ name: 'X-Same', target: 'response' }], 1),
     ])).toEqual([]);
   });
+
+  it('names the winner by `order`, not by array position', () => {
+    // `allocate` sorts by `order` and gives the first one the highest priority,
+    // so the profile with the lower `order` wins regardless of where it sits in
+    // the array. Passing them array-reversed must not flip the verdict.
+    const first = p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0);
+    const second = p('b', 'Staging', ['x.com'], [{ name: 'Authorization' }], 1);
+
+    const d = detectConflicts([second, first]); // array order disagrees with `order`
+    expect(d).toHaveLength(1);
+    expect(d[0]?.profileId).toBe('b');        // Staging still loses
+    expect(d[0]?.message).toContain('Local'); // Local is still named the winner
+  });
+
+  it('does not mutate the array it is given', () => {
+    const list = [
+      p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
+      p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
+    ];
+    const before = list.map((x) => x.id);
+    detectConflicts(list);
+    expect(list.map((x) => x.id)).toEqual(before);
+  });
 });
 ```
 
@@ -1074,7 +1097,19 @@ function mayOverlap(a: Profile, b: Profile): boolean {
 
 export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const active = profiles.filter((p) => p.enabled);
+
+  // Sorted by `order`, exactly as lib/compile/priority.ts's `allocate` sorts —
+  // and for the same reason. `allocate` gives the first profile in that order
+  // the highest priority (`active.length - index`), Chrome applies
+  // modifyHeaders rules in descending priority, and §7.2's matrix is keyed on
+  // whichever operation applied *first*. So the profile earliest in this order
+  // is the winner.
+  //
+  // The array order of `state.profiles` is NOT that order. Sorting here is what
+  // keeps the diagnostic from naming the loser as the winner.
+  const active = [...profiles]
+    .filter((p) => p.enabled)
+    .sort((a, b) => a.order - b.order);
 
   for (let i = 0; i < active.length; i += 1) {
     const later = active[i];
