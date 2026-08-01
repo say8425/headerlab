@@ -165,3 +165,57 @@ describe('compile', () => {
     expect(s).toEqual(snapshot);
   });
 });
+
+describe('compile emits diagnostics', () => {
+  it('reports a blank header name and still compiles the other rows', () => {
+    const result = compile(state({
+      profiles: [profile({
+        headers: [
+          header({ id: 'h1', name: '' }),
+          header({ id: 'h2', name: 'X-Ok' }),
+        ],
+      })],
+    }));
+    expect(result.diagnostics.map((d) => d.kind)).toContain('invalid-header-name');
+    expect(result.dynamic).toHaveLength(1);
+  });
+
+  it('reports an empty filter on the profile it suppresses', () => {
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({ filter: { ...base.filter, domains: ['a b.com'] } })],
+    }));
+    expect(result.diagnostics.map((d) => d.kind)).toContain('empty-filter');
+    expect(result.dynamic).toHaveLength(0);
+  });
+
+  it('reports a conflict between two profiles', () => {
+    const result = compile(state({
+      profiles: [
+        profile({ id: 'p1', name: 'Local', order: 0, headers: [header({ name: 'Authorization' })] }),
+        profile({ id: 'p2', name: 'Staging', order: 1, headers: [header({ name: 'Authorization' })] }),
+      ],
+    }));
+    expect(result.diagnostics.map((d) => d.kind)).toContain('profile-conflict');
+  });
+
+  it('keeps diagnostics when globalPause is on — the user still needs to see them', () => {
+    const result = compile(state({
+      globalPause: true,
+      profiles: [profile({ headers: [header({ name: '' })] })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.diagnostics.map((d) => d.kind)).toContain('invalid-header-name');
+  });
+
+  it('does not report on a disabled profile', () => {
+    const base = profile();
+    expect(compile(state({
+      profiles: [profile({
+        enabled: false,
+        filter: { ...base.filter, domains: [] },
+        headers: [header({ name: '' })],
+      })],
+    })).diagnostics).toEqual([]);
+  });
+});

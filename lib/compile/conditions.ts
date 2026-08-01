@@ -1,5 +1,5 @@
 import type { DnrRuleCondition, Filter } from '@/lib/model/types';
-import { normalizeDomain } from '@/lib/permissions/origins';
+import { isValidDomain, normalizeDomain } from '@/lib/permissions/origins';
 
 /**
  * Builds the urlFilter fragment for a path pattern.
@@ -44,8 +44,17 @@ export function filterToCondition(
   if (domains.length > 0) {
     condition.requestDomains = domains;
   }
-  if (filter.excludedDomains.length > 0) {
-    condition.excludedRequestDomains = [...filter.excludedDomains];
+  // Exclusions get the same normalization the include side gets, so the same
+  // user string means the same host on both. Dropping an unusable exclusion
+  // individually is safe — one fewer exclusion can only narrow the rule back
+  // toward what the domain list already says. The include side is NOT safe
+  // this way: dropping every domain leaves a rule with no domain condition,
+  // which DNR matches against every site.
+  const excluded = [
+    ...new Set(filter.excludedDomains.filter(isValidDomain).map(normalizeDomain)),
+  ];
+  if (excluded.length > 0) {
+    condition.excludedRequestDomains = excluded;
   }
 
   // urlFilter and regexFilter are mutually exclusive.

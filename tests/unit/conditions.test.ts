@@ -122,3 +122,38 @@ describe('filterToCondition — shared', () => {
     expect(filterToCondition(base)).not.toHaveProperty('tabIds');
   });
 });
+
+describe('excludedRequestDomains goes through the same normalization', () => {
+  const base: Filter = {
+    mode: 'structured',
+    domains: ['example.com'],
+    excludedDomains: [],
+    resourceTypes: ['xmlhttprequest'],
+  };
+
+  it('normalizes an excluded domain the way an included one is normalized', () => {
+    const c = filterToCondition({ ...base, excludedDomains: ['*.Beta.Example.COM'] });
+    expect(c.excludedRequestDomains).toEqual(['beta.example.com']);
+  });
+
+  it('drops an unusable excluded domain instead of registering a dead string', () => {
+    const c = filterToCondition({
+      ...base,
+      excludedDomains: ['a b.com', 'beta.example.com'],
+    });
+    expect(c.excludedRequestDomains).toEqual(['beta.example.com']);
+  });
+
+  it('omits the key entirely when nothing survives — an empty array is not the same thing', () => {
+    const c = filterToCondition({ ...base, excludedDomains: ['a b.com'] });
+    expect(c).not.toHaveProperty('excludedRequestDomains');
+  });
+
+  it('deduplicates after normalization', () => {
+    const c = filterToCondition({
+      ...base,
+      excludedDomains: ['Beta.example.com', '*.beta.example.com'],
+    });
+    expect(c.excludedRequestDomains).toEqual(['beta.example.com']);
+  });
+});

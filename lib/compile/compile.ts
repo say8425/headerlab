@@ -1,6 +1,9 @@
 import { compileHeaders } from '@/lib/compile/headers';
 import { filterToCondition } from '@/lib/compile/conditions';
+import { detectConflicts } from '@/lib/compile/conflicts';
+import { validateFilter } from '@/lib/compile/filterDiagnostics';
 import { allocate } from '@/lib/compile/priority';
+import { validateHeaders } from '@/lib/compile/validate';
 import { isValidDomain, originsForFilter } from '@/lib/permissions/origins';
 import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
 
@@ -23,7 +26,13 @@ export function compile(state: AppState): CompileResult {
   for (const profile of state.profiles) {
     if (!profile.enabled) continue;
     for (const origin of originsForFilter(profile.filter)) origins.add(origin);
+
+    // Diagnosed regardless of globalPause — see below — but never for a
+    // disabled profile: the user turning a profile off means they are not
+    // thinking about it right now, so a complaint about it would be noise.
+    diagnostics.push(...validateHeaders(profile), ...validateFilter(profile));
   }
+  diagnostics.push(...detectConflicts(state.profiles));
 
   // globalPause suppresses rules but not analysis: the user must still be able
   // to see problems with their configuration while paused.
