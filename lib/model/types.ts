@@ -108,7 +108,9 @@ export type DiagnosticKind =
   | 'profile-conflict'
   | 'permission-missing'
   | 'tab-lock-stale'
-  | 'empty-filter';
+  | 'empty-filter'
+  /** A port was normalized away: requestDomains is host-only and matches every port. */
+  | 'port-ignored';
 
 export interface Diagnostic {
   kind: DiagnosticKind;
