@@ -1115,39 +1115,59 @@ export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
     const later = active[i];
     if (!later) continue;
 
+    // Profiles that could actually collide with `later`, still in priority
+    // order. `mayOverlap` doesn't depend on the header row, so this is
+    // computed once per `later` rather than once per row.
+    const earlierCandidates = active.slice(0, i).filter((earlier) => mayOverlap(earlier, later));
+
     for (const rule of later.headers) {
       if (!rule.enabled) continue;
       const key = `${rule.target} ${rule.name.trim().toLowerCase()}`;
 
-      for (let j = 0; j < i; j += 1) {
-        const earlier = active[j];
-        if (!earlier) continue;
-        if (!mayOverlap(earlier, later)) continue;
-
-        const clash = earlier.headers.find(
-          (h) =>
-            h.enabled &&
-            `${h.target} ${h.name.trim().toLowerCase()}` === key &&
-            !allowsAfter(h.operation, rule.operation),
+      // Only the *first* earlier profile to touch this header key ever
+      // reaches Chrome's actual header state — whatever a profile before it
+      // lost against was discarded and never applied. So the search stops at
+      // the first match, whether or not that match clashes: it is the only
+      // state `later` can collide with.
+      //
+      // Breaking on the first *clash* instead would be the bug this replaced:
+      // with P0 append, P1 remove (discarded), P2 append, P2 would be compared
+      // against P1's remove — a state that never existed — and told it lost to
+      // a profile that had itself already lost.
+      let firstToucher: Profile | undefined;
+      let definingRule: HeaderRule | undefined;
+      for (const earlier of earlierCandidates) {
+        const hit = earlier.headers.find(
+          (h) => h.enabled && `${h.target} ${h.name.trim().toLowerCase()}` === key,
         );
-        if (!clash) continue;
-
-        diagnostics.push({
-          kind: 'profile-conflict',
-          severity: 'warning',
-          profileId: later.id,
-          headerRuleId: rule.id,
-          message:
-            `"${earlier.name}" already ${clash.operation}s ${rule.name.trim()} ` +
-            `on a matching site, so this row is discarded.`,
-        });
-        break; // one warning per row is enough to act on
+        if (!hit) continue;
+        firstToucher = earlier;
+        definingRule = hit;
+        break;
       }
+      if (!firstToucher || !definingRule) continue;
+      if (allowsAfter(definingRule.operation, rule.operation)) continue;
+
+      diagnostics.push({
+        kind: 'profile-conflict',
+        severity: 'warning',
+        profileId: later.id,
+        headerRuleId: rule.id,
+        message:
+          `"${firstToucher.name}" already ${definingRule.operation}s ${rule.name.trim()} ` +
+          `on a matching site, so this row is discarded.`,
+      });
     }
   }
 
   return diagnostics;
 }
+```
+
+`HeaderRule` 를 임포트에 더해야 한다:
+
+```ts
+import type { Diagnostic, HeaderRule, Operation, Profile } from '@/lib/model/types';
 ```
 
 - [ ] **Step 4: 테스트가 통과하는 것을 확인한다**
@@ -1156,6 +1176,19 @@ export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
 npx vitest run tests/unit/conflicts.test.ts tests/unit/purity.test.ts
 ```
 기대: 둘 다 PASS.
+
+> **실행 중 추가된 테스트 5개.** 위 Step 1 의 12개만으로는 두 가지가 무방비였다. 리뷰가
+> 찾았고 출하된 파일에는 다음이 함께 들어 있다:
+>
+> - `does not compare a later profile against an already-discarded loser` — P0 `append` /
+>   P1 `remove`(짐) / P2 `append` 시나리오. 이 태스크가 고친 로직 버그를 못 박는다
+> - `treats a parent domain and its subdomain as overlapping (parent first)` 와 `(subdomain
+>   first)` — `mayOverlap` 의 `endsWith` 두 절이 각각 살아 있는지 확인한다. 원래 12개는
+>   겹침 케이스가 전부 동일 도메인이라 두 절을 통째로 지워도 통과했다
+> - `does not treat a same-suffix sibling domain as overlapping` — `notexample.com` vs
+>   `example.com`. 점 접두어(`'.' + y`)를 빼는 회귀를 잡는 유일한 테스트다
+> - `treats a profile whose only domains are invalid as overlapping everything` — 항목은
+>   있는데 전부 무효인 경우. 빈 배열과 같은 경로지만 입력이 다르다
 
 - [ ] **Step 5: 커밋**
 
