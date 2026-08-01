@@ -1,3 +1,4 @@
+import { HEADER_TOKEN } from '@/lib/compile/headers';
 import type {
   Diagnostic,
   HeaderTarget,
@@ -41,14 +42,6 @@ export const APPEND_ALLOWED_REQUEST_HEADERS: ReadonlySet<string> = new Set([
   'x-forwarded-for',
 ]);
 
-/**
- * Same boundary as lib/compile/headers.ts. Chrome's rejection boundary is
- * exactly "not an RFC 7230 token", so one predicate maps 1:1 onto it. If the
- * two ever diverge, a row is either dropped without a diagnostic or flagged
- * without being dropped.
- */
-const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-
 export function isAppendAllowed(target: HeaderTarget, name: string): boolean {
   if (target === 'response') return true;
   return APPEND_ALLOWED_REQUEST_HEADERS.has(name.trim().toLowerCase());
@@ -77,7 +70,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         headerRuleId: rule.id,
         message: name.length === 0
           ? 'Header name is empty.'
-          : `"${name}" is not a valid header name. Use letters, digits and - _ . only.`,
+          : `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.

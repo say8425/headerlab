@@ -89,7 +89,7 @@ describe('validateHeaders', () => {
     ]));
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('duplicate-header');
-    // The diagnostic points at the later row — the one that loses.
+    // Flags the later of two rows touching the same header.
     expect(d[0]?.headerRuleId).toBe('b');
   });
 
