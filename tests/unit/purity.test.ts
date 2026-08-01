@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const PURE_FILES = [
   ...readdirSync('lib/compile').filter((f) => f.endsWith('.ts')).map((f) => join('lib/compile', f)),
   'lib/permissions/origins.ts',
+  'lib/permissions/audit.ts',
 ];
 
 const FORBIDDEN = [
