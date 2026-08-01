@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: ({ mode }) => ({
     name: 'HeaderLab',
     description: 'Add, modify and remove HTTP request and response headers.',
-    permissions: ['storage', 'declarativeNetRequestWithHostAccess', 'activeTab'],
+    permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
     // e2e builds only: lets the E2E suite modify headers on the loopback echo
     // server without a runtime permission prompt Playwright cannot click.
