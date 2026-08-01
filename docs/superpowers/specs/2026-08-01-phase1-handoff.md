@@ -15,10 +15,10 @@
 | 비활성 룰은 나가지 않는다 | 같은 요청에서 해당 헤더 부재 |
 | `remove` 룰이 페이지가 보낸 헤더를 제거한다 | 서버에 도달하지 않음 |
 | 설치 시 호스트 권한 0 | 배포 매니페스트에 `host_permissions` 키 부재 — 자동 단언으로 강제 |
-| 네트워크 호출 0 · 외부 리소스 0 · 콘텐트 스크립트 0 | 빌드 산출물 스캔 |
+| 네트워크 호출 0 · 외부 리소스 0 · 콘텐트 스크립트 0 | HEAD 기준으로 빌드 산출물을 수동 확인함 — 자동 스캔(§4 의 `check-no-network.ts`)은 Phase 3 |
 | 정확성이 브라우저 없이 검증된다 | 순수 층 97개 테스트 + 순수성 가드(위반 주입 시 실패 실증) |
 
-**최종 상태:** 단위 97/97(9파일) · E2E 3/3 · `tsc` 통과 · 빌드 통과 · Apache-2.0.
+**최종 상태:** 단위 100/100(10파일) · E2E 3/3 · `tsc` 통과 · 빌드 통과 · Apache-2.0.
 
 **오라클에 대해.** E2E 만이 "헤더가 바뀌었다"에 답한다. `getMatchedRules` 와
 `testMatchOutcome` 은 룰 *매칭* 오라클이라 반환 타입에 헤더가 없고, Playwright 의
@@ -36,6 +36,8 @@
 | 항목 | 위치 | 성격 |
 |---|---|---|
 | `excludedRequestDomains` 가 정규화·검증을 안 거침 | `lib/compile/conditions.ts` | `requestDomains` 는 닫혔으나 이 표면은 열려 있음. 같은 트랜잭셔널 실패 경로 |
+| `filter.regex` → `regexFilter`, `pathPattern` → `urlFilter` 가 미검증 통과 | `lib/compile/conditions.ts:52-58` | Chrome 이 컴파일 불가능한 regexFilter·메모리 예산 초과·비-ASCII urlFilter 를 거부하면 `updateDynamicRules` 트랜잭션 전체가 무효화됨 — 위 `excludedRequestDomains` 와 같은 실패 경로. Phase 1 팝업은 regex 모드도 pathPattern 입력도 노출하지 않아 도달 불가능하고, JSON import 나 regex UI 가 생기면 도달함. `DiagnosticKind` 는 이미 `'regex-unsupported'` 를 예약해 둠 |
+| `activeTab` 권한 제거 | `wxt.config.ts` | Phase 1 팝업은 탭 API 를 전혀 쓰지 않아 미사용 상태로 제거함. 탭 잠금(§2.2) 구현 시 재추가할 것 — 현재 탭의 제목·URL 을 사용자 제스처(아이콘 클릭) 시점에 한해 읽고, `tabs` 권한이 붙이는 "검색 기록 읽기" 경고 없이 그렇게 하는 것이 옳은 메커니즘(설계 §5.1). 권한 감사(설계 §5.3)의 현재 탭 오리진 확인에도 필요 |
 | 도메인 내부 공백이 `isValidDomain` 을 통과 | `lib/permissions/origins.ts` | 기존 갭. 등록은 되나 매칭되지 않는 조용한 실패 |
 | 억제된 프로필도 `originsForFilter` 가 오리진을 반환 | `lib/permissions/origins.ts` | 과다 요청 방향이라 프라이버시 후퇴는 아님 |
 | `reconcile` 테스트가 `await` 이전에 단언 | `tests/unit/ruleSync.test.ts` | 단언 실패 시 모듈 스코프 `inFlight` 가 pending 으로 남아 다음 테스트 오염 가능 |
