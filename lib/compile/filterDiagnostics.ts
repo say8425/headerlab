@@ -1,6 +1,10 @@
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
+// Differs from origins.ts's ASCII_ONLY (`+`, rejects empty): `*` here because
+// filter.pathPattern can be defined but empty, and an empty pathPattern must
+// not be flagged as non-ASCII. Keep separate — unifying on `+` would
+// misreport an empty pathPattern as invalid.
 const ASCII_ONLY = /^[\x00-\x7F]*$/;
 
 /** regexFilter must be under 2KB once compiled. The source length is a cheap
@@ -61,8 +65,15 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // An unusable entry raises no diagnostic of its own — the profile-level
   // `empty-filter` below is what the user has to act on, and per-entry noise
   // would bury it.
+  //
+  // Deduped by host: 'localhost:3000' and 'localhost:8080' both normalize to
+  // the same host, and requestDomains only ever sees that one host — the same
+  // reason originsForFilter (origins.ts) dedupes with a Set. Without this, the
+  // user sees the identical warning once per port instead of once per host.
+  const portIgnoredHosts = new Set<string>();
   for (const a of analyses) {
-    if (!a.portDropped || !a.valid) continue;
+    if (!a.portDropped || !a.valid || portIgnoredHosts.has(a.host)) continue;
+    portIgnoredHosts.add(a.host);
     diagnostics.push({
       kind: 'port-ignored',
       severity: 'warning',

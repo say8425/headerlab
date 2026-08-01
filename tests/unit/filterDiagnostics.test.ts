@@ -22,7 +22,8 @@ describe('validateFilter', () => {
 
   it('warns when every domain is unusable, for the same reason', () => {
     const d = validateFilter(profileWith({ domains: ['a b.com'] }));
-    expect(d.map((x) => x.kind)).toContain('empty-filter');
+    expect(d).toHaveLength(1);
+    expect(d[0]?.kind).toBe('empty-filter');
   });
 
   it('reports a dropped port without calling the domain invalid', () => {
@@ -36,6 +37,17 @@ describe('validateFilter', () => {
   it('does not warn about an empty filter when a port-bearing domain survives', () => {
     const d = validateFilter(profileWith({ domains: ['localhost:3000'] }));
     expect(d.map((x) => x.kind)).not.toContain('empty-filter');
+  });
+
+  it('does not report port-ignored when the port-bearing host is itself unusable', () => {
+    const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }));
+    expect(d.map((x) => x.kind)).not.toContain('port-ignored');
+    expect(d.map((x) => x.kind)).toContain('empty-filter');
+  });
+
+  it('dedupes port-ignored by host — same host, different ports, one warning', () => {
+    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'localhost:8080'] }));
+    expect(d.filter((x) => x.kind === 'port-ignored')).toHaveLength(1);
   });
 
   it('flags a non-ASCII regex — regexFilter is ASCII-only', () => {
