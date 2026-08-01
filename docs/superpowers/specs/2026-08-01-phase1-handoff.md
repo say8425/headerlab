@@ -1,7 +1,7 @@
 # Phase 1 인수인계 — 걷는 뼈대
 
 작성일: 2026-08-01
-브랜치: `phase1-walking-skeleton` (34 커밋)
+브랜치: `phase1-walking-skeleton` (39 커밋)
 설계: [`2026-07-31-headerlab-design.md`](2026-07-31-headerlab-design.md) ·
 계획: [`../plans/2026-07-31-headerlab-phase1-walking-skeleton.md`](../plans/2026-07-31-headerlab-phase1-walking-skeleton.md)
 
@@ -16,7 +16,7 @@
 | `remove` 룰이 페이지가 보낸 헤더를 제거한다 | 서버에 도달하지 않음 |
 | 설치 시 호스트 권한 0 | 배포 매니페스트에 `host_permissions` 키 부재 — 자동 단언으로 강제 |
 | 네트워크 호출 0 · 외부 리소스 0 · 콘텐트 스크립트 0 | HEAD 기준으로 빌드 산출물을 수동 확인함 — 자동 스캔(§4 의 `check-no-network.ts`)은 Phase 3 |
-| 정확성이 브라우저 없이 검증된다 | 순수 층 97개 테스트 + 순수성 가드(위반 주입 시 실패 실증) |
+| 정확성이 브라우저 없이 검증된다 | 순수 층 80개 테스트(전체 100개 중) + 순수성 가드. 가드는 위반을 주입해 실제로 실패함을 확인했다 |
 
 **최종 상태:** 단위 100/100(10파일) · E2E 3/3 · `tsc` 통과 · 빌드 통과 · Apache-2.0.
 
@@ -47,6 +47,7 @@
 | `@types/chrome` 이 타입 프로그램에 없어 미사용 | `package.json` | 제거하거나 tsconfig 에 편입 결정 |
 | shadcn 전이 의존성 6개가 캐럿 부동 | `package.json` | lockfile 로 재현성 확보됨. CI 의 `npm ci` 강제가 정답 |
 | `author`·`keywords` 가 npm-init 잔여 | `package.json` | `private: true` 라 배포 메타데이터 아님 |
+| `parseAppState` 가 미지의 키를 벗겨낸다 | `lib/model/schema.ts` · `lib/storage/state.ts` | 읽을 때 벗겨내는 것은 전방 호환을 위한 의도적 설계다(미래 버전 상태가 크래시를 내지 않는다). 그러나 팝업의 `update` 가 `AppState` 전체를 다시 쓰므로, **다음 편집에서 그 필드가 영구히 사라진다.** 신버전을 쓰다 구버전으로 되돌아온 사용자에게만 발현하며 Phase 1 에는 미지의 키가 없다. 벗겨낸 키를 보존해 다시 쓰거나, 팝업이 전체 덮어쓰기 대신 부분 갱신을 하도록 바꾸는 두 방향이 있다 |
 
 ### 2.2 단일 기록자 가정이 설계상 깨진다
 
