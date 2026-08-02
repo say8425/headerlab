@@ -26,9 +26,15 @@ import type { Profile } from '@/lib/model/types';
  * **One definition, four callers.** compile.ts decides the rule, and
  * filterDiagnostics.ts, conflicts.ts and audit.ts all have to agree with it —
  * a diagnostic that disagrees about whether a profile is alive is worse than no
- * diagnostic, because it points the user at the wrong thing. Phase 1 hid the
- * divergence: isValidDomain was loose enough that four different predicates
- * happened to agree. They no longer do.
+ * diagnostic, because it points the user at the wrong thing.
+ *
+ * This function exists because that is exactly what went wrong. The three
+ * diagnostic modules were written new in Phase 2a, and each restated the
+ * aliveness decision compile.ts had already made instead of asking it — one
+ * with `some(valid)`, two with a per-entry skip. Tightening isValidDomain in
+ * the same phase turned the divergence into a profile that was suppressed
+ * while every diagnostic stayed silent. Add a fifth caller by calling this,
+ * never by restating it.
  */
 export function isSuppressed(profile: Profile): boolean {
   const { domains } = profile.filter;
