@@ -218,6 +218,51 @@ describe('compile emits diagnostics', () => {
     expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
   });
 
+  it('does not go silent when only some of a profile\'s domains are usable', () => {
+    // The regression this whole fix exists for: the rule does not go out, the
+    // header row is fine, the profile is enabled — and before this, nothing
+    // said so. Both halves are asserted because either one alone passes today.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+      })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.session).toHaveLength(0);
+    expect(result.diagnostics).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'Unusable domain: "https://staging.example.com". ' +
+        'The whole profile is not applied until every domain in it is usable.',
+    }]);
+  });
+
+  it('never lets a pattern that permissions.contains() rejects reach requiredOrigins', () => {
+    // Measured in docs/research/2026-08-01-permission-audit-spike.md §3:
+    // `*://*.https://x.com/*` throws Invalid port, and one throwing entry
+    // poisons the whole permissions call Phase 2b will build on this field.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+      })],
+    }));
+    expect(result.requiredOrigins).toEqual(['*://*.api.example.com/*']);
+  });
+
+  it('falls back to <all_urls> when no domain is usable at all', () => {
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['https://staging.example.com'] },
+      })],
+    }));
+    expect(result.requiredOrigins).toEqual(['<all_urls>']);
+  });
+
   it('does not report on a disabled profile', () => {
     const base = profile();
     expect(compile(state({

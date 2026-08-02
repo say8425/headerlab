@@ -1,3 +1,4 @@
+import { isSuppressed } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
@@ -10,17 +11,22 @@ export interface DomainGrant {
 /**
  * Hosts that need a permission check, deduplicated, in first-seen order.
  *
- * A profile with no usable domain is skipped rather than audited as
- * `<all_urls>`: it is already suppressed by the compiler, so a permission
- * badge on it would point at a rule that does not exist.
+ * A suppressed profile is skipped rather than audited: the compiler emits no
+ * rule for it, so a permission badge on it would point at a rule that does not
+ * exist, and granting the permission would change nothing. This is the criterion
+ * `isSuppressed` names — applied to the whole profile, not entry by entry,
+ * because the compiler's decision is all-or-nothing. A profile with no domains
+ * at all is not suppressed but yields no hosts either: `<all_urls>` is not
+ * auditable per-domain.
  */
 export function domainsToAudit(profiles: readonly Profile[]): string[] {
   const hosts: string[] = [];
   for (const profile of profiles) {
-    if (!profile.enabled) continue;
+    if (!profile.enabled || isSuppressed(profile)) continue;
+    // Every remaining domain is valid — isSuppressed guarantees it — so this
+    // loop normalizes rather than filters.
     for (const domain of profile.filter.domains) {
-      const { host, valid } = analyzeDomain(domain);
-      if (!valid) continue;
+      const { host } = analyzeDomain(domain);
       if (!hosts.includes(host)) hosts.push(host);
     }
   }
@@ -32,6 +38,11 @@ export function domainsToAudit(profiles: readonly Profile[]): string[] {
  *
  * One diagnostic per profile-domain pair: the badge lives on a profile row in
  * the UI, so a shared host has to reach every profile that depends on it.
+ *
+ * Skips suppressed profiles for the same reason `domainsToAudit` does — the
+ * message below promises the rule *is* registered, and for a suppressed profile
+ * that is simply false. `invalid-domain` from validateFilter is what such a
+ * profile gets instead, and it names the real cause.
  */
 export function auditDiagnostics(
   profiles: readonly Profile[],
@@ -44,11 +55,11 @@ export function auditDiagnostics(
 
   const diagnostics: Diagnostic[] = [];
   for (const profile of profiles) {
-    if (!profile.enabled) continue;
+    if (!profile.enabled || isSuppressed(profile)) continue;
     const seen = new Set<string>();
     for (const domain of profile.filter.domains) {
-      const { host, valid } = analyzeDomain(domain);
-      if (!valid || !ungranted.has(host) || seen.has(host)) continue;
+      const { host } = analyzeDomain(domain);
+      if (!ungranted.has(host) || seen.has(host)) continue;
       seen.add(host);
       diagnostics.push({
         kind: 'permission-missing',

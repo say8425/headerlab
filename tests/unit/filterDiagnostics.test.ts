@@ -80,4 +80,58 @@ describe('validateFilter', () => {
     const d = validateFilter(profileWith({ domains: ['a.com'], pathPattern: '/경로' }));
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
   });
+
+  it('names the unusable entry when only some domains are usable', () => {
+    // compile.ts suppresses the whole profile here, and `empty-filter` stays
+    // quiet because one entry is valid — this diagnostic is what closes that
+    // silence, so the exact message is part of the contract.
+    const d = validateFilter(profileWith({
+      domains: ['api.example.com', 'https://staging.example.com'],
+    }));
+    expect(d).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'Unusable domain: "https://staging.example.com". ' +
+        'The whole profile is not applied until every domain in it is usable.',
+    }]);
+  });
+
+  it('names every unusable entry, in the order the user wrote them', () => {
+    const d = validateFilter(profileWith({
+      domains: ['https://staging.example.com', 'api.example.com', 'a b.com'],
+    }));
+    expect(d).toHaveLength(1);
+    expect(d[0]?.message).toBe(
+      'Unusable domains: "https://staging.example.com", "a b.com". ' +
+      'The whole profile is not applied until every domain in it is usable.',
+    );
+  });
+
+  it('never raises invalid-domain and empty-filter together', () => {
+    // The two branches split on whether *any* entry survives, so a profile
+    // gets one or the other and never both.
+    expect(validateFilter(profileWith({ domains: [] })).map((x) => x.kind))
+      .toEqual(['empty-filter']);
+    expect(validateFilter(profileWith({ domains: ['a b.com'] })).map((x) => x.kind))
+      .toEqual(['empty-filter']);
+    expect(validateFilter(profileWith({ domains: ['ok.com', 'a b.com'] })).map((x) => x.kind))
+      .toEqual(['invalid-domain']);
+  });
+
+  it('raises invalid-domain in regex mode too — the compiler suppresses it the same way', () => {
+    // compile.ts's suppression does not look at the mode, and conditions.ts
+    // sets requestDomains for a regex rule as well. Without this the same
+    // silence returns through the regex door.
+    const d = validateFilter(profileWith({
+      mode: 'regex', regex: '^https://', domains: ['ok.com', 'a b.com'],
+    }));
+    expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
+  });
+
+  it('still reports a dropped port alongside the unusable entry', () => {
+    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'a b.com'] }));
+    expect(d.map((x) => x.kind)).toEqual(['invalid-domain', 'port-ignored']);
+  });
 });

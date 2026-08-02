@@ -165,12 +165,47 @@ describe('detectConflicts', () => {
     ])).toEqual([]);
   });
 
-  it('treats a profile whose only domains are invalid as overlapping everything', () => {
-    // Same code path as the empty-domains case (`aHosts.length === 0`), but
-    // reached via a present-but-unusable entry instead of an empty array.
+  it('excludes a profile whose only domains are invalid — no rule is emitted for it', () => {
+    // Replaces an earlier test that asserted the opposite. `aHosts.length === 0`
+    // models "a rule with no domain condition matches every site", which is
+    // true for an *empty* list — but compile.ts suppresses a non-empty list
+    // that is entirely unusable, so it emits no rule at all. Blaming a
+    // neighbour for losing to that rule is a false positive, and it directly
+    // contradicts the `empty-filter` this same compile() puts on the profile.
     expect(detectConflicts([
       p('a', 'A', ['a b.com'], [{ name: 'Authorization' }], 0),
       p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-    ])).toHaveLength(1);
+    ])).toEqual([]);
+  });
+
+  it('excludes a profile whose domain list is only partly usable', () => {
+    // The mixed case is suppressed by compile.ts just as the all-invalid one
+    // is, so the same reasoning applies — even though the hosts overlap.
+    expect(detectConflicts([
+      p('a', 'A', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 0),
+      p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
+    ])).toEqual([]);
+  });
+
+  it('does not name a suppressed profile as the loser either', () => {
+    // Exclusion has to be symmetric: a profile that emits no rule cannot have
+    // its row discarded by anyone.
+    expect(detectConflicts([
+      p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
+      p('b', 'B', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 1),
+    ])).toEqual([]);
+  });
+
+  it('does not let a suppressed profile hide a conflict between its neighbours', () => {
+    // Removing the middle profile from consideration must not shift who the
+    // winner is for the profiles that do compile.
+    const d = detectConflicts([
+      p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0),
+      p('bad', 'Broken', ['a b.com'], [{ name: 'Authorization' }], 1),
+      p('c', 'Staging', ['x.com'], [{ name: 'Authorization' }], 2),
+    ]);
+    expect(d).toHaveLength(1);
+    expect(d[0]?.profileId).toBe('c');
+    expect(d[0]?.message).toContain('Local');
   });
 });

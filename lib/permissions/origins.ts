@@ -109,10 +109,26 @@ export function requestPattern(domain: string): string {
   return `*://*.${normalizeDomain(domain)}/*`;
 }
 
+/**
+ * Match patterns this filter needs granted, or `['<all_urls>']` when it cannot
+ * be narrowed.
+ *
+ * Filters on **validity**, not merely on non-emptiness. A bare length check let
+ * `https://staging.example.com` through and built
+ * `*://*.https://staging.example.com/*` — measured as **THREW — Invalid port**
+ * in docs/research/2026-08-01-permission-audit-spike.md §3. That matters more
+ * than a wrong answer would: one bad entry poisons the entire
+ * `contains()`/`request()` call it is passed to, so a single pasted URL would
+ * kill the whole grant flow. (Internal whitespace, `a b.com`, returns false
+ * without throwing — a different failure, but a pattern that can never match is
+ * no more useful here.)
+ *
+ * `probe.ts` guards this API with "one host at a time, each individually
+ * caught"; this field is a second door to it that bypasses that guard, so the
+ * patterns it emits have to be sound at the source.
+ */
 export function originsForFilter(filter: Filter): string[] {
-  const domains = filter.domains
-    .map(normalizeDomain)
-    .filter((d) => d.length > 0);
+  const domains = filter.domains.filter(isValidDomain).map(normalizeDomain);
 
   if (domains.length === 0) return ['<all_urls>'];
 

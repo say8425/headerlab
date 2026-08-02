@@ -71,6 +71,29 @@ describe('originsForFilter', () => {
     expect(originsForFilter({ ...base, domains: ['  ', 'api.example.com'] }))
       .toEqual(['*://*.api.example.com/*']);
   });
+
+  it('drops an unusable entry rather than building a pattern that throws', () => {
+    // docs/research/2026-08-01-permission-audit-spike.md §3 measured
+    // `*://*.https://x.com/*` as THREW — Invalid port, and one throwing entry
+    // poisons the whole contains()/request() call it is passed to.
+    expect(originsForFilter({
+      ...base,
+      domains: ['api.example.com', 'https://staging.example.com'],
+    })).toEqual(['*://*.api.example.com/*']);
+  });
+
+  it('drops an entry with internal whitespace too', () => {
+    // The same table records `a b.com` as returning false without throwing —
+    // a different failure, but a pattern that can never match is still one
+    // this field must not carry.
+    expect(originsForFilter({ ...base, domains: ['api.example.com', 'a b.com'] }))
+      .toEqual(['*://*.api.example.com/*']);
+  });
+
+  it('falls back to <all_urls> when no entry is usable', () => {
+    expect(originsForFilter({ ...base, domains: ['https://staging.example.com'] }))
+      .toEqual(['<all_urls>']);
+  });
 });
 
 describe('analyzeDomain', () => {

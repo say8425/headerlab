@@ -1,3 +1,4 @@
+import { isSuppressed } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, HeaderRule, Operation, Profile } from '@/lib/model/types';
 
@@ -28,7 +29,10 @@ function mayOverlap(a: Profile, b: Profile): boolean {
   const aHosts = hostsOf(a);
   const bHosts = hostsOf(b);
 
-  // A profile with no usable domain matches every site.
+  // A rule with no domain condition matches every site. Only an *empty* domain
+  // list produces one — a non-empty list that is entirely unusable makes the
+  // compiler emit no rule at all, and those profiles never reach this function
+  // (see `active` below). So an empty `hosts` here means an empty list.
   if (aHosts.length === 0 || bHosts.length === 0) return true;
 
   // Domains match subdomains too, so `example.com` and `api.example.com`
@@ -51,8 +55,15 @@ export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
   //
   // The array order of `state.profiles` is NOT that order. Sorting here is what
   // keeps the diagnostic from naming the loser as the winner.
+  //
+  // Suppressed profiles are excluded in both directions. A profile the compiler
+  // emits no rule for cannot discard a neighbour's row, and its own rows cannot
+  // be discarded — telling the user "«Broken» already sets Authorization, so
+  // this row is discarded" while the same compile() also tells them «Broken» is
+  // not applied is a contradiction, and design §5.4 treats one false positive
+  // on a badge as enough for users to stop trusting every badge.
   const active = [...profiles]
-    .filter((p) => p.enabled)
+    .filter((p) => p.enabled && !isSuppressed(p))
     .sort((a, b) => a.order - b.order);
 
   for (let i = 0; i < active.length; i += 1) {

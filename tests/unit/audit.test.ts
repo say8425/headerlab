@@ -20,8 +20,17 @@ describe('domainsToAudit', () => {
     expect(domainsToAudit([p('a', 'A', ['localhost:3000'])])).toEqual(['localhost']);
   });
 
-  it('skips unusable domains — no pattern can be built for them', () => {
-    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])])).toEqual(['ok.com']);
+  it('skips a profile whose domain list is only partly usable', () => {
+    // Replaces an earlier per-entry expectation of ['ok.com']. The compiler
+    // suppresses this profile whole, so auditing its surviving host would put
+    // a permission badge on a rule that was never registered — exactly what
+    // this module's docstring says it avoids.
+    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])])).toEqual([]);
+  });
+
+  it('audits every host of a profile whose domains are all usable', () => {
+    expect(domainsToAudit([p('a', 'A', ['ok.com', 'other.com'])]))
+      .toEqual(['ok.com', 'other.com']);
   });
 
   it('ignores disabled profiles', () => {
@@ -81,6 +90,17 @@ describe('auditDiagnostics', () => {
     expect(auditDiagnostics(
       [p('a', 'A', ['x.com'], false)],
       [{ domain: 'x.com', granted: false }],
+    )).toEqual([]);
+  });
+
+  it('says nothing about a profile the compiler suppressed', () => {
+    // "The rule is registered but will not apply until you grant it" would be
+    // a lie here: no rule was registered, and granting the permission changes
+    // nothing. The unusable entry is what the user has to fix, and
+    // validateFilter is what says so.
+    expect(auditDiagnostics(
+      [p('a', 'A', ['api.example.com', 'https://staging.example.com'])],
+      [{ domain: 'api.example.com', granted: false }],
     )).toEqual([]);
   });
 });

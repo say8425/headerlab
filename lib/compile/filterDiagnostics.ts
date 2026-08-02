@@ -1,3 +1,4 @@
+import { isSuppressed } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
@@ -22,6 +23,35 @@ const REGEX_MAX_SOURCE = 2048;
 export function validateFilter(profile: Profile): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const { filter } = profile;
+
+  // `raw` is kept alongside the analysis so the message below can name the
+  // line the user typed rather than the normalized host — "https://x.com"
+  // normalizes to itself, but "A B.com:80" would not.
+  const analyses = filter.domains.map((d) => ({ raw: d, ...analyzeDomain(d) }));
+
+  // The mixed case: some entries usable, some not. compile.ts suppresses the
+  // whole profile, and `empty-filter` below stays quiet because an entry did
+  // survive — so without this branch the profile is enabled, its header rows
+  // look fine, and nothing is modified. That silence is the failure shape this
+  // project exists to remove, so this is an error, not a warning.
+  //
+  // Raised above the regex branch on purpose: compile.ts's suppression is
+  // mode-agnostic and conditions.ts sets requestDomains for a regex rule too,
+  // so a regex profile that also lists a broken domain dies the same way.
+  //
+  // Mutually exclusive with `empty-filter` by construction — that one needs
+  // *no* entry to survive, this one needs at least one.
+  if (analyses.some((a) => a.valid) && isSuppressed(profile)) {
+    const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
+    diagnostics.push({
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: profile.id,
+      message:
+        `${bad.length === 1 ? 'Unusable domain' : 'Unusable domains'}: ${bad.join(', ')}. ` +
+        'The whole profile is not applied until every domain in it is usable.',
+    });
+  }
 
   if (filter.mode === 'regex') {
     const regex = filter.regex ?? '';
@@ -60,12 +90,6 @@ export function validateFilter(profile: Profile): Diagnostic[] {
     });
   }
 
-  const analyses = filter.domains.map(analyzeDomain);
-
-  // An unusable entry raises no diagnostic of its own — the profile-level
-  // `empty-filter` below is what the user has to act on, and per-entry noise
-  // would bury it.
-  //
   // Deduped by host: 'localhost:3000' and 'localhost:8080' both normalize to
   // the same host, and requestDomains only ever sees that one host — the same
   // reason originsForFilter (origins.ts) dedupes with a Set. Without this, the
