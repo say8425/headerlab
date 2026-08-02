@@ -6,21 +6,21 @@ import { useAppState } from '@/lib/storage/useAppState';
 import type { HeaderRule, Profile } from '@/lib/model/types';
 
 export default function App() {
-  const { state, update } = useAppState();
+  const { state, patch } = useAppState();
   if (!state) return <div className="w-[560px] p-4 text-sm">Loading…</div>;
 
   // `noUncheckedIndexedAccess` is on, so this is `Profile | undefined`.
   const profile = state.profiles[0];
 
   const addProfile = () =>
-    update((s) => ({ ...s, profiles: [createProfile('Local', 0)] }));
+    patch(() => ({ profiles: [createProfile('Local', 0)] }));
 
   // Typed against `Profile`, not `typeof profile` — the latter would carry the
   // `undefined` and make `map` produce `(Profile | undefined)[]`, which does not
   // assign back to `profiles`. The `if (!profile)` guard below is too late to help:
   // it narrows the render branch, not this closure.
   const patchProfile = (fn: (p: Profile) => Profile) =>
-    update((s) => ({ ...s, profiles: s.profiles.map((p, i) => (i === 0 ? fn(p) : p)) }));
+    patch((s) => ({ profiles: s.profiles.map((p, i) => (i === 0 ? fn(p) : p)) }));
 
   const addHeader = () =>
     patchProfile((p) => ({

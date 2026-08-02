@@ -108,7 +108,15 @@ export type DiagnosticKind =
   | 'profile-conflict'
   | 'permission-missing'
   | 'tab-lock-stale'
-  | 'empty-filter';
+  | 'empty-filter'
+  /** A port was normalized away: requestDomains is host-only and matches every port. */
+  | 'port-ignored'
+  /**
+   * Some of a profile's domains are usable and some are not, so the compiler
+   * suppresses the whole profile. See lib/compile/suppression.ts for why it is
+   * all-or-nothing rather than per-entry.
+   */
+  | 'invalid-domain';
 
 export interface Diagnostic {
   kind: DiagnosticKind;

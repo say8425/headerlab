@@ -1,7 +1,11 @@
 import { compileHeaders } from '@/lib/compile/headers';
 import { filterToCondition } from '@/lib/compile/conditions';
+import { detectConflicts } from '@/lib/compile/conflicts';
+import { validateFilter } from '@/lib/compile/filterDiagnostics';
 import { allocate } from '@/lib/compile/priority';
-import { isValidDomain, originsForFilter } from '@/lib/permissions/origins';
+import { isSuppressed } from '@/lib/compile/suppression';
+import { validateHeaders } from '@/lib/compile/validate';
+import { originsForFilter } from '@/lib/permissions/origins';
 import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
 
 /**
@@ -23,7 +27,13 @@ export function compile(state: AppState): CompileResult {
   for (const profile of state.profiles) {
     if (!profile.enabled) continue;
     for (const origin of originsForFilter(profile.filter)) origins.add(origin);
+
+    // Diagnosed regardless of globalPause — see below — but never for a
+    // disabled profile: the user turning a profile off means they are not
+    // thinking about it right now, so a complaint about it would be noise.
+    diagnostics.push(...validateHeaders(profile), ...validateFilter(profile));
   }
+  diagnostics.push(...detectConflicts(state.profiles));
 
   // globalPause suppresses rules but not analysis: the user must still be able
   // to see problems with their configuration while paused.
@@ -35,17 +45,10 @@ export function compile(state: AppState): CompileResult {
       const action = compileHeaders(profile.headers);
       if (!action.requestHeaders && !action.responseHeaders) continue;
 
-      // A non-ASCII domain makes Chrome reject the whole updateDynamicRules
-      // batch, same as an unusable header name (see headers.ts) — but unlike
-      // headers, a domain cannot be dropped individually: filterToCondition
-      // only sets requestDomains when the list is non-empty, so skipping the
-      // profile's only domain would produce a rule with *no* domain
-      // condition, and DNR matches that against every site. A profile scoped
-      // to one host would silently start modifying headers everywhere — a
-      // privacy regression strictly worse than the transactional failure it
-      // would "fix". Failing the whole profile closed is the only safe
-      // option; other profiles are unaffected.
-      if (!profile.filter.domains.every(isValidDomain)) continue;
+      // Fail the whole profile closed rather than drop the bad domain — the
+      // reasoning, and the three other modules that must agree with it, are in
+      // lib/compile/suppression.ts.
+      if (isSuppressed(profile)) continue;
 
       const rule: DnrRule = {
         id: alloc.ruleId,

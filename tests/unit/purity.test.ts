@@ -2,10 +2,25 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const PURE_FILES = [
-  ...readdirSync('lib/compile').filter((f) => f.endsWith('.ts')).map((f) => join('lib/compile', f)),
+/** Auto-discovered: every new file in this directory is guarded for free. */
+const AUTO_DISCOVERED = readdirSync('lib/compile')
+  .filter((f) => f.endsWith('.ts'))
+  .map((f) => join('lib/compile', f));
+
+/**
+ * Hand-listed, because `lib/permissions/` also holds an adapter (`probe.ts`)
+ * that must NOT be guarded — it imports the browser by design. There is no
+ * directory-shaped rule to auto-discover here, so a new pure file in this
+ * directory is guarded only if someone remembers to add it.
+ *
+ * That is why the entries are asserted by name below rather than by count.
+ */
+const EXPLICIT = [
   'lib/permissions/origins.ts',
+  'lib/permissions/audit.ts',
 ];
+
+const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
 
 const FORBIDDEN = [
   /\bchrome\s*\./,
@@ -29,8 +44,35 @@ function stripComments(source: string): string {
 }
 
 describe('the pure layer stays pure', () => {
-  it('finds the files it is supposed to guard', () => {
-    expect(PURE_FILES.length).toBeGreaterThanOrEqual(5);
+  it('auto-discovers every file in lib/compile', () => {
+    // A count floor cannot catch a deletion once the list has grown past it,
+    // so assert the set instead: this fails the moment a lib/compile file
+    // stops being discovered, whatever the total happens to be.
+    expect(AUTO_DISCOVERED).toEqual(
+      expect.arrayContaining([
+        'lib/compile/compile.ts',
+        'lib/compile/conditions.ts',
+        'lib/compile/conflicts.ts',
+        'lib/compile/filterDiagnostics.ts',
+        'lib/compile/headers.ts',
+        'lib/compile/priority.ts',
+        'lib/compile/suppression.ts',
+        'lib/compile/validate.ts',
+      ]),
+    );
+  });
+
+  it('still guards every hand-listed pure file', () => {
+    // These are the ones a refactor can silently drop — nothing rediscovers
+    // them. `toEqual` on the exact list means removing one turns this red.
+    expect(EXPLICIT).toEqual([
+      'lib/permissions/origins.ts',
+      'lib/permissions/audit.ts',
+    ]);
+  });
+
+  it('does not guard the permissions adapter — it imports the browser by design', () => {
+    expect(PURE_FILES).not.toContain('lib/permissions/probe.ts');
   });
 
   it.each(PURE_FILES)('%s has no browser dependency', (path) => {

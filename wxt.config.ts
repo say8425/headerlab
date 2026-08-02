@@ -15,5 +15,14 @@ export default defineConfig({
   }),
   vite: () => ({
     plugins: [tailwindcss()],
+    build: {
+      // Vite injects a modulepreload polyfill that calls `fetch()` on any
+      // `link[rel="modulepreload"]`. No entrypoint here emits such a link, so
+      // the code never runs — but it leaves a literal `fetch(` in the shipped
+      // bundle, and this extension's central claim is that it makes no network
+      // calls at all. That claim should be checkable by reading the output,
+      // without an exception list.
+      modulePreload: false,
+    },
   }),
 });

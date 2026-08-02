@@ -6,7 +6,11 @@ import type { HeaderRule, ModifyHeaderInfo } from '@/lib/model/types';
 // with it. This is the exact boundary a real Chrome probe found: whitespace
 // (any position), a colon, and non-ASCII are all rejected; a clean token is
 // accepted.
-const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+//
+// Exported so lib/compile/validate.ts can use the identical boundary. Two
+// copies of this regex would drift silently — a row could then be dropped
+// here with no diagnostic there, or flagged there while still emitted here.
+export const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 function toModifyHeaderInfo(rule: HeaderRule): ModifyHeaderInfo {
   // `value` must be absent for remove and present for set/append.

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@/lib/compile/compile';
 import { reconcile, syncRules } from '@/lib/sync/ruleSync';
 import * as stateModule from '@/lib/storage/state';
+import * as sessionModule from '@/lib/storage/session';
 import type { AppState, DnrRule } from '@/lib/model/types';
 
 const dnr = () => fakeBrowser.declarativeNetRequest;
@@ -118,10 +119,16 @@ describe('reconcile', () => {
     const p2 = reconcile();
 
     // p2 arrived while p1 was still awaiting getState() — it must not have
-    // triggered its own, independent recompile.
-    expect(getStateSpy).toHaveBeenCalledTimes(1);
+    // triggered its own, independent recompile. Capture the count now (this
+    // cannot throw) but defer the assertion until after both promises have
+    // settled, so a future regression here reports as a normal test failure
+    // instead of leaving p1/p2 unawaited and the module-scope `inFlight`
+    // latch pending into the next test.
+    const callsBeforeSettling = getStateSpy.mock.calls.length;
 
     await Promise.all([p1, p2]);
+
+    expect(callsBeforeSettling).toBe(1);
   });
 
   it('runs the two passes in sequence, not interleaved, and settles on the latest state', async () => {
@@ -157,5 +164,58 @@ describe('reconcile', () => {
     expect(dnr().updateDynamicRules).toHaveBeenLastCalledWith(
       expect.objectContaining({ addRules: compile(stateB).dynamic }),
     );
+  });
+
+  it('records the failure message where the popup can read it', async () => {
+    // Install a failing updateDynamicRules the same way the syncRules
+    // describe block's 'propagates a failure instead of swallowing it' test
+    // does — this file's one spy mechanism for simulating a DNR failure.
+    vi.spyOn(dnr(), 'updateDynamicRules').mockRejectedValue(new Error('boom'));
+
+    // Recording the status is a side record, not a substitute for the
+    // existing throw — reconcile() must still reject exactly as before.
+    await expect(reconcile()).rejects.toThrow('boom');
+
+    const status = await sessionModule.getSyncStatus();
+    expect(status.lastError).toContain('boom');
+    // A failed reconcile registered nothing; the previous rule count (if
+    // any) must not linger and be mistaken for a successful sync.
+    expect(status.ruleCount).toBe(0);
+  });
+
+  it('clears a previous failure once a reconcile succeeds, recording the rules actually registered', async () => {
+    const state = appState('X-Success');
+    vi.spyOn(stateModule, 'getState').mockResolvedValue(state);
+    await sessionModule.setSyncStatus({ lastError: 'boom', ruleCount: 0 });
+
+    await reconcile();
+
+    const status = await sessionModule.getSyncStatus();
+    expect(status.lastError).toBeNull();
+    // Pinned to the fixture's actual output (1 enabled profile => 1 dynamic
+    // rule), not just "truthy" — a stub ruleCount of 0 or 1 for every
+    // success would pass a weaker assertion here.
+    expect(status.ruleCount).toBe(compile(state).dynamic.length);
+    expect(status.ruleCount).toBe(1);
+  });
+
+  it('does not let a broken status write mask a real reconcile failure', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(dnr(), 'updateDynamicRules').mockRejectedValue(new Error('boom'));
+    vi.spyOn(sessionModule, 'setSyncStatus').mockRejectedValue(new Error('storage full'));
+
+    // The reconcile failure is the one that matters to the caller; a
+    // status-recording failure must not replace it or be swallowed together
+    // with it into a silent resolve.
+    await expect(reconcile()).rejects.toThrow('boom');
+  });
+
+  it('does not let a broken status write turn a successful reconcile into a failure', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(sessionModule, 'setSyncStatus').mockRejectedValue(new Error('storage full'));
+
+    // updateDynamicRules/updateSessionRules succeed via this describe
+    // block's beforeEach — only the best-effort status write fails.
+    await expect(reconcile()).resolves.toBeUndefined();
   });
 });

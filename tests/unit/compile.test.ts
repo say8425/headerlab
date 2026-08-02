@@ -118,6 +118,21 @@ describe('compile', () => {
     expect(out.dynamic[0]!.condition.requestDomains).toEqual(['api.example.com']);
   });
 
+  it('still compiles a domainless profile into a rule that matches every site', () => {
+    // The boundary isSuppressed turns on. An empty list is deliberately NOT
+    // suppressed: it compiles to a rule with no domain condition, and
+    // `empty-filter` is what tells the user how far that reaches. Suppressing
+    // it instead would silently disable every profile not yet scoped to a host
+    // — the same silence, entered from the other side.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({ filter: { ...base.filter, domains: [] } })],
+    }));
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
+    expect(result.diagnostics.map((d) => d.kind)).toEqual(['empty-filter']);
+  });
+
   it('emits no rules at all when globalPause is on', () => {
     const out = compile(state({ globalPause: true }));
     expect(out.dynamic).toHaveLength(0);
@@ -149,7 +164,7 @@ describe('compile', () => {
     expect(out.dynamic[0]!.priority).toBeGreaterThan(out.dynamic[1]!.priority);
   });
 
-  it('returns an empty diagnostics array in phase 1', () => {
+  it('returns no diagnostics for a clean default profile', () => {
     expect(compile(state()).diagnostics).toEqual([]);
   });
 
@@ -163,5 +178,170 @@ describe('compile', () => {
     const snapshot = structuredClone(s);
     compile(s);
     expect(s).toEqual(snapshot);
+  });
+});
+
+describe('compile emits diagnostics', () => {
+  it('reports a blank header name and still compiles the other rows', () => {
+    const result = compile(state({
+      profiles: [profile({
+        headers: [
+          header({ id: 'h1', name: '' }),
+          header({ id: 'h2', name: 'X-Ok' }),
+        ],
+      })],
+    }));
+    // Exact length, not just toContain: a duplicate push of the same kind
+    // (e.g. validateHeaders called twice for this profile) would slip past a
+    // toContain check but not this one.
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+    expect(result.dynamic).toHaveLength(1);
+  });
+
+  it('reports an empty filter on the profile it suppresses', () => {
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({ filter: { ...base.filter, domains: ['a b.com'] } })],
+    }));
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('empty-filter');
+    expect(result.dynamic).toHaveLength(0);
+  });
+
+  it('reports a conflict between two profiles', () => {
+    const result = compile(state({
+      profiles: [
+        profile({ id: 'p1', name: 'Local', order: 0, headers: [header({ name: 'Authorization' })] }),
+        profile({ id: 'p2', name: 'Staging', order: 1, headers: [header({ name: 'Authorization' })] }),
+      ],
+    }));
+    // Exact length pins detectConflicts being called once, outside the
+    // per-profile loop — calling it once per profile would duplicate this
+    // entry, which a toContain check would not catch.
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('profile-conflict');
+  });
+
+  it('keeps diagnostics when globalPause is on — the user still needs to see them', () => {
+    const result = compile(state({
+      globalPause: true,
+      profiles: [profile({ headers: [header({ name: '' })] })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+  });
+
+  it('does not go silent when only some of a profile\'s domains are usable', () => {
+    // The regression this whole fix exists for: the rule does not go out, the
+    // header row is fine, the profile is enabled — and before this, nothing
+    // said so. Both halves are asserted because either one alone passes today.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+      })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.session).toHaveLength(0);
+    expect(result.diagnostics).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'Unusable domain: "https://staging.example.com". ' +
+        'The whole profile is not applied until every domain in it is usable.',
+    }]);
+  });
+
+  it('never lets a pattern that permissions.contains() rejects reach requiredOrigins', () => {
+    // Measured in docs/research/2026-08-01-permission-audit-spike.md §3:
+    // `*://*.https://x.com/*` throws Invalid port, and one throwing entry
+    // poisons the whole permissions call Phase 2b will build on this field.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+      })],
+    }));
+    expect(result.requiredOrigins).toEqual(['*://*.api.example.com/*']);
+  });
+
+  it('falls back to <all_urls> when no domain is usable at all', () => {
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['https://staging.example.com'] },
+      })],
+    }));
+    expect(result.requiredOrigins).toEqual(['<all_urls>']);
+  });
+
+  it('does not say a profile both lost a conflict and was never applied', () => {
+    // The review's §2(b) pair, verbatim. One compile() used to emit two
+    // diagnostics that contradict each other: `empty-filter` telling the user
+    // P0 is not applied, and `profile-conflict` telling them P0 won and
+    // discarded P1's row. In reality only P1's rule reaches `dynamic` and its
+    // header works fine. Asserted on compile() rather than detectConflicts
+    // because the contradiction is a property of the pair, not of either one.
+    const base = profile();
+    const result = compile(state({
+      profiles: [
+        profile({
+          id: 'p0', name: 'Broken', order: 0,
+          filter: { ...base.filter, domains: ['a b.com'] },
+          headers: [header({ name: 'Authorization' })],
+        }),
+        profile({
+          id: 'p1', name: 'Staging', order: 1,
+          filter: { ...base.filter, domains: ['x.com'] },
+          headers: [header({ name: 'Authorization' })],
+        }),
+      ],
+    }));
+    expect(result.diagnostics).toEqual([{
+      kind: 'empty-filter',
+      severity: 'warning',
+      profileId: 'p0',
+      message:
+        'No usable domain — this profile would apply to every site, so it is not applied.',
+    }]);
+    // And the half the diagnostics were lying about: P1 compiles and survives.
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.condition.requestDomains).toEqual(['x.com']);
+  });
+
+  it('does not go silent for a regex profile whose domains are all unusable', () => {
+    // The second door to C1's silence. compile.ts's suppression ignores the
+    // mode and conditions.ts sets requestDomains for a regex rule too, so this
+    // profile dies — while validateFilter's regex branch returns before
+    // `empty-filter` can fire.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, mode: 'regex', regex: '^https://', domains: ['a b.com'] },
+      })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.diagnostics).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'No usable domain: "a b.com". This profile is not applied. ' +
+        'Fix these, or clear the domain list so the regex alone decides what matches.',
+    }]);
+  });
+
+  it('does not report on a disabled profile', () => {
+    const base = profile();
+    expect(compile(state({
+      profiles: [profile({
+        enabled: false,
+        filter: { ...base.filter, domains: [] },
+        headers: [header({ name: '' })],
+      })],
+    })).diagnostics).toEqual([]);
   });
 });

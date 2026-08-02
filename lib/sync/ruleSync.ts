@@ -1,6 +1,7 @@
 import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
 import { getState } from '@/lib/storage/state';
+import { setSyncStatus, type SyncStatus } from '@/lib/storage/session';
 import type { CompileResult, DnrRule } from '@/lib/model/types';
 
 /**
@@ -72,7 +73,22 @@ export async function reconcile(): Promise<void> {
       do {
         rerunQueued = false;
         const state = await getState();
-        await syncRules(compile(state));
+        const result = compile(state);
+        try {
+          await syncRules(result);
+        } catch (error) {
+          await recordStatus({
+            lastError: error instanceof Error ? error.message : String(error),
+            ruleCount: 0,
+          });
+          // Recording is a side record — the failure still propagates
+          // exactly as before, console log and all (see background.ts).
+          throw error;
+        }
+        await recordStatus({
+          lastError: null,
+          ruleCount: result.dynamic.length + result.session.length,
+        });
       } while (rerunQueued);
     } finally {
       inFlight = null;
@@ -80,4 +96,18 @@ export async function reconcile(): Promise<void> {
   })();
 
   return inFlight;
+}
+
+/**
+ * Design §6.2: a reconcile failure's message goes to session storage so the
+ * popup can show it. This is best-effort — a storage write failing here must
+ * never turn a successful reconcile into a failed one, nor swallow a real
+ * reconcile error by throwing over it.
+ */
+async function recordStatus(status: SyncStatus): Promise<void> {
+  try {
+    await setSyncStatus(status);
+  } catch (error) {
+    console.error('[HeaderLab] failed to record sync status', error);
+  }
 }
