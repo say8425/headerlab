@@ -70,7 +70,7 @@
 | `lib/permissions/probe.ts` (신규) | `permissions.contains()` 를 부르는 유일한 파일 | 어댑터 |
 | `lib/storage/session.ts` (신규) | 재조정 실패 메시지 세션 저장 | 어댑터 |
 | `lib/storage/useAppState.ts` (수정) | 전체 덮어쓰기 → 부분 갱신 | 어댑터 |
-| `entrypoints/background.ts` (수정) | 실패를 세션 저장소에 기록 | 어댑터 |
+| `entrypoints/background.ts` | 변경 없음 — 아래 Task 10 참조 | 어댑터 |
 | `wxt.config.ts` (수정) | `activeTab` 재도입 | — |
 
 ---
@@ -2126,7 +2126,7 @@ git commit -m "fix: 팝업이 상태를 통째로 덮어쓰지 않는다
 
 **Files:**
 - Create: `lib/storage/session.ts`
-- Modify: `entrypoints/background.ts`
+- **`entrypoints/background.ts` — 변경 없음.** 계획이 처음에 이 파일을 "수정"으로 적었으나 무엇을 바꿀지 규정하지 않았고, 실행 결과 바꿀 것이 없음이 확인됐다: `chrome.storage.session` 은 이미 선언된 `storage` 권한으로 동작하고(별도 권한 없음), `run()` 의 기존 `.catch` 가 이미 실패를 로그하며(`reconcile()` 이 상태를 기록한 뒤 그대로 다시 던지므로 도달한다), 세션 저장소는 브라우저 시작 시 비어 있어 기동 시점에 지울 것이 없다.
 - Modify: `lib/sync/ruleSync.ts`
 - Test: `tests/unit/session.test.ts`, `tests/unit/ruleSync.test.ts`
 
@@ -2264,7 +2264,7 @@ npm test
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add lib/storage/session.ts lib/sync/ruleSync.ts entrypoints/background.ts tests/unit/session.test.ts tests/unit/ruleSync.test.ts
+git add lib/storage/session.ts lib/sync/ruleSync.ts tests/unit/session.test.ts tests/unit/ruleSync.test.ts
 git commit -m "feat: 재조정 실패를 세션 저장소에 기록한다
 
 설계 §6.2 는 팝업이 실제 문구를 보여주도록 규정한다. 기록이 Phase 2a 이고
