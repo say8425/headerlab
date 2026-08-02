@@ -1,7 +1,7 @@
 # Phase 2a 인수인계 — 진단과 권한 감사
 
 작성일: 2026-08-02
-브랜치: `phase2a-diagnostics-and-audit` (27 커밋)
+브랜치: `phase2a-diagnostics-and-audit` (32 커밋)
 계획: [`../plans/2026-08-01-headerlab-phase2a-diagnostics-and-audit.md`](../plans/2026-08-01-headerlab-phase2a-diagnostics-and-audit.md) ·
 실측: [`../../research/2026-08-01-permission-audit-spike.md`](../../research/2026-08-01-permission-audit-spike.md) ·
 이전 단계: [`2026-08-01-phase1-handoff.md`](2026-08-01-phase1-handoff.md)
@@ -57,7 +57,11 @@ DNR 은 포트가 붙은 항목을 **조용히 받아들이고 영원히 매칭�
 
 **이 단계 최악의 결함이고, 태스크별 리뷰가 구조적으로 볼 수 없던 것이다.**
 
-같은 `filter.domains` 배열에 네 모듈이 다른 술어를 썼다 — `every(isValidDomain)` / `some(a => a.valid)` / 항목별 스킵 / `length > 0`. Phase 1 에서는 `isValidDomain` 이 느슨해서(비어 있지 않고 ASCII) 넷이 사실상 같은 답을 냈다. **Phase 2a 가 그것을 조이면서 처음으로 갈라졌다.**
+같은 `filter.domains` 배열에 네 모듈이 다른 술어를 썼다 — `every(isValidDomain)` / `some(a => a.valid)` / 항목별 스킵 / `length > 0`.
+
+**넷 중 셋을 이 단계가 직접 썼다.** `filterDiagnostics.ts` · `conflicts.ts` · `audit.ts` 는 `main` 에 없는 새 파일이고, 각각 `compile.ts` 가 이미 내린 "이 프로필이 살아 있는가" 판단을 **묻지 않고 다시 진술했다.** 같은 단계에서 `isValidDomain` 을 조이자 그 중복이 도달 가능한 침묵 실패가 됐다.
+
+원래 있던 둘도 완전히 일치하진 않았다 — Phase 1 의 느슨한 술어에서도 `한국.com` 은 `compile.ts` 가 억제하고 `origins.ts` 는 통과시켰다. 다만 그 불일치는 도달하기 어려웠고, 이 단계가 만든 세 사본이 그것을 흔한 입력으로 끌어내렸다.
 
 결과는 침묵하는 실패였다:
 
@@ -136,7 +140,9 @@ Phase 1 의 계획 오류 10건은 전부 "이 환경에서 컴파일·실행되
 
 Phase 1 이 미사용이라 제거했고 2a 도 쓰지 않는다 — 감사는 `filter.domains` 만 본다. 현재 탭 오리진을 읽는 것(설계 §5.3 의 두 번째 줄, 사용자가 스스로 알아낼 수 없는 부분)이 첫 소비자다.
 
-**같은 태스크에서 매니페스트 단언을 집합 동등성 + 길이로 바꿀 것.** 지금은 배열 순서 동등성이라 빌드 도구의 직렬화 순서에 묶여 있다. 단언 문구가 "실제로 쓰는 권한만"이므로, 소비자 없이 넣으면 단언은 초록인 채 내용이 거짓이 된다.
+**같은 태스크에서 매니페스트 단언을 집합 동등성 + 길이로 바꿀 것.** 지금은 배열 순서 동등성이라 빌드 도구의 직렬화 순서에 묶여 있다.
+
+정확히 말하면: 지금 `activeTab` 을 넣으면 단언이 **붉어진다**(정확한 배열 비교이므로). 문제는 그 다음이다 — 고치는 방법이 목록을 넓히는 것이고, 그러면 단언이 스스로 내건 주장("실제로 쓰는 권한만")이 초록인 채 거짓이 된다. 이 프로젝트의 신뢰 주장이 걸린 한 파일이므로, 사실이 아닌 것을 단언하도록 가르치지 말 것.
 
 ### 4.5 `useAppState` 층에는 테스트가 없다
 
