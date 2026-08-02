@@ -29,27 +29,38 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // normalizes to itself, but "A B.com:80" would not.
   const analyses = filter.domains.map((d) => ({ raw: d, ...analyzeDomain(d) }));
 
-  // The mixed case: some entries usable, some not. compile.ts suppresses the
-  // whole profile, and `empty-filter` below stays quiet because an entry did
-  // survive — so without this branch the profile is enabled, its header rows
-  // look fine, and nothing is modified. That silence is the failure shape this
-  // project exists to remove, so this is an error, not a warning.
+  // A suppressed profile compiles to nothing, so saying so is the whole point:
+  // without this the profile is enabled, its header rows look fine, and nothing
+  // is modified. That silence is the failure shape this project exists to
+  // remove, hence `error` rather than `warning`.
   //
-  // Raised above the regex branch on purpose: compile.ts's suppression is
+  // Raised above the regex branch on purpose. compile.ts's suppression is
   // mode-agnostic and conditions.ts sets requestDomains for a regex rule too,
-  // so a regex profile that also lists a broken domain dies the same way.
+  // so a regex profile that lists a broken domain dies the same way — and the
+  // regex branch below returns before `empty-filter` could catch it.
   //
-  // Mutually exclusive with `empty-filter` by construction — that one needs
-  // *no* entry to survive, this one needs at least one.
-  if (analyses.some((a) => a.valid) && isSuppressed(profile)) {
+  // Never fires together with `empty-filter`, whose condition is untouched:
+  //   structured + all-invalid  -> empty-filter (this branch declines)
+  //   structured + empty        -> empty-filter (not suppressed)
+  //   structured + mixed        -> here
+  //   regex + anything invalid  -> here (empty-filter never fires in regex mode)
+  //   regex + empty             -> neither; the pattern is the condition
+  const anyValid = analyses.some((a) => a.valid);
+  if (isSuppressed(profile) && (filter.mode === 'regex' || anyValid)) {
     const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
     diagnostics.push({
       kind: 'invalid-domain',
       severity: 'error',
       profileId: profile.id,
-      message:
-        `${bad.length === 1 ? 'Unusable domain' : 'Unusable domains'}: ${bad.join(', ')}. ` +
-        'The whole profile is not applied until every domain in it is usable.',
+      // Two different problems needing two different actions: with a usable
+      // entry left the fix is to repair the bad lines, with none left there is
+      // nothing to salvage — and clearing the list is itself a fix, because a
+      // regex profile with no domains is legitimate.
+      message: anyValid
+        ? `${bad.length === 1 ? 'Unusable domain' : 'Unusable domains'}: ${bad.join(', ')}. ` +
+          'The whole profile is not applied until every domain in it is usable.'
+        : `No usable domain: ${bad.join(', ')}. This profile is not applied. ` +
+          'Fix these, or clear the domain list so the regex alone decides what matches.',
     });
   }
 

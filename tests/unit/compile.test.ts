@@ -312,6 +312,28 @@ describe('compile emits diagnostics', () => {
     expect(result.dynamic[0]!.condition.requestDomains).toEqual(['x.com']);
   });
 
+  it('does not go silent for a regex profile whose domains are all unusable', () => {
+    // The second door to C1's silence. compile.ts's suppression ignores the
+    // mode and conditions.ts sets requestDomains for a regex rule too, so this
+    // profile dies — while validateFilter's regex branch returns before
+    // `empty-filter` can fire.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, mode: 'regex', regex: '^https://', domains: ['a b.com'] },
+      })],
+    }));
+    expect(result.dynamic).toHaveLength(0);
+    expect(result.diagnostics).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'No usable domain: "a b.com". This profile is not applied. ' +
+        'Fix these, or clear the domain list so the regex alone decides what matches.',
+    }]);
+  });
+
   it('does not report on a disabled profile', () => {
     const base = profile();
     expect(compile(state({

@@ -110,14 +110,20 @@ describe('validateFilter', () => {
   });
 
   it('never raises invalid-domain and empty-filter together', () => {
-    // The two branches split on whether *any* entry survives, so a profile
-    // gets one or the other and never both.
-    expect(validateFilter(profileWith({ domains: [] })).map((x) => x.kind))
-      .toEqual(['empty-filter']);
-    expect(validateFilter(profileWith({ domains: ['a b.com'] })).map((x) => x.kind))
-      .toEqual(['empty-filter']);
-    expect(validateFilter(profileWith({ domains: ['ok.com', 'a b.com'] })).map((x) => x.kind))
-      .toEqual(['invalid-domain']);
+    // All six cases of the two branches, so neither can drift into the other.
+    // structured: empty and all-invalid go to `empty-filter`, mixed to
+    // `invalid-domain`. regex: `empty-filter` never fires at all, so
+    // `invalid-domain` covers both mixed and all-invalid, and an empty list
+    // stays quiet because the regex is the condition.
+    const kinds = (f: Partial<Filter>) => validateFilter(profileWith(f)).map((x) => x.kind);
+    const rx = { mode: 'regex', regex: '^https://' } as const;
+
+    expect(kinds({ domains: [] })).toEqual(['empty-filter']);
+    expect(kinds({ domains: ['a b.com'] })).toEqual(['empty-filter']);
+    expect(kinds({ domains: ['ok.com', 'a b.com'] })).toEqual(['invalid-domain']);
+    expect(kinds({ ...rx, domains: [] })).toEqual([]);
+    expect(kinds({ ...rx, domains: ['a b.com'] })).toEqual(['invalid-domain']);
+    expect(kinds({ ...rx, domains: ['ok.com', 'a b.com'] })).toEqual(['invalid-domain']);
   });
 
   it('raises invalid-domain in regex mode too — the compiler suppresses it the same way', () => {
@@ -128,6 +134,32 @@ describe('validateFilter', () => {
       mode: 'regex', regex: '^https://', domains: ['ok.com', 'a b.com'],
     }));
     expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
+  });
+
+  it('raises invalid-domain in regex mode when every domain is unusable', () => {
+    // structured mode routes this to `empty-filter`, but regex mode returns
+    // before that check — so without a branch here the profile is suppressed
+    // in silence. Different advice from the mixed case: there is nothing to
+    // salvage, and in regex mode clearing the list is a real fix because the
+    // pattern alone is a valid condition.
+    const d = validateFilter(profileWith({
+      mode: 'regex', regex: '^https://', domains: ['a b.com', 'https://x.com'],
+    }));
+    expect(d).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'No usable domain: "a b.com", "https://x.com". This profile is not applied. ' +
+        'Fix these, or clear the domain list so the regex alone decides what matches.',
+    }]);
+  });
+
+  it('leaves a regex profile with no domains alone — the regex is the condition', () => {
+    // The boundary of the branch above: an empty list is not suppressed, so a
+    // regex profile that never named a domain must stay quiet.
+    expect(validateFilter(profileWith({ mode: 'regex', regex: '^https://a/', domains: [] })))
+      .toEqual([]);
   });
 
   it('still reports a dropped port alongside the unusable entry', () => {
