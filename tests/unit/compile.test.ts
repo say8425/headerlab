@@ -278,6 +278,40 @@ describe('compile emits diagnostics', () => {
     expect(result.requiredOrigins).toEqual(['<all_urls>']);
   });
 
+  it('does not say a profile both lost a conflict and was never applied', () => {
+    // The review's §2(b) pair, verbatim. One compile() used to emit two
+    // diagnostics that contradict each other: `empty-filter` telling the user
+    // P0 is not applied, and `profile-conflict` telling them P0 won and
+    // discarded P1's row. In reality only P1's rule reaches `dynamic` and its
+    // header works fine. Asserted on compile() rather than detectConflicts
+    // because the contradiction is a property of the pair, not of either one.
+    const base = profile();
+    const result = compile(state({
+      profiles: [
+        profile({
+          id: 'p0', name: 'Broken', order: 0,
+          filter: { ...base.filter, domains: ['a b.com'] },
+          headers: [header({ name: 'Authorization' })],
+        }),
+        profile({
+          id: 'p1', name: 'Staging', order: 1,
+          filter: { ...base.filter, domains: ['x.com'] },
+          headers: [header({ name: 'Authorization' })],
+        }),
+      ],
+    }));
+    expect(result.diagnostics).toEqual([{
+      kind: 'empty-filter',
+      severity: 'warning',
+      profileId: 'p0',
+      message:
+        'No usable domain — this profile would apply to every site, so it is not applied.',
+    }]);
+    // And the half the diagnostics were lying about: P1 compiles and survives.
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.condition.requestDomains).toEqual(['x.com']);
+  });
+
   it('does not report on a disabled profile', () => {
     const base = profile();
     expect(compile(state({
