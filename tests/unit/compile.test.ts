@@ -118,6 +118,21 @@ describe('compile', () => {
     expect(out.dynamic[0]!.condition.requestDomains).toEqual(['api.example.com']);
   });
 
+  it('still compiles a domainless profile into a rule that matches every site', () => {
+    // The boundary isSuppressed turns on. An empty list is deliberately NOT
+    // suppressed: it compiles to a rule with no domain condition, and
+    // `empty-filter` is what tells the user how far that reaches. Suppressing
+    // it instead would silently disable every profile not yet scoped to a host
+    // — the same silence, entered from the other side.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({ filter: { ...base.filter, domains: [] } })],
+    }));
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
+    expect(result.diagnostics.map((d) => d.kind)).toEqual(['empty-filter']);
+  });
+
   it('emits no rules at all when globalPause is on', () => {
     const out = compile(state({ globalPause: true }));
     expect(out.dynamic).toHaveLength(0);

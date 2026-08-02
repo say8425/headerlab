@@ -16,8 +16,9 @@ import type { Profile } from '@/lib/model/types';
  *
  * An **empty** list is therefore not suppressed: it compiles to a rule with no
  * domain condition on purpose, and `empty-filter` warns about exactly that.
- * `every` is vacuously true on an empty array, so the length test below is what
- * keeps the two cases apart.
+ * `every` is vacuously true on an empty array, so the length test below is
+ * redundant for behaviour — it is there to state the boundary, because reading
+ * `!every(...)` alone gives no hint that the empty case was considered at all.
  *
  * Mode-agnostic on purpose. conditions.ts sets requestDomains for a regex rule
  * too, so a regex profile that also lists a broken domain dies the same way.
