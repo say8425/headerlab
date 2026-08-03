@@ -236,6 +236,27 @@
 .hl-op[data-op='remove'] { color: var(--hl-red); }
 .hl-sig { display: inline-block; width: 8px; }
 
+.hl-val-read { display: flex; align-items: center; gap: 4px; width: 100%; }
+.hl-val-read .hl-vbtn { margin-left: auto; opacity: 0; color: var(--hl-txt3); }
+.hl-row:hover .hl-vbtn { opacity: 1; }
+
+.hl-textarea,
+.hl-nm {
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  border: 0;
+  outline: 0;
+}
+.hl-textarea {
+  max-height: 56px;      /* design §8.2 — a 2KB paste must not stretch the row */
+  resize: none;
+  background: var(--hl-bg);
+  outline: 1px solid var(--hl-acc);
+}
+.hl-nm:focus { outline: 1px solid var(--hl-acc); }
+
 /* ===== diagnostics ===== */
 .hl-subrow {
   grid-template-columns: var(--cols);

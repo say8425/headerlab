@@ -44,7 +44,6 @@ export function HeaderGrid({ profile, byRow, onToggleRow, onPatchRow, onDeleteRo
             <Fragment key={rule.id}>
               <HeaderRow
                 rule={rule}
-                diagnostics={rowDiagnostics}
                 onToggle={(enabled) => onToggleRow(rule.id, enabled)}
                 onPatch={(patch) => onPatchRow(rule.id, patch)}
                 onDelete={() => onDeleteRow(rule.id)}
