@@ -189,9 +189,25 @@ Escape   취소
 
 ### 6.1 첫 페인트에 번쩍이면 안 된다
 
-설계 §8.3 이 정한 그대로다. `theme` 은 `local:state` 에 있고 `storage.getItem` 은 비동기라, React effect 로 붙이면 잘못된 테마로 그려졌다가 고쳐진다. 하루에 수십 번 여는 표면에서 그 깜빡임은 정확히 잘못된 첫인상이고, 이 프로젝트가 존재하는 이유와 어긋난다.
+`theme` 은 `local:state` 에 있고 `storage.getItem` 은 비동기라, React effect 로 붙이면 잘못된 테마로 그려졌다가 고쳐진다. 하루에 수십 번 여는 표면에서 그 깜빡임은 정확히 잘못된 첫인상이고, 이 프로젝트가 존재하는 이유와 어긋난다.
 
-**`index.html` 에 동기 인라인 스크립트**로 문서 파싱 시점에 `prefers-color-scheme` 을 읽어 `document.documentElement` 에 클래스를 단다.
+**설계 §8.3 이 규정한 "동기 인라인 스크립트"는 MV3 에서 동작하지 않는다.** 확장 페이지의 CSP 가 `script-src 'self'` 이고 MV3 는 `unsafe-inline` 을 허용하지 않으므로, 인라인 스크립트는 실행되지 않고 콘솔에 위반만 남는다. 실제 확장을 로드해 확인했다:
+
+```
+"Executing inline script violates ... 'script-src 'self''"
+document.documentElement.dataset.themeProbe → null   (실행되지 않음)
+```
+
+**정정: 별도 파일로 뺀다.** `public/theme.js` 에 두고 `index.html` 의 `<head>` 에서 `<script src="/theme.js">` 로 부른다. WXT 가 `public/` 을 산출물 루트로 그대로 복사하고, 패키지된 스크립트이므로 `'self'` 를 만족한다. `type="module"` 이 아니므로 파싱을 막고 실행되며, 빌드 산출물에서 **모듈 스크립트와 스타일시트보다 앞**에 놓인다.
+
+측정 결과:
+
+| OS 테마 | `theme.js` 실행 | 루트 클래스 | `body` 배경 |
+|---|---|---|---|
+| dark | 예 | `dark` | `oklch(0.145 0 0)` |
+| light | 예 | (없음) | `oklch(1 0 0)` |
+
+**CSS 미디어 쿼리로만 모는 대안은 택하지 않았다.** 동작은 하고 JS 가 아예 없어 더 깔끔하지만, shadcn 의 다크 변수 31개가 `.dark` 블록에 있어서 `@media (prefers-color-scheme: dark)` 아래 같은 값을 한 번 더 써야 한다. 값이 두 곳에 사는 순간 갈라진다 — 이 프로젝트가 `HEADER_TOKEN` 과 억제 술어에서 두 번 겪은 실패다. 스크립트 한 줄이 복제 31줄보다 싸다.
 
 ### 6.2 클래스는 루트에 붙인다
 
@@ -200,6 +216,8 @@ shadcn 이 생성하는 다크 배리언트 `&:is(.dark *)` 는 `.dark` 를 단 
 ### 6.3 저장값 보정은 2c
 
 2b 는 `prefers-color-scheme` 만 읽는다. `AppState.theme` 이 `system` 이 아닌 경우의 비동기 보정은 **토글이 생기는 2c 에서 함께** 넣는다 — 값을 바꿀 방법이 없는데 읽기만 구현하면 도달 불가능한 코드가 된다.
+
+2c 가 얹기 쉬운 형태로 남긴다: `theme.js` 가 클래스를 달고, 2c 는 저장값이 `system` 이 아니면 그 클래스를 교체하기만 하면 된다. 측정으로 확인한 대로 클래스가 미디어 쿼리보다 우선하므로 교체가 곧 반영이다.
 
 ### 6.4 라이트는 다크의 반전이 아니다
 
@@ -263,11 +281,21 @@ Phase 2a 에서 "위반해도 통과하는 테스트"가 여섯 번 나왔고 �
 
 세 번째 테스트(`the popup renders in the real extension`)는 지금 `'Create profile'` 버튼을 찾는다. 새 UI 가 그 버튼을 대체하므로 **이 테스트만** 갱신하고, 갱신 방향은 약화가 아니라 강화다 — 상태를 주입하고 그리드 행이 실제로 뜨는지 본다.
 
-### 8.4 새 의존성
+### 8.4 새 의존성과 vitest 설정
 
-`@testing-library/react` · `@testing-library/user-event` · `@testing-library/dom` · `jsdom`.
+`@testing-library/react` · `@testing-library/user-event` · `jsdom` (`@testing-library/dom` 은 RTL 이 끌어온다).
 
-넷 다 npm 격리 창(`before` = 발행일 기준 72시간 전) 밖이라 설치된다. **격리를 우회하지 않는다** — 프로젝트 `.npmrc` 로 덮지 않고, `--force` 를 쓰지 않고, 레지스트리를 바꾸지 않는다.
+npm 격리 창(`before` = 발행일 기준 72시간 전) 밖이라 설치된다. **격리를 우회하지 않는다** — 프로젝트 `.npmrc` 로 덮지 않고, `--force` 를 쓰지 않고, 레지스트리를 바꾸지 않는다.
+
+**`vitest.config.ts` 는 한 줄만 바뀐다.** 현재 `include` 가 `.ts` 만 잡아 컴포넌트 테스트(`.tsx`)를 아예 발견하지 못한다:
+
+```ts
+include: ['tests/unit/**/*.test.{ts,tsx}'],
+```
+
+`environment` 는 `'node'` 그대로 둔다. 컴포넌트 테스트 파일 첫 줄에 `// @vitest-environment jsdom` 독블록을 달면 그 파일만 전환된다 — 순수 테스트 230개를 느린 jsdom 으로 끌고 갈 이유가 없다.
+
+실측으로 확인했다: 독블록을 단 RTL 테스트와 기존 node 환경 테스트가 **같은 스위트에서 함께 통과한다**(231/231). `WxtVitest` 플러그인과도 충돌하지 않는다.
 
 ---
 
