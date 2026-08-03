@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+import { DiagnosticRow } from './DiagnosticRow';
 import { HeaderRow } from './HeaderRow';
 import { groupCounts, groupRows } from '@/lib/view/grid';
 import type { Diagnostic, HeaderRule, HeaderTarget, Profile } from '@/lib/model/types';
@@ -36,16 +38,21 @@ export function HeaderGrid({ profile, byRow, onToggleRow, onPatchRow, onDeleteRo
             {counts.applying} of {counts.total} applying
           </span>
         </div>
-        {rows.map((rule) => (
-          <HeaderRow
-            key={rule.id}
-            rule={rule}
-            diagnostics={byRow.get(rule.id) ?? []}
-            onToggle={(enabled) => onToggleRow(rule.id, enabled)}
-            onPatch={(patch) => onPatchRow(rule.id, patch)}
-            onDelete={() => onDeleteRow(rule.id)}
-          />
-        ))}
+        {rows.map((rule) => {
+          const rowDiagnostics = byRow.get(rule.id) ?? [];
+          return (
+            <Fragment key={rule.id}>
+              <HeaderRow
+                rule={rule}
+                diagnostics={rowDiagnostics}
+                onToggle={(enabled) => onToggleRow(rule.id, enabled)}
+                onPatch={(patch) => onPatchRow(rule.id, patch)}
+                onDelete={() => onDeleteRow(rule.id)}
+              />
+              <DiagnosticRow diagnostics={rowDiagnostics} />
+            </Fragment>
+          );
+        })}
         {/* The accessible name must stay exactly "Add {target} header" — the
             visible "+" is decorative, so it is kept out of the name via
             aria-label rather than folded into it. */}

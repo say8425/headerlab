@@ -235,3 +235,37 @@
 
 .hl-op[data-op='remove'] { color: var(--hl-red); }
 .hl-sig { display: inline-block; width: 8px; }
+
+/* ===== diagnostics ===== */
+.hl-subrow {
+  grid-template-columns: var(--cols);
+  min-height: 22px;
+}
+.hl-subrow .hl-sub {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 6px;
+}
+.hl-subline,
+.hl-bandline { color: var(--hl-txt2); }
+.hl-subline[data-severity='error'],
+.hl-bandline[data-severity='error'] { color: var(--hl-red); }
+
+.hl-band {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px;
+  background: var(--hl-bar);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-bandline { display: flex; align-items: center; gap: 6px; }
+.hl-grant {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 3px;
+  color: var(--hl-cyn);
+  border: 1px solid color-mix(in oklab, var(--hl-cyn) 45%, transparent);
+}

@@ -123,6 +123,12 @@ export interface Diagnostic {
   severity: 'error' | 'warning';
   profileId: string;
   headerRuleId?: string;
+  /**
+   * The host this diagnostic is about, when it is about one. Set by
+   * `permission-missing` so the Grant button knows what to request without
+   * parsing the message — a message is copy, and copy changes.
+   */
+  host?: string;
   message: string;
 }
 
