@@ -125,3 +125,56 @@
     @apply font-sans;
     }
 }
+
+/* ===== HeaderLab palette — from docs/design/popup-{dark,light}.html =====
+   Five colours, one meaning each: focus / applying / tab lock / needs access
+   / removal. `set` is the common case and spends no colour at all.
+
+   The light values are not an inversion of the dark ones. They were derived
+   separately and WCAG-audited (18 fixes, 2 of them blockers), so read them
+   from the table rather than computing them. */
+:root {
+  --hl-bg: #fafbfc;
+  --hl-bar: #ffffff;
+  --hl-row-hi: #edf1f7;
+  --hl-cell: #e7eaf1;
+  --hl-line: #d9dee7;
+  --hl-txt: #1b2432;
+  --hl-txt2: #5a6678;
+  --hl-txt3: #8b96a8;
+  --hl-acc: #2b5fd9;
+  --hl-grn: #0f8536;
+  --hl-amb: #9d6410;
+  --hl-cyn: #0a749e;
+  --hl-red: #c12544;
+  --hl-sbw: 9px;
+}
+
+.dark {
+  --hl-bg: #0e1116;
+  --hl-bar: #141922;
+  --hl-row-hi: #151a22;
+  --hl-cell: #171c24;
+  --hl-line: #1d232d;
+  --hl-txt: #dde4ee;
+  --hl-txt2: #94a2b6;
+  --hl-txt3: #626e7f;
+  --hl-acc: #7aa2f7;
+  --hl-grn: #62c98d;
+  --hl-amb: #e0af68;
+  --hl-cyn: #74cbf0;
+  --hl-red: #f2708b;
+}
+
+#root {
+  width: 560px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hl-bg);
+  color: var(--hl-txt);
+  font-size: 11.5px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
