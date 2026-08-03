@@ -178,3 +178,60 @@
   line-height: 1.35;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ===== the grid =====
+   `--cols` is declared once, on the element carrying `data-cols-owner`, and
+   every row-shaped child reads it. Duplicating the track list is what kills
+   this design — see the uniqueness assertion in HeaderGrid.test.tsx. */
+.hl-gbody {
+  --cols: 38px 64px 186px 1fr 26px;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.hl-ghead,
+.hl-grp,
+.hl-row,
+.hl-subrow,
+.hl-addrow {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  border-bottom: 1px solid var(--hl-cell);
+}
+
+.hl-ghead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--hl-bg);
+  color: var(--hl-txt3);
+  height: 22px;
+}
+
+.hl-grp,
+.hl-addrow {
+  grid-template-columns: 1fr auto;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--hl-txt2);
+  background: var(--hl-bar);
+}
+
+.hl-row { min-height: 30px; }
+.hl-row:hover { background: var(--hl-row-hi); }
+.hl-row[data-off] { color: var(--hl-txt3); }
+
+.hl-c { padding: 0 6px; border-right: 1px solid var(--hl-cell); overflow: hidden; }
+.hl-c-act { border-right: 0; }
+
+/* The value column carries its own shading unbroken from the header to the
+   last row, so the eye scans down a column instead of parsing a list. */
+.hl-c-val { background: color-mix(in oklab, var(--hl-cell) 35%, transparent); }
+
+.hl-val { user-select: text; word-break: break-all; }
+.hl-val-empty { color: var(--hl-txt3); }
+
+.hl-op[data-op='remove'] { color: var(--hl-red); }
+.hl-sig { display: inline-block; width: 8px; }
