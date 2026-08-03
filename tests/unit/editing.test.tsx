@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,6 +10,18 @@ import type { HeaderRule } from '@/lib/model/types';
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
   return { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-Test', value: 'v', ...over };
 }
+
+describe('read-view height cap (design §8.2)', () => {
+  it('caps .hl-val to two lines, same as the editor caps .hl-textarea', () => {
+    // jsdom doesn't lay out CSS, so this can't be asserted through rendering —
+    // cols.test.ts already reads the stylesheet directly for the same reason.
+    // The brief's global constraint is the cap applies to both the read and
+    // the edit view; `-webkit-line-clamp: 2` appears nowhere else in the file
+    // today, so finding it at all pins the fix to the read view specifically.
+    const css = readFileSync('entrypoints/popup/style.css', 'utf8');
+    expect(css).toContain('-webkit-line-clamp: 2');
+  });
+});
 
 describe('ValueCell commit discipline', () => {
   it('does not commit while typing', async () => {
@@ -86,13 +99,46 @@ describe('HeaderRow name editing', () => {
     expect(onPatch).toHaveBeenCalledWith({ name: 'X-Api-Key' });
   });
 
-  it('cycles the operation set → append → remove → set', async () => {
+  it('commits the name once even when Enter is followed by Tab', async () => {
+    // Unlike ValueCell, the name input never leaves its editable state on
+    // Enter, so a later blur re-evaluates the same commit condition. If that
+    // condition is still "does the draft differ from the (possibly stale)
+    // rule.name prop", a Tab right after an Enter re-fires onPatch for the
+    // same edit — the "every handler writes once" invariant the whole task
+    // rests on.
     const onPatch = vi.fn();
     render(
+      <HeaderRow rule={rule({ name: '' })} onToggle={vi.fn()} onPatch={onPatch} onDelete={vi.fn()} />,
+    );
+    const input = screen.getByRole('textbox', { name: /Header name/ });
+    await userEvent.type(input, 'X-Api-Key{Enter}');
+    await userEvent.tab();
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledWith({ name: 'X-Api-Key' });
+  });
+
+  it('cycles the operation set → append → remove → set', async () => {
+    const onPatch = vi.fn();
+    const { rerender } = render(
       <HeaderRow rule={rule({ operation: 'set' })} onToggle={vi.fn()} onPatch={onPatch} onDelete={vi.fn()} />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
-    expect(onPatch).toHaveBeenCalledWith({ operation: 'append' });
+    expect(onPatch).toHaveBeenLastCalledWith({ operation: 'append' });
+
+    // onPatch is a mock — it never actually updates rule.operation — so
+    // exercising the next leg means re-rendering with the operation the
+    // parent would have written back, exactly as it would in production.
+    rerender(
+      <HeaderRow rule={rule({ operation: 'append' })} onToggle={vi.fn()} onPatch={onPatch} onDelete={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
+    expect(onPatch).toHaveBeenLastCalledWith({ operation: 'remove' });
+
+    rerender(
+      <HeaderRow rule={rule({ operation: 'remove' })} onToggle={vi.fn()} onPatch={onPatch} onDelete={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
+    expect(onPatch).toHaveBeenLastCalledWith({ operation: 'set' });
   });
 
   it('deletes the row', async () => {

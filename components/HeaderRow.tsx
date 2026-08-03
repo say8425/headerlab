@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ValueCell } from './ValueCell';
 import type { HeaderRule, Operation } from '@/lib/model/types';
 
@@ -15,9 +15,18 @@ export interface HeaderRowProps {
 
 export function HeaderRow({ rule, onToggle, onPatch, onDelete }: HeaderRowProps) {
   const [nameDraft, setNameDraft] = useState(rule.name);
+  // Unlike ValueCell, the name input never leaves its editable state, so a
+  // blur can follow an Enter for the same edit. Comparing against rule.name
+  // is unsafe there: onPatch's round trip through storage + reconcile() is
+  // async, so rule.name may still be stale when the blur fires, and the
+  // guard would fire a second onPatch for the same edit. Comparing against
+  // what this component itself last sent is immune to that timing.
+  const lastSent = useRef(rule.name);
 
   const commitName = () => {
-    if (nameDraft !== rule.name) onPatch({ name: nameDraft });
+    if (nameDraft === lastSent.current) return;
+    lastSent.current = nameDraft;
+    onPatch({ name: nameDraft });
   };
 
   return (

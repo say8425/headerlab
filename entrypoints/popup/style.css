@@ -230,7 +230,19 @@
    last row, so the eye scans down a column instead of parsing a list. */
 .hl-c-val { background: color-mix(in oklab, var(--hl-cell) 35%, transparent); }
 
-.hl-val { user-select: text; word-break: break-all; }
+.hl-val {
+  user-select: text;
+  word-break: break-all;
+  /* Design §8.2: the value is legible at rest, wrapped to two lines — the
+     review that shaped this direction found long values were only readable
+     once you clicked into them. The cap is what keeps a 2KB paste from
+     stretching the row, and it belongs on the read view too, not only the
+     editor. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .hl-val-empty { color: var(--hl-txt3); }
 
 .hl-op[data-op='remove'] { color: var(--hl-red); }
