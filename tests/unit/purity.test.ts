@@ -2,10 +2,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-/** Auto-discovered: every new file in this directory is guarded for free. */
-const AUTO_DISCOVERED = readdirSync('lib/compile')
-  .filter((f) => f.endsWith('.ts'))
-  .map((f) => join('lib/compile', f));
+/** Auto-discovered: every new file in these directories is guarded for free. */
+const AUTO_DISCOVERED = ['lib/compile', 'lib/view'].flatMap((dir) =>
+  readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => join(dir, f)),
+);
 
 /**
  * Hand-listed, because `lib/permissions/` also holds an adapter (`probe.ts`)
@@ -58,6 +58,7 @@ describe('the pure layer stays pure', () => {
         'lib/compile/priority.ts',
         'lib/compile/suppression.ts',
         'lib/compile/validate.ts',
+        'lib/view/grid.ts',
       ]),
     );
   });
