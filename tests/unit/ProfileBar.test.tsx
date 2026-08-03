@@ -161,13 +161,20 @@ describe('ProfileEditStrip', () => {
     expect(screen.getAllByTestId('colour-swatch')).toHaveLength(5);
   });
 
-  it('patches the colour when a swatch is chosen', async () => {
+  it('patches the colour when a swatch is chosen — and a different swatch patches a different colour', async () => {
+    // Clicking only "red" and checking for { color: 'red' } does not rule out
+    // a component that hardcodes { color: 'red' } on every swatch click
+    // regardless of which one was pressed — the assertion would still pass.
+    // Clicking two distinct swatches and checking each call's argument in
+    // turn forces the implementation to actually read which swatch fired.
     const onPatch = vi.fn();
     render(
       <ProfileEditStrip profile={prof('p1', 'Local')} onPatch={onPatch} onDelete={vi.fn()} onClose={vi.fn()} />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Colour red' }));
-    expect(onPatch).toHaveBeenCalledWith({ color: 'red' });
+    await userEvent.click(screen.getByRole('button', { name: 'Colour blue' }));
+    expect(onPatch).toHaveBeenNthCalledWith(1, { color: 'red' });
+    expect(onPatch).toHaveBeenNthCalledWith(2, { color: 'blue' });
   });
 
   it('needs a second click to delete — the first only arms it', async () => {
