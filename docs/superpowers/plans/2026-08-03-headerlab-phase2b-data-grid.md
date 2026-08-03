@@ -818,8 +818,10 @@ describe('HeaderGrid', () => {
       row({ id: 'b', target: 'request', enabled: false }),
       row({ id: 'c', target: 'response' }),
     ]);
-    expect(screen.getByTestId('group-request')).toHaveTextContent('1 of 2 applying');
-    expect(screen.getByTestId('group-response')).toHaveTextContent('1 of 1 applying');
+    // `toContain`, not equality: the group header holds its label and count
+    // alongside this figure, so a partial check is what is meant here.
+    expect(screen.getByTestId('group-request').textContent).toContain('1 of 2 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('1 of 1 applying');
   });
 
   it('renders one row per header, in order', () => {
@@ -827,14 +829,18 @@ describe('HeaderGrid', () => {
       row({ id: 'a', name: 'First' }),
       row({ id: 'b', name: 'Second' }),
     ]);
-    const names = screen.getAllByTestId('row-name').map((n) => n.textContent);
+    // The name lives in a text box from the start — read-only until Task 5
+    // makes it editable — so this accessor does not change when it does.
+    const names = screen
+      .getAllByRole('textbox', { name: /Header name/ })
+      .map((n) => (n as HTMLInputElement).value);
     expect(names).toEqual(['First', 'Second']);
   });
 
   it('shows a disabled row switched off rather than hiding it', () => {
     renderGrid([row({ id: 'a', enabled: false, name: 'Off-row' })]);
-    expect(screen.getByText('Off-row')).toBeTruthy();
-    expect(screen.getByRole('switch', { name: /Off-row/ })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByDisplayValue('Off-row')).toBeTruthy();
+    expect(screen.getByRole('switch', { name: /Off-row/ }).getAttribute('aria-checked')).toBe('false');
   });
 
   it('shows an add row for each group', () => {
@@ -845,25 +851,18 @@ describe('HeaderGrid', () => {
 
   it('renders an empty group with a zero count and still offers its add row', () => {
     renderGrid([row({ target: 'request' })]);
-    expect(screen.getByTestId('group-response')).toHaveTextContent('0 of 0 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('0 of 0 applying');
     expect(screen.getByRole('button', { name: 'Add response header' })).toBeTruthy();
   });
 
   it('shows a remove row with no value rather than an empty cell', () => {
     renderGrid([row({ operation: 'remove', value: '' })]);
-    expect(screen.getByTestId('row-value')).toHaveTextContent('no value');
+    expect(screen.getByTestId('row-value').textContent).toContain('no value');
   });
 });
 ```
 
-> **`toHaveTextContent` 는 jest-dom 매처다.** 이 프로젝트에 아직 없으므로 **쓰지 말고** `expect(el.textContent).toContain(...)` 또는 정확 비교로 바꾼다. 구현자는 위 테스트를 옮길 때 `toHaveTextContent`/`toHaveAttribute` 를 다음으로 치환한다:
->
-> ```ts
-> expect(screen.getByTestId('group-request').textContent).toContain('1 of 2 applying');
-> expect(screen.getByRole('switch', { name: /Off-row/ }).getAttribute('aria-checked')).toBe('false');
-> ```
->
-> `toContain` 을 쓰는 이유는 그룹 헤더가 라벨과 카운트를 함께 담기 때문이다 — 부분 검사가 의도된 자리다.
+> **jest-dom 매처를 쓰지 않는다.** `@testing-library/jest-dom` 은 이 프로젝트에 없으므로 `toHaveTextContent`·`toHaveAttribute`·`toBeInTheDocument` 는 전부 실패한다. 위 테스트는 이미 순수 vitest 매처(`.textContent` + `toContain`, `.getAttribute()` + `toBe`)로 쓰여 있으니 그대로 옮긴다.
 
 - [ ] **Step 2: 테스트가 실패하는 것을 확인한다**
 
@@ -944,7 +943,11 @@ export function HeaderRow({ rule, onToggle }: HeaderRowProps) {
         </span>
       </span>
       <span className="hl-c hl-c-name">
-        <span data-testid="row-name" className="hl-nm">{rule.name}</span>
+        {/* A text box from the start, read-only until Task 5 wires editing.
+            Rendering a span here and swapping it for an input later would
+            force Task 5 to rewrite this task's assertions — and a plan that
+            edits its own earlier tests is how a weakened assertion sneaks in. */}
+        <input readOnly aria-label="Header name" className="hl-nm" value={rule.name} />
       </span>
       <span className="hl-c hl-c-val">
         <ValueCell value={rule.value} />
@@ -1173,7 +1176,7 @@ function diag(over: Partial<Diagnostic> = {}): Diagnostic {
 describe('DiagnosticRow', () => {
   it('renders nothing at all when there is nothing to say', () => {
     const { container } = render(<DiagnosticRow diagnostics={[]} />);
-    expect(container).toBeEmptyDOMElement();
+    expect(container.innerHTML).toBe('');
   });
 
   it('shows the message', () => {
@@ -1195,7 +1198,7 @@ describe('DiagnosticRow', () => {
 describe('DiagnosticBand', () => {
   it('renders nothing when there is nothing to say', () => {
     const { container } = render(<DiagnosticBand diagnostics={[]} onGrant={vi.fn()} />);
-    expect(container).toBeEmptyDOMElement();
+    expect(container.innerHTML).toBe('');
   });
 
   it('shows a Grant button only for permission-missing', () => {
@@ -1235,8 +1238,6 @@ describe('DiagnosticBand', () => {
   });
 });
 ```
-
-> **`toBeEmptyDOMElement` 도 jest-dom 매처다.** `expect(container.innerHTML).toBe('')` 로 바꾼다.
 
 **`onGrant` 에 넘길 호스트를 어디서 얻는가.** `Diagnostic` 에는 호스트 필드가 없고 메시지 문자열 안에만 있다. **메시지를 파싱하지 않는다** — 문구가 바뀌면 조용히 깨진다. 대신 이 태스크가 `Diagnostic` 을 넓힌다:
 
@@ -1708,7 +1709,6 @@ export function HeaderRow({ rule, onToggle, onPatch, onDelete }: HeaderRowProps)
         <input
           aria-label="Header name"
           className="hl-nm"
-          data-testid="row-name"
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
           onBlur={commitName}
@@ -1726,7 +1726,7 @@ export function HeaderRow({ rule, onToggle, onPatch, onDelete }: HeaderRowProps)
 }
 ```
 
-> **`data-testid="row-name"` 이 이제 `input` 에 있다.** Task 3 의 테스트가 `textContent` 로 이름을 읽었으므로 붉어진다 — 그 테스트를 `getByRole('textbox', { name: /Header name/ })` 의 `value` 를 보도록 갱신한다. **기대값을 약화시키는 것이 아니라 같은 것을 다른 접근자로 읽는 것이다.**
+> **Task 3 의 테스트는 건드리지 않는다.** 이름은 Task 3 부터 `input` 이었고 접근자(`getByRole('textbox', { name: /Header name/ })`)가 그대로다. 이 태스크가 하는 것은 `readOnly` 를 떼고 `value`·`onChange`·`onBlur`·`onKeyDown` 를 붙이는 것뿐이다.
 
 - [ ] **Step 5: 편집 스타일을 넣는다**
 
