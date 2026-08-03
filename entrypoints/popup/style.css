@@ -302,3 +302,49 @@
   color: var(--hl-cyn);
   border: 1px solid color-mix(in oklab, var(--hl-cyn) 45%, transparent);
 }
+
+/* ===== profile bar + in-place edit strip ===== */
+.hl-profbar {
+  display: flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 8px;
+  background: var(--hl-bar);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-profs { display: flex; align-items: center; gap: 3px; }
+.hl-prof {
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 4px;
+  color: var(--hl-txt2);
+}
+.hl-prof[aria-selected='true'] { background: var(--hl-bg); color: var(--hl-txt); }
+.hl-prof[data-marker='error']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-red); }
+.hl-prof[data-marker='permission']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-cyn); }
+
+/* The identity dot reuses the profile colour muted, and only saturates when
+   active — design §8.3. It says which profile, never whether it works. */
+.hl-pdot { width: 6px; height: 6px; border-radius: 50%; opacity: .45; }
+.hl-pdot[data-active] { opacity: 1; }
+.hl-pdot[data-tone='green']  { background: var(--hl-grn); }
+.hl-pdot[data-tone='amber']  { background: var(--hl-amb); }
+.hl-pdot[data-tone='red']    { background: var(--hl-red); }
+.hl-pdot[data-tone='blue']   { background: var(--hl-acc); }
+.hl-pdot[data-tone='violet'] { background: #a48cf0; }
+.hl-pdot[data-tone='cyan']   { background: var(--hl-cyn); }
+
+.hl-prof-meta { margin-left: auto; color: var(--hl-txt3); }
+
+.hl-editstrip {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 8px;
+  background: var(--hl-bg);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-swatches { display: flex; gap: 4px; }
+.hl-swatch { width: 12px; height: 12px; border-radius: 50%; }
+.hl-swatch[data-chosen] { outline: 1.5px solid var(--hl-acc); outline-offset: 1px; }
+.hl-swatch[data-tone='green']  { background: var(--hl-grn); }
+.hl-swatch[data-tone='amber']  { background: var(--hl-amb); }
+.hl-swatch[data-tone='red']    { background: var(--hl-red); }
+.hl-swatch[data-tone='blue']   { background: var(--hl-acc); }
+.hl-swatch[data-tone='violet'] { background: #a48cf0; }
+.hl-delete { margin-left: auto; color: var(--hl-red); }
