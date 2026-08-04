@@ -176,8 +176,20 @@ describe('the source set', () => {
     expect(outputs).toEqual([]);
   });
 
-  it('excludes dependencies, which are gitignored and would dominate every walk', () => {
+  it('takes no timestamp from dependencies, which would dominate every walk', () => {
+    // Not "excludes them": `.gitignore`'s `node_modules/` has a trailing slash
+    // and so matches directories only. A plain checkout has a real directory
+    // there and the set has no entry at all — but in a git worktree it is a
+    // *symlink*, which git treats as a file and lists, so the bare path is in
+    // the set. What has to hold in both trees is the property the guard relies
+    // on: nothing under it can contribute an mtime, because newestSource()
+    // takes one only from a regular file and this resolves to a directory.
     expect([...files].filter((f) => f.startsWith('node_modules/'))).toEqual([]);
+    const dependencies = [...files].filter((f) => f === 'node_modules');
+    const stattable = dependencies.filter((f) =>
+      statSync(path.join(REPO_ROOT, f), { throwIfNoEntry: false })?.isFile(),
+    );
+    expect(stattable).toEqual([]);
   });
 
   it('is not empty — an empty set would report every build as fresh forever', () => {
