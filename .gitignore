@@ -1,3 +1,12 @@
+# Before adding a pattern that matches inside a source directory: ignoring a path
+# keeps it out of tests/support/build.ts's source set, but not out of the mtime of
+# the directory holding it, and every directory holding a source is read there. An
+# untracked components/.DS_Store already reports the build stale naming the file;
+# ignoring it makes the same run report `components/ gained, lost or renamed an
+# entry`, which is harder to diagnose, not quieter. Patterns with no leading slash
+# match at any depth, so this reaches further than the artifacts-at-the-root shape
+# the list below happens to have today.
+
 .superpowers/
 node_modules/
 .output/

@@ -129,9 +129,16 @@ function nearestExistingDir(root: string, dir: string): string {
  *
  * What both do move is the **containing directory's** mtime: adding or removing
  * a name is a write to the directory itself. So the maximum folds in, for every
- * listed path, the directory that holds it — and for a path git lists but the
- * working tree does not have, the nearest ancestor that still exists, which is
- * what catches a whole directory being removed.
+ * listed path, every directory above it and below the repo root — and for a path
+ * git lists but the working tree does not have, the nearest ancestor that still
+ * exists, which is what catches a whole directory being removed.
+ *
+ * Reading directories has one cost worth knowing before editing `.gitignore`: a
+ * file this set never lists still moves the mtime of the directory holding it.
+ * An untracked `components/.DS_Store` is a false red naming the file today; add
+ * `.DS_Store` to `.gitignore` and it becomes a false red naming `components/`
+ * instead, which is harder to diagnose rather than gone. Patterns with no
+ * leading slash match at any depth, so this is reachable by any of them.
  *
  * **The repo root is not folded in on its own account.** Every artifact
  * `.gitignore` names sits directly under it (`.output/`, `test-results/`,
@@ -142,11 +149,20 @@ function nearestExistingDir(root: string, dir: string): string {
  * root is read only as the last ancestor of a path that has actually gone
  * missing, which is a source change by construction.
  *
- * What this still cannot see is a staged removal of the last file in a top-level
- * directory (`git rm public/theme.js`): the index stops listing the path, the
- * directory goes with it, and the only mtime left is the root's. Closing that
- * needs the source list recorded into the build and compared as a set, which is
- * a build-side change rather than a test-side one.
+ * What that exclusion costs, stated as the class it is rather than the one
+ * example of it: **a staged removal or rename of any top-level file is
+ * invisible.** `git rm vite.config.ts`, `git mv wxt.config.ts wxt.config.mts`,
+ * `git rm public/theme.js` when it was the last file in `public/` — in each the
+ * path leaves the index, so nothing is listed as missing, the branch that would
+ * read the root as a last ancestor never runs, and the only mtime that moved is
+ * the root's. That is all 11 tracked top-level files here, `wxt.config.ts`,
+ * `vite.config.ts`, `package.json`, `package-lock.json`, `tsconfig.json`,
+ * `vitest.config.ts`, `components.json` and `playwright.config.ts` among them.
+ * The *unstaged* forms — `rm` or `mv` without git, which is what a person
+ * typing in a terminal usually produces — are caught, because they leave a
+ * listed path with nothing to stat and its last existing ancestor is the root.
+ * Closing the staged case needs the source list recorded into the build and
+ * compared as a set, which is a build-side change rather than a test-side one.
  */
 export function newestSource(root: string = REPO_ROOT): SourceFile | undefined {
   let newest: SourceFile | undefined;

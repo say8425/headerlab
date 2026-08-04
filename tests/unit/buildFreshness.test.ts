@@ -393,7 +393,11 @@ describe('the tests/ carve-out', () => {
     // the bare `import '@/tests/…';`, which Vite bundles identically — as well
     // as `import('…')`, `require('…')` and `import.meta.glob('…')`. Every one of
     // those spells the path as a quoted string, and nothing else in these files
-    // has a reason to.
+    // has a reason to. What that costs, precisely: *any* quoted string holding
+    // `tests/` matches, so `const msg = 'see tests/unit/grid.test.ts'` fails a
+    // file that imports nothing. It is a false red — reword the string — and a
+    // regex able to tell a path from prose is the kind of cleverness that starts
+    // missing real imports instead.
     const reaches = shipped.filter((file) =>
       /['"`][^'"`\n]*\btests\//.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
     );
