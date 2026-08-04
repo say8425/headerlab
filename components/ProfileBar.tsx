@@ -31,6 +31,11 @@ export interface ProfileBarProps {
  * one surface that renders every profile at once, so the answer is per-tab and
  * there is nothing above it holding a list of them. `isSuppressed` is called,
  * never restated — see lib/compile/suppression.ts.
+ *
+ * Gated on `p.enabled` because compile.ts:28 skips a disabled profile before it
+ * collects any diagnostic, deliberately (:31-33): a profile the user switched
+ * off is not a profile they want complaints about. Marking it here would make
+ * the display layer shout what the diagnostics layer chose to withhold.
  */
 export function ProfileBar({
   profiles, activeId, diagnostics, ruleCount, onSelect, onReselect, onAdd,
@@ -39,7 +44,7 @@ export function ProfileBar({
     <div className="hl-profbar">
       <div className="hl-profs" role="tablist">
         {profiles.map((p) => {
-          const marker = profileMarker(diagnostics, p.id, { suppressed: isSuppressed(p) });
+          const marker = profileMarker(diagnostics, p.id, { suppressed: p.enabled && isSuppressed(p) });
           const active = p.id === activeId;
           return (
             <button

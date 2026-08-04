@@ -124,6 +124,24 @@ describe('ProfileBar', () => {
     expect(screen.getByRole('tab', { name: /Local/ }).getAttribute('data-marker')).toBeNull();
   });
 
+  it('leaves a switched-off profile unmarked, keeping the silence compile() keeps for it', () => {
+    // compile.ts:28 skips a disabled profile before it collects any diagnostic
+    // at all, and the comment at :31-33 says why: turning a profile off means
+    // the user is not thinking about it, so a complaint would be noise. The tab
+    // must not shout what the diagnostics layer deliberately withholds.
+    //
+    // Local holds the other side of it in the same render — dead exactly the
+    // same way but still enabled, so this pins the answer to `enabled` rather
+    // than to the bar having gone quiet.
+    const off = { ...prof('p2', 'Staging', 1), enabled: false };
+    off.filter = { ...off.filter, domains: ['https://staging.example.com'] };
+    const on = { ...prof('p1', 'Local') };
+    on.filter = { ...on.filter, domains: ['https://local.example.com'] };
+    render(<ProfileBar {...base} profiles={[on, off]} />);
+    expect(screen.getByRole('tab', { name: /Staging/ }).getAttribute('data-marker')).toBeNull();
+    expect(screen.getByRole('tab', { name: /Local/ }).getAttribute('data-marker')).toBe('error');
+  });
+
   it('leaves a profile with a usable domain alongside an unusable-looking one unmarked', () => {
     // The boundary on the other side: a domain list that is merely non-empty is
     // not suppression. Without this, marking every profile that has any domain

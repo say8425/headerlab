@@ -140,6 +140,33 @@ describe('App', () => {
     expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
   });
 
+  it('stops counting rules as applying when the profile itself is switched off', async () => {
+    // compile.ts kills a whole profile in three places — `!profile.enabled`
+    // (:28), `globalPause` (:40) and suppression (:51) — and `live` has to
+    // state all three. The first is the worst of them on screen: :28 `continue`s
+    // before the diagnostics are even collected, on purpose (:31-33), so zero
+    // rules are registered, zero diagnostics land, and nothing anywhere would
+    // correct a footer still reading "2 of 2 rules applying".
+    //
+    // The seed-live-first shape is the one the paused test uses and for the
+    // same reason: an implementation that always reported 0 would pass the
+    // switched-off assertion on its own. The count has to actually move.
+    await seed(stateWith());
+    render(<App />);
+    expect((await screen.findByTestId('foot')).textContent).toContain('2 of 2 rules applying');
+
+    const off = stateWith();
+    off.profiles[0]!.enabled = false;
+    await seed(off);
+    await waitFor(() => {
+      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
+    });
+    // Same signal, so the group headers move with the footer — the two saying
+    // different things about one profile is the shape of the original defect.
+    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+  });
+
   it('offers Grant per ungranted host, and requests only the host whose button was clicked', async () => {
     // Two distinct ungranted hosts in the same profile — with only one
     // possible host in the fixture (the brief's original version), a handler
