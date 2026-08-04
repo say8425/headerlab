@@ -198,6 +198,44 @@ describe('the source set', () => {
 });
 
 /**
+ * The flags on the `git ls-files` call, each pinned against a fixture repo.
+ *
+ * Against this repo they are only conditionally covered: in a clean tree there
+ * is nothing untracked, so dropping `--others` changes no result at all, and the
+ * `tests/` filter has nothing to remove that would be noticed. Both directions
+ * of that were false green.
+ */
+describe('the source-set command', () => {
+  const repo = fixture(
+    'flags',
+    {
+      '.gitignore': 'out/\n',
+      'lib/tracked.ts': '',
+      'out/artifact.js': '',
+      'tests/unit/x.test.ts': '',
+    },
+    { 'components/Untracked.tsx': '' },
+  );
+  const files = sourceFiles(repo);
+
+  it('lists tracked files', () => {
+    expect(files).toContain('lib/tracked.ts');
+  });
+
+  it('lists untracked ones too — a component written five minutes ago and not staged', () => {
+    expect(files).toContain('components/Untracked.tsx');
+  });
+
+  it('leaves out what git ignores, which is where every build artifact lives', () => {
+    expect(files).not.toContain('out/artifact.js');
+  });
+
+  it('leaves out tests/, the one carve-out', () => {
+    expect(files).not.toContain('tests/unit/x.test.ts');
+  });
+});
+
+/**
  * The case the guard was written for and did not cover: a source that is gone.
  *
  * A file's own mtime only moves when its contents are rewritten. A deletion
