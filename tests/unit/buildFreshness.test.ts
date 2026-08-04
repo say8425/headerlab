@@ -304,18 +304,36 @@ describe('the tests/ carve-out', () => {
   // itself as a stale build. That is only sound while nothing shipped can reach
   // it; if it ever could, a test edit would change the output and the guard
   // would say fresh. Checked rather than asserted in prose.
-  const shipped = ['entrypoints', 'components', 'lib']
-    .flatMap(walk)
-    .filter((file) => /\.(ts|tsx)$/.test(file));
+  //
+  // `public/` and the two config files are in here for the same reason the
+  // source set is not a hand-written list of directories: `wxt.config.ts` and
+  // `vite.config.ts` decide what the build reads, and `public/` is copied into
+  // the output verbatim. Any of the three can put a path into the build without
+  // being imported from `entrypoints/`.
+  const shipped = [
+    ...['entrypoints', 'components', 'lib', 'public'].flatMap(walk),
+    'wxt.config.ts',
+    'vite.config.ts',
+  ].filter((file) => /\.(ts|tsx|js|jsx|mjs|cjs|html|css)$/.test(file));
 
-  it('found the shipped files to check', () => {
+  it('found the shipped files to check, config and copied assets included', () => {
     expect(shipped.length).toBeGreaterThan(10);
+    expect(shipped).toContain('wxt.config.ts');
+    expect(shipped).toContain('vite.config.ts');
+    expect(shipped).toContain('public/theme.js');
+    expect(shipped).toContain('entrypoints/popup/style.css');
   });
 
-  it('is sound: nothing shipped imports from tests/', () => {
-    const importers = shipped.filter((file) =>
-      /from\s+['"][^'"]*\btests\//.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
+  it('is sound: nothing shipped can reach tests/', () => {
+    // Matches the path in a string literal rather than the import syntax around
+    // it. A `from`-anchored regex sees `import x from '@/tests/…'` and misses
+    // the bare `import '@/tests/…';`, which Vite bundles identically — as well
+    // as `import('…')`, `require('…')` and `import.meta.glob('…')`. Every one of
+    // those spells the path as a quoted string, and nothing else in these files
+    // has a reason to.
+    const reaches = shipped.filter((file) =>
+      /['"`][^'"`\n]*\btests\//.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
     );
-    expect(importers).toEqual([]);
+    expect(reaches).toEqual([]);
   });
 });
