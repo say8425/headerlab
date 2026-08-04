@@ -122,35 +122,60 @@ describe('profileMarker', () => {
 });
 
 describe('groupCounts', () => {
+  // `live` says whether compile() emits any rule for the profile these rows
+  // belong to. Every case below that is about row state passes the live one.
+  const live = { live: true };
+
   it('counts a clean group as all applying', () => {
     const rows = [row({ id: 'a' }), row({ id: 'b' })];
-    expect(groupCounts(rows, new Map())).toEqual({ total: 2, applying: 2, off: 0 });
+    expect(groupCounts(rows, new Map(), live)).toEqual({ total: 2, applying: 2, off: 0 });
   });
 
   it('counts a disabled row as off, not applying', () => {
     const rows = [row({ id: 'a' }), row({ id: 'b', enabled: false })];
-    expect(groupCounts(rows, new Map())).toEqual({ total: 2, applying: 1, off: 1 });
+    expect(groupCounts(rows, new Map(), live)).toEqual({ total: 2, applying: 1, off: 1 });
   });
 
   it('does not count a row with an error diagnostic as applying', () => {
     const rows = [row({ id: 'a' }), row({ id: 'b' })];
     const byRow = new Map([['b', [diag({ severity: 'error', headerRuleId: 'b' })]]]);
-    expect(groupCounts(rows, byRow)).toEqual({ total: 2, applying: 1, off: 0 });
+    expect(groupCounts(rows, byRow, live)).toEqual({ total: 2, applying: 1, off: 0 });
   });
 
   it('still counts a row with only a warning as applying', () => {
     const rows = [row({ id: 'a' })];
     const byRow = new Map([['a', [diag({ severity: 'warning', headerRuleId: 'a' })]]]);
-    expect(groupCounts(rows, byRow)).toEqual({ total: 1, applying: 1, off: 0 });
+    expect(groupCounts(rows, byRow, live)).toEqual({ total: 1, applying: 1, off: 0 });
   });
 
   it('counts a disabled row with an error as off, once', () => {
     const rows = [row({ id: 'a', enabled: false })];
     const byRow = new Map([['a', [diag({ severity: 'error', headerRuleId: 'a' })]]]);
-    expect(groupCounts(rows, byRow)).toEqual({ total: 1, applying: 0, off: 1 });
+    expect(groupCounts(rows, byRow, live)).toEqual({ total: 1, applying: 0, off: 1 });
   });
 
   it('counts nothing for an empty group', () => {
-    expect(groupCounts([], new Map())).toEqual({ total: 0, applying: 0, off: 0 });
+    expect(groupCounts([], new Map(), live)).toEqual({ total: 0, applying: 0, off: 0 });
+  });
+
+  it('counts nothing as applying when the profile emits no rules', () => {
+    // The two judgements that kill a whole profile — suppression and
+    // globalPause — are not row-level, so no row-level diagnostic reaches
+    // `byRow` and every row here looks perfectly healthy. Without `live` the
+    // screen says "2 of 2 applying" while compile() registered zero rules.
+    const rows = [row({ id: 'a' }), row({ id: 'b' })];
+    expect(groupCounts(rows, new Map(), { live: false })).toEqual({
+      total: 2, applying: 0, off: 0,
+    });
+  });
+
+  it('still reports rows the user switched off as off when the profile emits no rules', () => {
+    // `off` means "the user turned this row off" and stays true regardless of
+    // whether the profile is live — zeroing it too would say the rows are
+    // switched on when they are not.
+    const rows = [row({ id: 'a' }), row({ id: 'b', enabled: false })];
+    expect(groupCounts(rows, new Map(), { live: false })).toEqual({
+      total: 2, applying: 0, off: 1,
+    });
   });
 });

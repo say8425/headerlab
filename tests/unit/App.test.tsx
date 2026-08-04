@@ -95,6 +95,51 @@ describe('App', () => {
     expect(bandLines.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(false);
   });
 
+  it('stops counting rules as applying when the whole app is paused', async () => {
+    // `globalPause` makes compile.ts skip the rule-building block entirely, so
+    // zero rules are registered — but it produces no diagnostic at all, and the
+    // foot was never even passed `paused`. The screen said "Paused" in the top
+    // bar and "2 of 2 rules applying" in the footer at the same time, with
+    // nothing on screen to correct it.
+    //
+    // Seeding the live state first and asserting the real count matters: an
+    // implementation that always reported 0 would pass the paused assertion
+    // alone. The count has to actually move.
+    await seed(stateWith());
+    render(<App />);
+    // `toContain`: the foot holds the count alongside the "off" figure and any
+    // access tag, so the count is a fragment of it by design.
+    expect((await screen.findByTestId('foot')).textContent).toContain('2 of 2 rules applying');
+
+    await seed({ ...stateWith(), globalPause: true });
+    await waitFor(() => {
+      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
+    });
+    // The group headers read from the same signal, so they must move with it —
+    // the footer and the grid disagreeing is the shape of the original defect.
+    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+  });
+
+  it('stops counting rules as applying when the profile is suppressed', async () => {
+    // One usable domain and one that is not (a pasted URL — the input Phase 2a
+    // recorded as its worst defect). isSuppressed is true, compile.ts skips the
+    // profile, zero rules are registered. The diagnostic it earns has no
+    // headerRuleId, so it never reaches `byRow` and every row still looks
+    // healthy: the footer read "2 of 2 rules applying" directly below a band
+    // saying the profile is not applied.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['api.example.com', 'https://staging.example.com'];
+    await seed(s);
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
+    });
+    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+  });
+
   it('offers Grant per ungranted host, and requests only the host whose button was clicked', async () => {
     // Two distinct ungranted hosts in the same profile — with only one
     // possible host in the fixture (the brief's original version), a handler

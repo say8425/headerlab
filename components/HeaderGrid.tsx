@@ -7,6 +7,15 @@ import type { Diagnostic, HeaderRule, HeaderTarget, Profile } from '@/lib/model/
 export interface HeaderGridProps {
   profile: Profile;
   byRow: ReadonlyMap<string, Diagnostic[]>;
+  /**
+   * Whether compile() emits any rule for this profile — false when the whole
+   * app is paused or the profile is suppressed. A prop rather than something
+   * derived here: `globalPause` is app-level state the grid has no access to,
+   * and App has to answer the same question for the status foot anyway. One
+   * boolean computed once and handed to both is what stops the group headers
+   * and the footer from disagreeing, which is the defect this closes.
+   */
+  live: boolean;
   onToggleRow: (ruleId: string, enabled: boolean) => void;
   onPatchRow: (ruleId: string, patch: Partial<HeaderRule>) => void;
   onDeleteRow: (ruleId: string) => void;
@@ -22,11 +31,11 @@ export interface HeaderGridProps {
  * list lives in exactly one place — hence `data-cols-owner`, which a test
  * asserts is unique.
  */
-export function HeaderGrid({ profile, byRow, onToggleRow, onPatchRow, onDeleteRow, onAddRow }: HeaderGridProps) {
+export function HeaderGrid({ profile, byRow, live, onToggleRow, onPatchRow, onDeleteRow, onAddRow }: HeaderGridProps) {
   const groups = groupRows(profile);
 
   const section = (target: HeaderTarget, rows: HeaderRule[]) => {
-    const counts = groupCounts(rows, byRow);
+    const counts = groupCounts(rows, byRow, { live });
     const label = target === 'request' ? 'Request headers' : 'Response headers';
     return (
       <>

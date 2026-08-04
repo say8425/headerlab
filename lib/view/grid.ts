@@ -85,14 +85,38 @@ export interface GroupCounts {
 }
 
 /**
+ * Whether compile() emits any rule at all for the profile these rows belong to
+ * — again the caller's answer, for the reason ProfileLiveness gives.
+ */
+export interface GroupLiveness {
+  live: boolean;
+}
+
+/**
  * The "N of M applying" figures on a group header.
  *
- * A row applies when it is switched on and nothing about it is an error.
- * A warning does not stop it applying — that is what makes it a warning.
+ * A row applies when it is switched on, nothing about it is an error, and the
+ * profile it sits in is actually emitting rules.
+ *
+ * A warning does not stop a row applying — that is what makes it a warning. But
+ * the two judgements that kill a *whole* profile are not row-level at all:
+ * `globalPause` skips the rule-building block outright (compile.ts:40) and
+ * suppression `continue`s past the profile (compile.ts:51). Neither produces a
+ * diagnostic carrying a `headerRuleId`, so nothing about them ever reaches
+ * `byRow` and every row still looks healthy. Without `live` the group header
+ * says "3 of 3 applying" directly above a band reading "the whole profile is
+ * not applied" — one screen contradicting itself while zero rules are
+ * registered. `live` is what makes this figure a claim about compile()'s output
+ * rather than about row state that merely resembles it.
+ *
+ * `off` is deliberately unaffected: it means "the user switched this row off",
+ * which stays true whether or not the profile is live. Zeroing it too would
+ * report switched-off rows as switched on.
  */
 export function groupCounts(
   rows: readonly HeaderRule[],
   byRow: ReadonlyMap<string, Diagnostic[]>,
+  liveness: GroupLiveness,
 ): GroupCounts {
   let applying = 0;
   let off = 0;
@@ -102,6 +126,7 @@ export function groupCounts(
       off += 1;
       continue;
     }
+    if (!liveness.live) continue;
     const broken = byRow.get(rule.id)?.some((d) => d.severity === 'error') ?? false;
     if (!broken) applying += 1;
   }

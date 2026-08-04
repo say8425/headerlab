@@ -8,6 +8,7 @@ import { HeaderGrid } from '@/components/HeaderGrid';
 import { StatusFoot } from '@/components/StatusFoot';
 import { compile } from '@/lib/compile/compile';
 import { routeDiagnostics, groupCounts, groupRows } from '@/lib/view/grid';
+import { isSuppressed } from '@/lib/compile/suppression';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
 import { probeGrants, requestHost } from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
@@ -94,8 +95,14 @@ export default function App() {
 
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
   const groups = groupRows(active);
-  const req = groupCounts(groups.request, routed.byRow);
-  const res = groupCounts(groups.response, routed.byRow);
+  // The two judgements that stop compile() emitting anything for this profile,
+  // neither of which is row-level and so neither of which reaches `byRow`.
+  // Computed once and handed to both the grid and the foot, so the group
+  // headers and the footer cannot say different things about the same profile.
+  // `isSuppressed` is called, never restated (lib/compile/suppression.ts).
+  const live = !state.globalPause && !isSuppressed(active);
+  const req = groupCounts(groups.request, routed.byRow, { live });
+  const res = groupCounts(groups.response, routed.byRow, { live });
   const needsAccess = allDiagnostics.filter((d) => d.kind === 'permission-missing').length;
 
   return (
@@ -171,6 +178,7 @@ export default function App() {
       <HeaderGrid
         profile={active}
         byRow={routed.byRow}
+        live={live}
         onToggleRow={(ruleId, enabled) => patchRow(active.id, ruleId, { enabled })}
         onPatchRow={(ruleId, delta) => patchRow(active.id, ruleId, delta)}
         onDeleteRow={(ruleId) =>

@@ -17,11 +17,15 @@ function profileWith(headers: HeaderRule[]): Profile {
   return { ...createProfile('P', 0), id: 'p1', headers };
 }
 
-function renderGrid(headers: HeaderRule[]) {
+// `live` defaults to true: every case below except the two that name it is
+// about row state, which is what the grid showed before the profile-level
+// judgements were threaded in, so their expected counts are unchanged.
+function renderGrid(headers: HeaderRule[], live = true) {
   return render(
     <HeaderGrid
       profile={profileWith(headers)}
       byRow={new Map()}
+      live={live}
       onToggleRow={vi.fn()}
       onPatchRow={vi.fn()}
       onDeleteRow={vi.fn()}
@@ -39,6 +43,11 @@ describe('HeaderGrid', () => {
     // repeating the track list. Phase 2a lost a day to a duplicated constant
     // twice; this assertion is what keeps that from happening here.
     expect(container.querySelectorAll('[data-cols-owner]')).toHaveLength(1);
+    // The stylesheet declares `--cols` on `.hl-gbody` (cols.test.ts pins that
+    // selector). This is the other end of the same pairing: if the owner
+    // attribute ever moves to a different element, `var(--cols)` resolves to
+    // nothing and neither the CSS-side nor the count assertion notices.
+    expect(owner!.className).toBe('hl-gbody');
   });
 
   it('renders both group headers with their counts', () => {
@@ -51,6 +60,19 @@ describe('HeaderGrid', () => {
     // alongside this figure, so a partial check is what is meant here.
     expect(screen.getByTestId('group-request').textContent).toContain('1 of 2 applying');
     expect(screen.getByTestId('group-response').textContent).toContain('1 of 1 applying');
+  });
+
+  it('reports nothing applying in either group header when the profile emits no rules', () => {
+    // The rows here are switched on and carry no diagnostic — `byRow` is empty
+    // because neither suppression nor globalPause is a row-level judgement, so
+    // nothing about them can reach it. This is the case where the group header
+    // said "1 of 1 applying" while compile() had registered zero rules.
+    renderGrid([
+      row({ id: 'a', target: 'request' }),
+      row({ id: 'c', target: 'response' }),
+    ], false);
+    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
+    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
   });
 
   it('renders one row per header, in order', () => {
