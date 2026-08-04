@@ -1,12 +1,5 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { test as base, chromium, type BrowserContext, type Worker } from '@playwright/test';
-
-// WXT suffixes the output directory with the mode unless it is `development`
-// or `production` (see `resolve-config.mjs`'s `modeSuffix` table), so
-// `wxt build --mode e2e` lands in `chrome-mv3-e2e`, not `chrome-mv3`. The
-// loopback host permission this suite depends on only exists in that build.
-const EXTENSION_PATH = path.resolve('.output/chrome-mv3-e2e');
+import { assertBuildFresh } from '../support/build';
 
 export const test = base.extend<{
   context: BrowserContext;
@@ -14,12 +7,15 @@ export const test = base.extend<{
   extensionId: string;
 }>({
   context: async ({}, use) => {
-    if (!existsSync(EXTENSION_PATH)) {
-      throw new Error(
-        `extension build not found at ${EXTENSION_PATH} — run \`npm run test:e2e\` ` +
-        `(or \`npm run build:e2e\` before \`playwright test\`), not a plain \`npm run build\`.`,
-      );
-    }
+    // This suite is the only assertion in the project that runs at the resolved
+    // layout level, and it loads a *build*, not the sources. Checking presence
+    // was never enough: a reviewer once deleted `width: 100%` from style.css,
+    // ran a bare `npx playwright test`, and watched all four tests pass against
+    // the build from before the deletion — the guard disabled by nothing more
+    // than the command chosen to run it. assertBuildFresh rejects a stale build
+    // as well as an absent one, and resolves the mode-suffixed output directory
+    // (`chrome-mv3-e2e`, which is where the loopback host permission lives).
+    const EXTENSION_PATH = assertBuildFresh('e2e');
 
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
