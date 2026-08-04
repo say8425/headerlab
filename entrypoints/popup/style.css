@@ -217,6 +217,18 @@
   background: var(--hl-bar);
 }
 
+/* `.hl-addrow` is a <button>, and Chrome sizes buttons shrink-to-fit even as a
+   block-level grid container — so it took the track list above but resolved
+   `1fr` to 0 and stopped 246px short of every other row, breaking the value
+   column's tint at exactly the seam the shared template exists to close.
+   The sibling rows are <div>s and fill the container on their own; only the
+   button needs telling. Exact because Tailwind's preflight already puts
+   `box-sizing: border-box` on it, and the row carries no padding or side
+   borders — see the resolved-template assertion in the E2E popup test. */
+.hl-addrow {
+  width: 100%;
+}
+
 /* These two keep the shared `var(--cols)` template above and place their
    contents with grid-column, which is what the mockup does and why
    (docs/design/popup-dark.html:229): on the same template the value column's

@@ -28,7 +28,17 @@ function rules(css: string): Rule[] {
   return out;
 }
 
-/** Every `grid-template-columns` value this rule set gives `selector`, in source order. */
+/**
+ * Every `grid-template-columns` value this rule set gives `selector`, in source
+ * order.
+ *
+ * Matches the selector as a whole entry in a comma list and nothing else, which
+ * is the single-class same-property override this file exists to catch. It does
+ * not see a compound or descendant selector (`.hl-gbody .hl-addrow`), the
+ * `grid-template` shorthand, or anything an at-rule wraps — those override
+ * routes are out of scope here and are caught, if at all, by the resolved-layout
+ * assertion in tests/e2e/header-modification.spec.ts.
+ */
 function templatesFor(css: string, selector: string): string[] {
   const out: string[] = [];
   for (const rule of rules(css)) {
@@ -80,6 +90,14 @@ describe('the --cols track list', () => {
     // on specificity and the last one wins. That is not hypothetical: it is
     // exactly what `.hl-grp, .hl-addrow { grid-template-columns: 1fr auto }`
     // did, unseen by every guard in this suite.
+    //
+    // Still a claim about the stylesheet's *text*, though, and the text can be
+    // right while the layout is not: `.hl-addrow` read this very declaration
+    // and resolved a different track list anyway, because Chrome sizes a
+    // <button> shrink-to-fit and its `1fr` collapsed to 0. Nothing in this file
+    // could have caught that — see `templatesFor` above for the override routes
+    // it cannot see either. What the five shapes actually resolve is asserted
+    // against a real engine in tests/e2e/header-modification.spec.ts.
     //
     // Exact equality on the whole list, not "the first one is var(--cols)":
     // `['var(--cols)', '1fr auto']` is the override, `['var(--cols)',
