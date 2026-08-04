@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TopBar } from '@/components/TopBar';
 import { ProfileBar } from '@/components/ProfileBar';
 import { ProfileEditStrip } from '@/components/ProfileEditStrip';
@@ -21,6 +21,24 @@ export default function App() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  // onGrant (below) awaits a user-gesture-gated permission prompt, which is
+  // not instantaneous — long enough for `state` to change underneath it (a
+  // reconcile() write, or the second writer useAppState.ts documents) or for
+  // the popup itself to close. A plain closure over `state` would resume with
+  // whatever was current when the button was clicked, not when the prompt
+  // was answered; `stateRef` is updated every render so the handler can read
+  // the value that is current by the time it actually needs it. `mountedRef`
+  // is the matching guard for the other half of that gap: if the popup
+  // closes mid-prompt, the handler must not call setGrantDiagnostics on a
+  // component that no longer exists.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // compile() is pure, so the popup runs the same function on the same state
   // the background does. Caching diagnostics in storage would mean keeping the
@@ -137,8 +155,17 @@ export default function App() {
         diagnostics={routed.profileLevel}
         onGrant={async (host) => {
           await requestHost(host);
-          const grants = await probeGrants(domainsToAudit(state.profiles));
-          setGrantDiagnostics(auditDiagnostics(state.profiles, grants));
+          // Re-read state now rather than trust the `state` closed over when
+          // this callback was created — see stateRef's comment above. Both
+          // domainsToAudit and auditDiagnostics run against the same
+          // snapshot so the domains probed and the diagnostics built from
+          // the grants stay consistent with each other.
+          const current = stateRef.current;
+          if (!current) return;
+          const grants = await probeGrants(domainsToAudit(current.profiles));
+          if (mountedRef.current) {
+            setGrantDiagnostics(auditDiagnostics(current.profiles, grants));
+          }
         }}
       />
       <HeaderGrid
