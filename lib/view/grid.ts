@@ -128,15 +128,22 @@ export interface GroupLiveness {
  * profile it sits in is actually emitting rules.
  *
  * A warning does not stop a row applying — that is what makes it a warning. But
- * the two judgements that kill a *whole* profile are not row-level at all:
- * `globalPause` skips the rule-building block outright (compile.ts:40) and
- * suppression `continue`s past the profile (compile.ts:51). Neither produces a
+ * the three judgements that kill a *whole* profile are not row-level at all:
+ * a profile switched off is skipped before anything else (compile.ts:28),
+ * `globalPause` skips the rule-building block outright (compile.ts:40), and
+ * suppression `continue`s past the profile (compile.ts:51). None produces a
  * diagnostic carrying a `headerRuleId`, so nothing about them ever reaches
  * `byRow` and every row still looks healthy. Without `live` the group header
  * says "3 of 3 applying" directly above a band reading "the whole profile is
  * not applied" — one screen contradicting itself while zero rules are
  * registered. `live` is what makes this figure a claim about compile()'s output
  * rather than about row state that merely resembles it.
+ *
+ * The caller answers all three by asking, never by restating: the suppression
+ * half is `isSuppressed` (lib/compile/suppression.ts), which has exactly one
+ * definition and a comment on why a fifth copy of that predicate is how Phase
+ * 2a broke. See entrypoints/popup/App.tsx for the one expression that composes
+ * them.
  *
  * `off` is deliberately unaffected: it means "the user switched this row off",
  * which stays true whether or not the profile is live. Zeroing it too would

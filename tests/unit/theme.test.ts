@@ -1,15 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { readBuildFile } from '../support/build';
 
 // `npm test` runs `wxt build` first, so these read a real build artifact.
-const OUT = '.output/chrome-mv3';
-
+// readBuildFile refuses a missing *or* stale one: a bare `npx vitest run` here
+// once reported three failures against a build predating theme.js, and the
+// hours that cost are why the staleness half exists (tests/support/build.ts).
 function read(path: string): string {
-  const full = `${OUT}/${path}`;
-  if (!existsSync(full)) {
-    throw new Error(`${full} is missing. Run "npm test" (which builds first), not "npx vitest run".`);
-  }
-  return readFileSync(full, 'utf8');
+  return readBuildFile('production', path);
 }
 
 describe('theme bootstrap', () => {

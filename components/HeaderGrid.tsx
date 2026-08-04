@@ -8,12 +8,17 @@ export interface HeaderGridProps {
   profile: Profile;
   byRow: ReadonlyMap<string, Diagnostic[]>;
   /**
-   * Whether compile() emits any rule for this profile — false when the whole
-   * app is paused or the profile is suppressed. A prop rather than something
-   * derived here: `globalPause` is app-level state the grid has no access to,
-   * and App has to answer the same question for the status foot anyway. One
-   * boolean computed once and handed to both is what stops the group headers
-   * and the footer from disagreeing, which is the defect this closes.
+   * Whether compile() emits any rule for this profile — false when the profile
+   * is switched off, the whole app is paused, or the profile is suppressed
+   * (compile.ts:28, :40, :51). A prop rather than something derived here: two
+   * of those three are app-level state the grid has no access to, and App has
+   * to answer the same question for the status foot anyway. One boolean
+   * computed once and handed to both is what stops the group headers and the
+   * footer from disagreeing, which is the defect this closes.
+   *
+   * Callers compose it by asking rather than restating — the suppression term
+   * is `isSuppressed` (lib/compile/suppression.ts), whose comment says why a
+   * hand-written copy of that predicate is the bug it was extracted to end.
    */
   live: boolean;
   onToggleRow: (ruleId: string, enabled: boolean) => void;

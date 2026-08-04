@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { readBuildFile } from '../support/build';
 
 // The product's central claim is zero host permissions at install, plus a
 // minimal, exactly-pinned permission surface. The "test" script in
@@ -8,17 +8,12 @@ import { describe, expect, it } from 'vitest';
 // the build hasn't happened yet. (Not a "pretest" lifecycle hook: those are
 // silently skipped by `ignore-scripts=true`, a common local/CI npm setting —
 // chaining into the script body itself is not.)
-const MANIFEST_PATH = '.output/chrome-mv3/manifest.json';
-
+//
+// A red test naming the cause beats a green skip, and beats a green *pass*
+// against yesterday's manifest just as much: readBuildFile rejects a stale
+// build as well as a missing one (tests/support/build.ts).
 function readManifest(): Record<string, unknown> {
-  if (!existsSync(MANIFEST_PATH)) {
-    // A red test naming the cause beats a green skip: if this fires, vitest
-    // was invoked directly (e.g. `npx vitest run`) instead of `npm test`.
-    throw new Error(
-      `${MANIFEST_PATH} is missing. Run "npm test" (which builds first) or "npm run build" directly.`,
-    );
-  }
-  return JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
+  return JSON.parse(readBuildFile('production', 'manifest.json'));
 }
 
 describe('production manifest', () => {
