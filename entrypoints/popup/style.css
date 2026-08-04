@@ -125,3 +125,302 @@
     @apply font-sans;
     }
 }
+
+/* ===== HeaderLab palette — from docs/design/popup-{dark,light}.html =====
+   Five colours, one meaning each: focus / applying / tab lock / needs access
+   / removal. `set` is the common case and spends no colour at all.
+
+   The light values are not an inversion of the dark ones. They were derived
+   separately and WCAG-audited (18 fixes, 2 of them blockers), so read them
+   from the table rather than computing them. */
+:root {
+  --hl-bg: #fafbfc;
+  --hl-bar: #ffffff;
+  --hl-row-hi: #edf1f7;
+  --hl-cell: #e7eaf1;
+  --hl-line: #d9dee7;
+  --hl-txt: #1b2432;
+  --hl-txt2: #5a6678;
+  --hl-txt3: #8b96a8;
+  --hl-acc: #2b5fd9;
+  --hl-grn: #0f8536;
+  --hl-amb: #9d6410;
+  --hl-cyn: #0a749e;
+  --hl-red: #c12544;
+  --hl-sbw: 9px;
+}
+
+.dark {
+  --hl-bg: #0e1116;
+  --hl-bar: #141922;
+  --hl-row-hi: #151a22;
+  --hl-cell: #171c24;
+  --hl-line: #1d232d;
+  --hl-txt: #dde4ee;
+  --hl-txt2: #94a2b6;
+  --hl-txt3: #626e7f;
+  --hl-acc: #7aa2f7;
+  --hl-grn: #62c98d;
+  --hl-amb: #e0af68;
+  --hl-cyn: #74cbf0;
+  --hl-red: #f2708b;
+}
+
+#root {
+  width: 560px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hl-bg);
+  color: var(--hl-txt);
+  font-size: 11.5px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== the grid =====
+   `--cols` is declared once, on the element carrying `data-cols-owner`, and
+   every row-shaped child reads it. Duplicating the track list is what kills
+   this design — see the uniqueness assertion in HeaderGrid.test.tsx. */
+.hl-gbody {
+  --cols: 38px 64px 186px 1fr 26px;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.hl-ghead,
+.hl-grp,
+.hl-row,
+.hl-subrow,
+.hl-addrow {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  border-bottom: 1px solid var(--hl-cell);
+}
+
+.hl-ghead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--hl-bg);
+  color: var(--hl-txt3);
+  height: 22px;
+}
+
+.hl-grp,
+.hl-addrow {
+  height: 24px;
+  color: var(--hl-txt2);
+  background: var(--hl-bar);
+}
+
+/* `.hl-addrow` is a <button>, and Chrome sizes buttons shrink-to-fit even as a
+   block-level grid container — so it took the track list above but resolved
+   `1fr` to 0 and stopped 246px short of every other row, breaking the value
+   column's tint at exactly the seam the shared template exists to close.
+   The sibling rows are <div>s and fill the container on their own; only the
+   button needs telling. Exact because Tailwind's preflight already puts
+   `box-sizing: border-box` on it, and the row carries no padding or side
+   borders — see the resolved-template assertion in the E2E popup test. */
+.hl-addrow {
+  width: 100%;
+}
+
+/* These two keep the shared `var(--cols)` template above and place their
+   contents with grid-column, which is what the mockup does and why
+   (docs/design/popup-dark.html:229): on the same template the value column's
+   tint and its left rule run unbroken from the sticky header to the last row,
+   instead of breaking at every divider and add row.
+
+   The padding therefore lives on the contents, not on the row — padding on a
+   grid container insets every track and would break the alignment this is
+   for. */
+.hl-glabel {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+}
+.hl-gright {
+  grid-column: 4 / -1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  background: color-mix(in oklab, var(--hl-cell) 35%, transparent);
+  border-left: 1px solid var(--hl-cell);
+}
+/* Track 3 is Header name, and `.hl-c`'s 6px inset is what the name column's
+   text sits at — so "+ Add request header" lines up with the names above it. */
+.hl-ghost {
+  grid-column: 3 / -1;
+  padding-left: 6px;
+  text-align: left;
+}
+
+.hl-row { min-height: 30px; }
+.hl-row:hover { background: var(--hl-row-hi); }
+.hl-row[data-off] { color: var(--hl-txt3); }
+
+.hl-c { padding: 0 6px; border-right: 1px solid var(--hl-cell); overflow: hidden; }
+.hl-c-act { border-right: 0; }
+
+/* The value column carries its own shading unbroken from the header to the
+   last row, so the eye scans down a column instead of parsing a list. */
+.hl-c-val { background: color-mix(in oklab, var(--hl-cell) 35%, transparent); }
+
+.hl-val {
+  user-select: text;
+  word-break: break-all;
+  /* Design §8.2: the value is legible at rest, wrapped to two lines — the
+     review that shaped this direction found long values were only readable
+     once you clicked into them. The cap is what keeps a 2KB paste from
+     stretching the row, and it belongs on the read view too, not only the
+     editor. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hl-val-empty { color: var(--hl-txt3); }
+
+.hl-op[data-op='remove'] { color: var(--hl-red); }
+.hl-sig { display: inline-block; width: 8px; }
+
+.hl-val-read { display: flex; align-items: center; gap: 4px; width: 100%; }
+.hl-val-read .hl-vbtn { margin-left: auto; opacity: 0; color: var(--hl-txt3); }
+.hl-row:hover .hl-vbtn { opacity: 1; }
+
+.hl-textarea,
+.hl-nm {
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  border: 0;
+  outline: 0;
+}
+.hl-textarea {
+  max-height: 56px;      /* design §8.2 — a 2KB paste must not stretch the row */
+  resize: none;
+  background: var(--hl-bg);
+  outline: 1px solid var(--hl-acc);
+}
+.hl-nm:focus { outline: 1px solid var(--hl-acc); }
+
+/* ===== diagnostics ===== */
+.hl-subrow {
+  min-height: 22px;
+}
+.hl-subrow .hl-sub {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 6px;
+}
+.hl-subline,
+.hl-bandline { color: var(--hl-txt2); }
+.hl-subline[data-severity='error'],
+.hl-bandline[data-severity='error'] { color: var(--hl-red); }
+
+.hl-band {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px;
+  background: var(--hl-bar);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-bandline { display: flex; align-items: center; gap: 6px; }
+.hl-grant {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 3px;
+  color: var(--hl-cyn);
+  border: 1px solid color-mix(in oklab, var(--hl-cyn) 45%, transparent);
+}
+
+/* ===== profile bar + in-place edit strip ===== */
+.hl-profbar {
+  display: flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 8px;
+  background: var(--hl-bar);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-profs { display: flex; align-items: center; gap: 3px; }
+.hl-prof {
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 4px;
+  color: var(--hl-txt2);
+}
+.hl-prof[aria-selected='true'] { background: var(--hl-bg); color: var(--hl-txt); }
+.hl-prof[data-marker='error']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-red); }
+.hl-prof[data-marker='permission']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-cyn); }
+
+/* The identity dot reuses the profile colour muted, and only saturates when
+   active — design §8.3. It says which profile, never whether it works. */
+.hl-pdot { width: 6px; height: 6px; border-radius: 50%; opacity: .45; }
+.hl-pdot[data-active] { opacity: 1; }
+.hl-pdot[data-tone='green']  { background: var(--hl-grn); }
+.hl-pdot[data-tone='amber']  { background: var(--hl-amb); }
+.hl-pdot[data-tone='red']    { background: var(--hl-red); }
+.hl-pdot[data-tone='blue']   { background: var(--hl-acc); }
+.hl-pdot[data-tone='violet'] { background: #a48cf0; }
+.hl-pdot[data-tone='cyan']   { background: var(--hl-cyn); }
+
+.hl-prof-meta { margin-left: auto; color: var(--hl-txt3); }
+
+.hl-editstrip {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 8px;
+  background: var(--hl-bg);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-swatches { display: flex; gap: 4px; }
+.hl-swatch { width: 12px; height: 12px; border-radius: 50%; }
+.hl-swatch[data-chosen] { outline: 1.5px solid var(--hl-acc); outline-offset: 1px; }
+.hl-swatch[data-tone='green']  { background: var(--hl-grn); }
+.hl-swatch[data-tone='amber']  { background: var(--hl-amb); }
+.hl-swatch[data-tone='red']    { background: var(--hl-red); }
+.hl-swatch[data-tone='blue']   { background: var(--hl-acc); }
+.hl-swatch[data-tone='violet'] { background: #a48cf0; }
+.hl-delete { margin-left: auto; color: var(--hl-red); }
+
+/* ===== top bar, filter block, status foot ===== */
+.hl-topbar {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 10px;
+  background: var(--hl-bar);
+  border-bottom: 1px solid var(--hl-line);
+}
+.hl-brand { font-weight: 500; letter-spacing: .2px; }
+.hl-runstate { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--hl-grn); }
+.hl-runstate[data-paused] { color: var(--hl-txt3); }
+.hl-fdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.hl-pause { padding: 2px 8px; border-radius: 4px; color: var(--hl-txt2); }
+
+.hl-filters { padding: 5px 8px; background: var(--hl-bar); border-bottom: 1px solid var(--hl-line); }
+.hl-frow { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.hl-flabel { width: 40px; color: var(--hl-txt3); }
+.hl-field { flex: 1; background: transparent; color: inherit; font: inherit; border: 0; outline: 0; }
+.hl-field:focus { outline: 1px solid var(--hl-acc); }
+.hl-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.hl-chip { padding: 1px 6px; border-radius: 3px; color: var(--hl-txt3); border: 1px solid var(--hl-cell); }
+.hl-chip[aria-pressed='true'] { color: var(--hl-txt); border-color: var(--hl-acc); }
+
+.hl-foot {
+  display: flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px;
+  background: var(--hl-bar);
+  border-top: 1px solid var(--hl-line);
+  color: var(--hl-txt2);
+}
+.hl-sep { color: var(--hl-txt3); }
+.hl-footerr { color: var(--hl-red); }
+.hl-pendtag { margin-left: auto; color: var(--hl-cyn); }

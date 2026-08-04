@@ -93,6 +93,14 @@ describe('auditDiagnostics', () => {
     )).toEqual([]);
   });
 
+  it('carries the host so the Grant button need not parse the message', () => {
+    const d = auditDiagnostics(
+      [p('a', 'A', ['x.com'])],
+      [{ domain: 'x.com', granted: false }],
+    );
+    expect(d[0]?.host).toBe('x.com');
+  });
+
   it('says nothing about a profile the compiler suppressed', () => {
     // "The rule is registered but will not apply until you grant it" would be
     // a lie here: no rule was registered, and granting the permission changes

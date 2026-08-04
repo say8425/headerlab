@@ -48,6 +48,26 @@ describe('createProfile', () => {
     expect(createProfile('a', 0).id).not.toBe(createProfile('a', 0).id);
   });
 
+  it('rotates through the identity colours in order and wraps', () => {
+    // Two full turns, so the wrap is pinned as well as the first pass. Literal
+    // names rather than SELECTABLE_COLORS, which would agree with the array
+    // whatever it said.
+    const rotation = Array.from({ length: 10 }, (_, order) => createProfile('a', order).color);
+    expect(rotation).toEqual([
+      'green', 'amber', 'red', 'blue', 'violet',
+      'green', 'amber', 'red', 'blue', 'violet',
+    ]);
+  });
+
+  it('never assigns cyan, which the tab marker owns', () => {
+    // The rotation used to run over six colours, so every sixth profile was
+    // given the marker's colour as its identity and its dot could sit beside a
+    // cyan marker on the same tab. The range is deliberately wider than one
+    // turn: a rotation that grew back to six would only reveal it at order 5.
+    const colors = Array.from({ length: 24 }, (_, order) => createProfile('a', order).color);
+    expect(colors).not.toContain('cyan');
+  });
+
   it('defaults resourceTypes to the three types a debugger actually uses', () => {
     expect(createProfile('a', 0).filter.resourceTypes)
       .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame']);

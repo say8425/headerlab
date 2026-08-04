@@ -65,6 +65,7 @@ export function auditDiagnostics(
         kind: 'permission-missing',
         severity: 'warning',
         profileId: profile.id,
+        host,
         message:
           `HeaderLab needs permission for ${host}. ` +
           'The rule is registered but will not apply until you grant it.',
