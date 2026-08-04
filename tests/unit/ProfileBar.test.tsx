@@ -154,6 +154,29 @@ describe('ProfileEditStrip', () => {
     expect(onPatch).toHaveBeenCalledWith({ name: 'Renamed' });
   });
 
+  it('cancels the edit on Escape, so the following blur commits nothing', async () => {
+    // In App this strip unmounts on onClose(), which throws the draft away as
+    // a side effect. That is the right outcome for the wrong reason: the
+    // component itself never cancels, so anything that keeps it mounted (a
+    // caller that ignores onClose, or a future strip that stays open) commits
+    // the cancelled name on the next blur. onClose is a plain mock here, so
+    // this test sees the component's own behaviour rather than App's.
+    const onPatch = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <ProfileEditStrip profile={prof('p1', 'Local')} onPatch={onPatch} onDelete={vi.fn()} onClose={onClose} />,
+    );
+    const input = screen.getByRole('textbox', { name: /Profile name/ });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Renamed{Escape}');
+    await userEvent.tab();
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(input).toHaveProperty('value', 'Local');
+    // Escape still closes the strip — the cancel is added to that, not
+    // instead of it.
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the five palette colours', () => {
     render(
       <ProfileEditStrip profile={prof('p1', 'Local')} onPatch={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />,

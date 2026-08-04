@@ -29,6 +29,12 @@ export function HeaderRow({ rule, onToggle, onPatch, onDelete }: HeaderRowProps)
     onPatch({ name: nameDraft });
   };
 
+  // Escape has to restore the draft, not merely be ignored. This input never
+  // leaves its editable state, so an ignored Escape leaves the cancelled text
+  // in place and the next blur commits it — writing the value the user just
+  // cancelled (design §5.3; same branch in FilterBlock and ProfileEditStrip).
+  const cancelName = () => setNameDraft(lastSent.current);
+
   return (
     <div className="hl-row" data-off={!rule.enabled || undefined}>
       <span className="hl-c hl-c-on">
@@ -58,7 +64,10 @@ export function HeaderRow({ rule, onToggle, onPatch, onDelete }: HeaderRowProps)
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
           onBlur={commitName}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitName(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitName();
+            if (e.key === 'Escape') cancelName();
+          }}
         />
       </span>
       <span className="hl-c hl-c-val">

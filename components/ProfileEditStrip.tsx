@@ -44,6 +44,13 @@ export function ProfileEditStrip({ profile, onPatch, onDelete, onClose }: Profil
     onPatch({ name: nameDraft });
   };
 
+  // Escape has to restore the draft, not merely close the strip. App unmounts
+  // this component from onClose(), which discards the draft as a side effect —
+  // the right outcome for the wrong reason. Any caller that keeps it mounted
+  // gets the cancelled name committed on the next blur, which is what happens
+  // in HeaderRow and FilterBlock without this branch (design §5.3).
+  const cancelName = () => setNameDraft(lastSent.current);
+
   return (
     <div className="hl-editstrip">
       <input
@@ -54,7 +61,10 @@ export function ProfileEditStrip({ profile, onPatch, onDelete, onClose }: Profil
         onBlur={commitName}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commitName();
-          if (e.key === 'Escape') onClose();
+          if (e.key === 'Escape') {
+            cancelName();
+            onClose();
+          }
         }}
       />
       <span className="hl-swatches">

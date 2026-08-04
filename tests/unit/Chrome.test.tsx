@@ -61,6 +61,22 @@ describe('FilterBlock', () => {
     expect(onPatch).toHaveBeenCalledWith({ domains: ['a.com'] });
   });
 
+  it('cancels the edit on Escape, so the following blur commits nothing', async () => {
+    // Same hazard as HeaderRow's name input (tests/unit/editing.test.tsx):
+    // this input never leaves its editable state, so a cancelled draft
+    // survives Escape and the next blur runs commitDomains() — overwriting
+    // the whole domain list with the text the user just cancelled. The blur
+    // is what makes this a regression test rather than a display check.
+    const onPatch = vi.fn();
+    render(<FilterBlock filter={filter({ domains: ['api.example.com'] })} onPatch={onPatch} />);
+    const input = screen.getByRole('textbox', { name: /Match domains/ });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'api.example.com, staging{Escape}');
+    await userEvent.tab();
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(input).toHaveProperty('value', 'api.example.com');
+  });
+
   it('shows exactly the eight offered resource types as chips, in order', () => {
     // A bare length check of 8 would pass eight arbitrary chips. Pinning the
     // brief's verbatim list by aria-label rules that out and also subsumes

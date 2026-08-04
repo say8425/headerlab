@@ -117,6 +117,26 @@ describe('HeaderRow name editing', () => {
     expect(onPatch).toHaveBeenCalledWith({ name: 'X-Api-Key' });
   });
 
+  it('cancels the edit on Escape, so the following blur commits nothing', async () => {
+    // Doing nothing on Escape is not neutral here. The name input never
+    // leaves its editable state, so the cancelled draft survives and the very
+    // next blur runs commitName() and writes the value the user just
+    // cancelled. `Authorizatio` is a valid RFC 7230 token, so no diagnostic
+    // fires either — the wrong header ships silently. The blur is the whole
+    // point of this test: asserting only the displayed value after Escape
+    // would pass against a component that never restores the draft at all.
+    const onPatch = vi.fn();
+    render(
+      <HeaderRow rule={rule({ name: 'Authorization' })} onToggle={vi.fn()} onPatch={onPatch} onDelete={vi.fn()} />,
+    );
+    const input = screen.getByRole('textbox', { name: /Header name/ });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Authorizatio{Escape}');
+    await userEvent.tab();
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(input).toHaveProperty('value', 'Authorization');
+  });
+
   it('cycles the operation set → append → remove → set', async () => {
     const onPatch = vi.fn();
     const { rerender } = render(

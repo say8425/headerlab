@@ -42,6 +42,14 @@ export function FilterBlock({ filter, onPatch }: FilterBlockProps) {
     onPatch({ domains: next });
   };
 
+  // Escape has to restore the draft, not merely be ignored. This input never
+  // leaves its editable state, so an ignored Escape leaves the cancelled text
+  // in place and the next blur commits it — here that overwrites the whole
+  // domain list (design §5.3; same branch in HeaderRow and ProfileEditStrip).
+  // Restoring from `lastSent`, not `filter.domains`, for the same timing
+  // reason the commit compares against it.
+  const cancelDomains = () => setDraft(lastSent.current.join(', '));
+
   const toggleType = (type: ResourceType) => {
     const has = filter.resourceTypes.includes(type);
     // DNR rejects an empty resourceTypes array, and its default silently
@@ -63,7 +71,10 @@ export function FilterBlock({ filter, onPatch }: FilterBlockProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitDomains}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitDomains(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitDomains();
+            if (e.key === 'Escape') cancelDomains();
+          }}
           placeholder="api.example.com, localhost"
         />
       </div>
