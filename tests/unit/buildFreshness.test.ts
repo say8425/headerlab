@@ -1,8 +1,20 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { REPO_ROOT, isStale, oldestOutputMtime, sourceFiles } from '../support/build';
+import { REPO_ROOT, isStale, newestSource, oldestOutputMtime, sourceFiles } from '../support/build';
 
 /**
  * Guards the guard.
@@ -15,6 +27,73 @@ import { REPO_ROOT, isStale, oldestOutputMtime, sourceFiles } from '../support/b
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'headerlab-freshness-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+/** The instant the imaginary build in the fixture cases below finished. */
+const BUILT_MS = Date.parse('2020-01-01T00:00:00Z');
+
+function write(root: string, files: Record<string, string>): void {
+  for (const [file, contents] of Object.entries(files)) {
+    const full = path.join(root, file);
+    mkdirSync(path.dirname(full), { recursive: true });
+    writeFileSync(full, contents);
+  }
+}
+
+/**
+ * A throwaway git repo to run the deletion, rename and untracked cases against.
+ *
+ * Deliberately not this repo. A source file missing from the working tree, or a
+ * new untracked one appearing in it, is precisely what the guard reports as
+ * stale — so mutating the real tree from inside a test would make theme.test.ts,
+ * manifest.test.ts and the E2E fixture fail for as long as the mutation existed,
+ * and vitest runs those files in parallel with this one. A fixture also lets the
+ * timestamps be exact instead of whatever the filesystem happened to record.
+ */
+function fixture(
+  name: string,
+  tracked: Record<string, string>,
+  untracked: Record<string, string> = {},
+): string {
+  const root = path.join(scratch, name);
+  mkdirSync(root, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
+  write(root, tracked);
+  execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'ignore' });
+  write(root, untracked);
+  return root;
+}
+
+/**
+ * Backdates every path in the fixture to just before {@link BUILT_MS}, so the
+ * tree starts out fresh and anything a case does afterwards is unambiguously
+ * newer than the build. `.git` is left alone: git owns the mtimes in there.
+ */
+function age(root: string): void {
+  const when = new Date(BUILT_MS - 1_000);
+  const stack = [root];
+  while (stack.length > 0) {
+    const dir = stack.pop() as string;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === '.git') continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      utimesSync(full, when, when);
+    }
+    utimesSync(dir, when, when);
+  }
+}
+
+/** A source tree with the shapes the cases need: nested dirs, a test, an ignore. */
+const TREE = {
+  '.gitignore': 'out/\n',
+  'package.json': '{}\n',
+  'components/HeaderRow.tsx': 'export const HeaderRow = () => null;\n',
+  'components/TopBar.tsx': 'export const TopBar = () => null;\n',
+  'lib/permissions/audit.ts': 'export const audit = () => [];\n',
+  'lib/permissions/probe.ts': 'export const probe = () => [];\n',
+  'public/theme.js': '// theme\n',
+  'tests/unit/grid.test.ts': '// a test\n',
+} as const;
 
 describe('the staleness comparison', () => {
   const source = { file: 'lib/compile/compile.ts', mtimeMs: 1_000 };
@@ -103,6 +182,120 @@ describe('the source set', () => {
 
   it('is not empty — an empty set would report every build as fresh forever', () => {
     expect(files.size).toBeGreaterThan(20);
+  });
+});
+
+/**
+ * The case the guard was written for and did not cover: a source that is gone.
+ *
+ * A file's own mtime only moves when its contents are rewritten. A deletion
+ * leaves a path git still lists and `statSync` cannot find; a rename carries the
+ * old mtime to the new path. Neither produces a file newer than the build, so a
+ * walk over files alone calls the build fresh — which is the reviewer's incident
+ * happening again inside the fix for it.
+ */
+describe('a source the working tree no longer has where git says it is', () => {
+  it('is fresh while every listed path is where git says it is', () => {
+    const repo = fixture('untouched', TREE);
+    age(repo);
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(false);
+  });
+
+  it('reports a deleted file, whose own mtime went with it', () => {
+    const repo = fixture('deleted', TREE);
+    age(repo);
+    rmSync(path.join(repo, 'public/theme.js'));
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
+  });
+
+  it('reports a rename, which carries the old mtime to the new path', () => {
+    const repo = fixture('renamed', TREE);
+    age(repo);
+    renameSync(
+      path.join(repo, 'components/HeaderRow.tsx'),
+      path.join(repo, 'components/HeaderRowRenamed.tsx'),
+    );
+    // Pinned because it is the whole reason a file-only walk misses this:
+    // rename(2) preserves mtime, so the file the guard can still stat is as old
+    // as the build.
+    expect(statSync(path.join(repo, 'components/HeaderRowRenamed.tsx')).mtimeMs).toBeLessThan(
+      BUILT_MS,
+    );
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
+  });
+
+  it('reports a whole directory removed, where the listed dirname is gone too', () => {
+    const repo = fixture('rmdir', TREE);
+    age(repo);
+    rmSync(path.join(repo, 'lib/permissions'), { recursive: true });
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
+  });
+
+  it('reports a staged rename, which leaves no missing path behind at all', () => {
+    const repo = fixture('staged-rename', TREE);
+    age(repo);
+    execFileSync('git', ['mv', 'components/TopBar.tsx', 'components/TopBarRenamed.tsx'], {
+      cwd: repo,
+      stdio: 'ignore',
+    });
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
+  });
+
+  it('names the directory it took the timestamp from, so the error can say why', () => {
+    const repo = fixture('named', TREE);
+    age(repo);
+    rmSync(path.join(repo, 'public/theme.js'));
+    expect(newestSource(repo)).toMatchObject({ file: 'public/', kind: 'directory' });
+  });
+});
+
+/**
+ * The other half of reading directory timestamps: they must move for source
+ * changes and nothing else. A guard that goes red on an unrelated write is a
+ * guard someone deletes.
+ */
+describe('what reading a directory timestamp must not cost', () => {
+  it('stays fresh when a gitignored artifact appears at the repo root', () => {
+    const repo = fixture('ignored-artifact', TREE);
+    age(repo);
+    write(repo, { 'out/popup.js': '' });
+    // The root's mtime just moved, and every artifact `.gitignore` names lives
+    // directly under the root — `.output/`, `test-results/`, `playwright-report/`.
+    // Measured in this repo while writing this: the root was 31s *newer* than
+    // the build it had just produced, because playwright wrote test-results/ in
+    // between. Folding the root in on its own account would have reported that
+    // build stale to every spec after the first.
+    expect(statSync(repo).mtimeMs).toBeGreaterThan(BUILT_MS);
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(false);
+  });
+
+  it('stays fresh when a listed symlink resolves to a directory newer than the build', () => {
+    const repo = fixture('symlinked-deps', TREE);
+    age(repo);
+    const target = path.join(scratch, 'symlinked-deps-target');
+    write(target, { 'react/index.js': '' });
+    symlinkSync(target, path.join(repo, 'deps'));
+    // This is the real `node_modules` in a git worktree: a symlink, which
+    // `.gitignore`'s directory-only `node_modules/` does not match and git
+    // therefore lists.
+    expect(sourceFiles(repo)).toContain('deps');
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(false);
+  });
+
+  it('stays fresh when a test is edited, and when a new test file is added', () => {
+    const repo = fixture('tests-carve-out', TREE);
+    age(repo);
+    const now = new Date();
+    utimesSync(path.join(repo, 'tests/unit/grid.test.ts'), now, now);
+    write(repo, { 'tests/unit/new.test.ts': '' });
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(false);
+  });
+
+  it('still reports a new untracked source file — that one is a real change', () => {
+    const repo = fixture('untracked-source', TREE);
+    age(repo);
+    write(repo, { 'components/NewThing.tsx': '' });
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
   });
 });
 

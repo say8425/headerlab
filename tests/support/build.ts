@@ -54,8 +54,14 @@ const BUILDS = {
 export type BuildMode = keyof typeof BUILDS;
 
 export interface SourceFile {
+  /** Repo-relative path: a file, or a directory (trailing `/`) whose entries moved. */
   file: string;
   mtimeMs: number;
+  /**
+   * Set when the timestamp came from a directory rather than a file's contents,
+   * so the error can say *why* a directory has anything to do with staleness.
+   */
+  kind?: 'directory';
 }
 
 /**
@@ -82,26 +88,97 @@ export interface SourceFile {
  * If git is unavailable the `execFileSync` throws, which is the intended
  * direction: unable to determine the source set is a loud failure, never a
  * silent pass.
+ *
+ * `root` defaults to the repo and is only ever passed by buildFreshness.test.ts,
+ * which points the same command at a throwaway git repo. Deleting a source or
+ * dropping an untracked one into *this* tree to test the flags would make every
+ * other suite that reads the build report it stale, in parallel, for as long as
+ * the test ran.
  */
-export function sourceFiles(): string[] {
+export function sourceFiles(root: string = REPO_ROOT): string[] {
   const listing = execFileSync(
     'git',
     ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-    { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
   return listing.split('\0').filter((file) => file !== '' && !file.startsWith('tests/'));
 }
 
-/** The newest of {@link sourceFiles}, or undefined if none of them exist. */
-export function newestSource(): SourceFile | undefined {
-  let newest: SourceFile | undefined;
-  for (const file of sourceFiles()) {
-    // `--cached` also lists files deleted from the working tree but not yet
-    // staged, so a missing path here is expected rather than an error.
-    const stat = statSync(path.join(REPO_ROOT, file), { throwIfNoEntry: false });
-    if (!stat?.isFile()) continue;
-    if (!newest || stat.mtimeMs > newest.mtimeMs) newest = { file, mtimeMs: stat.mtimeMs };
+/** The closest ancestor of `dir` that still exists — `.` at worst. */
+function nearestExistingDir(root: string, dir: string): string {
+  let current = dir;
+  while (
+    current !== '.' &&
+    !statSync(path.join(root, current), { throwIfNoEntry: false })?.isDirectory()
+  ) {
+    current = path.dirname(current);
   }
+  return current;
+}
+
+/**
+ * The newest timestamp anything in {@link sourceFiles} can produce.
+ *
+ * **Files alone are not enough.** A file's mtime moves only when its contents
+ * are rewritten, so the two ordinary edits that *remove* a source leave nothing
+ * newer than the build anywhere: `--cached` still lists a deleted path and
+ * `statSync` finds nothing to stat, and `rename(2)` carries the old mtime to the
+ * new path. Both were measured reporting a stale build fresh — `rm
+ * public/theme.js` followed by a bare `npx vitest run` gave 4/4 green on
+ * assertions about a file whose source was gone.
+ *
+ * What both do move is the **containing directory's** mtime: adding or removing
+ * a name is a write to the directory itself. So the maximum folds in, for every
+ * listed path, the directory that holds it — and for a path git lists but the
+ * working tree does not have, the nearest ancestor that still exists, which is
+ * what catches a whole directory being removed.
+ *
+ * **The repo root is not folded in on its own account.** Every artifact
+ * `.gitignore` names sits directly under it (`.output/`, `test-results/`,
+ * `playwright-report/`, `node_modules`), so the root's mtime moves for reasons
+ * that are not source at all: measured here, the root was 31s newer than the
+ * build it had just produced, because playwright had written `test-results/` in
+ * between — every spec after the first would have called that build stale. The
+ * root is read only as the last ancestor of a path that has actually gone
+ * missing, which is a source change by construction.
+ *
+ * What this still cannot see is a staged removal of the last file in a top-level
+ * directory (`git rm public/theme.js`): the index stops listing the path, the
+ * directory goes with it, and the only mtime left is the root's. Closing that
+ * needs the source list recorded into the build and compared as a set, which is
+ * a build-side change rather than a test-side one.
+ */
+export function newestSource(root: string = REPO_ROOT): SourceFile | undefined {
+  let newest: SourceFile | undefined;
+  const fold = (candidate: SourceFile) => {
+    if (!newest || candidate.mtimeMs > newest.mtimeMs) newest = candidate;
+  };
+
+  const directories = new Set<string>();
+  for (const file of sourceFiles(root)) {
+    // `--cached` also lists files deleted from the working tree but not yet
+    // staged, so a missing path here is expected rather than an error — it is
+    // the deletion signal, not an absence of one.
+    const stat = statSync(path.join(root, file), { throwIfNoEntry: false });
+    if (stat?.isFile()) fold({ file, mtimeMs: stat.mtimeMs });
+
+    if (stat) {
+      // Excludes the repo root, which `path.dirname` gives as `.`.
+      const dir = path.dirname(file);
+      if (dir !== '.') directories.add(dir);
+    } else {
+      // `rm -rf lib/permissions` takes the dirname itself with it; the write
+      // landed on the closest directory that survived.
+      directories.add(nearestExistingDir(root, path.dirname(file)));
+    }
+  }
+
+  for (const dir of directories) {
+    const stat = statSync(path.join(root, dir), { throwIfNoEntry: false });
+    if (!stat?.isDirectory()) continue;
+    fold({ file: `${dir}/`, mtimeMs: stat.mtimeMs, kind: 'directory' });
+  }
+
   return newest;
 }
 
@@ -152,8 +229,10 @@ function describeGap(ms: number): string {
 }
 
 /**
- * Throws unless `mode`'s build exists and postdates every source. Returns the
- * absolute output directory so callers do not re-derive it.
+ * Throws unless `mode`'s build exists and postdates every source file *and*
+ * every directory holding one — the second half being what makes a source
+ * deleted or renamed since the build visible, since neither leaves a newer file
+ * behind. Returns the absolute output directory so callers do not re-derive it.
  */
 export function assertBuildFresh(mode: BuildMode): string {
   const { dir, fix } = BUILDS[mode];
@@ -166,8 +245,12 @@ export function assertBuildFresh(mode: BuildMode): string {
 
   const source = newestSource();
   if (isStale(built, source)) {
+    const what =
+      source?.kind === 'directory'
+        ? `${source.file} gained, lost or renamed an entry`
+        : `${source?.file} was modified`;
     throw new Error(
-      `${dir} is stale: ${source?.file} was modified ${describeGap((source?.mtimeMs ?? 0) - built)} ` +
+      `${dir} is stale: ${what} ${describeGap((source?.mtimeMs ?? 0) - built)} ` +
       `after the build. This suite asserts against built output, so anything it reports now ` +
       `describes the previous sources — ${fix}.`,
     );
