@@ -163,9 +163,17 @@ export function newestSource(root: string = REPO_ROOT): SourceFile | undefined {
     if (stat?.isFile()) fold({ file, mtimeMs: stat.mtimeMs });
 
     if (stat) {
-      // Excludes the repo root, which `path.dirname` gives as `.`.
-      const dir = path.dirname(file);
-      if (dir !== '.') directories.add(dir);
+      // Every ancestor, not just the immediate dirname: a directory that holds
+      // only subdirectories is no listed path's dirname, so `git mv lib/view/grid
+      // lib/view/table` writes to `lib/view` with nothing watching it — the
+      // renamed directory carries its own mtime along, exactly like a file. This
+      // costs no extra false alarms, because a directory's mtime moves only when
+      // an entry directly inside *it* is added, removed or renamed: an ancestor
+      // never sees a write that its descendants absorbed. The loop stops before
+      // the repo root, which `path.dirname` gives as `.`.
+      for (let dir = path.dirname(file); dir !== '.'; dir = path.dirname(dir)) {
+        directories.add(dir);
+      }
     } else {
       // `rm -rf lib/permissions` takes the dirname itself with it; the write
       // landed on the closest directory that survived.

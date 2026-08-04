@@ -291,6 +291,19 @@ describe('a source the working tree no longer has where git says it is', () => {
     expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
   });
 
+  it('reports a staged directory rename, where the only write landed above the dirname', () => {
+    const repo = fixture('staged-dir-rename', TREE);
+    age(repo);
+    execFileSync('git', ['mv', 'lib/permissions', 'lib/rules'], { cwd: repo, stdio: 'ignore' });
+    // Both halves of why nothing below `lib/` can notice this: renaming a
+    // directory carries its mtime the way renaming a file does, and every listed
+    // path is now under `lib/rules`, so `lib/` is no listed path's dirname. Only
+    // folding in *every* ancestor watches the directory the rename wrote to.
+    expect(statSync(path.join(repo, 'lib/rules')).mtimeMs).toBeLessThan(BUILT_MS);
+    expect(newestSource(repo)).toMatchObject({ file: 'lib/', kind: 'directory' });
+    expect(isStale(BUILT_MS, newestSource(repo))).toBe(true);
+  });
+
   it('names the directory it took the timestamp from, so the error can say why', () => {
     const repo = fixture('named', TREE);
     age(repo);
