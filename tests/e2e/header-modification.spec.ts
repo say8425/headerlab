@@ -136,9 +136,40 @@ test('a remove rule strips a header the page would otherwise send', async ({
   await page.close();
 });
 
-test('the popup renders in the real extension', async ({ context, extensionId }) => {
+test('the popup renders the grid from stored state', async ({ context, extensionId, serviceWorker }) => {
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 1,
+      globalPause: false,
+      theme: 'system',
+      profiles: [{
+        id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
+        filter: {
+          mode: 'structured', domains: ['api.example.com'],
+          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+        },
+        tabLock: { enabled: false, tabId: null, tabTitle: null },
+        headers: [
+          { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-From-E2E', value: 'yes' },
+        ],
+      }],
+    };
+    // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
+    // version in a companion key.
+    await chrome.storage.local.set({ state, state$: { v: 1 } });
+  });
+
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  await expect(page.getByRole('button', { name: 'Create profile' })).toBeVisible();
+
+  // The row's name lives in an input, so its value is the assertion. Playwright
+  // has no `getByDisplayValue` (that's a Testing Library API) and a CSS `[value=]`
+  // selector would not match either — React sets a controlled input's value as a
+  // DOM property, not an HTML attribute. `getByRole` + `toHaveValue` is the
+  // Playwright-native equivalent: it locates the input by its `aria-label` and
+  // asserts on its live value.
+  await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
+  await expect(page.getByText('1 of 1 applying').first()).toBeVisible();
+
   await page.close();
 });
