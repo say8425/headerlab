@@ -297,7 +297,6 @@ describe('profile switch remounts per-profile editing state', () => {
     // not kept showing "Really delete" for a profile the user never clicked
     // Delete on.
     expect(await screen.findByRole('button', { name: 'Delete profile' })).toBeTruthy();
-    screen.debug(undefined, 200000);
     expect(screen.queryByRole('button', { name: 'Really delete' })).toBeNull();
   });
 });
