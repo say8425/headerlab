@@ -212,11 +212,43 @@
 
 .hl-grp,
 .hl-addrow {
-  grid-template-columns: 1fr auto;
   height: 24px;
-  padding: 0 8px;
   color: var(--hl-txt2);
   background: var(--hl-bar);
+}
+
+/* These two keep the shared `var(--cols)` template above and place their
+   contents with grid-column, which is what the mockup does and why
+   (docs/design/popup-dark.html:229): on the same template the value column's
+   tint and its left rule run unbroken from the sticky header to the last row,
+   instead of breaking at every divider and add row.
+
+   The padding therefore lives on the contents, not on the row — padding on a
+   grid container insets every track and would break the alignment this is
+   for. */
+.hl-glabel {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+}
+.hl-gright {
+  grid-column: 4 / -1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  background: color-mix(in oklab, var(--hl-cell) 35%, transparent);
+  border-left: 1px solid var(--hl-cell);
+}
+/* Track 3 is Header name, and `.hl-c`'s 6px inset is what the name column's
+   text sits at — so "+ Add request header" lines up with the names above it. */
+.hl-ghost {
+  grid-column: 3 / -1;
+  padding-left: 6px;
+  text-align: left;
 }
 
 .hl-row { min-height: 30px; }
@@ -271,7 +303,6 @@
 
 /* ===== diagnostics ===== */
 .hl-subrow {
-  grid-template-columns: var(--cols);
   min-height: 22px;
 }
 .hl-subrow .hl-sub {

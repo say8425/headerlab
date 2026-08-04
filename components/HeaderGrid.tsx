@@ -56,7 +56,11 @@ export function HeaderGrid({ profile, byRow, onToggleRow, onPatchRow, onDeleteRo
             visible "+" is decorative, so it is kept out of the name via
             aria-label rather than folded into it. */}
         <button className="hl-addrow" aria-label={`Add ${target} header`} onClick={() => onAddRow(target)}>
-          + Add {target} header
+          {/* The span is what carries the text's grid placement. The button
+              itself is the row, laid out on `--cols` like every other row, so
+              its text needs a child to sit in a column — without one it would
+              land in the 38px "On" track. */}
+          <span className="hl-ghost">+ Add {target} header</span>
         </button>
       </>
     );
