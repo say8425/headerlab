@@ -210,11 +210,17 @@ describe('ProfileEditStrip', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('offers the five palette colours', () => {
+  it('offers exactly the five identity colours, cyan not among them', () => {
+    // Named, not counted. A length check passes for any five colours, so it
+    // could not tell the picker from the default rotation once the two are
+    // meant to be one list — and the literal names here are deliberately not
+    // `SELECTABLE_COLORS` itself, which would make the assertion agree with
+    // whatever that array happens to say.
     render(
       <ProfileEditStrip profile={prof('p1', 'Local')} onPatch={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />,
     );
-    expect(screen.getAllByTestId('colour-swatch')).toHaveLength(5);
+    const offered = screen.getAllByTestId('colour-swatch').map((s) => s.getAttribute('data-tone'));
+    expect(offered).toEqual(['green', 'amber', 'red', 'blue', 'violet']);
   });
 
   it('patches the colour when a swatch is chosen — and a different swatch patches a different colour', async () => {

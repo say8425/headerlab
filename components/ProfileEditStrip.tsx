@@ -1,16 +1,6 @@
 import { useRef, useState } from 'react';
-import type { Profile, ProfileColor } from '@/lib/model/types';
-
-/**
- * The five choosable identity colours. `ProfileColor` allows a sixth, cyan,
- * but cyan is already spoken for: it is the tab marker's "needs permission"
- * colour (design §4.4, reusing the semantic five-colour palette of §8.3 —
- * a different set from this identity palette). Offering cyan here would let
- * a profile's own identity dot collide visually with the unrelated marker
- * that can appear right next to it, so it is left out of the picker even
- * though `createProfile`'s rotation can still assign it as a default.
- */
-const COLOURS: ProfileColor[] = ['green', 'amber', 'red', 'blue', 'violet'];
+import { SELECTABLE_COLORS } from '@/lib/model/defaults';
+import type { Profile } from '@/lib/model/types';
 
 export interface ProfileEditStripProps {
   profile: Profile;
@@ -68,7 +58,9 @@ export function ProfileEditStrip({ profile, onPatch, onDelete, onClose }: Profil
         }}
       />
       <span className="hl-swatches">
-        {COLOURS.map((colour) => (
+        {/* The shared list, not a copy — see SELECTABLE_COLORS for why cyan is
+            absent from it and why the rotation reads the same array. */}
+        {SELECTABLE_COLORS.map((colour) => (
           <button
             key={colour}
             data-testid="colour-swatch"
