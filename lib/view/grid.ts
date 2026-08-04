@@ -54,21 +54,50 @@ export function routeDiagnostics(diagnostics: readonly Diagnostic[]): RoutedDiag
 export type ProfileMarker = 'error' | 'permission' | null;
 
 /**
+ * Whether compile() suppresses the profile named by `profileId` — the caller's
+ * answer, never this module's.
+ *
+ * The predicate lives in `lib/compile/suppression.ts` and has exactly one
+ * definition there; its comment says why restating it is how Phase 2a broke.
+ * Taking the answer as a parameter keeps this module free of the compile layer
+ * (the purity guard covers `lib/view`) *and* keeps the predicate to one caller
+ * per surface, which is the same thing that comment asks for.
+ */
+export interface ProfileLiveness {
+  suppressed: boolean;
+}
+
+/**
  * What the profile tab should show for a profile the user is not looking at.
  *
  * compile() reports on every profile, but the popup renders one at a time —
  * without this, a broken profile two tabs over is invisible, which is the same
  * silent failure the diagnostics exist to remove.
  *
- * Only two states earn a marker. An error means the profile does not work; a
- * missing permission means it registered and does nothing. Other warnings are
- * worth saying in the band but do not mean the profile is broken, so the tab
- * stays clean — a marker that fires on everything gets ignored.
+ * Three states earn a marker. An error means the profile does not work; a
+ * missing permission means it registered and does nothing; and a suppressed
+ * profile emits no rule at all. Other warnings are worth saying in the band but
+ * do not mean the profile is broken, so the tab stays clean — a marker that
+ * fires on everything gets ignored.
+ *
+ * Suppression has to come in separately because severity cannot carry it. A
+ * profile whose domains are *all* unusable earns `empty-filter` at severity
+ * `warning` (filterDiagnostics.ts:126) while compile.ts emits nothing for it,
+ * so the severity rule alone leaves a dead profile's tab clean and the band —
+ * scoped to the active profile — never mentions it either. Splitting
+ * `empty-filter` so that case becomes an error is deferred to 2c (spec §9);
+ * until then the marker asks whether the profile is alive rather than guessing
+ * from the diagnostic it happened to earn.
  */
 export function profileMarker(
   diagnostics: readonly Diagnostic[],
   profileId: string,
+  liveness: ProfileLiveness,
 ): ProfileMarker {
+  // Ahead of the scan, not folded into it: the marker must appear even when
+  // this profile has no diagnostic of its own to upgrade.
+  if (liveness.suppressed) return 'error';
+
   let permission = false;
   for (const diagnostic of diagnostics) {
     if (diagnostic.profileId !== profileId) continue;

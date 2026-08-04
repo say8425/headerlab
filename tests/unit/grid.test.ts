@@ -93,31 +93,56 @@ describe('routeDiagnostics', () => {
 });
 
 describe('profileMarker', () => {
+  const alive = { suppressed: false };
+
   it('is null when that profile has nothing', () => {
-    expect(profileMarker([diag({ profileId: 'other' })], 'p1')).toBeNull();
+    expect(profileMarker([diag({ profileId: 'other' })], 'p1', alive)).toBeNull();
   });
 
   it('is error when the profile has any error-severity diagnostic', () => {
-    expect(profileMarker([diag({ severity: 'error' })], 'p1')).toBe('error');
+    expect(profileMarker([diag({ severity: 'error' })], 'p1', alive)).toBe('error');
   });
 
   it('is permission when the only thing wrong is permission-missing', () => {
-    expect(profileMarker([diag({ kind: 'permission-missing' })], 'p1')).toBe('permission');
+    expect(profileMarker([diag({ kind: 'permission-missing' })], 'p1', alive)).toBe('permission');
   });
 
   it('prefers error over permission when both are present', () => {
     const d = [diag({ kind: 'permission-missing' }), diag({ severity: 'error' })];
-    expect(profileMarker(d, 'p1')).toBe('error');
+    expect(profileMarker(d, 'p1', alive)).toBe('error');
   });
 
   it('is null for a warning that is not permission-missing', () => {
     // port-ignored is a warning worth showing in the band, but it does not
     // mean the profile is broken, so the tab stays clean.
-    expect(profileMarker([diag({ kind: 'port-ignored' })], 'p1')).toBeNull();
+    expect(profileMarker([diag({ kind: 'port-ignored' })], 'p1', alive)).toBeNull();
   });
 
   it('ignores diagnostics belonging to another profile', () => {
-    expect(profileMarker([diag({ severity: 'error', profileId: 'p2' })], 'p1')).toBeNull();
+    expect(profileMarker([diag({ severity: 'error', profileId: 'p2' })], 'p1', alive)).toBeNull();
+  });
+
+  it('is error for a suppressed profile whose only diagnostic is a warning', () => {
+    // The combination the severity rule alone cannot see: a profile with every
+    // domain invalid is suppressed — compile() emits no rule for it — but the
+    // diagnostic it earns is `empty-filter` at severity `warning`, so the tab
+    // stayed clean while the profile was dead. Splitting `empty-filter` is
+    // deferred to 2c (spec §9), so the marker gets the liveness instead.
+    expect(profileMarker([diag({ kind: 'empty-filter' })], 'p1', { suppressed: true })).toBe('error');
+  });
+
+  it('is error for a suppressed profile with no diagnostics of its own at all', () => {
+    // Not a variation of the case above: this one pins that the marker comes
+    // from the suppression itself, not from finding some diagnostic and
+    // upgrading it. A profile whose diagnostics were all routed elsewhere must
+    // still be marked.
+    expect(profileMarker([], 'p1', { suppressed: true })).toBe('error');
+  });
+
+  it('does not mark other profiles when this one is suppressed', () => {
+    // `suppressed` describes the profile named by profileId, so it must not
+    // leak into the answer for a different id.
+    expect(profileMarker([diag({ profileId: 'p2' })], 'p2', { suppressed: false })).toBeNull();
   });
 });
 

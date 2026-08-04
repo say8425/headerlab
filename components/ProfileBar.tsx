@@ -1,4 +1,5 @@
 import { profileMarker } from '@/lib/view/grid';
+import { isSuppressed } from '@/lib/compile/suppression';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
 export interface ProfileBarProps {
@@ -25,6 +26,11 @@ export interface ProfileBarProps {
  * tabs over is invisible, the same silent failure the diagnostics exist to
  * remove. The two never merge into one element: the dot always renders the
  * profile's own colour regardless of marker state.
+ *
+ * Suppression is asked here, per profile, rather than passed down: this is the
+ * one surface that renders every profile at once, so the answer is per-tab and
+ * there is nothing above it holding a list of them. `isSuppressed` is called,
+ * never restated — see lib/compile/suppression.ts.
  */
 export function ProfileBar({
   profiles, activeId, diagnostics, ruleCount, onSelect, onReselect, onAdd,
@@ -33,7 +39,7 @@ export function ProfileBar({
     <div className="hl-profbar">
       <div className="hl-profs" role="tablist">
         {profiles.map((p) => {
-          const marker = profileMarker(diagnostics, p.id);
+          const marker = profileMarker(diagnostics, p.id, { suppressed: isSuppressed(p) });
           const active = p.id === activeId;
           return (
             <button

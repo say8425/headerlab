@@ -101,6 +101,39 @@ describe('ProfileBar', () => {
     expect(dot!.getAttribute('data-tone')).toBe(base.profiles[1]!.color);
   });
 
+  it('marks an inactive profile whose domains are all unusable, whose only diagnostic is a warning', () => {
+    // The tab is the only place this profile can be reported. It is suppressed
+    // — compile() emits no rule for it — but the diagnostic it earns is
+    // `empty-filter` at severity `warning`, and the band is scoped to the
+    // active profile, so nothing anywhere said Staging was dead until you
+    // clicked it. Same input as Phase 2a's worst defect: a URL pasted into the
+    // domain field.
+    const dead = { ...prof('p2', 'Staging', 1) };
+    dead.filter = { ...dead.filter, domains: ['https://staging.example.com'] };
+    render(
+      <ProfileBar
+        {...base}
+        profiles={[base.profiles[0]!, dead]}
+        diagnostics={[diag({ kind: 'empty-filter', severity: 'warning', profileId: 'p2' })]}
+      />,
+    );
+    expect(screen.getByRole('tab', { name: /Staging/ }).getAttribute('data-marker')).toBe('error');
+    // Local's domains are untouched, so suppression must not spill onto it —
+    // a bar that marked every tab as soon as one was dead would pass the line
+    // above on its own.
+    expect(screen.getByRole('tab', { name: /Local/ }).getAttribute('data-marker')).toBeNull();
+  });
+
+  it('leaves a profile with a usable domain alongside an unusable-looking one unmarked', () => {
+    // The boundary on the other side: a domain list that is merely non-empty is
+    // not suppression. Without this, marking every profile that has any domain
+    // at all would pass the test above.
+    const ok = { ...prof('p2', 'Staging', 1) };
+    ok.filter = { ...ok.filter, domains: ['staging.example.com'] };
+    render(<ProfileBar {...base} profiles={[base.profiles[0]!, ok]} />);
+    expect(screen.getByRole('tab', { name: /Staging/ }).getAttribute('data-marker')).toBeNull();
+  });
+
   it('marks an error over permission when a profile carries both at once (precedence, not a dead branch)', () => {
     // profileMarker's error-over-permission ordering is only exercised by a
     // fixture where a single profile has BOTH an unrelated row error and a
