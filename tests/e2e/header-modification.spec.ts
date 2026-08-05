@@ -136,7 +136,7 @@ test('a remove rule strips a header the page would otherwise send', async ({
   await page.close();
 });
 
-test('the popup renders the grid from stored state', async ({ context, extensionId, serviceWorker }) => {
+test('the popup renders its rules from stored state', async ({ context, extensionId, serviceWorker }) => {
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 1,
@@ -169,28 +169,32 @@ test('the popup renders the grid from stored state', async ({ context, extension
   // Playwright-native equivalent: it locates the input by its `aria-label` and
   // asserts on its live value.
   await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
-  await expect(page.getByText('1 of 1 applying').first()).toBeVisible();
+  // The rail's readout is computed from the same compile() the background
+  // runs, so it is the popup's own claim about whether the rule is going out.
+  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules live');
 
   await page.close();
 });
 
-/** The five row-shaped selectors design §3.1 says `--cols` drives. */
-const ROW_SHAPED = ['.hl-ghead', '.hl-grp', '.hl-row', '.hl-subrow', '.hl-addrow'] as const;
-
-test('every row-shaped element resolves the same column template', async ({
+test('nothing in the popup is wider than what holds it, at the popup\'s own width', async ({
   context,
   extensionId,
   serviceWorker,
 }) => {
-  // The guards for this in tests/unit are both text-level: cols.test.ts parses
-  // the stylesheet and HeaderGrid.test.tsx counts a DOM attribute, and jsdom
-  // performs no layout. Neither can see a declaration that reads `var(--cols)`,
-  // is correct as written, and still resolves to a different track list — which
-  // is what `.hl-addrow` did: as a <button> Chrome sized it shrink-to-fit, so
-  // its `1fr` value track resolved to 0 and the row stopped 246px short of
-  // every other one, breaking the value column's tint at exactly the seam the
-  // shared template exists to close. Resolved layout is only observable in a
-  // real engine, so the assertion lives here.
+  // The one assertion in this project that runs at the resolved layout level.
+  // It replaces the column-template guard the five-column grid needed: that
+  // design's promise was that five row shapes resolved one track list, and
+  // both of its unit-level guards were text-level — cols.test.ts parsed the
+  // stylesheet and HeaderGrid.test.tsx counted a DOM attribute, and jsdom
+  // performs no layout, so neither could see a declaration that read
+  // `var(--cols)`, was correct as written, and still resolved differently.
+  //
+  // This layout promises something else, so this guards something else. Its
+  // claim is that the popup fits in 748px and that a value wraps instead of
+  // pushing the panel sideways — the 246px value cell and its ellipsis were
+  // the complaint that started the redesign, and "give it the full width" is
+  // only true if the full width actually contains it. jsdom cannot see this
+  // either; a real engine can.
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 1,
@@ -199,21 +203,23 @@ test('every row-shaped element resolves the same column template', async ({
       profiles: [{
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
-          mode: 'structured', domains: ['api.example.com'],
+          mode: 'structured',
+          // A long host and a port, so the rail's site row has to wrap too —
+          // the rail is 224px and its rows are the narrowest thing on screen.
+          domains: ['a-rather-long-subdomain.staging.example.com:8443'],
           excludedDomains: [], resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
         headers: [
-          { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-Valid', value: 'yes' },
-          // The space makes this name invalid, and validateHeaders() reports
-          // that against `headerRuleId` — a *row-level* diagnostic, which is
-          // the only thing that renders `.hl-subrow`. The other fixtures in
-          // this file produce profile-level diagnostics only, so on any of
-          // them the sub-row would simply be absent and every comparison
-          // below would hold vacuously.
-          { id: 'h2', enabled: true, target: 'request', operation: 'set', name: 'Bad Name', value: 'x' },
-          // Both groups need a row so the response half is laid out too.
-          { id: 'h3', enabled: true, target: 'response', operation: 'set', name: 'X-Res', value: 'yes' },
+          // An unbroken 600-character token: no spaces to wrap at, which is
+          // what a pasted JWT actually looks like and the case that overflows
+          // if `overflow-wrap` is dropped.
+          { id: 'h1', enabled: true, target: 'request', operation: 'set',
+            name: 'Authorization', value: `Bearer ${'e30K'.repeat(150)}` },
+          // A row-level diagnostic renders a problem block inside the card,
+          // which is a shape none of the other fixtures produce.
+          { id: 'h2', enabled: true, target: 'response', operation: 'set',
+            name: 'Bad Name', value: 'x' },
         ],
       }],
     };
@@ -221,54 +227,39 @@ test('every row-shaped element resolves the same column template', async ({
   });
 
   const page = await context.newPage();
+  // The real popup is its own window at the width the stylesheet asks for. In
+  // a 1280px-wide tab every containment check below would hold trivially.
+  await page.setViewportSize({ width: 748, height: 600 });
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  // The grid renders from storage asynchronously. The sub-row is the only
-  // conditional shape of the five, so waiting on it settles the whole grid.
-  await page.locator('.hl-subrow').first().waitFor();
+  // The problem block is the only conditional shape here, so waiting on it
+  // settles the whole popup.
+  await page.locator('[data-testid="rule-problem"]').first().waitFor();
 
-  // Per selector: how many instances are on the page, and the *distinct*
-  // values they resolve. Distinct rather than just the first, because there
-  // are two `.hl-grp` and two `.hl-addrow` — reading only the first would let
-  // one of a pair drift unseen.
-  const measured = await page.evaluate((selectors: readonly string[]) =>
-    selectors.map((selector) => {
-      const elements = Array.from(document.querySelectorAll(selector));
-      return {
-        selector,
-        count: elements.length,
-        templates: [...new Set(elements.map((el) => getComputedStyle(el).gridTemplateColumns))],
-        widths: [...new Set(elements.map((el) => Math.round(el.getBoundingClientRect().width * 100) / 100))],
-      };
-    }), ROW_SHAPED);
+  const measured = await page.evaluate(() => {
+    const elements = Array.from(document.querySelectorAll('.hl-pop *'));
+    return {
+      count: elements.length,
+      // Half a pixel of slack: sub-pixel layout rounding is not an overflow.
+      overflowing: elements
+        .filter((el): el is HTMLElement => el instanceof HTMLElement)
+        .filter((el) => {
+          const parent = el.parentElement;
+          if (!parent) return false;
+          return el.getBoundingClientRect().width > parent.getBoundingClientRect().width + 0.5;
+        })
+        .map((el) => `${el.tagName.toLowerCase()}.${el.className}`),
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    };
+  });
 
-  // Presence first, by name. A selector that matches nothing resolves an empty
-  // list, and an empty list agrees with everything — so without this, deleting
-  // a row shape or breaking the fixture above would turn the comparisons into
-  // assertions that cannot fail.
-  for (const { selector, count } of measured) {
-    expect(count, `${selector} must be on the page for its template to mean anything`)
-      .toBeGreaterThan(0);
-  }
-
-  // Compared against `.hl-row`'s resolved value, not pinned to a literal like
-  // `38px 64px 186px 246px 26px`. What design §3.1 promises is that the five
-  // shapes agree, not that they agree on any particular number: a literal
-  // would fire on every deliberate column-width change while still passing if
-  // all five drifted together — a width tripwire instead of an alignment
-  // guard. The popup is a fixed 560px today, which is exactly why hardcoding
-  // would look safe and be wrong.
-  const reference = measured.find((m) => m.selector === '.hl-row');
-  expect(reference?.templates, '.hl-row resolves exactly one template').toHaveLength(1);
-  expect(reference?.widths, '.hl-row resolves exactly one width').toHaveLength(1);
-
-  for (const { selector, templates, widths } of measured) {
-    expect(templates, `${selector} resolves the same column template as .hl-row`)
-      .toEqual(reference?.templates);
-    // The template alone would miss a row that carries the right track list at
-    // the wrong size — tracks that no longer sum to the row's width overflow it
-    // instead of resolving short. Width is the symptom you actually see.
-    expect(widths, `${selector} spans the same width as .hl-row`).toEqual(reference?.widths);
-  }
+  // Presence first. An empty node list agrees with everything, so without this
+  // a popup that failed to render at all would pass the two checks below.
+  expect(measured.count, 'the popup must have rendered for its layout to mean anything')
+    .toBeGreaterThan(20);
+  expect(measured.overflowing, 'every element must fit inside its parent').toEqual([]);
+  expect(measured.scrollWidth, 'the popup must not scroll horizontally at its own width')
+    .toBe(measured.clientWidth);
 
   await page.close();
 });

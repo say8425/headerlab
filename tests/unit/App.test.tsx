@@ -6,13 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/entrypoints/popup/App';
 import { createProfile } from '@/lib/model/defaults';
 import * as probe from '@/lib/permissions/probe';
-import type { AppState } from '@/lib/model/types';
+import type { AppState, Profile } from '@/lib/model/types';
 
 function seed(state: AppState) {
   return fakeBrowser.storage.local.set({ state, state$: { v: 1 } });
 }
 
-function stateWith(): AppState {
+function stored(): Promise<AppState> {
+  return fakeBrowser.storage.local.get('state').then((s) => s.state as AppState);
+}
+
+function stateWith(over: Partial<AppState> = {}): AppState {
   const p = createProfile('Local', 0);
   return {
     version: 1,
@@ -27,27 +31,11 @@ function stateWith(): AppState {
         { id: 'h2', enabled: true, target: 'response', operation: 'set', name: 'X-B', value: '2' },
       ],
     }],
+    ...over,
   };
 }
 
-/**
- * Two profiles with distinct domains, both granted, so the FilterBlock/
- * ProfileEditStrip remount regression test below only has to worry about the
- * `key` fix — not a Grant prompt interrupting the switch.
- */
-function twoProfiles(): AppState {
-  const a = createProfile('Alpha', 0);
-  const b = createProfile('Beta', 1);
-  return {
-    version: 1,
-    globalPause: false,
-    theme: 'system',
-    profiles: [
-      { ...a, id: 'pA', filter: { ...a.filter, domains: ['a.com'] } },
-      { ...b, id: 'pB', filter: { ...b.filter, domains: ['b.com'] } },
-    ],
-  };
-}
+const readout = () => screen.getByTestId('readout').textContent;
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -57,123 +45,94 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('App', () => {
-  it('renders the rows from stored state, each under its own grid group', async () => {
+  it('renders every rule from stored state as one list, request and response together', async () => {
+    // No request/response grouping: the direction pill on each card says which
+    // it is. Asserting the values in order is what would fail if the list were
+    // split and reordered — finding one name would not.
     await seed(stateWith());
     render(<App />);
-    const rowA = await screen.findByDisplayValue('X-A');
-    const rowB = screen.getByDisplayValue('X-B');
-
-    // `findByDisplayValue` alone would pass against the pre-Task-8 App too —
-    // it rendered the same header rows in a flat list with no request/response
-    // split at all. Pinning each row's DOM position relative to its grid
-    // group is what actually names the grid: h1 is `target: 'request'` and
-    // must sit after the request group header and before the response one;
-    // h2 is `target: 'response'` and must sit after the response group header.
-    const reqGroup = screen.getByTestId('group-request');
-    const resGroup = screen.getByTestId('group-response');
-    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
-    expect(reqGroup.compareDocumentPosition(rowA) & FOLLOWING).toBeTruthy();
-    expect(rowA.compareDocumentPosition(resGroup) & FOLLOWING).toBeTruthy();
-    expect(resGroup.compareDocumentPosition(rowB) & FOLLOWING).toBeTruthy();
+    await screen.findByDisplayValue('X-A');
+    const names = screen
+      .getAllByRole('textbox', { name: 'Header name' })
+      .map((n) => (n as HTMLInputElement).value);
+    expect(names).toEqual(['X-A', 'X-B']);
   });
 
-  it('shows a diagnostic computed from that state, without a browser, routed to its own row', async () => {
+  it('hangs a rule-level diagnostic inside that rule, never in the rail', async () => {
+    // The whole point of the split: a problem about one rule stays in the
+    // panel. Checking the text is present somewhere would pass an
+    // implementation that put every diagnostic back into a band above the
+    // rules, so both halves are asserted.
     const s = stateWith();
     s.profiles[0]!.headers[0]!.name = '';   // invalid-header-name, headerRuleId: 'h1'
     await seed(s);
     render(<App />);
 
-    // `findByText` alone would pass even if routeDiagnostics were bypassed and
-    // every diagnostic landed in the profile-level band — DiagnosticRow and
-    // DiagnosticBand both render `d.message` as bare text with no
-    // distinguishing marker (components/DiagnosticRow.tsx, DiagnosticBand.tsx),
-    // so a scoped assertion is the only way this test can fail for the reason
-    // it claims to test.
-    const rowLines = await screen.findAllByTestId('diagnostic-line');
-    expect(rowLines.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(true);
-    const bandLines = screen.queryAllByTestId('band-line');
-    expect(bandLines.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(false);
+    const problems = await screen.findAllByTestId('rule-problem');
+    expect(problems.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(true);
+    const notes = screen.queryAllByTestId('scope-note');
+    expect(notes.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(false);
   });
 
-  it('stops counting rules as applying when the whole app is paused', async () => {
+  it('puts a scope diagnostic in the rail, never inside a rule', async () => {
+    // The other direction of the same claim, and the reason the rail exists: in
+    // the build this replaces every one of these stacked above the grid and
+    // pushed the actual work off the screen.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['localhost:3000'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'localhost', granted: true }]);
+    await seed(s);
+    render(<App />);
+
+    const notes = await screen.findAllByTestId('scope-note');
+    expect(notes.some((el) => /Port ignored/.test(el.textContent ?? ''))).toBe(true);
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+  });
+
+  it('stops counting rules as live when the whole app is paused', async () => {
     // `globalPause` makes compile.ts skip the rule-building block entirely, so
-    // zero rules are registered — but it produces no diagnostic at all, and the
-    // foot was never even passed `paused`. The screen said "Paused" in the top
-    // bar and "2 of 2 rules applying" in the footer at the same time, with
-    // nothing on screen to correct it.
-    //
-    // Seeding the live state first and asserting the real count matters: an
-    // implementation that always reported 0 would pass the paused assertion
-    // alone. The count has to actually move.
+    // zero rules are registered — but it produces no diagnostic and no
+    // rule-level judgement, so every card still looks healthy. Seeding the live
+    // state first matters: an implementation that always reported 0 would pass
+    // the paused assertion on its own.
     await seed(stateWith());
     render(<App />);
-    // `toContain`: the foot holds the count alongside the "off" figure and any
-    // access tag, so the count is a fragment of it by design.
-    expect((await screen.findByTestId('foot')).textContent).toContain('2 of 2 rules applying');
+    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
 
-    await seed({ ...stateWith(), globalPause: true });
-    await waitFor(() => {
-      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
-    });
-    // The group headers read from the same signal, so they must move with it —
-    // the footer and the grid disagreeing is the shape of the original defect.
-    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
-    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+    await seed(stateWith({ globalPause: true }));
+    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
   });
 
-  it('stops counting rules as applying when the profile is suppressed', async () => {
+  it('stops counting rules as live when the rule set is suppressed', async () => {
     // One usable domain and one that is not (a pasted URL — the input Phase 2a
     // recorded as its worst defect). isSuppressed is true, compile.ts skips the
-    // profile, zero rules are registered. The diagnostic it earns has no
-    // headerRuleId, so it never reaches `byRow` and every row still looks
-    // healthy: the footer read "2 of 2 rules applying" directly below a band
-    // saying the profile is not applied.
+    // whole set, zero rules are registered. The diagnostic it earns has no
+    // headerRuleId, so nothing reaches the cards and every rule looks healthy.
     const s = stateWith();
     s.profiles[0]!.filter.domains = ['api.example.com', 'https://staging.example.com'];
     await seed(s);
     render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
-    });
-    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
-    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
   });
 
-  it('stops counting rules as applying when the profile itself is switched off', async () => {
-    // compile.ts kills a whole profile in three places — `!profile.enabled`
-    // (:28), `globalPause` (:40) and suppression (:51) — and `live` has to
-    // state all three. The first is the worst of them on screen: :28 `continue`s
-    // before the diagnostics are even collected, on purpose (:31-33), so zero
-    // rules are registered, zero diagnostics land, and nothing anywhere would
-    // correct a footer still reading "2 of 2 rules applying".
-    //
-    // The seed-live-first shape is the one the paused test uses and for the
-    // same reason: an implementation that always reported 0 would pass the
-    // switched-off assertion on its own. The count has to actually move.
+  it('stops counting rules as live when the stored rule set is switched off', async () => {
+    // Nothing in this UI can switch the rule set off — but legacy state can
+    // hold one that is, and compile.ts:28 `continue`s before collecting any
+    // diagnostic, deliberately. Zero rules registered, zero diagnostics, and
+    // nothing anywhere to correct a readout still claiming they are live.
     await seed(stateWith());
     render(<App />);
-    expect((await screen.findByTestId('foot')).textContent).toContain('2 of 2 rules applying');
+    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
 
     const off = stateWith();
     off.profiles[0]!.enabled = false;
     await seed(off);
-    await waitFor(() => {
-      expect(screen.getByTestId('foot').textContent).toContain('0 of 2 rules applying');
-    });
-    // Same signal, so the group headers move with the footer — the two saying
-    // different things about one profile is the shape of the original defect.
-    expect(screen.getByTestId('group-request').textContent).toContain('0 of 1 applying');
-    expect(screen.getByTestId('group-response').textContent).toContain('0 of 1 applying');
+    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
   });
 
-  it('offers Grant per ungranted host, and requests only the host whose button was clicked', async () => {
-    // Two distinct ungranted hosts in the same profile — with only one
-    // possible host in the fixture (the brief's original version), a handler
-    // that ignored its `host` argument and reused a fixed string would still
-    // pass. With two, clicking the second button and asserting the first
-    // host was never requested is a failure a fixed-string handler cannot
-    // dodge.
+  it('offers Grant on the site row itself, and requests only the host whose button was clicked', async () => {
+    // Two distinct ungranted hosts: with only one possible host, a handler that
+    // ignored its `host` argument and reused a fixed string would still pass.
     vi.spyOn(probe, 'probeGrants').mockResolvedValue([
       { domain: 'host-a.example.com', granted: false },
       { domain: 'host-b.example.com', granted: false },
@@ -184,27 +143,31 @@ describe('App', () => {
     await seed(s);
     render(<App />);
 
-    const lines = await screen.findAllByTestId('band-line');
-    expect(lines).toHaveLength(2);
-    const secondLine = lines.find((line) => /host-b\.example\.com/.test(line.textContent ?? ''));
-    if (!secondLine) throw new Error('expected a band line naming host-b.example.com');
-    await userEvent.click(within(secondLine).getByRole('button', { name: /Grant/ }));
+    // Waiting on the site rows would settle on the first render, before the
+    // (async) permission probe has said anything — the Grant buttons are what
+    // the probe actually produces, so they are what to wait for.
+    expect(await screen.findAllByRole('button', { name: 'Grant' })).toHaveLength(2);
+    const sites = screen.getAllByTestId('site');
+    expect(sites).toHaveLength(2);
+    const second = sites.find((row) => /host-b\.example\.com/.test(row.textContent ?? ''));
+    if (!second) throw new Error('expected a site row naming host-b.example.com');
+    await userEvent.click(within(second).getByRole('button', { name: 'Grant' }));
 
-    // One host per call — passing requiredOrigins as an array would let one
-    // bad entry kill the whole request (handoff §4.1) — and it must be the
-    // host whose Grant button was actually clicked, not the other one.
+    // One host per call — passing requiredOrigins as an array would let one bad
+    // entry kill the whole request — and it must be the host whose Grant button
+    // was actually clicked, not the other one.
     expect(requestHost).toHaveBeenCalledTimes(1);
     expect(requestHost).toHaveBeenCalledWith('host-b.example.com');
     expect(requestHost).not.toHaveBeenCalledWith('host-a.example.com');
   });
 
-  it("recomputes grant diagnostics from state current when requestHost resolves, not the state captured when Grant was clicked", async () => {
+  it('recomputes grant diagnostics from state current when requestHost resolves, not the state captured when Grant was clicked', async () => {
     // probeGrants echoes back whichever hosts it is asked to check, all
     // ungranted, so the diagnostic that lands names exactly the domain set it
-    // was called with — that is how this test tells "used the state closed
-    // over at click time" apart from "used the state once the prompt closed."
-    const probeGrants = vi.spyOn(probe, 'probeGrants').mockImplementation(async (hosts: readonly string[]) =>
-      hosts.map((domain) => ({ domain, granted: false })),
+    // was called with — that is how this tells "used the state closed over at
+    // click time" apart from "used the state once the prompt closed".
+    const probeGrants = vi.spyOn(probe, 'probeGrants').mockImplementation(
+      async (hosts: readonly string[]) => hosts.map((domain) => ({ domain, granted: false })),
     );
     let resolveRequest: (granted: boolean) => void = () => {};
     vi.spyOn(probe, 'requestHost').mockImplementation(
@@ -214,116 +177,283 @@ describe('App', () => {
     await seed(stateWith());
     render(<App />);
 
-    const grant = await screen.findByRole('button', { name: /Grant/ });
-    await userEvent.click(grant); // onGrant('api.example.com') is now awaiting requestHost
+    const grant = await screen.findByRole('button', { name: 'Grant' });
+    await userEvent.click(grant); // onGrant('api.example.com') is awaiting requestHost
     expect(probeGrants).toHaveBeenCalledTimes(1); // just the mount-time probe so far
 
-    // A second writer changes the profile's domain while the (user-gesture
-    // gated, genuinely slow) permission prompt is still open — the exact
-    // hazard the review names: a reconcile() write, or the second writer
-    // useAppState.ts documents.
+    // A second writer changes the domain while the (user-gesture gated,
+    // genuinely slow) permission prompt is still open — the exact hazard
+    // stateRef exists for.
     const changed = stateWith();
     changed.profiles[0]!.filter.domains = ['new-host.example.com'];
     await seed(changed);
 
-    // Wait for the *mount effect* (App.tsx's other probeGrants caller, not
-    // onGrant) to react to the external change — this call count is
-    // monotonic, so waiting for it proves React's `state` actually moved to
-    // the new domain before the permission prompt is allowed to resolve.
+    // Wait for the mount effect (App's other probeGrants caller, not onGrant)
+    // to react to the external change — this count is monotonic, so waiting on
+    // it proves React's `state` actually moved before the prompt resolves.
     await waitFor(() => expect(probeGrants).toHaveBeenCalledTimes(2));
 
     resolveRequest(true); // the prompt is answered; onGrant's continuation runs
-    await waitFor(() => expect(probeGrants).toHaveBeenCalledTimes(3)); // onGrant's own probe ran
+    await waitFor(() => expect(probeGrants).toHaveBeenCalledTimes(3));
 
-    // Flush the microtask tail of that 3rd call (its promise settling,
-    // onGrant's `await` resuming, then setGrantDiagnostics) before reading
-    // the DOM — a `waitFor` here would risk succeeding on its first,
-    // pre-flush check instead of on the settled result.
+    // Flush the microtask tail of that third call before reading the DOM — a
+    // `waitFor` here risks succeeding on its first, pre-flush check.
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // The diagnostic that lands must still name the domain current when the
-    // prompt resolved. A closure stale-frozen on the state captured at click
-    // time would flip this back to api.example.com here.
-    const finalLines = screen.getAllByTestId('band-line').map((l) => l.textContent ?? '');
-    expect(finalLines.some((t) => /new-host\.example\.com/.test(t))).toBe(true);
-    expect(finalLines.some((t) => /api\.example\.com/.test(t))).toBe(false);
+    const problems = screen.getAllByTestId('site-problem').map((l) => l.textContent ?? '');
+    expect(problems.some((t) => /new-host\.example\.com/.test(t))).toBe(true);
+    expect(problems.some((t) => /api\.example\.com/.test(t))).toBe(false);
   });
 
-  it('writes the toggle through to storage', async () => {
+  it('writes the pause switch through to storage', async () => {
     await seed(stateWith());
     render(<App />);
-    const pause = await screen.findByRole('button', { name: 'Pause all' });
+    const pause = await screen.findByRole('switch', { name: 'Pause all rules' });
     await userEvent.click(pause);
     await waitFor(async () => {
-      const stored = await fakeBrowser.storage.local.get('state');
-      expect((stored.state as AppState).globalPause).toBe(true);
+      expect((await stored()).globalPause).toBe(true);
     });
   });
 });
 
-describe('profile switch remounts per-profile editing state', () => {
-  // Composition risk (b) from the phase 2b handoff: FilterBlock seeds `draft`
-  // and `lastSent` once from props and only re-derives them when the
-  // *contents* of `filter` change — not when its identity does. Reusing the
-  // same FilterBlock instance across a profile switch leaves the previous
-  // profile's domain text on screen; committing an edit against that stale
-  // text would write it onto the *new* profile's filter. That is data loss,
-  // not a cosmetic leak, so it gets its own regression test rather than
-  // riding along on the fix for (a).
-  it('shows the newly active profile\'s domains, not the previous profile\'s draft', async () => {
-    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
-      { domain: 'a.com', granted: true },
-      { domain: 'b.com', granted: true },
-    ]);
-    await seed(twoProfiles());
+describe('a fresh install', () => {
+  it('opens on a rule that can be typed into, with no set-up step first', async () => {
+    // `lib/model/defaults.ts` ships `profiles: []`, and this used to open on a
+    // single "Create profile" button — a wall between the user and the one
+    // thing the extension does. What replaces it has to be usable on sight: a
+    // field, focused, that a header name goes into.
+    await seed({ version: 1, globalPause: false, theme: 'system', profiles: [] });
     render(<App />);
 
-    // Default active profile is profiles[0] ("Alpha"), domains ['a.com'].
-    expect(await screen.findByRole('textbox', { name: 'Match domains' })).toHaveProperty(
-      'value',
-      'a.com',
-    );
-
-    await userEvent.click(screen.getByRole('tab', { name: /Beta/ }));
-
-    const match = await screen.findByRole('textbox', { name: 'Match domains' });
-    expect(match).toHaveProperty('value', 'b.com');
+    const name = await screen.findByRole('textbox', { name: 'Header name' });
+    expect(name).toHaveProperty('value', '');
+    expect(document.activeElement).toBe(name);
+    expect(screen.queryByRole('button', { name: /Create profile/ })).toBeNull();
   });
 
-  // Composition risk (a): ProfileEditStrip's armed-delete flag is component
-  // state with no reset tied to which profile it is editing. `onSelect`
-  // itself also closes the strip on a manual tab click, which would mask this
-  // — so this test drives the switch the way a second writer would (phase 2c
-  // tab-lock release, per useAppState's own comment about a second writer):
-  // storage changes out from under the open strip while `editingProfile`
-  // stays true and `activeId` (App's local state) never moves off its `null`
-  // default, so `active` re-resolves to whichever profile is now first.
-  it('does not let an armed delete survive the active profile changing out from under it', async () => {
-    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
-      { domain: 'a.com', granted: true },
-      { domain: 'b.com', granted: true },
-    ]);
-    const initial = twoProfiles();
-    await seed(initial);
+  it('persists that rule set, so what is typed into it survives the popup closing', async () => {
+    // It has to exist in storage, not only on screen. compile() reads storage;
+    // a rule set living only in a React tree would take everything typed into
+    // it along when the popup closes.
+    await seed({ version: 1, globalPause: false, theme: 'system', profiles: [] });
+    render(<App />);
+    await screen.findByRole('textbox', { name: 'Header name' });
+
+    await waitFor(async () => {
+      const profiles = (await stored()).profiles;
+      expect(profiles).toHaveLength(1);
+      expect(profiles[0]!.headers).toHaveLength(1);
+    });
+    const only = (await stored()).profiles[0]!;
+    expect(only.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(only.headers[0]).toMatchObject({
+      enabled: true, target: 'request', operation: 'set', name: '', value: '',
+    });
+  });
+
+  it('mints a different id per install, rather than one constant shared by all of them', async () => {
+    // A module-level constant would call crypto.randomUUID() at import time —
+    // once per module load, then handed to every install that module serves.
+    await seed({ version: 1, globalPause: false, theme: 'system', profiles: [] });
+    const { unmount } = render(<App />);
+    await screen.findByRole('textbox', { name: 'Header name' });
+    await waitFor(async () => expect((await stored()).profiles).toHaveLength(1));
+    const first = (await stored()).profiles[0]!.id;
+    unmount();
+
+    fakeBrowser.reset();
+    await seed({ version: 1, globalPause: false, theme: 'system', profiles: [] });
+    render(<App />);
+    await screen.findByRole('textbox', { name: 'Header name' });
+    await waitFor(async () => expect((await stored()).profiles).toHaveLength(1));
+    expect((await stored()).profiles[0]!.id).not.toBe(first);
+  });
+});
+
+describe('legacy state holding more than one rule set', () => {
+  function threeSets(): AppState {
+    const make = (id: string, name: string, order: number): Profile => {
+      const p = createProfile(name, order);
+      return {
+        ...p, id, name,
+        filter: { ...p.filter, domains: [`${id}.example.com`] },
+        headers: [{
+          id: `${id}-h`, enabled: true, target: 'request',
+          operation: 'set', name: `X-${name}`, value: 'v',
+        }],
+      };
+    };
+    return {
+      version: 1,
+      globalPause: false,
+      theme: 'system',
+      profiles: [make('pa', 'Alpha', 0), make('pb', 'Beta', 1), make('pc', 'Gamma', 2)],
+    };
+  }
+
+  beforeEach(() => {
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
+  });
+
+  it('removes the ones it cannot show from storage, not merely from the screen', async () => {
+    // This is why truncation is a write. compile() reads storage, not this
+    // screen — a rule set left behind goes on modifying headers with no way to
+    // see it, switch it off, or find out where the change came from. Hiding it
+    // would be exactly the silent failure this product exists to remove, so
+    // asserting the DOM alone would let the real defect through.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await seed(threeSets());
     render(<App />);
 
-    // Open editing on the default-active profile (Alpha) and arm delete with
-    // one click — the strip's own two-click-to-delete friction (armed, then
-    // commit) is exactly what must not carry over to a different profile.
-    await userEvent.click(await screen.findByRole('tab', { name: /Alpha/ }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Delete profile' }));
-    expect(await screen.findByRole('button', { name: 'Really delete' })).toBeTruthy();
+    await waitFor(async () => expect((await stored()).profiles).toHaveLength(1));
+    expect((await stored()).profiles[0]!.id).toBe('pa');
+  });
 
-    // A second writer removes the active profile (Alpha) entirely — not a
-    // click through this popup's own onSelect/onDelete handlers, which
-    // already reset `editingProfile` themselves and so cannot exercise this.
-    const afterExternalChange: AppState = { ...initial, profiles: [initial.profiles[1]!] };
-    await seed(afterExternalChange);
+  it('keeps the set the previous build opened on, with its rules and its scope intact', async () => {
+    // `profiles[0]` is what the old profile bar fell back to, so a user who
+    // upgrades keeps looking at the rule set they were already looking at — and
+    // it must arrive whole, not as a stub carrying the right id.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await seed(threeSets());
+    render(<App />);
 
-    // The strip must have remounted onto Beta with a fresh armed=false,
-    // not kept showing "Really delete" for a profile the user never clicked
-    // Delete on.
-    expect(await screen.findByRole('button', { name: 'Delete profile' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Really delete' })).toBeNull();
+    await waitFor(async () => expect((await stored()).profiles).toHaveLength(1));
+    const kept = (await stored()).profiles[0]!;
+    expect(kept.headers.map((h) => h.name)).toEqual(['X-Alpha']);
+    expect(kept.filter.domains).toEqual(['pa.example.com']);
+    expect(screen.getByRole('textbox', { name: 'Header name' })).toHaveProperty('value', 'X-Alpha');
+  });
+
+  it('says what it removed, naming each set rather than only counting them', async () => {
+    // Silent removal is the one thing worse than the problem it fixes. The
+    // message has to name the sets, so a user who wanted one can recognise what
+    // went and restore it from an export.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await seed(threeSets());
+    render(<App />);
+
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    const message = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(message).toContain('Beta');
+    expect(message).toContain('pb');
+    expect(message).toContain('Gamma');
+    expect(message).toContain('pc');
+  });
+
+  it('leaves a single stored rule set alone, and says nothing', async () => {
+    // The truncation must not fire on the ordinary case — a warning on every
+    // open is a warning nobody reads, and a needless write on every open would
+    // wake the background's reconcile loop for nothing.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'api.example.com', granted: true }]);
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+
+    expect(warn).not.toHaveBeenCalled();
+    expect((await stored()).profiles).toHaveLength(1);
+  });
+});
+
+describe('editing scope', () => {
+  it('adds a typed site, and refuses to add the same one twice', async () => {
+    await seed(stateWith());
+    render(<App />);
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+
+    await userEvent.type(field, 'staging.acme.dev{Enter}');
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains)
+        .toEqual(['api.example.com', 'staging.acme.dev']),
+    );
+
+    // A duplicate would compile to a repeated requestDomains entry and show two
+    // rows for one site.
+    await userEvent.type(field, 'staging.acme.dev{Enter}');
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains)
+        .toEqual(['api.example.com', 'staging.acme.dev']),
+    );
+  });
+
+  it('removes the site whose × was clicked', async () => {
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['a.example.com', 'b.example.com'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
+    await seed(s);
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove a.example.com' }));
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains).toEqual(['b.example.com']),
+    );
+  });
+
+  it('refuses to remove the last request type — DNR rejects an empty array', async () => {
+    // Its default also silently excludes main_frame, so an empty list is not
+    // "match everything", it is "match almost nothing, quietly". This guard
+    // moved here from the filter block when that component was replaced.
+    const s = stateWith();
+    s.profiles[0]!.filter.resourceTypes = ['script'];
+    await seed(s);
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'script' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual(['script']);
+  });
+
+  it('adds and removes a request type that is not the last one', async () => {
+    // The other half: the refusal above has to be about the *last* one, not
+    // about the control being inert.
+    await seed(stateWith());
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'image' }));
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.resourceTypes).toContain('image'),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'image' }));
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.resourceTypes).not.toContain('image'),
+    );
+  });
+});
+
+describe('editing rules', () => {
+  it('appends a new rule without disturbing the ones already there', async () => {
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+
+    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await waitFor(async () => expect((await stored()).profiles[0]!.headers).toHaveLength(3));
+    expect((await stored()).profiles[0]!.headers.map((h) => h.name)).toEqual(['X-A', 'X-B', '']);
+  });
+
+  it('deletes the rule whose × was clicked, and leaves the other one', async () => {
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+
+    const second = screen.getAllByTestId('rule')[1]!;
+    await userEvent.click(within(second).getByRole('button', { name: 'Delete rule' }));
+    await waitFor(async () => expect((await stored()).profiles[0]!.headers).toHaveLength(1));
+    expect((await stored()).profiles[0]!.headers[0]!.name).toBe('X-A');
+  });
+
+  it('writes an edited header name through to storage, leaving its neighbour alone', async () => {
+    await seed(stateWith());
+    render(<App />);
+    const name = await screen.findByDisplayValue('X-A');
+
+    await userEvent.type(name, '-Edited');
+    await userEvent.tab();
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.headers[0]!.name).toBe('X-A-Edited'),
+    );
+    // A patch that rebuilt the list from the rendered cards would quietly
+    // rewrite the other rule too.
+    expect((await stored()).profiles[0]!.headers[1]!.name).toBe('X-B');
   });
 });

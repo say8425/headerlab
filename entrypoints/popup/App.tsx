@@ -1,25 +1,50 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TopBar } from '@/components/TopBar';
-import { ProfileBar } from '@/components/ProfileBar';
-import { ProfileEditStrip } from '@/components/ProfileEditStrip';
-import { FilterBlock } from '@/components/FilterBlock';
-import { DiagnosticBand } from '@/components/DiagnosticBand';
-import { HeaderGrid } from '@/components/HeaderGrid';
-import { StatusFoot } from '@/components/StatusFoot';
+import { ScopeRail } from '@/components/ScopeRail';
+import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
-import { routeDiagnostics, groupCounts, groupRows } from '@/lib/view/grid';
 import { isSuppressed } from '@/lib/compile/suppression';
+import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
+import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
 import { probeGrants, requestHost } from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
 import { createProfile } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
-import type { Diagnostic, Filter, HeaderRule, HeaderTarget, Profile } from '@/lib/model/types';
+import type { Diagnostic, HeaderRule, Profile, ResourceType } from '@/lib/model/types';
+
+function newRule(): HeaderRule {
+  return {
+    id: crypto.randomUUID(),
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: '',
+    value: '',
+  };
+}
+
+/**
+ * The implicit rule set, minted the first time the popup opens on empty
+ * storage.
+ *
+ * `lib/model/defaults.ts` ships `profiles: []`, and a fresh install used to
+ * open on a single "Create profile" button — a wall between the user and the
+ * one thing this extension does. It starts with a rule already in it, because
+ * the state worth opening on is one where a header name can be typed
+ * immediately.
+ *
+ * Made **lazily, here**, rather than as a module constant. A constant would
+ * have to call `crypto.randomUUID()` at import time, which mints an id on
+ * every page that loads this module whether or not one is ever needed, and
+ * gives the background and the popup different ids for what is supposed to be
+ * the same rule set.
+ */
+function bootstrapProfile(): Profile {
+  return { ...createProfile('Default', 0), headers: [newRule()] };
+}
 
 export default function App() {
   const { state, patch } = useAppState();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [editingProfile, setEditingProfile] = useState(false);
   const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -27,12 +52,12 @@ export default function App() {
   // not instantaneous — long enough for `state` to change underneath it (a
   // reconcile() write, or the second writer useAppState.ts documents) or for
   // the popup itself to close. A plain closure over `state` would resume with
-  // whatever was current when the button was clicked, not when the prompt
-  // was answered; `stateRef` is updated every render so the handler can read
-  // the value that is current by the time it actually needs it. `mountedRef`
-  // is the matching guard for the other half of that gap: if the popup
-  // closes mid-prompt, the handler must not call setGrantDiagnostics on a
-  // component that no longer exists.
+  // whatever was current when the button was clicked, not when the prompt was
+  // answered; `stateRef` is updated every render so the handler can read the
+  // value that is current by the time it actually needs it. `mountedRef` is
+  // the matching guard for the other half of that gap: if the popup closes
+  // mid-prompt, the handler must not call setGrantDiagnostics on a component
+  // that no longer exists.
   const stateRef = useRef(state);
   stateRef.current = state;
   const mountedRef = useRef(true);
@@ -45,6 +70,37 @@ export default function App() {
   // the background does. Caching diagnostics in storage would mean keeping the
   // two in step; recomputing means they cannot disagree.
   const compiled = useMemo(() => (state ? compile(state) : null), [state]);
+
+  const resolved = state ? resolveSingleProfile(state.profiles) : null;
+
+  /**
+   * Brings storage down to the one rule set this popup can show.
+   *
+   * Both halves are writes, and both have to be. An empty store needs the
+   * implicit rule set to actually exist before anything typed into it can
+   * survive the popup closing. And extra rule sets — legacy state from the
+   * build that had profiles — cannot merely be hidden: compile() reads
+   * storage, not this screen, so one left behind goes on modifying headers
+   * with no way to see it, switch it off, or find out where the change came
+   * from. Truncating is the only reading of "show one" that does not
+   * reintroduce the exact silent failure this product exists to remove.
+   */
+  useEffect(() => {
+    if (!resolved) return;
+    if (!resolved.profile) {
+      patch(() => ({ profiles: [bootstrapProfile()] }));
+      return;
+    }
+    if (resolved.dropped.length === 0) return;
+    const kept = resolved.profile;
+    console.warn(
+      `[HeaderLab] storage held ${resolved.dropped.length + 1} rule sets and this build shows one. ` +
+      `Kept "${kept.name}" (${kept.id}); removed ` +
+      `${resolved.dropped.map((p) => `"${p.name}" (${p.id})`).join(', ')} — ` +
+      'they would otherwise have gone on modifying headers with nothing able to show them.',
+    );
+    patch(() => ({ profiles: [kept] }));
+  }, [state]);
 
   useEffect(() => {
     if (!state) return;
@@ -60,114 +116,86 @@ export default function App() {
     getSyncStatus().then((s) => setLastError(s.lastError)).catch(() => setLastError(null));
   }, [state]);
 
-  if (!state || !compiled) return <div className="hl-loading">Loading…</div>;
+  const active = resolved?.profile;
+  if (!state || !compiled || !active) return <div className="hl-loading">Loading…</div>;
 
-  const profiles = state.profiles;
-  const active =
-    profiles.find((p) => p.id === activeId) ?? profiles[0];
-
-  const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
-
-  const patchProfile = (id: string, delta: Partial<Profile>) =>
-    patch((s) => ({ profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...delta } : p)) }));
-
-  const patchRow = (profileId: string, ruleId: string, delta: Partial<HeaderRule>) =>
+  /**
+   * Every write goes through the patch draft rather than the `active` snapshot
+   * this render closed over. `patchState` re-reads before writing, so deriving
+   * the next value from `s` keeps a handler from resurrecting a value that
+   * changed between render and click.
+   */
+  const patchRule = (ruleId: string, delta: Partial<HeaderRule>) =>
     patch((s) => ({
       profiles: s.profiles.map((p) =>
-        p.id === profileId
+        p.id === active.id
           ? { ...p, headers: p.headers.map((h) => (h.id === ruleId ? { ...h, ...delta } : h)) }
           : p,
       ),
     }));
 
-  if (!active) {
-    return (
-      <>
-        <TopBar paused={state.globalPause} onTogglePause={(paused) => patch(() => ({ globalPause: paused }))} />
-        <div className="hl-empty">
-          <button onClick={() => patch((s) => ({ profiles: [createProfile('Local', s.profiles.length)] }))}>
-            Create profile
-          </button>
-        </div>
-      </>
-    );
-  }
+  const patchProfile = (map: (profile: Profile) => Profile) =>
+    patch((s) => ({ profiles: s.profiles.map((p) => (p.id === active.id ? map(p) : p)) }));
 
+  const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
-  const groups = groupRows(active);
-  // The three judgements that stop compile() emitting anything for this profile
-  // (compile.ts:28, :40, :51), none of which is row-level and so none of which
-  // reaches `byRow`. Computed once and handed to both the grid and the foot, so
-  // the group headers and the footer cannot say different things about the same
-  // profile. `isSuppressed` is called, never restated
+
+  // The three judgements that stop compile() emitting anything for this rule
+  // set (compile.ts:28, :40, :51), none of which is rule-level and so none of
+  // which reaches `byRow`. `isSuppressed` is called, never restated
   // (lib/compile/suppression.ts).
   const live = active.enabled && !state.globalPause && !isSuppressed(active);
-  const req = groupCounts(groups.request, routed.byRow, { live });
-  const res = groupCounts(groups.response, routed.byRow, { live });
-  const needsAccess = allDiagnostics.filter((d) => d.kind === 'permission-missing').length;
+  const tally = ruleTally(active.headers, routed.byRow, { live });
+
+  // A fresh install, still sitting on its untouched starter rule. It stops
+  // being true the moment anything is typed, which is when the hint has
+  // finished being useful.
+  const only = active.headers.length === 1 ? active.headers[0] : undefined;
+  const firstRun = only !== undefined && only.name === '' && only.value === '';
 
   return (
-    <>
-      <TopBar
+    <div className="hl-pop">
+      <ScopeRail
+        tally={tally}
         paused={state.globalPause}
         onTogglePause={(paused) => patch(() => ({ globalPause: paused }))}
-      />
-      <ProfileBar
-        profiles={profiles}
-        activeId={active.id}
-        diagnostics={allDiagnostics}
-        ruleCount={active.headers.length}
-        onSelect={(id) => { setActiveId(id); setEditingProfile(false); }}
-        onReselect={() => setEditingProfile((open) => !open)}
-        onAdd={() => patch((s) => ({ profiles: [...s.profiles, createProfile('New', s.profiles.length)] }))}
-      />
-      {editingProfile && (
-        // Keyed by profile id (prefixed — this and FilterBlock below are
-        // siblings under the same returned fragment, and an unprefixed
-        // `active.id` would give two siblings the identical key, which React
-        // only requires to be unique *among siblings*; that collision was
-        // caught by mutation-testing this fix and corrupted the DOM instead
-        // of remounting cleanly). Without this key, switching the active
-        // profile while the strip is open reuses this instance and its
-        // armed-delete flag survives onto the new profile (phase 2b handoff,
-        // composition risk (a)). The key forces a remount instead of a prop
-        // update.
-        <ProfileEditStrip
-          key={`edit-${active.id}`}
-          profile={active}
-          onPatch={(delta) => patchProfile(active.id, delta)}
-          onDelete={() => {
-            patch((s) => ({ profiles: s.profiles.filter((p) => p.id !== active.id) }));
-            setEditingProfile(false);
-            setActiveId(null);
-          }}
-          onClose={() => setEditingProfile(false)}
-        />
-      )}
-      <FilterBlock
-        // Keyed by profile id (prefixed — see ProfileEditStrip above for why
-        // a bare `active.id` collides with its sibling key). FilterBlock's
-        // `draft`/`lastSent` are seeded once from `filter` and only re-derive
-        // when its *contents* change, not its identity. Without this key,
-        // switching profiles leaves the previous profile's domain text on
-        // screen, and committing from there would write it onto the new
-        // profile's filter — data loss, not just a cosmetic leak (phase 2b
-        // handoff, composition risk (b)).
-        key={`filter-${active.id}`}
-        filter={active.filter}
-        onPatch={(delta: Partial<Filter>) =>
-          patchProfile(active.id, { filter: { ...active.filter, ...delta } })
+        domains={active.filter.domains}
+        byHost={routed.byHost}
+        notes={routed.scope}
+        lastError={lastError}
+        resourceTypes={active.filter.resourceTypes}
+        onAddDomain={(domain) =>
+          patchProfile((p) =>
+            p.filter.domains.includes(domain)
+              ? p
+              : { ...p, filter: { ...p.filter, domains: [...p.filter.domains, domain] } },
+          )
         }
-      />
-      <DiagnosticBand
-        diagnostics={routed.profileLevel}
+        onRemoveDomain={(domain) =>
+          patchProfile((p) => ({
+            ...p,
+            filter: { ...p.filter, domains: p.filter.domains.filter((d) => d !== domain) },
+          }))
+        }
+        onToggleType={(type: ResourceType) =>
+          patchProfile((p) => {
+            const has = p.filter.resourceTypes.includes(type);
+            // DNR rejects an empty resourceTypes array, and its default
+            // silently excludes main_frame — so the last one cannot come off.
+            if (has && p.filter.resourceTypes.length === 1) return p;
+            const next = has
+              ? p.filter.resourceTypes.filter((t) => t !== type)
+              : [...p.filter.resourceTypes, type];
+            return { ...p, filter: { ...p.filter, resourceTypes: next } };
+          })
+        }
         onGrant={async (host) => {
           await requestHost(host);
           // Re-read state now rather than trust the `state` closed over when
           // this callback was created — see stateRef's comment above. Both
-          // domainsToAudit and auditDiagnostics run against the same
-          // snapshot so the domains probed and the diagnostics built from
-          // the grants stay consistent with each other.
+          // domainsToAudit and auditDiagnostics run against the same snapshot,
+          // so the domains probed and the diagnostics built from the grants
+          // stay consistent with each other.
           const current = stateRef.current;
           if (!current) return;
           const grants = await probeGrants(domainsToAudit(current.profiles));
@@ -176,38 +204,16 @@ export default function App() {
           }
         }}
       />
-      <HeaderGrid
-        profile={active}
+      <RulePanel
+        rules={active.headers}
         byRow={routed.byRow}
-        live={live}
-        onToggleRow={(ruleId, enabled) => patchRow(active.id, ruleId, { enabled })}
-        onPatchRow={(ruleId, delta) => patchRow(active.id, ruleId, delta)}
-        onDeleteRow={(ruleId) =>
-          patchProfile(active.id, { headers: active.headers.filter((h) => h.id !== ruleId) })
+        firstRun={firstRun}
+        onPatchRule={patchRule}
+        onDeleteRule={(ruleId) =>
+          patchProfile((p) => ({ ...p, headers: p.headers.filter((h) => h.id !== ruleId) }))
         }
-        onAddRow={(target: HeaderTarget) =>
-          patchProfile(active.id, {
-            headers: [
-              ...active.headers,
-              {
-                id: crypto.randomUUID(),
-                enabled: true,
-                target,
-                operation: 'set',
-                name: '',
-                value: '',
-              },
-            ],
-          })
-        }
+        onAddRule={() => patchProfile((p) => ({ ...p, headers: [...p.headers, newRule()] }))}
       />
-      <StatusFoot
-        applying={req.applying + res.applying}
-        total={req.total + res.total}
-        off={req.off + res.off}
-        needsAccess={needsAccess}
-        lastError={lastError}
-      />
-    </>
+    </div>
   );
 }

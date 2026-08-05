@@ -2,7 +2,7 @@ import { AddSiteField } from './AddSiteField';
 import { SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
 import { analyzeDomain } from '@/lib/permissions/origins';
-import type { RuleTally } from '@/lib/view/grid';
+import type { RuleTally } from '@/lib/view/rules';
 import type { Diagnostic, ResourceType } from '@/lib/model/types';
 
 export interface ScopeRailProps {

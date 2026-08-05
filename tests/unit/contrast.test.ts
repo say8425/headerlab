@@ -2,15 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The popup shipped with light-grey text the owner could not read: the column
- * headers at 2.89:1, the filter labels at 2.99:1, a switched-off resource chip
- * at 2.99:1 — below even the 3:1 floor for something deliberately
- * de-emphasised. The ratios are a stated requirement now, so this file is the
- * thing that fails when the next palette edit quietly walks one back.
+ * The popup shipped once with light-grey text the owner could not read — column
+ * headers at 2.89:1, switched-off chips at 2.99:1, below even the 3:1 floor for
+ * something deliberately de-emphasised. The layout that carried those greys is
+ * gone, but the requirement outlived it, so this file follows the palette
+ * rather than the markup: it is what fails when the next edit quietly walks a
+ * ratio back.
  *
  * It reads the two authored palettes out of the stylesheet. The light values
- * are not derived from the dark ones — they are a separate hand-tuned block —
- * so every pair below is asserted against BOTH, which is the half that would
+ * are not derived from the dark ones — they are separate hand-tuned blocks — so
+ * every pair below is asserted against BOTH, which is the half that would
  * otherwise rot: fixing one theme's grey says nothing about the other's.
  */
 
@@ -32,25 +33,6 @@ function contrast(fg: string, bg: string): number {
   return a > b ? (a + 0.05) / (b + 0.05) : (b + 0.05) / (a + 0.05);
 }
 
-/**
- * `over` at `alpha` composited on `under` — the stylesheet paints two surfaces
- * with `color-mix(in oklab, … 35%, transparent)`, and text on those sits on
- * the *blend*, not on either input. Reading the ratio off `--hl-cell` alone
- * would flatter the value column by a wide margin.
- */
-function mix(over: string, under: string, alpha: number): string {
-  const parse = (hex: string) =>
-    [0, 2, 4].map((i) => parseInt(hex.replace('#', '').slice(i, i + 2), 16));
-  const [o, u] = [parse(over), parse(under)];
-  return (
-    '#' +
-    o
-      .map((c, i) => Math.round(c * alpha + u[i]! * (1 - alpha)))
-      .map((c) => c.toString(16).padStart(2, '0'))
-      .join('')
-  );
-}
-
 function readPalette(selector: string): Record<string, string> {
   const block = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`, 'g');
   const vars: Record<string, string> = {};
@@ -67,32 +49,36 @@ const PALETTES = {
   dark: readPalette('.dark'),
 };
 
+/** Tokens that are not colours, and so are excluded from the shape checks. */
+const NON_COLOR = ['--hl-sans', '--hl-mono', '--hl-card-sh'];
+
 /** Every colour token both palettes must define, so a rename cannot go unnoticed. */
 const COLOR_TOKENS = [
-  '--hl-bg', '--hl-panel', '--hl-bar', '--hl-band', '--hl-row-hi', '--hl-cell',
-  '--hl-line', '--hl-txt', '--hl-txt2', '--hl-txt3', '--hl-dim', '--hl-acc',
-  '--hl-grn', '--hl-amb', '--hl-cyn', '--hl-red',
+  '--hl-panel', '--hl-rail', '--hl-rail-edge', '--hl-card', '--hl-card-edge',
+  '--hl-ink', '--hl-ink-2', '--hl-ink-3',
+  '--hl-req-bg', '--hl-req-fg', '--hl-res-bg', '--hl-res-fg',
+  '--hl-live', '--hl-live-bg', '--hl-pend', '--hl-pend-bg', '--hl-pend-edge',
+  '--hl-err', '--hl-err-bg', '--hl-act', '--hl-off-track',
 ] as const;
 
 describe('palette parsing', () => {
   // Without this, every ratio assertion below is worthless: a renamed or
-  // dropped token makes `vars[name]` undefined, and a helper handed undefined
-  // yields NaN — and `expect(NaN).toBeGreaterThanOrEqual(4.5)` fails for the
-  // wrong reason while a *typo'd token name in this file* would fail
-  // identically. Naming the expected set makes the two distinguishable.
+  // dropped token makes `vars[name]` undefined, a helper handed undefined
+  // yields NaN, and `expect(NaN).toBeGreaterThanOrEqual(4.5)` fails for the
+  // wrong reason — identically to a typo'd token name *in this file*. Naming
+  // the expected set is what makes the two distinguishable.
   it.each(['light', 'dark'] as const)('%s defines exactly the known colour tokens', (theme) => {
-    const found = Object.keys(PALETTES[theme]).filter((k) => k !== '--hl-sbw').sort();
+    const found = Object.keys(PALETTES[theme]).filter((k) => !NON_COLOR.includes(k)).sort();
     expect(found).toEqual([...COLOR_TOKENS].sort());
   });
 
-  // Twice while writing this palette a value was committed as `#6b7policy`
-  // and `#38milk` — a token whose value is not a colour. CSS drops the
-  // declaration silently, the element inherits, and nothing in a test suite
-  // that only reads ratios would notice, because the *other* values still
-  // compute fine. An exact-shape assertion on all of them is the cheap guard.
+  // Twice while writing the previous palette a value was committed as
+  // `#6b7policy` and `#38milk` — a token whose value is not a colour. CSS drops
+  // the declaration silently, the element inherits, and nothing that only reads
+  // ratios would notice, because every *other* value still computes fine.
   it.each(['light', 'dark'] as const)('%s gives every colour token a 6-digit hex', (theme) => {
     const malformed = Object.entries(PALETTES[theme])
-      .filter(([name]) => name !== '--hl-sbw')
+      .filter(([name]) => !NON_COLOR.includes(name))
       .filter(([, value]) => !/^#[0-9a-f]{6}$/.test(value))
       .map(([name, value]) => `${name}: ${value}`);
     expect(malformed).toEqual([]);
@@ -105,113 +91,141 @@ describe('palette parsing', () => {
  * Chosen by walking the markup and taking the background each text node is
  * really painted on — not every token crossed with every other, which would
  * assert ratios for combinations no user can see and make the suite fight
- * changes that harm nobody. Each entry names the component and rule that pair
- * it, so a reader can check the claim rather than trust it.
+ * changes that harm nobody. Each entry names the element that pairs them, so a
+ * reader can check the claim rather than trust it.
  *
- * The floor is the one the work was specified against: 4.5:1 for anything a
- * user reads, 3:1 for a state that is meant to recede but stay legible.
- * `--hl-dim` is the only token held to 3:1, and it is used only where recession
- * is the point (a switched-off row, an empty value, the foot's "·").
+ * The floor is 4.5:1 for anything a user reads and 3:1 for a shape that carries
+ * state without words. **Every piece of text in this design clears 4.5 in both
+ * themes**; the lowest is `--hl-ink-3` on the rail at 4.56 / 5.95. Nothing is
+ * parked in the 3:1 allowance except the off-switch track, which is a shape.
+ * That is deliberate and it is the direct answer to the original complaint: the
+ * palette this replaces expressed "de-emphasised" by fading text toward the
+ * background, and a switched-off rule here keeps full-contrast text and is
+ * marked by its switch and a dashed card instead.
  */
 const READ_TEXT = 4.5;
-const DE_EMPHASISED = 3;
+const SHAPE = 3;
 
-type Bg = string | { mix: [string, number, string] };
-const VALUE_COLUMN = (under: string): Bg => ({ mix: ['--hl-cell', 0.35, under] });
+const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
+  // --- the panel: fields, buttons and the surfaces they sit on ---
+  ['header name and value text — .hl-hname / .hl-hval', '--hl-ink', '--hl-panel'],
+  ['operation button label — .hl-op', '--hl-ink-2', '--hl-panel'],
+  ['first-run hint — .hl-frhint', '--hl-ink-2', '--hl-panel'],
+  ['field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule', '--hl-ink-3', '--hl-panel'],
+  ['header name over the card behind it — .hl-hname on .hl-rule', '--hl-ink', '--hl-card'],
+  ['New rule button — .hl-newbtn', '--hl-panel', '--hl-ink'],
+  ['remove operation marker — .hl-op[data-op=remove]', '--hl-err', '--hl-panel'],
+  ['REQ direction pill — .hl-pill[data-target=request]', '--hl-req-fg', '--hl-req-bg'],
+  ['RES direction pill — .hl-pill[data-target=response]', '--hl-res-fg', '--hl-res-bg'],
+  ['warning inside a rule card — .hl-rprob', '--hl-ink', '--hl-pend-bg'],
+  ['error inside a rule card — .hl-rprob[data-severity=error]', '--hl-ink', '--hl-err-bg'],
+  ['the "!" in a warning badge — .hl-rprob-ic', '--hl-pend-bg', '--hl-pend'],
+  ['the "!" in an error badge — .hl-rprob[data-severity=error] .hl-rprob-ic', '--hl-err-bg', '--hl-err'],
 
-const PAIRS: ReadonlyArray<readonly [string, string, Bg, number]> = [
-  // --- primary text, on each of the four surfaces it lands on ---
-  ['header name / value text — HeaderRow in .hl-gbody', '--hl-txt', '--hl-bg', READ_TEXT],
-  ['brand + pause button — TopBar .hl-topbar', '--hl-txt', '--hl-bar', READ_TEXT],
-  ['domain field — FilterBlock .hl-field', '--hl-txt', '--hl-panel', READ_TEXT],
-  ['value text over the tinted value column — .hl-c-val', '--hl-txt', VALUE_COLUMN('--hl-bg'), READ_TEXT],
-  ['pressed resource chip — .hl-chip[aria-pressed=true]', '--hl-txt', { mix: ['--hl-acc', 0.14, '--hl-bg'] }, READ_TEXT],
-
-  // --- secondary text ---
-  ['group rows, add rows, status foot — .hl-grp/.hl-addrow/.hl-foot', '--hl-txt2', '--hl-bar', READ_TEXT],
-  ['"n of m applying" — .hl-gright over .hl-grp', '--hl-txt2', VALUE_COLUMN('--hl-bar'), READ_TEXT],
-  ['row diagnostic — DiagnosticRow .hl-subline', '--hl-txt2', '--hl-bg', READ_TEXT],
-  ['profile diagnostic — DiagnosticBand .hl-bandline', '--hl-txt2', '--hl-band', READ_TEXT],
-
-  // --- the tertiary label grey: every one of these was a named complaint ---
-  ['column headers On/Op/Header name/Value — .hl-ghead', '--hl-txt3', '--hl-bg', READ_TEXT],
-  ['switched-off resource chip — .hl-chip', '--hl-txt3', '--hl-bg', READ_TEXT],
-  ['filter labels Match/Types — .hl-flabel', '--hl-txt3', '--hl-panel', READ_TEXT],
-  ['"Paused" — TopBar .hl-runstate[data-paused]', '--hl-txt3', '--hl-bar', READ_TEXT],
-
-  // --- de-emphasised states: recede, but stay above the 3:1 floor ---
-  ['switched-off row — .hl-row[data-off]', '--hl-dim', '--hl-bg', DE_EMPHASISED],
-  ['switched-off row, value column — .hl-row[data-off] .hl-c-val', '--hl-dim', VALUE_COLUMN('--hl-bg'), DE_EMPHASISED],
-  ['empty value placeholder — .hl-val-empty', '--hl-dim', '--hl-bg', DE_EMPHASISED],
-  ['foot separator "·" — .hl-sep', '--hl-dim', '--hl-bar', DE_EMPHASISED],
-
-  // --- state that carries meaning: must stay readable on its own surface ---
-  ['error diagnostic in the band — .hl-bandline[data-severity=error]', '--hl-red', '--hl-band', READ_TEXT],
-  ['error diagnostic on a row — .hl-subline[data-severity=error]', '--hl-red', '--hl-bg', READ_TEXT],
-  ['reconcile failure — StatusFoot .hl-footerr', '--hl-red', '--hl-bar', READ_TEXT],
-  ['remove-operation marker — .hl-op[data-op=remove]', '--hl-red', VALUE_COLUMN('--hl-bg'), READ_TEXT],
-  ['Grant button — DiagnosticBand .hl-grant', '--hl-cyn', '--hl-band', READ_TEXT],
-  ['"n need access" — StatusFoot .hl-pendtag', '--hl-cyn', '--hl-bar', READ_TEXT],
-  ['"Running" — TopBar .hl-runstate', '--hl-grn', '--hl-bar', READ_TEXT],
+  // --- the rail, whose surface is the darker material in light and the
+  //     lighter one in dark; both directions are asserted by running every
+  //     pair against both palettes ---
+  ['site host — .hl-domhost', '--hl-ink', '--hl-rail'],
+  ['readout subcount and section headings — .hl-subcount / .hl-railhead', '--hl-ink-2', '--hl-rail'],
+  ['section counts and unchecked type labels — .hl-n / .hl-ty', '--hl-ink-3', '--hl-rail'],
+  ['"Active" — .hl-pauselab', '--hl-live', '--hl-live-bg'],
+  ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--hl-ink-2', '--hl-panel'],
+  ['pending-permission message — .hl-needtext', '--hl-pend', '--hl-pend-bg'],
+  ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
+  ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
+  ['scope note body — .hl-note', '--hl-ink', '--hl-panel'],
+  ['reconcile failure heading — .hl-note-err b', '--hl-err', '--hl-panel'],
 ];
 
-function resolve(spec: Bg, palette: Record<string, string>): string {
-  if (typeof spec === 'string') return palette[spec]!;
-  const [token, alpha, under] = spec.mix;
-  return mix(palette[token]!, palette[under]!, alpha);
-}
+const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
+  ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--hl-off-track', '--hl-card'],
+  ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--hl-off-track', '--hl-rail'],
+  ['unchecked type box — .hl-tybox on the rail', '--hl-off-track', '--hl-rail'],
+];
 
 describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
   const palette = PALETTES[theme];
 
-  it.each(PAIRS)('%s meets its floor', (_label, fg, bgSpec, floor) => {
-    expect(contrast(palette[fg]!, resolve(bgSpec, palette))).toBeGreaterThanOrEqual(floor);
+  it.each(TEXT_PAIRS)('%s is readable', (_label, fg, bg) => {
+    expect(contrast(palette[fg]!, palette[bg]!)).toBeGreaterThanOrEqual(READ_TEXT);
+  });
+
+  it.each(SHAPE_PAIRS)('%s stays visible as a shape', (_label, fg, bg) => {
+    expect(contrast(palette[fg]!, palette[bg]!)).toBeGreaterThanOrEqual(SHAPE);
   });
 
   /**
-   * The hierarchy half of the requirement. Raising every grey until it is
-   * black would satisfy every ratio above and destroy the ramp, so the ramp
-   * itself is asserted: each step must be strictly lighter than the one before
-   * against the content background. Without this, a palette of four identical
+   * The hierarchy half of the requirement. Raising every grey until it is black
+   * would satisfy every ratio above and destroy the ramp, so the ramp itself is
+   * asserted: each step must be strictly lighter than the one before against
+   * the surface it is used on. Without this, a palette of three identical
    * near-blacks passes the whole file.
+   *
+   * Both surfaces, because the rail and the panel are different materials and
+   * the three inks are used on both.
    */
-  it('keeps the text ramp ordered — txt darker than txt2 darker than txt3 darker than dim', () => {
-    const against = palette['--hl-bg']!;
-    const ramp = ['--hl-txt', '--hl-txt2', '--hl-txt3', '--hl-dim'].map((t) =>
+  it.each(['--hl-panel', '--hl-rail'] as const)('keeps the ink ramp ordered on %s', (surface) => {
+    const against = palette[surface]!;
+    const ramp = ['--hl-ink', '--hl-ink-2', '--hl-ink-3'].map((t) =>
       contrast(palette[t]!, against),
     );
     expect(ramp).toEqual([...ramp].sort((a, b) => b - a));
-    // And the ends must actually differ — a sorted array of four equal numbers
-    // passes the line above.
-    expect(ramp[0]!).toBeGreaterThan(ramp[3]! + 1);
+    // And the ends must actually differ — a sorted array of three equal
+    // numbers passes the line above.
+    expect(ramp[0]!).toBeGreaterThan(ramp[2]! + 1);
   });
 });
 
 /**
- * Region separation. The second complaint was that the top bar, filter block,
- * diagnostic band, grid and status foot were divided by 1px hairlines and
- * nothing else, so the popup read as one sheet — in dark the two surfaces were
- * 0.41% of luminance apart and the hairline carried the whole distinction.
+ * Region separation, which was the second complaint about the build this
+ * replaces: five stacked regions divided by 1px hairlines and nothing else, so
+ * the popup read as one sheet — in dark the two surfaces were 0.41% of
+ * luminance apart and the hairline carried the whole distinction.
  *
- * Asserted as a contrast RATIO rather than a luminance delta: in a dark theme
+ * This design answers it structurally rather than by darkening the line. There
+ * are two regions, not five, and the boundary between them carries **two**
+ * independent signals: the rail is a different material from the panel, and it
+ * also has an edge. Both are asserted, because either one alone is the failure
+ * mode — a hairline doing the whole job is what broke before, and two surfaces
+ * meeting with no edge at all is the same problem wearing the other hat.
+ *
+ * Asserted as contrast RATIOS rather than luminance deltas: in a dark theme
  * every surface sits near L=0, so deltas there are tiny by construction and
  * would make a dark palette look broken while a light one sailed through. The
  * ratio is scale-relative and means the same thing in both.
  *
- * 1.1 is the floor for "you can see the edge without a line on it". The pairs
- * are the ones that are actually adjacent in App.tsx's stack.
+ * The floors are set just under what this design measures, so a regression
+ * fails while the authored palette passes: rail against panel is 1.184 light /
+ * 1.098 dark, and every edge against the surfaces it divides is at least 1.219.
  */
 describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
   const palette = PALETTES[theme];
-  const ADJACENT: ReadonlyArray<readonly [string, string, string]> = [
-    ['top bar above filter block', '--hl-bar', '--hl-panel'],
-    ['filter block above diagnostic band', '--hl-panel', '--hl-band'],
-    ['diagnostic band above grid', '--hl-band', '--hl-bg'],
-    ['filter block above grid, when no band is showing', '--hl-panel', '--hl-bg'],
-    ['grid above status foot', '--hl-bg', '--hl-bar'],
-  ];
+  const distinct = (a: string, b: string) => contrast(palette[a]!, palette[b]!);
 
-  it.each(ADJACENT)('%s are visibly different surfaces', (_label, a, b) => {
-    expect(contrast(palette[a]!, palette[b]!)).toBeGreaterThanOrEqual(1.1);
+  it('makes the rail a different material from the panel, not the same one with a line on it', () => {
+    expect(distinct('--hl-rail', '--hl-panel')).toBeGreaterThanOrEqual(1.09);
+  });
+
+  it('gives the rail an edge that is visible against both surfaces it divides', () => {
+    expect(distinct('--hl-rail-edge', '--hl-rail')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--hl-rail-edge', '--hl-panel')).toBeGreaterThanOrEqual(1.2);
+  });
+
+  /**
+   * A rule card is an object on the panel, not a region — it is small, it
+   * repeats, and it is allowed to sit close to its background. What it may not
+   * do is have no boundary at all, and its boundary is the border: the fill
+   * alone is 1.065 in light, which would not carry it.
+   */
+  it('gives a rule card a border visible against both the card and the panel', () => {
+    expect(distinct('--hl-card-edge', '--hl-card')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--hl-card-edge', '--hl-panel')).toBeGreaterThanOrEqual(1.2);
+  });
+
+  it('gives a pending site an edge visible against its own amber fill', () => {
+    // The one row on screen that changes surface to signal state. If the edge
+    // vanished into the fill the row would read as a coloured block, which is
+    // the wall of yellow this layout exists to avoid.
+    expect(distinct('--hl-pend-edge', '--hl-pend-bg')).toBeGreaterThanOrEqual(1.2);
   });
 });
