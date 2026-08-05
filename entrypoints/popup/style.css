@@ -131,34 +131,71 @@
    / removal. `set` is the common case and spends no colour at all.
 
    The light values are not an inversion of the dark ones. They were derived
-   separately and WCAG-audited (18 fixes, 2 of them blockers), so read them
-   from the table rather than computing them. */
+   separately and WCAG-audited, so read them from the table rather than
+   computing them.
+
+   FOUR SURFACES, not one. The popup stacks top bar → filter panel →
+   diagnostic band → grid → status foot, and the first version gave every one
+   of them the same background and divided them with 1px hairlines. Adjacent
+   regions on one background do not read as regions, so the popup read as a
+   single sheet — worst in dark, where bg and bar were 0.41% apart in
+   luminance and the hairline was doing all the work alone. Each surface below
+   is a step its neighbours are not, so no two adjacent regions share one:
+
+     --hl-bg     the grid — content, and the extreme of the scale
+     --hl-panel  the filter block — the profile's own settings
+     --hl-bar    top bar and status foot — the app frame
+     --hl-band   the diagnostic band — an attention surface, warm-tinted so it
+                 separates from the neutral panel directly above it
+
+   TEXT RAMP. --hl-txt3 used to serve two jobs at one value: labels a user
+   reads (the column headers, Match/Types, the off chips) and states that are
+   meant to recede (a disabled row, an empty value, the "·" separator). One
+   value cannot be both legible and receding, and it landed on receding —
+   2.89:1 for the column headers, 2.74:1 for a disabled value, both below even
+   the 3:1 floor for de-emphasis. Splitting the token is what lets the ramp
+   keep its hierarchy while every step stays legible:
+
+     --hl-txt    primary
+     --hl-txt2   secondary — group rows, foot, diagnostics    (>= 4.5:1)
+     --hl-txt3   tertiary LABELS — still read, so still text   (>= 4.5:1)
+     --hl-dim    de-emphasised states — recede, stay legible   (>= 3:1)
+
+   The ratios are asserted in tests/unit/contrast.test.ts against the pairs
+   that actually occur in the markup. Change a value here and that test tells
+   you which pairing you broke. */
 :root {
-  --hl-bg: #fafbfc;
-  --hl-bar: #ffffff;
-  --hl-row-hi: #edf1f7;
-  --hl-cell: #e7eaf1;
-  --hl-line: #d9dee7;
-  --hl-txt: #1b2432;
-  --hl-txt2: #5a6678;
-  --hl-txt3: #8b96a8;
+  --hl-bg: #ffffff;
+  --hl-panel: #eaeef7;
+  --hl-bar: #dbe2ee;
+  --hl-band: #f2daa4;
+  --hl-row-hi: #eef2f8;
+  --hl-cell: #dce2ec;
+  --hl-line: #bcc6d7;
+  --hl-txt: #141a24;
+  --hl-txt2: #414b5c;
+  --hl-txt3: #4f5970;
+  --hl-dim: #69738a;
   --hl-acc: #2b5fd9;
-  --hl-grn: #0f8536;
-  --hl-amb: #9d6410;
-  --hl-cyn: #0a749e;
-  --hl-red: #c12544;
+  --hl-grn: #0c6a2e;
+  --hl-amb: #7d4e07;
+  --hl-cyn: #085f81;
+  --hl-red: #b31f3c;
   --hl-sbw: 9px;
 }
 
 .dark {
   --hl-bg: #0e1116;
-  --hl-bar: #141922;
-  --hl-row-hi: #151a22;
-  --hl-cell: #171c24;
-  --hl-line: #1d232d;
-  --hl-txt: #dde4ee;
-  --hl-txt2: #94a2b6;
-  --hl-txt3: #626e7f;
+  --hl-panel: #1a212c;
+  --hl-bar: #27303e;
+  --hl-band: #35291a;
+  --hl-row-hi: #181e28;
+  --hl-cell: #242c39;
+  --hl-line: #3b4657;
+  --hl-txt: #e3e9f2;
+  --hl-txt2: #a9b6c8;
+  --hl-txt3: #9aa7b9;
+  --hl-dim: #78849a;
   --hl-acc: #7aa2f7;
   --hl-grn: #62c98d;
   --hl-amb: #e0af68;
@@ -265,7 +302,11 @@
 
 .hl-row { min-height: 30px; }
 .hl-row:hover { background: var(--hl-row-hi); }
-.hl-row[data-off] { color: var(--hl-txt3); }
+/* A switched-off row recedes but stays readable — you have to be able to read
+   the rule you are deciding whether to switch back on. --hl-dim, not the label
+   grey: the contrast between an off row and a live one is what carries the
+   state, and both ends of that contrast clear their floor. */
+.hl-row[data-off] { color: var(--hl-dim); }
 
 .hl-c { padding: 0 6px; border-right: 1px solid var(--hl-cell); overflow: hidden; }
 .hl-c-act { border-right: 0; }
@@ -287,13 +328,13 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.hl-val-empty { color: var(--hl-txt3); }
+.hl-val-empty { color: var(--hl-dim); }
 
 .hl-op[data-op='remove'] { color: var(--hl-red); }
 .hl-sig { display: inline-block; width: 8px; }
 
 .hl-val-read { display: flex; align-items: center; gap: 4px; width: 100%; }
-.hl-val-read .hl-vbtn { margin-left: auto; opacity: 0; color: var(--hl-txt3); }
+.hl-val-read .hl-vbtn { margin-left: auto; opacity: 0; color: var(--hl-dim); }
 .hl-row:hover .hl-vbtn { opacity: 1; }
 
 .hl-textarea,
@@ -329,13 +370,17 @@
 .hl-subline[data-severity='error'],
 .hl-bandline[data-severity='error'] { color: var(--hl-red); }
 
+/* The band's own surface, and no bottom rule. It used to be --hl-bar, which
+   is also the filter block directly above it — two adjacent regions on one
+   background, separated by a hairline that had to carry the whole distinction
+   by itself. The warm tint does that work now, and reads as "attend to this"
+   next to the neutral panel above and the content below. */
 .hl-band {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px 8px;
-  background: var(--hl-bar);
-  border-bottom: 1px solid var(--hl-line);
+  gap: 4px;
+  padding: 7px 10px;
+  background: var(--hl-band);
 }
 .hl-bandline { display: flex; align-items: center; gap: 6px; }
 .hl-grant {
@@ -347,10 +392,16 @@
 }
 
 /* ===== profile bar + in-place edit strip ===== */
+/* The panel surface, not the frame's. On --hl-bar this sat directly under the
+   top bar on the identical background and the two read as one strip — the same
+   defect the band had against the filter block. It belongs with the filter
+   block below it (which profile, then what it matches), so it takes that
+   surface and keeps a hairline to divide the two: a line *within* a region is
+   what a line is actually for. */
 .hl-profbar {
   display: flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 8px;
-  background: var(--hl-bar);
+  background: var(--hl-panel);
   border-bottom: 1px solid var(--hl-line);
 }
 .hl-profs { display: flex; align-items: center; gap: 3px; }
@@ -374,7 +425,7 @@
 .hl-pdot[data-tone='violet'] { background: #a48cf0; }
 .hl-pdot[data-tone='cyan']   { background: var(--hl-cyn); }
 
-.hl-prof-meta { margin-left: auto; color: var(--hl-txt3); }
+.hl-prof-meta { margin-left: auto; color: var(--hl-dim); }
 
 .hl-editstrip {
   display: flex; align-items: center; gap: 8px;
@@ -392,35 +443,62 @@
 .hl-swatch[data-tone='violet'] { background: #a48cf0; }
 .hl-delete { margin-left: auto; color: var(--hl-red); }
 
-/* ===== top bar, filter block, status foot ===== */
+/* ===== top bar, filter block, status foot =====
+   The frame. No bottom rule: --hl-bar against the panel below it is the
+   largest step in the stylesheet, and a hairline on top of a step that size is
+   the thing that made every boundary look identical regardless of how
+   different the regions either side of it were. */
 .hl-topbar {
   display: flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 10px;
+  height: 36px; padding: 0 10px;
   background: var(--hl-bar);
-  border-bottom: 1px solid var(--hl-line);
 }
 .hl-brand { font-weight: 500; letter-spacing: .2px; }
 .hl-runstate { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--hl-grn); }
+/* "Paused" is the app telling you nothing is being modified — state that
+   carries meaning, so it is held to label contrast, not dimmed away. It reads
+   as off against the green of "Running" rather than by being faint. */
 .hl-runstate[data-paused] { color: var(--hl-txt3); }
 .hl-fdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .hl-pause { padding: 2px 8px; border-radius: 4px; color: var(--hl-txt2); }
 
-.hl-filters { padding: 5px 8px; background: var(--hl-bar); border-bottom: 1px solid var(--hl-line); }
+/* The panel surface, and no bottom rule — the step to the band or the grid
+   below does that. The extra padding is the other half of the separation: a
+   region needs room around its contents to read as a region. */
+.hl-filters { padding: 8px 10px; background: var(--hl-panel); }
 .hl-frow { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .hl-flabel { width: 40px; color: var(--hl-txt3); }
 .hl-field { flex: 1; background: transparent; color: inherit; font: inherit; border: 0; outline: 0; }
 .hl-field:focus { outline: 1px solid var(--hl-acc); }
-.hl-chips { display: flex; flex-wrap: wrap; gap: 3px; }
-.hl-chip { padding: 1px 6px; border-radius: 3px; color: var(--hl-txt3); border: 1px solid var(--hl-cell); }
-.hl-chip[aria-pressed='true'] { color: var(--hl-txt); border-color: var(--hl-acc); }
+.hl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+/* A switched-off chip was the worst thing on the screen — 2.99:1, and the
+   owner's word for it was "close to invisible". It is a label you read to
+   decide whether to switch it on, so it is held to label contrast, not to the
+   3:1 de-emphasis floor.
+   Raising the text alone would have flattened on against off, so the pressed
+   state stops carrying its meaning in text colour alone: it now also takes a
+   tinted fill and the accent border. Off recedes by sitting flat on the
+   content surface; on comes forward. Both are legible. */
+.hl-chip {
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: var(--hl-txt3);
+  background: var(--hl-bg);
+  border: 1px solid var(--hl-line);
+}
+.hl-chip[aria-pressed='true'] {
+  color: var(--hl-txt);
+  background: color-mix(in oklab, var(--hl-acc) 14%, var(--hl-bg));
+  border-color: var(--hl-acc);
+}
 
+/* Same as the top bar: the surface step carries the boundary, so no rule. */
 .hl-foot {
   display: flex; align-items: center; gap: 5px;
-  height: 26px; padding: 0 10px;
+  height: 28px; padding: 0 10px;
   background: var(--hl-bar);
-  border-top: 1px solid var(--hl-line);
   color: var(--hl-txt2);
 }
-.hl-sep { color: var(--hl-txt3); }
+.hl-sep { color: var(--hl-dim); }
 .hl-footerr { color: var(--hl-red); }
 .hl-pendtag { margin-left: auto; color: var(--hl-cyn); }
