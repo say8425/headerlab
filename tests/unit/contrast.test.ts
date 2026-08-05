@@ -164,15 +164,25 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
    * Both surfaces, because the rail and the panel are different materials and
    * the three inks are used on both.
    */
-  it.each(['--hl-panel', '--hl-rail'] as const)('keeps the ink ramp ordered on %s', (surface) => {
+  it.each(['--hl-panel', '--hl-rail'] as const)('keeps the ink ramp stepped on %s', (surface) => {
     const against = palette[surface]!;
     const ramp = ['--hl-ink', '--hl-ink-2', '--hl-ink-3'].map((t) =>
       contrast(palette[t]!, against),
     );
-    expect(ramp).toEqual([...ramp].sort((a, b) => b - a));
-    // And the ends must actually differ — a sorted array of three equal
-    // numbers passes the line above.
-    expect(ramp[0]!).toBeGreaterThan(ramp[2]! + 1);
+    // Every consecutive step, not just the ends. Comparing only the ends lets
+    // the middle tone collapse onto either neighbour while the assertion still
+    // passes — mutation-checked: setting `--hl-ink-2` to `--hl-ink` left an
+    // ends-only check green, and a three-tone hierarchy with two identical
+    // tones is a two-tone hierarchy.
+    //
+    // A ratio rather than a difference, because these are ratios: the gap
+    // between 18.02 and 7.54 is not comparable to the one between 7.54 and
+    // 5.40 in absolute terms, but as multiples they are 2.39 and 1.40. The
+    // narrowest step this palette actually uses is 1.38.
+    const steps = ramp.slice(0, -1).map((value, i) => value / ramp[i + 1]!);
+    for (const step of steps) {
+      expect(step).toBeGreaterThanOrEqual(1.2);
+    }
   });
 });
 

@@ -91,21 +91,30 @@ describe('ruleTally', () => {
     // produces all three correctly *together*. A per-figure fixture lets an
     // implementation that double-counts — a switched-off broken rule landing in
     // both `off` and `blocked` — pass every case separately.
+    //
+    // **Two warnings against one error, deliberately.** With one of each, an
+    // implementation that swapped the two severities would move the same rule
+    // count between `live` and `blocked` in both directions at once and land on
+    // identical figures — the mutation would be invisible. Asymmetric counts
+    // are what make the severity rule observable from the outside: correct is
+    // 4 live / 1 blocked, and treating warnings as blocking gives 3 / 2.
     const rows = [
       row({ id: 'clean-a' }),
       row({ id: 'clean-b' }),
-      row({ id: 'warned' }),
+      row({ id: 'warned-a' }),
+      row({ id: 'warned-b' }),
       row({ id: 'broken' }),
       row({ id: 'switched-off', enabled: false }),
     ];
     const byRow = new Map([
       // A warning does not stop a rule going out — that is what makes it a
-      // warning — so `warned` must land in `live`, not `blocked`.
-      ['warned', [diag({ severity: 'warning', headerRuleId: 'warned' })]],
+      // warning — so both of these must land in `live`, not `blocked`.
+      ['warned-a', [diag({ severity: 'warning', headerRuleId: 'warned-a' })]],
+      ['warned-b', [diag({ severity: 'warning', headerRuleId: 'warned-b' })]],
       ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
     ]);
     expect(ruleTally(rows, byRow, live)).toEqual({
-      total: 5, live: 3, off: 1, blocked: 1,
+      total: 6, live: 4, off: 1, blocked: 1,
     });
   });
 

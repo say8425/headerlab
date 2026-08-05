@@ -381,6 +381,11 @@ body {
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-pend) 22%, transparent);
 }
 
+/* `min-width: 0` is defence in depth rather than the thing doing the work: the
+   child below wraps, so this block's min-content already fits. It is kept
+   because the Grant button beside that text is `flex: none`, and any future
+   change that stops the text wrapping puts this row back over the rail's
+   width. Mutation-checked — removing it alone does not fail the layout guard. */
 .hl-need {
     flex: 0 0 100%;
     min-width: 0;
@@ -745,9 +750,13 @@ body {
     border: 1px solid var(--hl-card-edge);
     border-radius: 6px;
     padding: 6px 8px;
+    /* The value wraps and grows instead of truncating — a 246px cell with an
+       ellipsis was the first thing named about the layout this replaces. The
+       wrapping is the textarea's own (a soft-wrapped textarea breaks an
+       unbroken token on its own, so `overflow-wrap` here is inert and is kept
+       only for a future element that is not a textarea); `field-sizing` is
+       what makes it grow to fit rather than scroll inside a fixed box. */
     overflow-wrap: anywhere;
-    /* The value wraps and grows instead of truncating. A 246px cell with an
-       ellipsis was the first thing named about the layout this replaces. */
     field-sizing: content;
     resize: none;
     min-height: 30px;

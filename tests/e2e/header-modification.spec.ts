@@ -204,9 +204,13 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
           mode: 'structured',
-          // A long host and a port, so the rail's site row has to wrap too —
-          // the rail is 224px and its rows are the narrowest thing on screen.
-          domains: ['a-rather-long-subdomain.staging.example.com:8443'],
+          // A long host with a port, so the rail's site row and its
+          // permission message both have to wrap — the rail is 224px and its
+          // rows are the narrowest thing on screen. **No hyphens**: browsers
+          // already break after a hyphen, so a hyphenated host would wrap on
+          // its own and this fixture would prove nothing about the rules that
+          // make an unbreakable run wrap.
+          domains: ['averylongsubdomainlabelwithnobreaks.staging.example.com:8443'],
           excludedDomains: [], resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
