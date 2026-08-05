@@ -4,6 +4,7 @@ import {
   routeDiagnostics,
   profileMarker,
   groupCounts,
+  ruleTally,
 } from '@/lib/view/grid';
 import { createProfile } from '@/lib/model/defaults';
 import type { Diagnostic, HeaderRule, Profile } from '@/lib/model/types';
@@ -202,5 +203,65 @@ describe('groupCounts', () => {
     expect(groupCounts(rows, new Map(), { live: false })).toEqual({
       total: 2, applying: 0, off: 1,
     });
+  });
+});
+
+describe('ruleTally', () => {
+  // `live` says whether compile() emits any rule at all for the one rule set
+  // this popup shows. Cases about row state pass the live one.
+  const live = { live: true };
+
+  it('splits a mixed set into live, off and blocked, and the three account for every rule', () => {
+    // One fixture rather than four, on purpose: the readout shows all three
+    // figures at once, so what has to hold is that the same set of rules
+    // produces all three correctly *together*. A per-figure fixture lets an
+    // implementation that double-counts — a switched-off broken row landing in
+    // both `off` and `blocked` — pass every case separately.
+    const rows = [
+      row({ id: 'clean-a' }),
+      row({ id: 'clean-b' }),
+      row({ id: 'warned' }),
+      row({ id: 'broken' }),
+      row({ id: 'switched-off', enabled: false }),
+    ];
+    const byRow = new Map([
+      // A warning does not stop a rule going out — that is what makes it a
+      // warning — so `warned` must land in `live`, not `blocked`.
+      ['warned', [diag({ severity: 'warning', headerRuleId: 'warned' })]],
+      ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
+    ]);
+    expect(ruleTally(rows, byRow, live)).toEqual({
+      total: 5, live: 3, off: 1, blocked: 1,
+    });
+  });
+
+  it('counts a switched-off broken row once, as off rather than blocked', () => {
+    // "Blocked" means the user asked for this and it is not happening. A row
+    // they switched off themselves is not that, and counting it in both
+    // figures would report more rules than exist.
+    const rows = [row({ id: 'a', enabled: false })];
+    const byRow = new Map([['a', [diag({ severity: 'error', headerRuleId: 'a' })]]]);
+    expect(ruleTally(rows, byRow, live)).toEqual({ total: 1, live: 0, off: 1, blocked: 0 });
+  });
+
+  it('blocks every switched-on rule when the rule set emits nothing, while off stays off', () => {
+    // Suppression, globalPause and a switched-off rule set each stop the whole
+    // compile without producing any row-level diagnostic, so `byRow` is empty
+    // and every row here looks healthy. This is the case the old footer got
+    // wrong in the other direction, reporting rules as applying while zero
+    // were registered — here they must all read as blocked, and the rows the
+    // user switched off must still read as off rather than being swept in.
+    const rows = [
+      row({ id: 'a' }),
+      row({ id: 'b' }),
+      row({ id: 'c', enabled: false }),
+    ];
+    expect(ruleTally(rows, new Map(), { live: false })).toEqual({
+      total: 3, live: 0, off: 1, blocked: 2,
+    });
+  });
+
+  it('counts nothing for an empty rule set', () => {
+    expect(ruleTally([], new Map(), live)).toEqual({ total: 0, live: 0, off: 0, blocked: 0 });
   });
 });

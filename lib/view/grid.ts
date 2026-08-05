@@ -169,3 +169,50 @@ export function groupCounts(
 
   return { total: rows.length, applying, off };
 }
+
+export interface RuleTally {
+  total: number;
+  /** Switched on, unbroken, and in a rule set the compiler actually emits. */
+  live: number;
+  /** Switched off by the user. */
+  off: number;
+  /** Switched on and still not going out. */
+  blocked: number;
+}
+
+/**
+ * The rail's readout: "N of M rules live", then "K switched off · J blocked".
+ *
+ * `live` is the same judgement `groupCounts` called `applying`, and for the
+ * same reasons — a warning does not stop a rule going out, but the three
+ * profile-level judgements (compile.ts:28, :40, :51) stop all of them at once
+ * without ever reaching `byRow`, so the caller has to answer that separately.
+ *
+ * What is new here is `blocked`, and it exists because this readout is the
+ * only count on screen. `groupCounts` reported `applying` and `off` and left
+ * the difference between them unnamed: a rule switched on and going nowhere
+ * was simply missing from both figures, which is the silence this product is
+ * against. Deriving it as `total - live - off` rather than counting it
+ * separately is deliberate — the three figures then cannot fail to add up to
+ * `total`, so the readout can never accuse itself of losing a rule.
+ */
+export function ruleTally(
+  rows: readonly HeaderRule[],
+  byRow: ReadonlyMap<string, Diagnostic[]>,
+  liveness: GroupLiveness,
+): RuleTally {
+  let live = 0;
+  let off = 0;
+
+  for (const rule of rows) {
+    if (!rule.enabled) {
+      off += 1;
+      continue;
+    }
+    if (!liveness.live) continue;
+    const broken = byRow.get(rule.id)?.some((d) => d.severity === 'error') ?? false;
+    if (!broken) live += 1;
+  }
+
+  return { total: rows.length, live, off, blocked: rows.length - live - off };
+}
