@@ -301,7 +301,10 @@ body {
     gap: 6px;
 }
 
-.hl-railsec + .hl-railsec {
+/* Stated on the section rather than as an adjacent-sibling rule: any number of
+   scope notes can sit between the two sections, and a `+` selector silently
+   stops applying the moment one does. */
+.hl-railsec-types {
     margin-top: 15px;
 }
 

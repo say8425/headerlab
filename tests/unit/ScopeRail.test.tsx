@@ -292,6 +292,22 @@ describe('scope notes', () => {
     expect(notes.map((n) => n.getAttribute('data-severity'))).toEqual(['warning', 'error']);
   });
 
+  it('puts its notes above the request-type checklist, where they cannot be scrolled past', () => {
+    // The rail scrolls. With two sites awaiting permission the real diagnostic
+    // copy is tall enough that anything below the checklist falls past 600px —
+    // measured on the built popup, where the port-ignored note landed roughly
+    // 37px out of sight. A warning you have to go looking for is the failure
+    // this layout exists to remove, and the checklist is the least-touched
+    // control on screen, so it is the part that can afford to be scrolled to.
+    renderRail({
+      domains: ['api.example.com'],
+      notes: [diag({ kind: 'port-ignored', message: 'Port ignored.' })],
+    });
+    const note = screen.getByTestId('scope-note');
+    const types = screen.getByText('Request types');
+    expect(note.compareDocumentPosition(types) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows the real text of a failed reconcile, and not as a scope note', () => {
     // A reconcile failure means nothing is registered, which contradicts the
     // run state directly above it. It is not about scope and must not be filed

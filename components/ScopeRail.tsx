@@ -120,17 +120,18 @@ export function ScopeRail({
         <AddSiteField onAdd={onAddDomain} />
       </div>
 
-      <div className="hl-railsec">
-        <div className="hl-railhead">
-          Request types <span className="hl-n">{typeCount} of {OFFERED_TYPES.length}</span>
-        </div>
-        <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
-      </div>
+      {/* Neutral cards with a coloured edge, not coloured blocks. A pending
+          site is already carrying colour; a stack of amber slabs beside it
+          would rebuild the wall of yellow this layout exists to remove.
+          Severity is carried by the edge, not by the mass.
 
-      {/* Neutral cards with an amber edge, not amber blocks. A pending site is
-          already carrying colour; a stack of amber slabs beside it would
-          rebuild the wall of yellow this layout exists to remove. Severity is
-          carried by the edge, not by the mass. */}
+          Above the request types, not below them. Every one of these is about
+          the sites directly above, and the rail scrolls: with two sites
+          awaiting permission the real diagnostic copy is tall enough to push
+          anything after the checklist past 600px, and a warning you have to
+          scroll to find is the failure this whole layout is against. The
+          checklist is the least-touched control on screen, so it is the one
+          that can afford to be the thing you scroll to. */}
       {notes.map((d, i) => (
         <div
           key={`${d.kind}-${i}`}
@@ -141,6 +142,13 @@ export function ScopeRail({
           {d.message}
         </div>
       ))}
+
+      <div className="hl-railsec hl-railsec-types">
+        <div className="hl-railhead">
+          Request types <span className="hl-n">{typeCount} of {OFFERED_TYPES.length}</span>
+        </div>
+        <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
+      </div>
 
       <div className="hl-railfill" />
     </aside>
