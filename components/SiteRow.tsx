@@ -51,7 +51,13 @@ export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: Site
       {diagnostics.map((d, i) => (
         <span key={`${d.kind}-${i}`} className="hl-need" data-testid="site-problem">
           <span className="hl-needtext">{d.message}</span>
-          {d.kind === 'permission-missing' && d.host !== undefined && (
+          {/* Never on an unusable row. Granting permission for a host that
+              cannot be used changes nothing, so the button would be an action
+              that looks like the remedy and is not. In practice the audit
+              already declines to raise `permission-missing` against a
+              suppressed rule set, but that is a guarantee made two modules
+              away — this row decides what it offers. */}
+          {state !== 'unusable' && d.kind === 'permission-missing' && d.host !== undefined && (
             <button className="hl-grant" onClick={() => onGrant(d.host!)}>Grant</button>
           )}
         </span>

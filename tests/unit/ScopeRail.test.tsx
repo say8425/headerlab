@@ -178,8 +178,25 @@ describe('sites', () => {
   });
 
   it('offers no Grant on an unusable site — permission is not what is wrong with it', () => {
-    renderRail({ domains: ['a b.com'] });
+    // The permission diagnostic is in the fixture on purpose. Without it this
+    // asserts nothing: a row with no diagnostics has no Grant button whatever
+    // its state, so the test would pass against a component that ignored
+    // usability entirely — which is exactly what mutation-checking caught.
+    renderRail({
+      domains: ['a b.com'],
+      byHost: new Map([['a b.com', [permission('a b.com')]]]),
+    });
+    expect(screen.getByTestId('site').getAttribute('data-state')).toBe('unusable');
     expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('still offers Grant on a usable site waiting on permission', () => {
+    // The other half, so "no Grant" cannot be achieved by never rendering one.
+    renderRail({
+      domains: ['api.example.com'],
+      byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
+    });
+    expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy();
   });
 
   it('treats a pasted URL as a usable site, because it normalizes to one', () => {
