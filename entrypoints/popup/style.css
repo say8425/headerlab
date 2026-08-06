@@ -333,13 +333,7 @@ body {
 
 /* ---- sites: the row IS the permission control ---- */
 
-/* Positioned so the `?` inside a pending row has a full-width anchor of its
-   own. Without one the bubble climbs to whatever is positioned above — the
-   rail is not — and a 13px mark cannot hold a readable bubble inside a 224px
-   column that clips on both axes. The row is already inset to the rail's
-   content width, so `left: 0; right: 0` on it is exactly the space available. */
 .hl-dom {
-    position: relative;
     display: flex;
     align-items: center;
     gap: 7px;
@@ -421,11 +415,6 @@ body {
     display: flex;
     align-items: center;
     gap: 7px;
-}
-
-/* The row's mark sits just right of Grant, so its arrow does too. */
-.hl-dom .hl-helpbubble {
-    --hl-tip-arrow: 68px;
 }
 
 /* A flex item's `min-width` is `auto`, so it refuses to shrink below its
@@ -525,14 +514,14 @@ body {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
-/* The arrow's horizontal place belongs to the context, not to the component —
-   each call site knows where its own mark sits, and the component knows
-   nothing about either. Both values are measured in the built popup. */
+/* Aimed at the one mark there is, measured in the built popup. This was a
+   custom property while two contexts each needed their own offset; with a
+   single call site the indirection pointed at nothing. */
 .hl-helpbubble::before {
     content: "";
     position: absolute;
     bottom: 100%;
-    left: var(--hl-tip-arrow, 54px);
+    left: 54px;
     border: 5px solid transparent;
     border-bottom-color: var(--hl-ink);
 }

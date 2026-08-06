@@ -1,4 +1,3 @@
-import { HelpTip } from './HelpTip';
 import type { Diagnostic } from '@/lib/model/types';
 
 export interface SiteRowProps {
@@ -66,12 +65,12 @@ export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: Site
         </span>
       ))}
 
-      {/* A pending permission is state and remedy, not prose. The sentence it
-          replaces spent four lines telling a developer what a Grant button
-          beside a hostname already says; two of these filled the rail. What
-          stays visible is exactly what cannot be guessed — that this site is
-          waiting, and what to press. The *why* moved behind the `?`, which is
-          the one part nobody needs twice.
+      {/* A pending permission is state and remedy, and nothing else. The
+          sentence this replaces spent four lines telling a developer what a
+          Grant button beside a hostname already says; two of them filled the
+          rail. A `?` explaining the button went the same way for the same
+          reason — a help mark on every pending row is a repeated affordance
+          for something nobody was confused by.
 
           Never on an unusable row: granting a host that cannot be used changes
           nothing, so the button would be an action that looks like the remedy
@@ -79,10 +78,6 @@ export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: Site
       {awaitingGrant !== undefined && state !== 'unusable' && (
         <span className="hl-need" data-testid="site-pending">
           <button className="hl-grant" onClick={() => onGrant(awaitingGrant.host!)}>Grant</button>
-          <HelpTip
-            label={`Why ${domain} needs permission`}
-            text="Chrome asks for each site separately. Until you grant it, rules for this site are registered but never applied."
-          />
         </span>
       )}
     </div>

@@ -8,10 +8,15 @@ export interface HelpTipProps {
    *
    * The reader is a developer, and their real question is "what happens to
    * what I paste". Two examples answer that faster than any description of
-   * the rule, so where a fact has a worked form it is shown before it is
-   * stated. Facts with nothing to demonstrate simply omit this.
+   * the rule, so the worked form comes before the statement of it.
+   *
+   * Required, not optional. It was optional while a second tip existed that
+   * had no transformation to show; that tip is gone, and the one caller left
+   * always passes examples. Keeping the parameter optional would be carrying
+   * generality for a hypothetical third caller — and an unused branch is a
+   * branch nothing tests.
    */
-  examples?: ReadonlyArray<readonly [string, string]>;
+  examples: ReadonlyArray<readonly [string, string]>;
   /** The explanation. One sentence; this is an aside, not documentation. */
   text: string;
 }
@@ -59,17 +64,15 @@ export function HelpTip({ label, examples, text }: HelpTipProps) {
       </button>
       {open && (
         <span className="hl-helpbubble" role="tooltip" id={id} data-testid="help-bubble">
-          {examples !== undefined && (
-            <span className="hl-helpex">
-              {examples.map(([from, to]) => (
-                <span key={from} className="hl-helprow">
-                  <code>{from}</code>
-                  <span aria-hidden="true">→</span>
-                  <code>{to}</code>
-                </span>
-              ))}
-            </span>
-          )}
+          <span className="hl-helpex">
+            {examples.map(([from, to]) => (
+              <span key={from} className="hl-helprow">
+                <code>{from}</code>
+                <span aria-hidden="true">→</span>
+                <code>{to}</code>
+              </span>
+            ))}
+          </span>
           <span className="hl-helpsay">{text}</span>
         </span>
       )}

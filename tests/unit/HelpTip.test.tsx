@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { HelpTip } from '@/components/HelpTip';
 
 function renderTip() {
-  return render(<HelpTip label="About matching sites" text="Chrome matches by host." />);
+  return render(
+    <HelpTip
+      label="About matching sites"
+      examples={[['x.com/a', 'x.com']]}
+      text="Chrome matches by host."
+    />,
+  );
 }
 
 const mark = () => screen.getByRole('button', { name: 'About matching sites' });
@@ -28,7 +34,7 @@ describe('HelpTip', () => {
     renderTip();
     await userEvent.tab();
     expect(document.activeElement).toBe(mark());
-    expect(bubble()?.textContent).toBe('Chrome matches by host.');
+    expect(bubble()?.textContent).toBe('x.com/a→x.comChrome matches by host.');
   });
 
   it('opens on hover too', async () => {
@@ -101,15 +107,5 @@ describe('HelpTip', () => {
       'https://x.com/a/b→x.comlocalhost:3000→localhost'
       + 'Matched by host — a port or path is dropped.',
     );
-  });
-
-  it('shows no examples block for a fact with nothing to demonstrate', async () => {
-    // Not every fact has a worked form — the permission tip has none — and an
-    // empty row of arrows would be worse than none. `renderTip` passes no
-    // examples, so the bubble should be the sentence and nothing else.
-    renderTip();
-    await userEvent.tab();
-    expect(bubble()!.querySelectorAll('code')).toHaveLength(0);
-    expect(bubble()!.textContent).toBe('Chrome matches by host.');
   });
 });

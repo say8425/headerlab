@@ -211,7 +211,8 @@ describe('sites', () => {
     // is registered but will not apply until you grant it." per pending site,
     // two of which filled a 196px rail. For this reader a Grant button beside a
     // hostname already carries it. What must stay visible is the state and the
-    // remedy; the *why* is one `?` away.
+    // remedy — and nothing else does: no prose, and no help mark either, since
+    // a `?` on every pending row explains something nobody was confused by.
     renderRail({
       domains: ['api.example.com'],
       byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
@@ -222,23 +223,10 @@ describe('sites', () => {
     // …but the state and the action are still on screen, unhidden.
     expect(row.getAttribute('data-state')).toBe('pending');
     expect(within(row).getByRole('button', { name: 'Grant' })).toBeTruthy();
-  });
-
-  it('puts the reason behind that row\'s own ?, named for the site it is about', async () => {
-    renderRail({
-      domains: ['api.example.com'],
-      byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
-    });
-    // Absent until asked — the point of moving it.
-    expect(screen.queryByTestId('help-bubble')).toBeNull();
-
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Why api.example.com needs permission' }),
-    );
-    expect(screen.getByTestId('help-bubble').textContent).toBe(
-      'Chrome asks for each site separately. '
-      + 'Until you grant it, rules for this site are registered but never applied.',
-    );
+    // And the row carries no help mark of its own — the only `?` on screen is
+    // the one on the SITES heading.
+    expect(within(row).queryAllByRole('button', { name: /^Why / })).toEqual([]);
+    expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
   it('still speaks in words for a site problem that is not a permission prompt', () => {
