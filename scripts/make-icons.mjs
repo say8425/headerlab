@@ -35,7 +35,15 @@ const OUT = path.join(ROOT, 'public', 'icon');
  * against a browser theme it does not control, so both states use a mid-tone
  * fill with white lines: legible on Chrome's light toolbar and its dark one.
  */
-const SIZES = [16, 32, 48, 128];
+/**
+ * Per state, because the two are asked for by different things. `icons` — the
+ * extensions page and the store — only ever shows the active mark, while
+ * `setIcon` swaps 16 and 32 in the toolbar. Generating a paused 48 and 128 to
+ * match would ship ~2.8KB that nothing loads, and a test pinning their
+ * existence would hold that dead weight in place. Add a size back here if
+ * something starts asking for it.
+ */
+const SIZES = { active: [16, 32, 48, 128], paused: [16, 32] };
 
 const FILL = {
   // The palette's "live" green, the same hue the Active bar and live dots use.
@@ -68,7 +76,7 @@ async function render(fill, size) {
 
 const written = [];
 for (const [state, fill] of Object.entries(FILL)) {
-  for (const size of SIZES) {
+  for (const size of SIZES[state]) {
     const file = path.join(OUT, `${state}-${size}.png`);
     writeFileSync(file, await render(fill, size));
     written.push(path.relative(ROOT, file));

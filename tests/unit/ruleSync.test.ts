@@ -192,7 +192,7 @@ describe('reconcile', () => {
   it('clears a previous failure once a reconcile succeeds, recording the rules actually registered', async () => {
     const state = appState('X-Success');
     vi.spyOn(stateModule, 'getState').mockResolvedValue(state);
-    await sessionModule.setSyncStatus({ lastError: 'boom', ruleCount: 0 });
+    await sessionModule.setSyncStatus({ lastError: 'boom', ruleCount: 0, iconError: null });
 
     await reconcile();
 
@@ -262,6 +262,41 @@ describe('reconcile', () => {
     for (const [details] of setIcon.mock.calls) {
       expect((details as { path: Record<string, string> }).path[16]).toBe('/icon/paused-16.png');
     }
+  });
+
+  it('records a failing icon where the popup reads failures, without claiming the rules failed', async () => {
+    // The direction is the point. Unpause registers the rules and *then* sets
+    // the icon, so a failure here leaves a grey toolbar over an extension that
+    // is modifying headers — under-reporting that we are active. A worker
+    // console nobody is watching is not a report.
+    //
+    // `lastError` stays null on purpose: the popup heads that one "Rules not
+    // registered", which would be false, and false in the flattering
+    // direction.
+    const setStatus = vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
+    setIcon.mockRejectedValue(new Error('icon missing'));
+    vi.spyOn(stateModule, 'getState').mockResolvedValue(appState('X-A'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await reconcile();
+
+    const last = setStatus.mock.calls.at(-1)![0];
+    expect(last.iconError).toContain('icon missing');
+    expect(last.lastError).toBeNull();
+    // And the rule count it reports is the one that was actually registered,
+    // not zeroed as if the pass had failed.
+    expect(last.ruleCount).toBe(1);
+  });
+
+  it('leaves iconError null when the icon went on fine', async () => {
+    // Otherwise "records the failure" could be satisfied by reporting one
+    // every time.
+    const setStatus = vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
+    vi.spyOn(stateModule, 'getState').mockResolvedValue(appState('X-A'));
+
+    await reconcile();
+
+    expect(setStatus.mock.calls.at(-1)![0].iconError).toBeNull();
   });
 
   it('does not let a failing icon sink a reconcile that registered its rules', async () => {

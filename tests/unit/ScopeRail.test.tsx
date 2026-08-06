@@ -26,6 +26,7 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     notes: [],
     blockedBy: null,
     lastError: null,
+    iconError: null,
     resourceTypes: ['xmlhttprequest', 'main_frame'],
     onAddDomain: vi.fn(() => ({ added: true as const })),
     onRemoveDomain: vi.fn(),
@@ -452,6 +453,23 @@ describe('scope notes', () => {
     const note = screen.getByTestId('scope-note');
     const types = screen.getByText('Request types');
     expect(note.compareDocumentPosition(types) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('says the toolbar is out of date without claiming the rules failed', () => {
+    // Two failures that say opposite things about whether headers are being
+    // modified, so they get their own notes. Folding this into `lastError`
+    // would put it under "Rules not registered" — false, and false in the
+    // direction that under-reports an active extension.
+    renderRail({ iconError: 'icon missing' });
+    const note = screen.getByTestId('icon-error');
+    expect(note.textContent)
+      .toBe('Toolbar icon out of dateThe icon may not match the run state above. icon missing');
+    expect(screen.queryByTestId('sync-error')).toBeNull();
+  });
+
+  it('shows nothing about the icon when it is fine', () => {
+    renderRail();
+    expect(screen.queryByTestId('icon-error')).toBeNull();
   });
 
   it('shows the real text of a failed reconcile, and not as a scope note', () => {

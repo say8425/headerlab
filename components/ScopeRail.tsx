@@ -24,6 +24,14 @@ export interface ScopeRailProps {
   blockedBy: 'sites' | 'pause' | null;
   /** The real text of the last failed reconcile, from session storage. */
   lastError: string | null;
+  /**
+   * Set when the rules registered but the toolbar icon did not follow.
+   *
+   * Its own note rather than folded into `lastError`: that one is headed
+   * "Rules not registered", which is false here — the rules *are* registered
+   * and it is the toolbar that is lying about it.
+   */
+  iconError: string | null;
   resourceTypes: readonly ResourceType[];
   onAddDomain: (domain: string) => AddSiteResult;
   onRemoveDomain: (domain: string) => void;
@@ -45,7 +53,7 @@ export interface ScopeRailProps {
  * costs the rules nothing instead of shoving them down the screen.
  */
 export function ScopeRail({
-  tally, paused, onTogglePause, domains, byHost, notes, blockedBy, lastError,
+  tally, paused, onTogglePause, domains, byHost, notes, blockedBy, lastError, iconError,
   resourceTypes, onAddDomain, onRemoveDomain, onToggleType, onGrant,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
@@ -124,6 +132,17 @@ export function ScopeRail({
         <div className="hl-note hl-note-err" data-testid="sync-error">
           <b>Rules not registered</b>
           {lastError}
+        </div>
+      )}
+
+      {/* The toolbar can under-report: unpause registers the rules and then
+          sets the icon, so a failure there leaves grey chrome over an
+          extension that is modifying headers. The run state above is the one
+          that is true. */}
+      {iconError !== null && (
+        <div className="hl-note hl-note-err" data-testid="icon-error">
+          <b>Toolbar icon out of date</b>
+          The icon may not match the run state above. {iconError}
         </div>
       )}
 

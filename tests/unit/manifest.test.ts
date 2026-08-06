@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { assertBuildFresh, readBuildFile } from '../support/build';
@@ -76,13 +76,20 @@ describe('the toolbar icon', () => {
     expect(Object.values(action.default_icon!).every((p) => p.includes('active'))).toBe(true);
   });
 
-  it('ships every file both the manifest and setIcon name', () => {
+  it('ships every file both the manifest and setIcon name, and nothing else', () => {
     // A manifest entry pointing at a file that is not in the build is a broken
     // icon that no unit test of the manifest alone would notice.
+    //
+    // The two lists differ on purpose: `icons` shows only the active mark, at
+    // all four sizes, while `setIcon` swaps 16 and 32. Asserting the directory
+    // *exactly* rather than just "these exist" is what stops a paused 48 and
+    // 128 being generated and shipped again for nobody — a test that only
+    // checked presence would have held those 2.8KB in place.
     const dir = assertBuildFresh('production');
-    const missing = ['active', 'paused']
-      .flatMap((state) => [16, 32, 48, 128].map((size) => `icon/${state}-${size}.png`))
-      .filter((rel) => !existsSync(path.join(dir, rel)));
-    expect(missing).toEqual([]);
+    const wanted = [
+      ...[16, 32, 48, 128].map((size) => `active-${size}.png`),
+      ...[16, 32].map((size) => `paused-${size}.png`),
+    ].sort();
+    expect(readdirSync(path.join(dir, 'icon')).sort()).toEqual(wanted);
   });
 });

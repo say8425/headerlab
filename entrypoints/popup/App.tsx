@@ -47,7 +47,9 @@ function bootstrapProfile(): Profile {
 export default function App() {
   const { state, valid, patch } = useAppState();
   const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
-  const [lastError, setLastError] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ lastError: string | null; iconError: string | null }>(
+    { lastError: null, iconError: null },
+  );
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -131,7 +133,9 @@ export default function App() {
   }, [state]);
 
   useEffect(() => {
-    getSyncStatus().then((s) => setLastError(s.lastError)).catch(() => setLastError(null));
+    getSyncStatus()
+      .then((s) => setStatus({ lastError: s.lastError, iconError: s.iconError }))
+      .catch(() => setStatus({ lastError: null, iconError: null }));
   }, [state]);
 
   // Said on screen, not only to a console nobody is watching. `state.ts` claims
@@ -208,7 +212,8 @@ export default function App() {
         byHost={routed.byHost}
         notes={routed.scope}
         blockedBy={blockedBy}
-        lastError={lastError}
+        lastError={status.lastError}
+        iconError={status.iconError}
         resourceTypes={active.filter.resourceTypes}
         onAddDomain={(typed) => {
           // Normalized here, at the moment it is committed, so what is stored
