@@ -229,6 +229,20 @@ describe('sites', () => {
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
+  it('names each row state to assistive tech, since colour is the only other cue', () => {
+    // The state dot was `aria-hidden`, which left a granted row and an unusable
+    // row with identical accessible names — two opposite meanings distinguished
+    // by nothing but a colour. All three are asserted together, because giving
+    // every row the same label would satisfy any one of them alone.
+    renderRail({
+      domains: ['ok.example.com', 'pending.example.com', 'a b.com'],
+      byHost: new Map([['pending.example.com', [permission('pending.example.com')]]]),
+    });
+    const labels = screen.getAllByTestId('site')
+      .map((row) => within(row).getByRole('img').getAttribute('aria-label'));
+    expect(labels).toEqual(['Access granted', 'Awaiting permission', 'Unusable site']);
+  });
+
   it('grants the host the diagnostic names, not the domain text that carries a port', async () => {
     // `localhost:3000` is what the user typed; `localhost` is what Chrome can
     // actually be asked for, and the diagnostic is the party that already knows
