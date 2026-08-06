@@ -64,14 +64,17 @@ describe('App', () => {
     // implementation that put every diagnostic back into a band above the
     // rules, so both halves are asserted.
     const s = stateWith();
-    s.profiles[0]!.headers[0]!.name = '';   // invalid-header-name, headerRuleId: 'h1'
+    // A typo, not a blank: a name the user actually got wrong is what earns an
+    // error, and an error is what renders a problem block. A blank name is a
+    // different state entirely — see the unfinished cases below.
+    s.profiles[0]!.headers[0]!.name = 'X Session Id'; // invalid-header-name, headerRuleId: 'h1'
     await seed(s);
     render(<App />);
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
     const notes = screen.queryAllByTestId('scope-note');
-    expect(notes.some((el) => /Header name is empty/.test(el.textContent ?? ''))).toBe(false);
+    expect(notes.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(false);
   });
 
   it('puts a scope diagnostic in the rail, never inside a rule', async () => {
@@ -417,6 +420,83 @@ describe('editing scope', () => {
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.resourceTypes).not.toContain('image'),
     );
+  });
+});
+
+describe('a rule that has not been named yet', () => {
+  it('adds no red to the row the moment it is created', async () => {
+    // The whole complaint, end to end: press "New rule", and the product used
+    // to answer "Header name is empty." — creating an invalid object and then
+    // telling the user off for it before they had touched the keyboard.
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+
+    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await waitFor(() => expect(screen.getAllByTestId('rule')).toHaveLength(3));
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+  });
+
+  it('counts it in the rail instead, so the state is said rather than hidden', async () => {
+    // Going quiet everywhere would trade the red row for the silent failure
+    // this product exists to remove. Both halves are asserted together: no
+    // problem block, and a count that names it.
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+
+    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+  });
+
+  it('reads the same after the popup is closed and reopened', async () => {
+    // The owner's decision is that the empty rule is written to storage like
+    // any other — not a draft, not created disabled. So reopening must not
+    // resurrect the error: this seeds state exactly as storage would hold it
+    // after the popup closed on an unnamed rule, which is what a fresh mount
+    // reads back.
+    const s = stateWith();
+    s.profiles[0]!.headers.push({
+      id: 'h3', enabled: true, target: 'request', operation: 'set', name: '', value: '',
+    });
+    await seed(s);
+    render(<App />);
+
+    await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+  });
+
+  it('turns into a real error once the name is wrong rather than absent', async () => {
+    // The states have to be distinguishable in the running app, not only in
+    // the validator: typing something invalid must still produce the error.
+    // Without this, "unfinished" could be implemented by silencing the row.
+    await seed(stateWith());
+    render(<App />);
+    const name = await screen.findByDisplayValue('X-A');
+
+    await userEvent.clear(name);
+    await userEvent.type(name, 'X Session Id');
+    await userEvent.tab();
+
+    const problems = await screen.findAllByTestId('rule-problem');
+    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+  });
+
+  it('is not live, because the compiler emits nothing for it', async () => {
+    // Verified rather than assumed. compileHeaders skips a blank name
+    // (tests/unit/headers.test.ts), so an unfinished rule registers no DNR
+    // rule — and the readout must agree with that rather than flatter it.
+    const s = stateWith();
+    s.profiles[0]!.headers = [{
+      id: 'h1', enabled: true, target: 'request', operation: 'set', name: '', value: '',
+    }];
+    await seed(s);
+    render(<App />);
+
+    await waitFor(() => expect(readout()).toBe('0of 1 rules live1 unfinished'));
   });
 });
 

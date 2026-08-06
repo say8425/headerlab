@@ -85,12 +85,12 @@ describe('ruleTally', () => {
   // this popup shows. Cases about row state pass the live one.
   const live = { live: true };
 
-  it('splits a mixed set into live, off and blocked, and the three account for every rule', () => {
-    // One fixture rather than four, on purpose: the readout shows all three
-    // figures at once, so what has to hold is that the same set of rules
-    // produces all three correctly *together*. A per-figure fixture lets an
-    // implementation that double-counts — a switched-off broken rule landing in
-    // both `off` and `blocked` — pass every case separately.
+  it('splits a mixed set four ways, and the four account for every rule', () => {
+    // One fixture rather than four, on purpose: the readout shows every figure
+    // at once, so what has to hold is that the same set of rules produces them
+    // all correctly *together*. A per-figure fixture lets an implementation
+    // that double-counts — a switched-off broken rule landing in both `off`
+    // and `blocked` — pass every case separately.
     //
     // **Two warnings against one error, deliberately.** With one of each, an
     // implementation that swapped the two severities would move the same rule
@@ -104,6 +104,7 @@ describe('ruleTally', () => {
       row({ id: 'warned-a' }),
       row({ id: 'warned-b' }),
       row({ id: 'broken' }),
+      row({ id: 'unnamed' }),
       row({ id: 'switched-off', enabled: false }),
     ];
     const byRow = new Map([
@@ -112,9 +113,15 @@ describe('ruleTally', () => {
       ['warned-a', [diag({ severity: 'warning', headerRuleId: 'warned-a' })]],
       ['warned-b', [diag({ severity: 'warning', headerRuleId: 'warned-b' })]],
       ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
+      // Not going out either, but not blocked: nothing is stopping it, it is
+      // simply not a rule yet. Counting it as blocked is what put a red error
+      // on a row created one click ago.
+      ['unnamed', [diag({
+        kind: 'incomplete-header', severity: 'incomplete', headerRuleId: 'unnamed',
+      })]],
     ]);
     expect(ruleTally(rows, byRow, live)).toEqual({
-      total: 6, live: 4, off: 1, blocked: 1,
+      total: 7, live: 4, off: 1, unfinished: 1, blocked: 1,
     });
   });
 
@@ -124,7 +131,7 @@ describe('ruleTally', () => {
     // would report more rules than exist.
     const rows = [row({ id: 'a', enabled: false })];
     const byRow = new Map([['a', [diag({ severity: 'error', headerRuleId: 'a' })]]]);
-    expect(ruleTally(rows, byRow, live)).toEqual({ total: 1, live: 0, off: 1, blocked: 0 });
+    expect(ruleTally(rows, byRow, live)).toEqual({ total: 1, live: 0, off: 1, unfinished: 0, blocked: 0 });
   });
 
   it('blocks every switched-on rule when the set emits nothing, while off stays off', () => {
@@ -140,11 +147,58 @@ describe('ruleTally', () => {
       row({ id: 'c', enabled: false }),
     ];
     expect(ruleTally(rows, new Map(), { live: false })).toEqual({
-      total: 3, live: 0, off: 1, blocked: 2,
+      total: 3, live: 0, off: 1, unfinished: 0, blocked: 2,
+    });
+  });
+
+  it('keeps an unfinished rule unfinished while the set is paused, rather than calling it blocked', () => {
+    // compile() emits diagnostics regardless of globalPause (compile.ts:38-40),
+    // so the incomplete diagnostic is still here when nothing is going out.
+    // "Blocked" would tell the user the pause is what stops this rule; nothing
+    // stops an unnamed rule but the missing name, and that stays true whether
+    // the set is running or not. The second row is what makes the distinction
+    // observable — it really is blocked by the pause, and the two must not
+    // collapse into one figure.
+    const rows = [row({ id: 'unnamed' }), row({ id: 'ready' })];
+    const byRow = new Map([
+      ['unnamed', [diag({
+        kind: 'incomplete-header', severity: 'incomplete', headerRuleId: 'unnamed',
+      })]],
+    ]);
+    expect(ruleTally(rows, byRow, { live: false })).toEqual({
+      total: 2, live: 0, off: 0, unfinished: 1, blocked: 1,
+    });
+  });
+
+  it('counts a switched-off unnamed rule once, as off rather than unfinished', () => {
+    // Two reasons the same row sends nothing must not become two labels. The
+    // model already settles this by staying silent on disabled rows
+    // (validateHeaders), so `byRow` is empty here and the rule files under the
+    // reason the user actually chose. This pins the tally agreeing with that
+    // rather than re-deriving "unnamed" from the row itself.
+    const rows = [row({ id: 'a', enabled: false, name: '' })];
+    expect(ruleTally(rows, new Map(), live)).toEqual({
+      total: 1, live: 0, off: 1, unfinished: 0, blocked: 0,
+    });
+  });
+
+  it('does not treat a warning or an error as unfinished', () => {
+    // The three not-live states are told apart by severity alone, so each must
+    // stay in its own column. A `some()` written against the wrong field would
+    // sweep all of these into one.
+    const rows = [row({ id: 'warned' }), row({ id: 'broken' })];
+    const byRow = new Map([
+      ['warned', [diag({ severity: 'warning', headerRuleId: 'warned' })]],
+      ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
+    ]);
+    expect(ruleTally(rows, byRow, live)).toEqual({
+      total: 2, live: 1, off: 0, unfinished: 0, blocked: 1,
     });
   });
 
   it('counts nothing for an empty rule set', () => {
-    expect(ruleTally([], new Map(), live)).toEqual({ total: 0, live: 0, off: 0, blocked: 0 });
+    expect(ruleTally([], new Map(), live)).toEqual({
+      total: 0, live: 0, off: 0, unfinished: 0, blocked: 0,
+    });
   });
 });

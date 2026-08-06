@@ -195,7 +195,7 @@ describe('compile emits diagnostics', () => {
     // (e.g. validateHeaders called twice for this profile) would slip past a
     // toContain check but not this one.
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+    expect(result.diagnostics[0]?.kind).toBe('incomplete-header');
     expect(result.dynamic).toHaveLength(1);
   });
 
@@ -230,7 +230,7 @@ describe('compile emits diagnostics', () => {
     }));
     expect(result.dynamic).toHaveLength(0);
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+    expect(result.diagnostics[0]?.kind).toBe('incomplete-header');
   });
 
   it('does not go silent when only some of a profile\'s domains are usable', () => {

@@ -18,7 +18,7 @@ function permission(host: string): Diagnostic {
 
 function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
   return {
-    tally: { total: 0, live: 0, off: 0, blocked: 0 },
+    tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 },
     paused: false,
     onTogglePause: vi.fn(),
     domains: [],
@@ -42,29 +42,48 @@ describe('the readout', () => {
   it('reports live, off and blocked together — and different figures read back differently', () => {
     // A single fixture would pass a component that renders any of these as a
     // literal. Re-rendering with a different tally forces it to read its prop.
-    const { rerender } = renderRail({ tally: { total: 5, live: 2, off: 1, blocked: 2 } });
+    const { rerender } = renderRail({ tally: { total: 5, live: 2, off: 1, unfinished: 0, blocked: 2 } });
     expect(screen.getByTestId('readout').textContent).toBe(
       '2of 5 rules live1 switched off · 2 blocked',
     );
-    rerender(<ScopeRail {...props({ tally: { total: 9, live: 7, off: 2, blocked: 0 } })} />);
+    rerender(<ScopeRail {...props({ tally: { total: 9, live: 7, off: 2, unfinished: 0, blocked: 0 } })} />);
     expect(screen.getByTestId('readout').textContent).toBe('7of 9 rules live2 switched off');
   });
 
   it('says nothing is configured yet when there are no rules at all', () => {
-    renderRail({ tally: { total: 0, live: 0, off: 0, blocked: 0 } });
+    renderRail({ tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 } });
     expect(screen.getByTestId('readout').textContent).toBe('0of 0 rules livenothing configured yet');
   });
 
   it('adds no second line when every rule is going out', () => {
     // The big number already says it. A line reading "0 switched off · 0
     // blocked" would be noise that never changes.
-    renderRail({ tally: { total: 3, live: 3, off: 0, blocked: 0 } });
+    renderRail({ tally: { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 } });
     expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live');
   });
 
   it('names only blocked when nothing is switched off', () => {
-    renderRail({ tally: { total: 3, live: 1, off: 0, blocked: 2 } });
+    renderRail({ tally: { total: 3, live: 1, off: 0, unfinished: 0, blocked: 2 } });
     expect(screen.getByTestId('readout').textContent).toBe('1of 3 rules live2 blocked');
+  });
+
+  it('names unfinished rules, so a row left quiet is still said out loud', () => {
+    // The rail is where "unfinished" gets said. The rule itself shows no
+    // problem block — an empty name on a row created one click ago is not a
+    // mistake to report — so if this count went missing the state would be
+    // genuinely hidden, which is the silence the product exists to remove.
+    renderRail({ tally: { total: 4, live: 3, off: 0, unfinished: 1, blocked: 0 } });
+    expect(screen.getByTestId('readout').textContent).toBe('3of 4 rules live1 unfinished');
+  });
+
+  it('keeps unfinished distinct from off and from blocked when all three are present', () => {
+    // Three different figures with three different values, so a component that
+    // rendered any one of them in another's place cannot pass. This is also the
+    // reading order the count is written in.
+    renderRail({ tally: { total: 9, live: 3, off: 1, unfinished: 2, blocked: 3 } });
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '3of 9 rules live1 switched off · 2 unfinished · 3 blocked',
+    );
   });
 });
 

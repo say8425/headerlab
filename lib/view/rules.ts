@@ -73,7 +73,9 @@ export interface RuleTally {
   live: number;
   /** Switched off by the user. */
   off: number;
-  /** Switched on and still not going out. */
+  /** Started but not named yet, so there is nothing to send. */
+  unfinished: number;
+  /** Switched on, finished, and still not going out. */
   blocked: number;
 }
 
@@ -96,9 +98,16 @@ export interface RuleTally {
  * `blocked` is what this readout adds. The count it replaces reported
  * "applying" and "off" and left the difference between them unnamed, so a rule
  * switched on and going nowhere appeared in neither figure — the silence this
- * product exists to remove. It is derived as `total - live - off` rather than
- * counted separately, so the three figures cannot fail to account for every
- * rule.
+ * product exists to remove. It is derived as the remainder rather than counted
+ * separately, so the four figures cannot fail to account for every rule.
+ *
+ * `unfinished` splits the honest half of that remainder back out. A rule the
+ * user has not named yet is not going out either, but it is not *blocked* —
+ * nothing is stopping it, it simply is not a rule yet. Reporting it as blocked
+ * is how a popup ends up showing a red error on a row created one click ago,
+ * which is a product accusing the user of a mistake it made itself. Counting
+ * it under its own name is what lets the row stay quiet without the state
+ * going unsaid.
  *
  * `off` is deliberately unaffected by `live`: it means "the user switched this
  * off", which stays true whether or not anything is being emitted. Sweeping it
@@ -112,16 +121,40 @@ export function ruleTally(
 ): RuleTally {
   let live = 0;
   let off = 0;
+  let unfinished = 0;
 
   for (const rule of rows) {
+    // Switched off first: it is the user's own decision about this rule, so it
+    // outranks anything the compiler noticed. It is also the only one of the
+    // three that stays true when nothing is being emitted at all.
     if (!rule.enabled) {
       off += 1;
       continue;
     }
+
+    const problems = byRow.get(rule.id);
+
+    // Unfinished before the liveness test, so pausing cannot relabel a rule
+    // the user simply has not named yet. "Blocked" would say the pause is what
+    // stops it; nothing stops an unnamed rule but the missing name, and that
+    // stays true whether the set is running or not.
+    //
+    // Read off `severity`, never off the kind — see `Diagnostic.severity`.
+    if (problems?.some((d) => d.severity === 'incomplete')) {
+      unfinished += 1;
+      continue;
+    }
+
     if (!liveness.live) continue;
-    const broken = byRow.get(rule.id)?.some((d) => d.severity === 'error') ?? false;
-    if (!broken) live += 1;
+    if (problems?.some((d) => d.severity === 'error')) continue;
+    live += 1;
   }
 
-  return { total: rows.length, live, off, blocked: rows.length - live - off };
+  return {
+    total: rows.length,
+    live,
+    off,
+    unfinished,
+    blocked: rows.length - live - off - unfinished,
+  };
 }

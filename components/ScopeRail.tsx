@@ -46,8 +46,14 @@ export function ScopeRail({
   // The line under it names what is not going out — the old footer reported
   // "applying" and "off" and left every rule that was switched on and going
   // nowhere out of both figures.
+  // "Unfinished" is named here rather than shown on the rule itself. A rule
+  // created one click ago has an empty name because nothing has been typed
+  // into it yet, and marking that row red accuses the user of a mistake the
+  // product made. Saying it in the count keeps the state from going unsaid
+  // without putting a complaint on an untouched row.
   const subcount: string[] = [];
   if (tally.off > 0) subcount.push(`${tally.off} switched off`);
+  if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
   if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked`);
 
   return (

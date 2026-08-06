@@ -232,6 +232,42 @@ describe('RuleCard problems', () => {
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
 
+  it('shows no problem block for a rule that is merely unfinished', () => {
+    // The complaint this fixes: pressing "New rule" put a red "Header name is
+    // empty." on a row created one click ago. The empty field and its
+    // placeholder already say the rule is unfinished, and they say it without
+    // accusing anyone. The state is not lost — the rail counts it.
+    renderCard({ name: '' }, {
+      diagnostics: [diag({
+        kind: 'incomplete-header', severity: 'incomplete',
+        message: 'This rule has no name yet, so nothing is sent for it.',
+      })],
+    });
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+    expect(screen.getByTestId('rule').getAttribute('data-unfinished')).toBe('true');
+  });
+
+  it('still shows a real problem on a rule that is also unfinished', () => {
+    // Filtering by severity must remove the incomplete one and nothing else.
+    // A filter written as "drop everything when any diagnostic is incomplete"
+    // would silence a genuine error sitting on the same row.
+    renderCard({ name: '' }, {
+      diagnostics: [
+        diag({ kind: 'incomplete-header', severity: 'incomplete', message: 'unfinished' }),
+        diag({ severity: 'error', message: 'a real problem' }),
+      ],
+    });
+    const lines = screen.getAllByTestId('rule-problem');
+    expect(lines.map((l) => l.textContent)).toEqual(['!a real problem']);
+  });
+
+  it('marks a finished rule as finished, so the unfinished flag means something', () => {
+    // Without this, `data-unfinished` could be hardcoded and the assertion
+    // above would still pass.
+    renderCard({ name: 'X-Test' }, { diagnostics: [] });
+    expect(screen.getByTestId('rule').getAttribute('data-unfinished')).toBeNull();
+  });
+
   it('shows one line per diagnostic, in order, with its severity marked', () => {
     renderCard({}, {
       diagnostics: [

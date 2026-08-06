@@ -36,8 +36,33 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   const value = useCommittedDraft(rule.value, (next) => onPatch({ value: next }));
   const removes = rule.operation === 'remove';
 
+  /**
+   * An unfinished rule shows no problem block.
+   *
+   * Pressing "New rule" used to produce a red "Header name is empty." on a row
+   * created one click ago — the product manufacturing an invalid object and
+   * then telling the user off for it. The row is already self-evidently
+   * unfinished: its name field is empty and showing its placeholder, which is
+   * both the marker and the thing to do about it. A block repeating that in red
+   * adds nothing but alarm.
+   *
+   * Not hidden, though. The state is counted and named in the rail's readout,
+   * so it is still said out loud — going quiet everywhere would trade this
+   * defect for the silent failure the product exists to remove.
+   *
+   * Filtered on `severity`, so a future kind that is also "not finished" is
+   * covered without editing this line.
+   */
+  const problems = diagnostics.filter((d) => d.severity !== 'incomplete');
+  const unfinished = diagnostics.length !== problems.length;
+
   return (
-    <div className="hl-rule" data-testid="rule" data-off={!rule.enabled || undefined}>
+    <div
+      className="hl-rule"
+      data-testid="rule"
+      data-off={!rule.enabled || undefined}
+      data-unfinished={unfinished || undefined}
+    >
       <div className="hl-r1">
         <button
           role="switch"
@@ -108,7 +133,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
         )}
       </div>
 
-      {diagnostics.map((d, i) => (
+      {problems.map((d, i) => (
         <div
           key={`${d.kind}-${i}`}
           data-testid="rule-problem"
