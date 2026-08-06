@@ -169,6 +169,11 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // state to report on a host nothing is scoped to — so what has to stay
   // visible is its outline.
   ['not-in-use site dot ring — .hl-dom[data-state=idle] .hl-domstate', '--hl-ink-3', '--hl-rail'],
+  // The scope note's left edge is what separates the card from the rail. The
+  // `incomplete` one is neutral rather than amber — see the stylesheet — so it
+  // is the edge most at risk of being toned down until it stops dividing
+  // anything.
+  ['incomplete note edge — .hl-note[data-severity=incomplete]', '--hl-ink-3', '--hl-panel'],
 ];
 
 describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {

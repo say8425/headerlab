@@ -724,6 +724,17 @@ body {
     border-left-color: var(--hl-err);
 }
 
+/* `incomplete` is not a complaint. Nothing is wrong and nothing is at risk —
+   the configuration simply is not finished yet, which is the state a fresh
+   install opens in. Amber is this palette's "something needs you", and the
+   default edge would spend it on the one note that is asking for nothing:
+   the standing warning this state replaces, rebuilt in a different colour.
+   A neutral edge still separates the card from the rail, which is the only
+   job the border actually has here. */
+.hl-note[data-severity="incomplete"] {
+    border-left-color: var(--hl-ink-3);
+}
+
 .hl-note-err {
     border-left-color: var(--hl-err);
 }
