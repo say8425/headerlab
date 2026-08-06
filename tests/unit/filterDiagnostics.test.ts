@@ -85,28 +85,67 @@ describe('validateFilter', () => {
     // compile.ts suppresses the whole profile here, and `empty-filter` stays
     // quiet because one entry is valid — this diagnostic is what closes that
     // silence, so the exact message is part of the contract.
+    // Internal whitespace, not a pasted URL: a URL is normalized to its host
+    // now and is perfectly usable, so it can no longer stand for "unusable".
     const d = validateFilter(profileWith({
-      domains: ['api.example.com', 'https://staging.example.com'],
+      domains: ['api.example.com', 'a b.com'],
     }));
     expect(d).toEqual([{
       kind: 'invalid-domain',
       severity: 'error',
       profileId: 'p1',
       message:
-        'Unusable domain: "https://staging.example.com". ' +
-        'The whole profile is not applied until every domain in it is usable.',
+        'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
+        'No rule is applied until every site here is usable.',
     }]);
   });
 
   it('names every unusable entry, in the order the user wrote them', () => {
     const d = validateFilter(profileWith({
-      domains: ['https://staging.example.com', 'api.example.com', 'a b.com'],
+      domains: ['x y.net', 'api.example.com', 'a b.com'],
     }));
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
-      'Unusable domains: "https://staging.example.com", "a b.com". ' +
-      'The whole profile is not applied until every domain in it is usable.',
+      'Unusable sites: "x y.net", "a b.com". A site must be a bare hostname like example.com. ' +
+      'No rule is applied until every site here is usable.',
     );
+  });
+
+  it('says a pasted URL was trimmed to its host', () => {
+    // The owner's literal input. Normalizing without saying so would be a
+    // silent rewrite — the input typed is not the input that gets matched, and
+    // `port-ignored` set the precedent that such a change is announced.
+    const d = validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }));
+    expect(d).toEqual([{
+      kind: 'url-trimmed',
+      severity: 'warning',
+      profileId: 'p1',
+      message:
+        'Address trimmed to www.musinsa.com — Chrome matches requests by host, ' +
+        'so a scheme and path cannot narrow it.',
+    }]);
+  });
+
+  it('says nothing about a host that was already bare', () => {
+    // Otherwise every ordinary entry would carry a warning about a rewrite
+    // that never happened.
+    expect(validateFilter(profileWith({ domains: ['api.example.com'] }))).toEqual([]);
+  });
+
+  it('warns once per host when two addresses trim to the same one', () => {
+    // Deduped like the port warning: two paths on one site are one host, and
+    // one host is one thing to say.
+    const d = validateFilter(profileWith({
+      domains: ['https://example.com/a', 'https://example.com/b'],
+    }));
+    expect(d.filter((x) => x.kind === 'url-trimmed')).toHaveLength(1);
+  });
+
+  it('reports a trimmed URL that also carried a port as both', () => {
+    // The two normalizations are independent and both changed the input, so
+    // both are said. Neither may swallow the other.
+    const d = validateFilter(profileWith({ domains: ['https://example.com:8443/x'] }));
+    expect(d.map((x) => x.kind).sort()).toEqual(['port-ignored', 'url-trimmed']);
   });
 
   it('never raises invalid-domain and empty-filter together', () => {
@@ -143,15 +182,15 @@ describe('validateFilter', () => {
     // salvage, and in regex mode clearing the list is a real fix because the
     // pattern alone is a valid condition.
     const d = validateFilter(profileWith({
-      mode: 'regex', regex: '^https://', domains: ['a b.com', 'https://x.com'],
+      mode: 'regex', regex: '^https://', domains: ['a b.com', 'x y.net'],
     }));
     expect(d).toEqual([{
       kind: 'invalid-domain',
       severity: 'error',
       profileId: 'p1',
       message:
-        'No usable domain: "a b.com", "https://x.com". This profile is not applied. ' +
-        'Fix these, or clear the domain list so the regex alone decides what matches.',
+        'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com. ' +
+        'Nothing is applied while every site is unusable.',
     }]);
   });
 

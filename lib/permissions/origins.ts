@@ -26,11 +26,29 @@ const HOST_FORBIDDEN = /[\s/:?#@\\]/;
  */
 const TRAILING_PORT = /^(.+):(\d{1,5})$/;
 
+/**
+ * A leading URL scheme — the letters/digits/`+`/`-`/`.` RFC 3986 allows,
+ * followed by `://`.
+ *
+ * Anchored and explicit rather than delegating to `new URL()`. A bare host is
+ * the common input here and is not a URL at all: `new URL('example.com')`
+ * throws, and the usual workaround of prefixing a scheme makes the parser
+ * accept and silently rewrite things that are not hosts — `a b.com` comes back
+ * percent-encoded, which would turn an input this module is supposed to *call
+ * invalid* into a plausible-looking host that can never match.
+ */
+const LEADING_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//;
+
+/** Where a host stops and a path, query or fragment begins. */
+const PATH_START = /[/?#]/;
+
 export interface DomainAnalysis {
-  /** Normalized bare host: trimmed, lowercased, no leading `*.`/`.`, no port. */
+  /** Normalized bare host: trimmed, lowercased, no scheme, no path, no leading `*.`/`.`, no port. */
   host: string;
   /** The input carried a port and it was dropped. */
   portDropped: boolean;
+  /** The input was a URL — a scheme, a path, or both — and only the host was kept. */
+  urlTrimmed: boolean;
   /** The host can be used in a DNR condition and in a match pattern. */
   valid: boolean;
 }
@@ -45,6 +63,32 @@ export interface DomainAnalysis {
  */
 export function analyzeDomain(domain: string): DomainAnalysis {
   let d = domain.trim().toLowerCase();
+
+  // A pasted URL is normalized to its host, not rejected — the same decision
+  // the spike reached for ports, applied to the same table row. §4 measured
+  // `https://example.com` as a string DNR accepts into a rule that can never
+  // match *and* that makes `permissions.contains()` throw, which kills the
+  // whole audit call. Rejecting it instead would block the single most natural
+  // thing to do with a field labelled "add a site", and dropping it from a
+  // one-domain list would leave a rule with no condition that matches every
+  // site — the fail-open trap normalization exists to remove.
+  //
+  // Done before the port test so the scheme's own colon is gone by the time
+  // TRAILING_PORT runs; that regex still only accepts a trailing colon plus
+  // digits, so `https://example.com` was never mistaken for a port and still
+  // is not.
+  let urlTrimmed = false;
+  const withoutScheme = d.replace(LEADING_SCHEME, '');
+  if (withoutScheme !== d) {
+    d = withoutScheme;
+    urlTrimmed = true;
+  }
+  const pathAt = d.search(PATH_START);
+  if (pathAt !== -1) {
+    d = d.slice(0, pathAt);
+    urlTrimmed = true;
+  }
+
   if (d.startsWith('*.')) d = d.slice(2);
   if (d.startsWith('.')) d = d.slice(1);
 
@@ -61,7 +105,7 @@ export function analyzeDomain(domain: string): DomainAnalysis {
   if (d.endsWith('.')) d = d.slice(0, -1);
 
   const valid = d.length > 0 && ASCII_ONLY.test(d) && !HOST_FORBIDDEN.test(d);
-  return { host: d, portDropped, valid };
+  return { host: d, portDropped, urlTrimmed, valid };
 }
 
 /**

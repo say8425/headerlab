@@ -103,7 +103,7 @@ describe('App', () => {
     await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
 
     await seed(stateWith({ globalPause: true }));
-    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
+    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked while paused'));
   });
 
   it('stops counting rules as live when the rule set is suppressed', async () => {
@@ -112,10 +112,12 @@ describe('App', () => {
     // whole set, zero rules are registered. The diagnostic it earns has no
     // headerRuleId, so nothing reaches the cards and every rule looks healthy.
     const s = stateWith();
-    s.profiles[0]!.filter.domains = ['api.example.com', 'https://staging.example.com'];
+    s.profiles[0]!.filter.domains = ['api.example.com', 'a b.com'];
     await seed(s);
     render(<App />);
-    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
+    // "by an unusable site": the rules themselves are fine, so a bare
+    // "2 blocked" would point the user at the wrong object entirely.
+    await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked by an unusable site'));
   });
 
   it('stops counting rules as live when the stored rule set is switched off', async () => {
@@ -377,6 +379,58 @@ describe('editing scope', () => {
       expect((await stored()).profiles[0]!.filter.domains)
         .toEqual(['api.example.com', 'staging.acme.dev']),
     );
+  });
+
+  it('accepts a pasted URL, keeps the rules live, and says what it trimmed', async () => {
+    // The owner's exact input, end to end. Before this it produced a site chip
+    // wearing the green "working" dot, an error paragraph elsewhere, and
+    // `0 of 1 rules live · 1 blocked` — pointing at a rule that was fine.
+    // Every one of those four is asserted here, because fixing any one alone
+    // would leave the screen still contradicting itself.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = [];
+    s.profiles[0]!.headers = [{
+      id: 'h1', enabled: true, target: 'request', operation: 'set',
+      name: 'x-canary', value: '1',
+    }];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'www.musinsa.com', granted: true },
+    ]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(field, 'https://www.musinsa.com/{Enter}');
+
+    // The rule stays live: the site normalized to a usable host, so nothing is
+    // suppressed and nothing is blamed.
+    await waitFor(() => expect(readout()).toBe('1of 1 rules live'));
+    // The chip is a usable site, not a broken one.
+    expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted');
+    // And the rewrite is stated rather than done silently.
+    const notes = screen.getAllByTestId('scope-note').map((n) => n.textContent ?? '');
+    expect(notes.some((t) => /Address trimmed to www\.musinsa\.com/.test(t))).toBe(true);
+  });
+
+  it('stores what the user typed and normalizes on the way out, as it does for a port', async () => {
+    // Deliberately *not* rewriting the stored entry. `localhost:3000` has
+    // always been kept verbatim and turned into `localhost` at each use, so
+    // the chip keeps showing the line the user actually wrote and the
+    // diagnostics can quote it back to them. A paste follows the same rule;
+    // storing the derived host instead would silently edit their list.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = [];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(field, 'https://www.musinsa.com/{Enter}');
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains).toEqual(['https://www.musinsa.com/']),
+    );
+    // The host is what actually reaches the browser, though.
+    expect(screen.getByTestId('site').textContent).toContain('https://www.musinsa.com/');
   });
 
   it('removes the site whose × was clicked', async () => {

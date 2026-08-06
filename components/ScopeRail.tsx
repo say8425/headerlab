@@ -14,6 +14,13 @@ export interface ScopeRailProps {
   byHost: ReadonlyMap<string, Diagnostic[]>;
   /** Whole-screen problems that are about scope rather than any one rule. */
   notes: readonly Diagnostic[];
+  /**
+   * What is stopping the rules, when it is not the rules themselves.
+   *
+   * `null` means the blocked rules are individually broken and the count can
+   * speak for itself.
+   */
+  blockedBy: 'sites' | 'pause' | null;
   /** The real text of the last failed reconcile, from session storage. */
   lastError: string | null;
   resourceTypes: readonly ResourceType[];
@@ -37,7 +44,7 @@ export interface ScopeRailProps {
  * costs the rules nothing instead of shoving them down the screen.
  */
 export function ScopeRail({
-  tally, paused, onTogglePause, domains, byHost, notes, lastError,
+  tally, paused, onTogglePause, domains, byHost, notes, blockedBy, lastError,
   resourceTypes, onAddDomain, onRemoveDomain, onToggleType, onGrant,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
@@ -51,10 +58,19 @@ export function ScopeRail({
   // into it yet, and marking that row red accuses the user of a mistake the
   // product made. Saying it in the count keeps the state from going unsaid
   // without putting a complaint on an untouched row.
+  // "Blocked" on its own points at the rule, and the rule is often not what is
+  // wrong: an unusable site stops every rule while each one is perfectly good.
+  // Naming the cause is what keeps the count from blaming the wrong object.
+  const BLAMED = {
+    sites: ' by an unusable site',
+    pause: ' while paused',
+  } as const;
+  const blame = blockedBy === null ? '' : BLAMED[blockedBy];
+
   const subcount: string[] = [];
   if (tally.off > 0) subcount.push(`${tally.off} switched off`);
   if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
-  if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked`);
+  if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
 
   return (
     <aside className="hl-rail">
@@ -114,15 +130,22 @@ export function ScopeRail({
         <div className="hl-railhead">
           Sites <span className="hl-n">{domains.length > 0 ? domains.length : 'all'}</span>
         </div>
-        {domains.map((domain) => (
-          <SiteRow
-            key={domain}
-            domain={domain}
-            diagnostics={byHost.get(analyzeDomain(domain).host) ?? []}
-            onGrant={onGrant}
-            onRemove={() => onRemoveDomain(domain)}
-          />
-        ))}
+        {domains.map((domain) => {
+          // `analyzeDomain` is asked, never restated — it is the one definition
+          // of what a usable host is, and the same call already supplies the
+          // key this row's diagnostics are filed under.
+          const analysis = analyzeDomain(domain);
+          return (
+            <SiteRow
+              key={domain}
+              domain={domain}
+              usable={analysis.valid}
+              diagnostics={byHost.get(analysis.host) ?? []}
+              onGrant={onGrant}
+              onRemove={() => onRemoveDomain(domain)}
+            />
+          );
+        })}
         <AddSiteField onAdd={onAddDomain} />
       </div>
 

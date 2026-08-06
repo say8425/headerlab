@@ -107,7 +107,7 @@ describe('auditDiagnostics', () => {
     // nothing. The unusable entry is what the user has to fix, and
     // validateFilter is what says so.
     expect(auditDiagnostics(
-      [p('a', 'A', ['api.example.com', 'https://staging.example.com'])],
+      [p('a', 'A', ['api.example.com', 'a b.com'])],
       [{ domain: 'api.example.com', granted: false }],
     )).toEqual([]);
   });

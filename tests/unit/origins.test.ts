@@ -72,14 +72,17 @@ describe('originsForFilter', () => {
       .toEqual(['*://*.api.example.com/*']);
   });
 
-  it('drops an unusable entry rather than building a pattern that throws', () => {
-    // docs/research/2026-08-01-permission-audit-spike.md §3 measured
-    // `*://*.https://x.com/*` as THREW — Invalid port, and one throwing entry
-    // poisons the whole contains()/request() call it is passed to.
+  it('normalizes a pasted URL into a usable pattern instead of dropping it', () => {
+    // This entry used to be dropped. §3 measured `*://*.https://x.com/*` as
+    // THREW — Invalid port, and one throwing entry poisons the whole
+    // contains()/request() call it is passed to; §4 concluded the answer is to
+    // normalize rather than reject. Normalizing removes both hazards at once —
+    // the host reaches requiredOrigins as a pattern that actually matches, so
+    // there is nothing left to drop and nothing left to throw.
     expect(originsForFilter({
       ...base,
-      domains: ['api.example.com', 'https://staging.example.com'],
-    })).toEqual(['*://*.api.example.com/*']);
+      domains: ['api.example.com', 'https://staging.example.com/admin'],
+    })).toEqual(['*://*.api.example.com/*', '*://*.staging.example.com/*']);
   });
 
   it('drops an entry with internal whitespace too', () => {
@@ -91,7 +94,9 @@ describe('originsForFilter', () => {
   });
 
   it('falls back to <all_urls> when no entry is usable', () => {
-    expect(originsForFilter({ ...base, domains: ['https://staging.example.com'] }))
+    // Internal whitespace, which normalization cannot rescue — there is no
+    // reading of `a b.com` that names one host.
+    expect(originsForFilter({ ...base, domains: ['a b.com'] }))
       .toEqual(['<all_urls>']);
   });
 });
@@ -101,6 +106,7 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('localhost:3000')).toEqual({
       host: 'localhost',
       portDropped: true,
+      urlTrimmed: false,
       valid: true,
     });
   });
@@ -109,6 +115,7 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('api.example.com')).toEqual({
       host: 'api.example.com',
       portDropped: false,
+      urlTrimmed: false,
       valid: true,
     });
   });
@@ -128,21 +135,60 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('example.com.:8080').host).toBe('example.com');
   });
 
-  it('does not mistake a version-like suffix for a port', () => {
-    // Only a trailing :digits is a port. An embedded scheme ends in letters.
+  it('does not mistake a scheme\'s own colon for a port', () => {
+    // Only a trailing :digits is a port, and the scheme is stripped before
+    // that test runs — so neither half can see the other's colon. Both
+    // directions are pinned: a scheme alone drops no port, and a scheme with a
+    // real port still drops the port.
     expect(analyzeDomain('https://example.com').portDropped).toBe(false);
+    expect(analyzeDomain('https://example.com:8443')).toMatchObject({
+      host: 'example.com', portDropped: true, urlTrimmed: true, valid: true,
+    });
   });
 
-  it('rejects an embedded scheme — permissions.contains() throws on it', () => {
-    expect(analyzeDomain('https://example.com').valid).toBe(false);
+  it('normalizes a pasted URL to its host rather than rejecting it', () => {
+    // The exact string the owner pasted. Rejecting it would block the single
+    // most natural thing to do with a field labelled "add a site", and §4
+    // settled that question for ports already: normalize, then say so.
+    expect(analyzeDomain('https://www.musinsa.com/')).toEqual({
+      host: 'www.musinsa.com',
+      portDropped: false,
+      urlTrimmed: true,
+      valid: true,
+    });
+  });
+
+  it('normalizes any scheme, not just https', () => {
+    // The scheme pattern is RFC 3986's, so it is not an https special case.
+    expect(analyzeDomain('http://example.com/x').host).toBe('example.com');
+    expect(analyzeDomain('ws://example.com').host).toBe('example.com');
   });
 
   it('rejects internal whitespace — DNR registers it and it never matches', () => {
     expect(analyzeDomain('a b.com').valid).toBe(false);
   });
 
-  it('rejects a path segment', () => {
-    expect(analyzeDomain('example.com/api').valid).toBe(false);
+  it('strips a path even with no scheme in front of it', () => {
+    // A host with a path but no scheme is the other half of a pasted address,
+    // and it reaches the same host.
+    expect(analyzeDomain('example.com/api')).toMatchObject({
+      host: 'example.com', urlTrimmed: true, valid: true,
+    });
+  });
+
+  it('strips a query and a fragment too', () => {
+    // All three delimiters end the host. Without the query case, `?` would
+    // survive into a pattern HOST_FORBIDDEN then rejects, turning a paste into
+    // an unusable entry for a reason the user cannot see.
+    expect(analyzeDomain('example.com/a?b=1').host).toBe('example.com');
+    expect(analyzeDomain('example.com#frag').host).toBe('example.com');
+  });
+
+  it('reports nothing trimmed for a host that was already bare', () => {
+    // Otherwise the popup would announce a rewrite that never happened, on
+    // every ordinary entry.
+    expect(analyzeDomain('example.com').urlTrimmed).toBe(false);
+    expect(analyzeDomain('localhost:3000').urlTrimmed).toBe(false);
   });
 
   it('rejects an empty host', () => {
@@ -158,6 +204,7 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('127.0.0.1')).toEqual({
       host: '127.0.0.1',
       portDropped: false,
+      urlTrimmed: false,
       valid: true,
     });
   });

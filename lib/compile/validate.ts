@@ -125,7 +125,14 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: `"${name}" is set more than once in this profile.`,
+        // No "profile" here either: the UI shows one implicit rule set and no
+        // profiles, so the word named something the reader cannot see.
+        //
+        // Deliberately does not say *which* of the two wins. Both are emitted
+        // into one action's header list and Chrome's resolution between them
+        // is not something this project has measured; naming a winner would be
+        // a claim the code cannot back.
+        message: `"${name}" is set more than once — only one of them can take effect.`,
       });
     }
     seen.add(key);

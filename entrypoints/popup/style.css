@@ -371,7 +371,7 @@ body {
 /* A site awaiting permission keeps its identity and gains a step. It is not
    moved into a separate error region — the thing to act on is the thing just
    typed. */
-.hl-dom[data-pending] {
+.hl-dom[data-state="pending"] {
     background: var(--hl-pend-bg);
     border-color: var(--hl-pend-edge);
     flex-wrap: wrap;
@@ -379,9 +379,23 @@ body {
     padding-bottom: 7px;
 }
 
-.hl-dom[data-pending] .hl-domstate {
+.hl-dom[data-state="pending"] .hl-domstate {
     background: var(--hl-pend);
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-pend) 22%, transparent);
+}
+
+/* A site that cannot be used at all. It used to render the same green dot as a
+   granted, working one while the explanation sat in a paragraph elsewhere —
+   one symbol meaning two opposite things, and the broken object the only one
+   on screen not admitting it. */
+.hl-dom[data-state="unusable"] {
+    background: var(--hl-err-bg);
+    border-color: color-mix(in srgb, var(--hl-err) 45%, transparent);
+}
+
+.hl-dom[data-state="unusable"] .hl-domstate {
+    background: var(--hl-err);
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
 }
 
 /* `min-width: 0` is defence in depth rather than the thing doing the work: the

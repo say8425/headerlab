@@ -3,6 +3,11 @@ import type { Diagnostic } from '@/lib/model/types';
 export interface SiteRowProps {
   /** The domain as the user typed it, port and all. */
   domain: string;
+  /**
+   * Whether this domain can be used at all — `analyzeDomain(...).valid`, asked
+   * of the one module that decides it rather than restated here.
+   */
+  usable: boolean;
   /** Whatever is wrong with this site's access, already matched to its host. */
   diagnostics: readonly Diagnostic[];
   onGrant: (host: string) => void;
@@ -24,11 +29,21 @@ export interface SiteRowProps {
  * `domain` may carry a port that no match pattern can express — the diagnostic
  * is the only party that already knows which host was probed.
  */
-export function SiteRow({ domain, diagnostics, onGrant, onRemove }: SiteRowProps) {
-  const pending = diagnostics.length > 0;
+export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: SiteRowProps) {
+  /**
+   * One symbol, one meaning.
+   *
+   * A domain that cannot be used used to render the same green dot as one that
+   * is granted and working, while the explanation sat in a paragraph somewhere
+   * else — so the object holding the bad value was the one object on screen
+   * not admitting to it. That is the opposite of what this layout is for: a
+   * domain and its state are the same thing here, so the state belongs on the
+   * row.
+   */
+  const state = !usable ? 'unusable' : diagnostics.length > 0 ? 'pending' : 'granted';
 
   return (
-    <div className="hl-dom" data-testid="site" data-pending={pending || undefined}>
+    <div className="hl-dom" data-testid="site" data-state={state}>
       <span className="hl-domstate" aria-hidden="true" />
       <span className="hl-domhost">{domain}</span>
       <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>×</button>

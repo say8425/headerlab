@@ -147,6 +147,13 @@ export default function App() {
   const live = active.enabled && !state.globalPause && !isSuppressed(active);
   const tally = ruleTally(active.headers, routed.byRow, { live });
 
+  // Why the rules are held, when it is not the rules' own fault. A count
+  // reading "1 blocked" beside a perfectly good rule points the user at the
+  // wrong object; suppression is caused by a site, and a pause by the switch
+  // above. Suppression is asked first because it outranks the pause: fixing
+  // the pause would still leave nothing applied.
+  const blockedBy = isSuppressed(active) ? 'sites' : state.globalPause ? 'pause' : null;
+
   // Take the caret only when there is nothing else on screen to look at: one
   // rule, and it has no name yet. Anything more and the popup would be
   // grabbing focus from someone who opened it to read rather than to edit.
@@ -162,6 +169,7 @@ export default function App() {
         domains={active.filter.domains}
         byHost={routed.byHost}
         notes={routed.scope}
+        blockedBy={blockedBy}
         lastError={lastError}
         resourceTypes={active.filter.resourceTypes}
         onAddDomain={(domain) =>

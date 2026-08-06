@@ -24,6 +24,7 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     domains: [],
     byHost: new Map(),
     notes: [],
+    blockedBy: null,
     lastError: null,
     resourceTypes: ['xmlhttprequest', 'main_frame'],
     onAddDomain: vi.fn(),
@@ -65,6 +66,25 @@ describe('the readout', () => {
   it('names only blocked when nothing is switched off', () => {
     renderRail({ tally: { total: 3, live: 1, off: 0, unfinished: 0, blocked: 2 } });
     expect(screen.getByTestId('readout').textContent).toBe('1of 3 rules live2 blocked');
+  });
+
+  it('says what is holding the rules when it is not the rules themselves', () => {
+    // "1 blocked" beside a perfectly good rule points the user at the wrong
+    // object. An unusable site stops every rule while each one is fine, and a
+    // pause does the same — so the count names the cause instead of implying
+    // the rule is at fault. All three renderings are pinned together, because
+    // an implementation that ignored the prop would still pass any one alone.
+    const tally = { total: 2, live: 1, off: 0, unfinished: 0, blocked: 1 };
+    const { rerender } = renderRail({ tally, blockedBy: 'sites' });
+    expect(screen.getByTestId('readout').textContent)
+      .toBe('1of 2 rules live1 blocked by an unusable site');
+
+    rerender(<ScopeRail {...props({ tally, blockedBy: 'pause' })} />);
+    expect(screen.getByTestId('readout').textContent)
+      .toBe('1of 2 rules live1 blocked while paused');
+
+    rerender(<ScopeRail {...props({ tally, blockedBy: null })} />);
+    expect(screen.getByTestId('readout').textContent).toBe('1of 2 rules live1 blocked');
   });
 
   it('names unfinished rules, so a row left quiet is still said out loud', () => {
@@ -137,10 +157,36 @@ describe('sites', () => {
       byHost: new Map([['pending.example.com', [permission('pending.example.com')]]]),
     });
     const [granted, pending] = screen.getAllByTestId('site');
-    expect(granted!.getAttribute('data-pending')).toBeNull();
-    expect(pending!.getAttribute('data-pending')).toBe('true');
+    expect(granted!.getAttribute('data-state')).toBe('granted');
+    expect(pending!.getAttribute('data-state')).toBe('pending');
     expect(within(granted!).queryByRole('button', { name: 'Grant' })).toBeNull();
     expect(within(pending!).getByRole('button', { name: 'Grant' })).toBeTruthy();
+  });
+
+  it('marks an unusable site as broken rather than showing it the granted dot', () => {
+    // The defect: a site that cannot be used rendered the same green dot as a
+    // granted, working one, while the explanation sat in a paragraph
+    // elsewhere. One symbol meant two opposite things and the object holding
+    // the bad value was the only one on screen not admitting to it.
+    //
+    // The good row is in the fixture too, so "shows broken" cannot pass by
+    // marking everything.
+    renderRail({ domains: ['api.example.com', 'a b.com'] });
+    const [good, bad] = screen.getAllByTestId('site');
+    expect(good!.getAttribute('data-state')).toBe('granted');
+    expect(bad!.getAttribute('data-state')).toBe('unusable');
+  });
+
+  it('offers no Grant on an unusable site — permission is not what is wrong with it', () => {
+    renderRail({ domains: ['a b.com'] });
+    expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('treats a pasted URL as a usable site, because it normalizes to one', () => {
+    // The owner's actual input. It must not wear the broken state: after
+    // normalization `www.musinsa.com` is a perfectly good host.
+    renderRail({ domains: ['https://www.musinsa.com/'] });
+    expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted');
   });
 
   it('grants the host the diagnostic names, not the domain text that carries a port', async () => {
