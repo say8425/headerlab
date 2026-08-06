@@ -4,8 +4,15 @@ import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 export interface RulePanelProps {
   rules: readonly HeaderRule[];
   byRow: ReadonlyMap<string, Diagnostic[]>;
-  /** A fresh install, still on its untouched starter rule. */
-  firstRun: boolean;
+  /**
+   * Put the caret in the first rule's name on mount.
+   *
+   * Named for what it does rather than for when it happens. Its predecessor
+   * was called `firstRun` and was not: it meant "exactly one rule and it is
+   * empty", which is also true for someone who has used the product for a week
+   * and deleted everything but one blank row.
+   */
+  autoFocusFirstRule: boolean;
   onPatchRule: (ruleId: string, patch: Partial<HeaderRule>) => void;
   onDeleteRule: (ruleId: string) => void;
   onAddRule: () => void;
@@ -25,7 +32,7 @@ export interface RulePanelProps {
  * would spend a header on something already legible from the row.
  */
 export function RulePanel({
-  rules, byRow, firstRun, onPatchRule, onDeleteRule, onAddRule,
+  rules, byRow, autoFocusFirstRule, onPatchRule, onDeleteRule, onAddRule,
 }: RulePanelProps) {
   return (
     <section className="hl-panel">
@@ -35,19 +42,12 @@ export function RulePanel({
       </div>
 
       <div className="hl-stack">
-        {firstRun && (
-          <p className="hl-frhint">
-            One rule is already started. Give it a name and a value and it goes out on the
-            next request — <b>you do not have to set anything up first</b>.
-          </p>
-        )}
-
         {rules.map((rule, index) => (
           <RuleCard
             key={rule.id}
             rule={rule}
             diagnostics={byRow.get(rule.id) ?? []}
-            autoFocus={firstRun && index === 0}
+            autoFocus={autoFocusFirstRule && index === 0}
             onPatch={(patch) => onPatchRule(rule.id, patch)}
             onDelete={() => onDeleteRule(rule.id)}
           />

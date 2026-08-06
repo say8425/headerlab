@@ -147,11 +147,11 @@ export default function App() {
   const live = active.enabled && !state.globalPause && !isSuppressed(active);
   const tally = ruleTally(active.headers, routed.byRow, { live });
 
-  // A fresh install, still sitting on its untouched starter rule. It stops
-  // being true the moment anything is typed, which is when the hint has
-  // finished being useful.
+  // Take the caret only when there is nothing else on screen to look at: one
+  // rule, and it has no name yet. Anything more and the popup would be
+  // grabbing focus from someone who opened it to read rather than to edit.
   const only = active.headers.length === 1 ? active.headers[0] : undefined;
-  const firstRun = only !== undefined && only.name === '' && only.value === '';
+  const autoFocusFirstRule = only !== undefined && only.name === '';
 
   return (
     <div className="hl-pop">
@@ -207,7 +207,7 @@ export default function App() {
       <RulePanel
         rules={active.headers}
         byRow={routed.byRow}
-        firstRun={firstRun}
+        autoFocusFirstRule={autoFocusFirstRule}
         onPatchRule={patchRule}
         onDeleteRule={(ruleId) =>
           patchProfile((p) => ({ ...p, headers: p.headers.filter((h) => h.id !== ruleId) }))

@@ -21,7 +21,7 @@ function props(over: Partial<RulePanelProps> = {}): RulePanelProps {
   return {
     rules: [rule()],
     byRow: new Map(),
-    firstRun: false,
+    autoFocusFirstRule: false,
     onPatchRule: vi.fn(),
     onDeleteRule: vi.fn(),
     onAddRule: vi.fn(),
@@ -110,28 +110,29 @@ describe('RulePanel', () => {
   });
 });
 
-describe('RulePanel on a fresh install', () => {
-  it('says the starter rule is already started and nothing needs setting up first', () => {
-    renderPanel({ rules: [rule({ id: 'a', name: '', value: '' })], firstRun: true });
-    expect(screen.getByText(/you do not have to set anything up first/)).toBeTruthy();
-  });
-
-  it('puts the caret in the starter rule, so a header can be typed immediately', () => {
-    // The stated failure this replaces: a fresh install opened on a "Create
+describe('RulePanel focus', () => {
+  it('puts the caret in the first rule when asked, so a header can be typed immediately', () => {
+    // The stated failure this replaces: an install opened on a "Create
     // profile" button with nothing to type into.
-    renderPanel({ rules: [rule({ id: 'a', name: '', value: '' })], firstRun: true });
+    renderPanel({ rules: [rule({ id: 'a', name: '', value: '' })], autoFocusFirstRule: true });
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Header name' }));
   });
 
-  it('drops the hint once the install is no longer fresh', () => {
-    renderPanel({ rules: [rule()], firstRun: false });
-    expect(screen.queryByText(/you do not have to set anything up first/)).toBeNull();
-  });
-
-  it('leaves focus alone once the install is no longer fresh', () => {
+  it('leaves focus alone when not asked', () => {
     // Stealing focus on every open would fight a user who opened the popup to
     // read it rather than to edit it.
-    renderPanel({ rules: [rule()], firstRun: false });
+    renderPanel({ rules: [rule()], autoFocusFirstRule: false });
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it('takes the caret only for the first rule, never a later one', () => {
+    // `autoFocus` is passed per card, so an implementation that handed it to
+    // every card would leave focus on whichever mounted last.
+    renderPanel({
+      rules: [rule({ id: 'a', name: '' }), rule({ id: 'b', name: 'Second' })],
+      autoFocusFirstRule: true,
+    });
+    const names = screen.getAllByRole('textbox', { name: 'Header name' });
+    expect(document.activeElement).toBe(names[0]);
   });
 });

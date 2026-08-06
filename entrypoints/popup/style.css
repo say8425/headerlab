@@ -578,17 +578,6 @@ body {
     padding: 9px 12px 12px;
 }
 
-.hl-frhint {
-    margin: 0 0 10px;
-    font: 400 12px/1.55 var(--hl-sans);
-    color: var(--hl-ink-2);
-}
-
-.hl-frhint b {
-    color: var(--hl-ink);
-    font-weight: 600;
-}
-
 /* ---- a rule: two tiers, so the value gets real width ---- */
 
 .hl-rule {
