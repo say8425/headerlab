@@ -205,9 +205,19 @@ describe('App', () => {
     // `waitFor` here risks succeeding on its first, pre-flush check.
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const problems = screen.getAllByTestId('site-problem').map((l) => l.textContent ?? '');
-    expect(problems.some((t) => /new-host\.example\.com/.test(t))).toBe(true);
-    expect(problems.some((t) => /api\.example\.com/.test(t))).toBe(false);
+    // Read off the site rows rather than a message: a routine permission
+    // prompt no longer spends a sentence saying what a Grant button beside a
+    // hostname already says. The claim is unchanged — the diagnostics that
+    // landed describe the domain current when the prompt resolved, not the one
+    // captured when Grant was clicked — only its visible form moved.
+    const rows = screen.getAllByTestId('site');
+    expect(rows.map((r) => r.textContent ?? '').some((t) => /new-host\.example\.com/.test(t)))
+      .toBe(true);
+    expect(rows.map((r) => r.textContent ?? '').some((t) => /api\.example\.com/.test(t)))
+      .toBe(false);
+    // And it is the *pending* state that proves the recomputed audit reached
+    // the row — a row rendered from state alone would look granted.
+    expect(rows[0]!.getAttribute('data-state')).toBe('pending');
   });
 
   it('writes the pause switch through to storage', async () => {

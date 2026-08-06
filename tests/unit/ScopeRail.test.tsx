@@ -206,6 +206,74 @@ describe('sites', () => {
     expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted');
   });
 
+  it('spends no prose on a pending site — the dot and the button are the message', () => {
+    // The complaint: four lines of "HeaderLab needs permission for X. The rule
+    // is registered but will not apply until you grant it." per pending site,
+    // two of which filled a 196px rail. For this reader a Grant button beside a
+    // hostname already carries it. What must stay visible is the state and the
+    // remedy; the *why* is one `?` away.
+    renderRail({
+      domains: ['api.example.com'],
+      byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
+    });
+    const row = screen.getByTestId('site');
+    expect(within(row).queryAllByTestId('site-problem')).toEqual([]);
+    expect(row.textContent).not.toMatch(/needs permission/);
+    // …but the state and the action are still on screen, unhidden.
+    expect(row.getAttribute('data-state')).toBe('pending');
+    expect(within(row).getByRole('button', { name: 'Grant' })).toBeTruthy();
+  });
+
+  it('puts the reason behind that row\'s own ?, named for the site it is about', async () => {
+    renderRail({
+      domains: ['api.example.com'],
+      byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
+    });
+    // Absent until asked — the point of moving it.
+    expect(screen.queryByTestId('help-bubble')).toBeNull();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Why api.example.com needs permission' }),
+    );
+    expect(screen.getByTestId('help-bubble').textContent).toBe(
+      'Chrome asks for each site separately. '
+      + 'Until you grant it, rules for this site are registered but never applied.',
+    );
+  });
+
+  it('still speaks in words for a site problem that is not a permission prompt', () => {
+    // The line: a routine step gets the compact treatment, a genuine failure
+    // stays visible in words. Without this the compaction would swallow the
+    // things that actually need reading.
+    renderRail({
+      domains: ['api.example.com'],
+      byHost: new Map([[
+        'api.example.com',
+        [diag({ kind: 'invalid-domain', severity: 'error', host: 'api.example.com', message: 'unusable' })],
+      ]]),
+    });
+    expect(screen.getByTestId('site-problem').textContent).toBe('unusable');
+  });
+
+  it('keeps a real failure spoken even while a permission prompt sits on the same row', () => {
+    // Filtering out the permission diagnostic must remove exactly that one. A
+    // filter written as "say nothing once anything is pending" would silence
+    // the failure sharing the row.
+    renderRail({
+      domains: ['api.example.com'],
+      byHost: new Map([[
+        'api.example.com',
+        [
+          permission('api.example.com'),
+          diag({ severity: 'error', host: 'api.example.com', message: 'something else is wrong' }),
+        ],
+      ]]),
+    });
+    expect(screen.getAllByTestId('site-problem').map((n) => n.textContent))
+      .toEqual(['something else is wrong']);
+    expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy();
+  });
+
   it('grants the host the diagnostic names, not the domain text that carries a port', async () => {
     // `localhost:3000` is what the user typed; `localhost` is what Chrome can
     // actually be asked for, and the diagnostic is the party that already knows
@@ -337,8 +405,12 @@ describe('adding a site', () => {
     expect(screen.queryByTestId('help-bubble')).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'About matching sites' }));
-    expect(screen.getByTestId('help-bubble').textContent)
-      .toBe('Chrome matches requests by host, so a port or a path cannot narrow a site.');
+    // Worked pairs first, then the rule they demonstrate — a developer
+    // pattern-matches the transformation faster than a sentence describing it.
+    expect(screen.getByTestId('help-bubble').textContent).toBe(
+      'https://x.com/a/b→x.comlocalhost:3000→localhost'
+      + 'Matched by host — a port or path is dropped.',
+    );
   });
 
   it('adds nothing for whitespace alone', async () => {

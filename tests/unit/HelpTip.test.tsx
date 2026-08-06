@@ -82,4 +82,34 @@ describe('HelpTip', () => {
     await userEvent.keyboard('{Escape}');
     expect(mark().getAttribute('aria-describedby')).toBeNull();
   });
+
+  it('shows worked pairs above the sentence, when the fact has any', async () => {
+    // "Show rather than explain": the transformation is the answer to the
+    // reader's actual question, so it comes first and the rule follows it.
+    render(
+      <HelpTip
+        label="About matching sites"
+        examples={[['https://x.com/a/b', 'x.com'], ['localhost:3000', 'localhost']]}
+        text="Matched by host — a port or path is dropped."
+      />,
+    );
+    await userEvent.tab();
+    const codes = [...bubble()!.querySelectorAll('code')].map((c) => c.textContent);
+    expect(codes).toEqual(['https://x.com/a/b', 'x.com', 'localhost:3000', 'localhost']);
+    // Order matters: examples, then the rule they demonstrate.
+    expect(bubble()!.textContent).toBe(
+      'https://x.com/a/b→x.comlocalhost:3000→localhost'
+      + 'Matched by host — a port or path is dropped.',
+    );
+  });
+
+  it('shows no examples block for a fact with nothing to demonstrate', async () => {
+    // Not every fact has a worked form — the permission tip has none — and an
+    // empty row of arrows would be worse than none. `renderTip` passes no
+    // examples, so the bubble should be the sentence and nothing else.
+    renderTip();
+    await userEvent.tab();
+    expect(bubble()!.querySelectorAll('code')).toHaveLength(0);
+    expect(bubble()!.textContent).toBe('Chrome matches by host.');
+  });
 });

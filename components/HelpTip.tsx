@@ -3,6 +3,15 @@ import { useId, useState } from 'react';
 export interface HelpTipProps {
   /** The accessible name of the `?` itself — what help this offers. */
   label: string;
+  /**
+   * Input → result pairs, shown above the sentence.
+   *
+   * The reader is a developer, and their real question is "what happens to
+   * what I paste". Two examples answer that faster than any description of
+   * the rule, so where a fact has a worked form it is shown before it is
+   * stated. Facts with nothing to demonstrate simply omit this.
+   */
+  examples?: ReadonlyArray<readonly [string, string]>;
   /** The explanation. One sentence; this is an aside, not documentation. */
   text: string;
 }
@@ -26,7 +35,7 @@ export interface HelpTipProps {
  * Deliberately not a tooltip *system*. There is one `?` in this popup; when a
  * second earns its place, that is the moment to generalise the placement.
  */
-export function HelpTip({ label, text }: HelpTipProps) {
+export function HelpTip({ label, examples, text }: HelpTipProps) {
   const [open, setOpen] = useState(false);
   const id = useId();
 
@@ -50,7 +59,18 @@ export function HelpTip({ label, text }: HelpTipProps) {
       </button>
       {open && (
         <span className="hl-helpbubble" role="tooltip" id={id} data-testid="help-bubble">
-          {text}
+          {examples !== undefined && (
+            <span className="hl-helpex">
+              {examples.map(([from, to]) => (
+                <span key={from} className="hl-helprow">
+                  <code>{from}</code>
+                  <span aria-hidden="true">→</span>
+                  <code>{to}</code>
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="hl-helpsay">{text}</span>
         </span>
       )}
     </span>

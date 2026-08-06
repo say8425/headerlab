@@ -136,9 +136,16 @@ export function ScopeRail({
               have narrowed anything, because `requestDomains` is host-only.
               Behind a `?` rather than standing under the field — it is worth
               knowing once, not worth 196px of permanent rail. */}
+          {/* Shown before it is stated. The reader's real question is "what
+              happens to what I paste", and two worked pairs answer that faster
+              than the rule they demonstrate. */}
           <HelpTip
             label="About matching sites"
-            text="Chrome matches requests by host, so a port or a path cannot narrow a site."
+            examples={[
+              ['https://x.com/a/b', 'x.com'],
+              ['localhost:3000', 'localhost'],
+            ]}
+            text="Matched by host — a port or path is dropped."
           />
         </div>
         {domains.map((stored) => {
