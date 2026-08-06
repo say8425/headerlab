@@ -53,12 +53,12 @@ export function filterToCondition(
   //
   // One side effect of normalizing here: a port-bearing exclusion (e.g.
   // "localhost:3000") silently widens from one port to the whole host,
-  // same as normalizeDomain does for the include side. There is no
-  // diagnostic for it — validateFilter's port-ignored only ever analyzes
-  // filter.domains, not filter.excludedDomains — but this is safe by the
-  // same reasoning as above: the string could never have matched a real
-  // request host with the colon in it, and the change only narrows what
-  // gets rewritten.
+  // same as normalizeDomain does for the include side. Nothing says so —
+  // the popup shows the *include* list as its effective hosts, so that side
+  // needs no words, but there is no exclusion editor to show this one in.
+  // Safe by the same reasoning as above: the string could never have matched
+  // a real request host with the colon in it, and the change only narrows
+  // what gets rewritten.
   const excluded = [
     ...new Set(filter.excludedDomains.filter(isValidDomain).map(normalizeDomain)),
   ];

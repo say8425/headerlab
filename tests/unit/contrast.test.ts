@@ -110,7 +110,6 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the panel: fields, buttons and the surfaces they sit on ---
   ['header name and value text — .hl-hname / .hl-hval', '--hl-ink', '--hl-panel'],
   ['operation button label — .hl-op', '--hl-ink-2', '--hl-panel'],
-  ['first-run hint — .hl-frhint', '--hl-ink-2', '--hl-panel'],
   ['field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule', '--hl-ink-3', '--hl-panel'],
   ['header name over the card behind it — .hl-hname on .hl-rule', '--hl-ink', '--hl-card'],
   ['New rule button — .hl-newbtn', '--hl-panel', '--hl-ink'],
@@ -133,6 +132,8 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['pending-permission message — .hl-needtext', '--hl-pend', '--hl-pend-bg'],
   ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
   ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
+  ['add-site help text — .hl-fieldhelp', '--hl-ink-3', '--hl-rail'],
+  ['"already in the list" note — .hl-fieldnote', '--hl-pend', '--hl-rail'],
   ['scope note body — .hl-note', '--hl-ink', '--hl-panel'],
   ['reconcile failure heading — .hl-note-err b', '--hl-err', '--hl-panel'],
 ];

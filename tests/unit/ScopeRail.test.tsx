@@ -411,8 +411,8 @@ describe('scope notes', () => {
   it('puts its notes above the request-type checklist, where they cannot be scrolled past', () => {
     // The rail scrolls. With two sites awaiting permission the real diagnostic
     // copy is tall enough that anything below the checklist falls past 600px —
-    // measured on the built popup, where the port-ignored note landed roughly
-    // 37px out of sight. A warning you have to go looking for is the failure
+    // measured on the built popup, where a scope note landed roughly 37px out
+    // of sight. A warning you have to go looking for is the failure
     // this layout exists to remove, and the checklist is the least-touched
     // control on screen, so it is the part that can afford to be scrolled to.
     renderRail({
