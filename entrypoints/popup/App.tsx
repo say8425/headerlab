@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScopeRail } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
-import { isSuppressed } from '@/lib/compile/suppression';
+import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
 import { effectiveDomain } from '@/lib/permissions/origins';
-import { probeGrants, requestHost } from '@/lib/permissions/probe';
+import { probeAllSites, probeGrants, requestAllSites, requestHost } from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
 import { createProfile } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
@@ -47,6 +47,11 @@ function bootstrapProfile(): Profile {
 export default function App() {
   const { state, valid, patch } = useAppState();
   const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
+  // `null` until the probe answers. The switch must not show "needs
+  // permission" for the instant before the browser has been asked — a badge
+  // that appears and withdraws itself on every open is one people learn to
+  // ignore, which costs more than the moment of blankness does.
+  const [allSitesGranted, setAllSitesGranted] = useState<boolean | null>(null);
   const [status, setStatus] = useState<{ lastError: string | null; iconError: string | null }>(
     { lastError: null, iconError: null },
   );
@@ -132,6 +137,26 @@ export default function App() {
     return () => { cancelled = true; };
   }, [state]);
 
+  /**
+   * `<all_urls>`, probed on its own.
+   *
+   * It cannot ride `probeGrants`: that walks a six-rung ladder of match
+   * patterns built from a host, and `<all_urls>` is not a host — there is no
+   * narrower grant that could satisfy it and no broader one to fall back to.
+   *
+   * Probed even when the mode is off, and deliberately: the answer is what a
+   * later toggle-on needs in order to know whether to prompt, and asking for
+   * it costs one `permissions.contains()` call against a value the browser
+   * already holds.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    probeAllSites()
+      .then((granted) => { if (!cancelled) setAllSitesGranted(granted); })
+      .catch(() => { if (!cancelled) setAllSitesGranted(false); });
+    return () => { cancelled = true; };
+  }, [state]);
+
   useEffect(() => {
     getSyncStatus()
       .then((s) => setStatus({ lastError: s.lastError, iconError: s.iconError }))
@@ -191,10 +216,21 @@ export default function App() {
 
   // Why the rules are held, when it is not the rules' own fault. A count
   // reading "1 blocked" beside a perfectly good rule points the user at the
-  // wrong object; suppression is caused by a site, and a pause by the switch
-  // above. Suppression is asked first because it outranks the pause: fixing
-  // the pause would still leave nothing applied.
-  const blockedBy = isSuppressed(active) ? 'sites' : state.globalPause ? 'pause' : null;
+  // wrong object; suppression is caused by the scope, and a pause by the
+  // switch above. Suppression is asked first because it outranks the pause:
+  // fixing the pause would still leave nothing applied.
+  //
+  // Which *kind* of suppression comes from `suppressionReason`, never from
+  // re-reading the filter here — the popup restating the compiler's decision
+  // is how the aliveness predicate diverged four ways before
+  // (lib/compile/suppression.ts). The two read very differently and must not
+  // be swapped: "by an unusable site" sends the reader hunting for a broken
+  // entry, which in the empty case does not exist.
+  const REASON_BLAME = { 'unusable-site': 'sites', 'no-scope': 'scope' } as const;
+  const reason = suppressionReason(active);
+  const blockedBy = reason !== null
+    ? REASON_BLAME[reason]
+    : state.globalPause ? 'pause' : null;
 
   // Take the caret only when there is nothing else on screen to look at: one
   // rule, and it has no name yet. Anything more and the popup would be
@@ -214,6 +250,33 @@ export default function App() {
         blockedBy={blockedBy}
         lastError={status.lastError}
         iconError={status.iconError}
+        allSites={active.filter.allSites}
+        allSitesGranted={allSitesGranted}
+        onToggleAllSites={async (next) => {
+          // Written before the prompt, not after it. The mode is the user's
+          // decision and the grant is the browser's answer to a separate
+          // question — tying the switch to the outcome would let a declined
+          // prompt swallow a choice the user plainly made, leaving a control
+          // that visibly does nothing when clicked. Turning it on and showing
+          // the access as missing keeps both facts on screen, and it is the
+          // same state a migrated store arrives in, so there is one state to
+          // recover from rather than two.
+          patchProfile((p) => ({ ...p, filter: { ...p.filter, allSites: next } }));
+          if (!next) return;
+
+          // Asked here, in the click, because `permissions.request()` needs a
+          // user gesture and because this is the moment the cost is being
+          // chosen. Skipped when it is already held: `request()` would resolve
+          // true without a prompt, but probing first keeps the common re-toggle
+          // from depending on that.
+          if (allSitesGranted === true) return;
+          const granted = await requestAllSites();
+          if (mountedRef.current) setAllSitesGranted(granted);
+        }}
+        onGrantAllSites={async () => {
+          const granted = await requestAllSites();
+          if (mountedRef.current) setAllSitesGranted(granted);
+        }}
         resourceTypes={active.filter.resourceTypes}
         onAddDomain={(typed) => {
           // Normalized here, at the moment it is committed, so what is stored

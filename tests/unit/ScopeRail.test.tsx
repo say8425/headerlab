@@ -27,6 +27,14 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     blockedBy: null,
     lastError: null,
     iconError: null,
+    // Off and granted by default: the states this change introduces have to be
+    // opted into by the tests that are about them, so an assertion written for
+    // the ordinary scoped rail cannot pass by accidentally landing in
+    // all-sites mode.
+    allSites: false,
+    allSitesGranted: true,
+    onToggleAllSites: vi.fn(),
+    onGrantAllSites: vi.fn(),
     resourceTypes: ['xmlhttprequest', 'main_frame'],
     onAddDomain: vi.fn(() => ({ added: true as const })),
     onRemoveDomain: vi.fn(),
@@ -88,6 +96,22 @@ describe('the readout', () => {
     expect(screen.getByTestId('readout').textContent).toBe('1of 2 rules live1 blocked');
   });
 
+  it('distinguishes having no scope from having a broken one', () => {
+    // Two states that both stop every rule and call for opposite actions.
+    // "by an unusable site" sends the reader hunting through the list for a
+    // broken entry — which, when nothing has been added yet, does not exist.
+    // Pinned against the unusable wording in the same test so the two cannot
+    // quietly converge on one string.
+    const tally = { total: 2, live: 0, off: 0, unfinished: 0, blocked: 2 };
+    const { rerender } = renderRail({ tally, blockedBy: 'scope' });
+    expect(screen.getByTestId('readout').textContent)
+      .toBe('0of 2 rules live2 blocked until a site is set');
+
+    rerender(<ScopeRail {...props({ tally, blockedBy: 'sites' })} />);
+    expect(screen.getByTestId('readout').textContent)
+      .toBe('0of 2 rules live2 blocked by an unusable site');
+  });
+
   it('names unfinished rules, so a row left quiet is still said out loud', () => {
     // The rail is where "unfinished" gets said. The rule itself shows no
     // problem block — an empty name on a row created one click ago is not a
@@ -116,23 +140,47 @@ describe('the master switch', () => {
     expect(screen.getByTestId('runstate').textContent).toBe('Paused');
   });
 
+  // Queried by accessible name, not by role alone: the rail carries two
+  // switches now, and `getByRole('switch')` would throw on the ambiguity —
+  // or, worse, a later single-switch refactor would silently point these at
+  // whichever one happened to remain.
+  const pauseSwitch = () =>
+    screen.getByRole('switch', { name: /^(Pause|Resume) all rules$/ });
+
   it('mirrors the run state on the switch itself, not only in the word beside it', () => {
     const { rerender } = renderRail({ paused: false });
-    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true');
+    expect(pauseSwitch().getAttribute('aria-checked')).toBe('true');
     rerender(<ScopeRail {...props({ paused: true })} />);
-    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    expect(pauseSwitch().getAttribute('aria-checked')).toBe('false');
   });
 
   it('pauses from running and resumes from paused', async () => {
     // Both directions, so a handler that always sends `true` cannot pass.
     const onTogglePause = vi.fn();
     const { rerender } = renderRail({ paused: false, onTogglePause });
-    await userEvent.click(screen.getByRole('switch'));
+    await userEvent.click(pauseSwitch());
     expect(onTogglePause).toHaveBeenLastCalledWith(true);
 
     rerender(<ScopeRail {...props({ paused: true, onTogglePause })} />);
-    await userEvent.click(screen.getByRole('switch'));
+    await userEvent.click(pauseSwitch());
     expect(onTogglePause).toHaveBeenLastCalledWith(false);
+  });
+
+  it('does not drive the all-sites switch, and is not driven by it', async () => {
+    // Two switches in one column, a few pixels apart, and each would look
+    // plausible wired to the other's handler. Both directions of both
+    // controls, so no single crossed wire survives.
+    const onTogglePause = vi.fn();
+    const onToggleAllSites = vi.fn();
+    renderRail({ paused: false, allSites: false, onTogglePause, onToggleAllSites });
+
+    await userEvent.click(pauseSwitch());
+    expect(onTogglePause).toHaveBeenCalledTimes(1);
+    expect(onToggleAllSites).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Apply to every site' }));
+    expect(onToggleAllSites).toHaveBeenCalledTimes(1);
+    expect(onTogglePause).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -146,10 +194,30 @@ describe('sites', () => {
     expect(screen.getByTestId('site-count').textContent).toBe('2');
   });
 
-  it('says the scope is every site when no domain is set', () => {
-    renderRail({ domains: [] });
-    expect(screen.getByTestId('site-count').textContent).toBe('all');
+  it('counts an empty list as none, not as every site', () => {
+    // The heading used to read `all` here, because an empty list was the only
+    // spelling of "everywhere". It now says what it has: nothing. Reading
+    // `all` in this state is the summary agreeing with a claim the extension
+    // no longer makes.
+    renderRail({ allSites: false, domains: [] });
+    expect(screen.getByTestId('site-count').textContent).toBe('0');
     expect(screen.queryAllByTestId('site')).toEqual([]);
+  });
+
+  it('says the scope is every site only when all-sites is on', () => {
+    // Both readings of the same empty list, side by side, so the count cannot
+    // be satisfied by a component that ignores the mode.
+    const { rerender } = renderRail({ allSites: true, domains: [] });
+    expect(screen.getByTestId('site-count').textContent).toBe('all');
+    rerender(<ScopeRail {...props({ allSites: false, domains: [] })} />);
+    expect(screen.getByTestId('site-count').textContent).toBe('0');
+  });
+
+  it('still says every site when all-sites is on over a list that has entries', () => {
+    // The list is stored but not compiled, so counting its entries here would
+    // report a scope narrower than the one actually registered.
+    renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
+    expect(screen.getByTestId('site-count').textContent).toBe('all');
   });
 
   it('marks only the site that is waiting on permission', () => {
@@ -287,6 +355,134 @@ describe('sites', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove b.example.com' }));
     expect(onRemoveDomain).toHaveBeenCalledTimes(1);
     expect(onRemoveDomain).toHaveBeenCalledWith('b.example.com');
+  });
+});
+
+describe('the all-sites switch', () => {
+  const allSitesSwitch = () => screen.getByRole('switch', { name: 'Apply to every site' });
+
+  it('mirrors the mode on the switch itself', () => {
+    const { rerender } = renderRail({ allSites: false });
+    expect(allSitesSwitch().getAttribute('aria-checked')).toBe('false');
+    rerender(<ScopeRail {...props({ allSites: true })} />);
+    expect(allSitesSwitch().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('turns on from off and off from on', async () => {
+    // Both directions, so a handler that always sends `true` cannot pass. The
+    // owner asked to be able to turn this off again, and a switch that only
+    // goes one way is the defect that request is about.
+    const onToggleAllSites = vi.fn();
+    const { rerender } = renderRail({ allSites: false, onToggleAllSites });
+    await userEvent.click(allSitesSwitch());
+    expect(onToggleAllSites).toHaveBeenLastCalledWith(true);
+
+    rerender(<ScopeRail {...props({ allSites: true, onToggleAllSites })} />);
+    await userEvent.click(allSitesSwitch());
+    expect(onToggleAllSites).toHaveBeenLastCalledWith(false);
+  });
+
+  it('offers Grant when the mode is on and access is not, and not once it is', () => {
+    // The migrated store and the declined prompt both land here. Asserted in
+    // both directions: a rail that always rendered Grant would pass the first
+    // half alone.
+    const { rerender } = renderRail({ allSites: true, allSitesGranted: false });
+    expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBe('no');
+    expect(within(screen.getByTestId('all-sites')).getByRole('button', { name: 'Grant' }))
+      .toBeTruthy();
+
+    rerender(<ScopeRail {...props({ allSites: true, allSitesGranted: true })} />);
+    expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('says nothing about access while the probe is still out', () => {
+    // `null` is not `false`. A switch that flashes "needs permission" for the
+    // instant before the browser has been asked teaches people to disregard
+    // the badge, which costs more than the blank moment does.
+    renderRail({ allSites: true, allSitesGranted: null });
+    expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('offers no Grant for access it is not using — the mode is off', () => {
+    // `<all_urls>` ungranted matters only to a mode that needs it. A Grant
+    // button on a switched-off control would ask for the broadest permission
+    // the browser has, for nothing.
+    renderRail({ allSites: false, allSitesGranted: false });
+    expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('asks for access without turning the mode off', async () => {
+    const onGrantAllSites = vi.fn();
+    const onToggleAllSites = vi.fn();
+    renderRail({ allSites: true, allSitesGranted: false, onGrantAllSites, onToggleAllSites });
+    await userEvent.click(screen.getByRole('button', { name: 'Grant' }));
+    expect(onGrantAllSites).toHaveBeenCalledTimes(1);
+    // The Grant button sits inside the switch's own bar, a few pixels from it.
+    expect(onToggleAllSites).not.toHaveBeenCalled();
+  });
+});
+
+describe('the site list while all-sites is on', () => {
+  it('keeps the stored sites on screen and says they are not in use', () => {
+    // Hiding them would make turning the mode off look like it had discarded
+    // the user's scope, and leave nothing to say what turning it back off
+    // returns to.
+    renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
+    expect(screen.getAllByTestId('site').map((s) => s.textContent))
+      .toEqual(['api.example.com×', 'x.com×']);
+    expect(screen.getByTestId('sites-idle').textContent)
+      .toBe('Not in use while All sites is on.');
+  });
+
+  it('says that only when there is a list to say it about', () => {
+    // With no entries there is nothing sitting idle, and a note explaining the
+    // state of an empty list is a line that describes nothing.
+    renderRail({ allSites: true, domains: [] });
+    expect(screen.queryByTestId('sites-idle')).toBeNull();
+  });
+
+  it('says nothing of the sort while the list is the thing in use', () => {
+    renderRail({ allSites: false, domains: ['api.example.com'] });
+    expect(screen.queryByTestId('sites-idle')).toBeNull();
+  });
+
+  it('stops claiming access is granted for a host nothing is scoped to', () => {
+    // The green dot means "Access granted", and while all-sites is on nothing
+    // probes these hosts at all — so the row would be reporting a permission
+    // state no call established. Both modes are asserted, because a row stuck
+    // on `idle` would pass either half alone.
+    const { rerender } = renderRail({ allSites: true, domains: ['api.example.com'] });
+    const dot = () => within(screen.getByTestId('site')).getByRole('img');
+    expect(screen.getByTestId('site').getAttribute('data-state')).toBe('idle');
+    expect(dot().getAttribute('aria-label')).toBe('Not in use');
+
+    rerender(<ScopeRail {...props({ allSites: false, domains: ['api.example.com'] })} />);
+    expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted');
+    expect(dot().getAttribute('aria-label')).toBe('Access granted');
+  });
+
+  it('still marks an unusable entry as broken, because it still is', () => {
+    // It is doing no harm yet and it is what will suppress every rule the
+    // moment the switch goes back off. Reading as merely "not in use" until
+    // then would spring the failure on the user at the exact moment they
+    // narrowed their scope and expected it to start working.
+    renderRail({ allSites: true, domains: ['a b.com', 'ok.example.com'] });
+    expect(screen.getAllByTestId('site').map((s) => s.getAttribute('data-state')))
+      .toEqual(['unusable', 'idle']);
+  });
+
+  it('offers no Grant on an idle row — its access is not what is being used', () => {
+    // The permission diagnostic is in the fixture on purpose; without it the
+    // row has no Grant whatever its state and this would assert nothing.
+    renderRail({
+      allSites: true,
+      domains: ['api.example.com'],
+      byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
+    });
+    expect(within(screen.getByTestId('site')).queryByRole('button', { name: 'Grant' }))
+      .toBeNull();
   });
 });
 

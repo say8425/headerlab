@@ -11,6 +11,15 @@ export interface SiteRowProps {
    * of the one module that decides it rather than restated here.
    */
   usable: boolean;
+  /**
+   * All-sites is on, so this entry is stored but not compiled.
+   *
+   * It has to change what the row *says*, not merely how it looks. Access for
+   * a host nothing is scoped to is neither granted nor pending — it is not
+   * being asked, so the green dot would be claiming something no probe has
+   * established.
+   */
+  inert: boolean;
   /** Whatever is wrong with this site's access, already matched to its host. */
   diagnostics: readonly Diagnostic[];
   onGrant: (host: string) => void;
@@ -37,9 +46,10 @@ const STATE_LABEL = {
   granted: 'Access granted',
   pending: 'Awaiting permission',
   unusable: 'Unusable site',
+  idle: 'Not in use',
 } as const;
 
-export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: SiteRowProps) {
+export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
    * One symbol, one meaning.
    *
@@ -50,7 +60,18 @@ export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: Site
    * domain and its state are the same thing here, so the state belongs on the
    * row.
    */
-  const state = !usable ? 'unusable' : diagnostics.length > 0 ? 'pending' : 'granted';
+  /**
+   * Unusable outranks inert. An entry that cannot be used is still wrong while
+   * all-sites is on — it is simply not doing any harm *yet*, and it is what
+   * will suppress every rule the moment the switch goes back off. Hiding that
+   * until then would spring the failure on the user at the exact moment they
+   * narrowed their scope and expected it to start working.
+   */
+  const state = !usable
+    ? 'unusable'
+    : inert
+      ? 'idle'
+      : diagnostics.length > 0 ? 'pending' : 'granted';
 
   /**
    * The permission this row is waiting on, if any.
@@ -86,7 +107,7 @@ export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: Site
           Never on an unusable row: granting a host that cannot be used changes
           nothing, so the button would be an action that looks like the remedy
           and is not. */}
-      {awaitingGrant !== undefined && state !== 'unusable' && (
+      {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' && (
         <span className="hl-need" data-testid="site-pending">
           <button className="hl-grant" onClick={() => onGrant(awaitingGrant.host!)}>Grant</button>
         </span>

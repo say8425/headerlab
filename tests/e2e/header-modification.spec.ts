@@ -31,9 +31,9 @@ test('a configured set rule reaches the wire', async ({ context, serviceWorker }
     // item's version alongside it at `state$`; seed both so the versioned item
     // is not read as un-versioned. See the troubleshooting note below if the
     // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   }, {
-    version: 1,
+    version: 2,
     globalPause: false,
     theme: 'system',
     profiles: [{
@@ -44,6 +44,7 @@ test('a configured set rule reaches the wire', async ({ context, serviceWorker }
       order: 0,
       filter: {
         mode: 'structured',
+        allSites: false,
         domains: ['127.0.0.1'],
         excludedDomains: [],
         // Explicit: the DNR default excludes main_frame, which page.goto() is.
@@ -88,15 +89,15 @@ test('a remove rule strips a header the page would otherwise send', async ({
     // item's version alongside it at `state$`; seed both so the versioned item
     // is not read as un-versioned. See the troubleshooting note below if the
     // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   }, {
-    version: 1,
+    version: 2,
     globalPause: false,
     theme: 'system',
     profiles: [{
       id: 'p1', name: 'E2E', color: 'green', enabled: true, order: 0,
       filter: {
-        mode: 'structured', domains: ['127.0.0.1'], excludedDomains: [],
+        mode: 'structured', allSites: false, domains: ['127.0.0.1'], excludedDomains: [],
         resourceTypes: ['xmlhttprequest'],
       },
       tabLock: { enabled: false, tabId: null, tabTitle: null },
@@ -139,13 +140,13 @@ test('a remove rule strips a header the page would otherwise send', async ({
 test('the popup renders its rules from stored state', async ({ context, extensionId, serviceWorker }) => {
   await serviceWorker.evaluate(async () => {
     const state = {
-      version: 1,
+      version: 2,
       globalPause: false,
       theme: 'system',
       profiles: [{
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
-          mode: 'structured', domains: ['api.example.com'],
+          mode: 'structured', allSites: false, domains: ['api.example.com'],
           excludedDomains: [], resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
@@ -156,7 +157,7 @@ test('the popup renders its rules from stored state', async ({ context, extensio
     };
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
     // version in a companion key.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
 
   const page = await context.newPage();
@@ -197,13 +198,14 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
   // either; a real engine can.
   await serviceWorker.evaluate(async () => {
     const state = {
-      version: 1,
+      version: 2,
       globalPause: false,
       theme: 'system',
       profiles: [{
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
           mode: 'structured',
+          allSites: false,
           // A long host with a port, so the rail's site row and its
           // permission message both have to wrap — the rail is 224px and its
           // rows are the narrowest thing on screen. **No hyphens**: browsers
@@ -227,7 +229,7 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
         ],
       }],
     };
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
 
   const page = await context.newPage();

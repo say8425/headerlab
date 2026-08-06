@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { compile } from '@/lib/compile/compile';
 import { migrateToV2 } from '@/lib/model/migrate';
 import { parseAppState } from '@/lib/model/schema';
@@ -182,5 +182,80 @@ describe('upgrading a v1 store', () => {
     // "Saved rules could not be read" over rules that are perfectly fine.
     expect(() => parseAppState(v1State({ domains: [] }))).toThrow();
     expect(() => parseAppState(migrateToV2(v1State({ domains: [] })))).not.toThrow();
+  });
+});
+
+/**
+ * The wiring, which every test above takes on trust.
+ *
+ * A perfect `migrateToV2` that `stateItem` never calls leaves real users
+ * exactly as broken as no migration at all — their store still fails
+ * validation and the popup still refuses to read it. Nothing above would
+ * notice, because they all call the transform by hand.
+ *
+ * WXT builds the migration promise inside `defineItem`, which runs **once at
+ * module evaluation**. Seeding storage after `state.ts` has been imported is
+ * therefore too late — the read has already happened against an empty store.
+ * `resetModules()` before both imports is what puts the seed in front of it:
+ * everything imported afterwards shares one fresh module graph, so the
+ * fake-browser that gets the seeded bytes is the same one `storage` reads.
+ */
+describe('the migration WXT actually runs', () => {
+  it('upgrades a v1 store on read, without being called by hand', async () => {
+    vi.resetModules();
+    const { fakeBrowser } = await import('wxt/testing/fake-browser');
+    fakeBrowser.reset();
+    await fakeBrowser.storage.local.set({
+      state: v1State({ domains: [] }),
+      state$: { v: 1 },
+    });
+
+    const { getState } = await import('@/lib/storage/state');
+    const loaded = await getState();
+
+    // Not `DEFAULT_STATE`. Without the migration the stored bytes fail
+    // validation and `getState` falls back — which has the same empty-profile
+    // shape a fresh install does, so asserting only `allSites` would let the
+    // fallback masquerade as a successful upgrade.
+    expect(loaded.profiles).toHaveLength(1);
+    expect(loaded.profiles[0]?.id).toBe('p1');
+    expect(loaded.profiles[0]?.filter.allSites).toBe(true);
+    expect(loaded.profiles[0]?.headers).toHaveLength(1);
+  });
+
+  it('writes the upgrade back, so the next read is not a second migration', async () => {
+    vi.resetModules();
+    const { fakeBrowser } = await import('wxt/testing/fake-browser');
+    fakeBrowser.reset();
+    await fakeBrowser.storage.local.set({
+      state: v1State({ domains: [] }),
+      state$: { v: 1 },
+    });
+
+    const { getState } = await import('@/lib/storage/state');
+    await getState();
+
+    const after = await fakeBrowser.storage.local.get(['state', 'state$']);
+    expect((after.state$ as { v: number }).v).toBe(2);
+    expect((after.state as { profiles: Array<{ filter: { allSites: boolean } }> })
+      .profiles[0]?.filter.allSites).toBe(true);
+  });
+
+  it('leaves a store already at the current version alone', async () => {
+    // A migration that ran unconditionally would re-derive `allSites` from the
+    // domain list on every read — quietly overwriting the user's own choice
+    // the moment they turned the mode on over an empty list, which is the
+    // ordinary way to use it.
+    vi.resetModules();
+    const { fakeBrowser } = await import('wxt/testing/fake-browser');
+    fakeBrowser.reset();
+    const current = {
+      ...v1State({ allSites: false, domains: [] }),
+      version: 2,
+    };
+    await fakeBrowser.storage.local.set({ state: current, state$: { v: 2 } });
+
+    const { getState } = await import('@/lib/storage/state');
+    expect((await getState()).profiles[0]?.filter.allSites).toBe(false);
   });
 });

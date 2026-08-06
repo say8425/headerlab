@@ -141,6 +141,17 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['section counts and unchecked type labels — .hl-n / .hl-ty', '--hl-ink-3', '--hl-rail'],
   ['"Active" — .hl-pauselab', '--hl-live', '--hl-live-bg'],
   ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--hl-ink-2', '--hl-panel'],
+  // The all-sites switch wears three surfaces, one per state, and each paints
+  // its own label. The ungranted one is the pair nothing else on screen used:
+  // every other amber element is `--hl-ink` on the amber fill, and this is the
+  // amber ink on it.
+  ['"All sites", off — .hl-allsiteslab', '--hl-ink-2', '--hl-panel'],
+  ['"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab', '--hl-live', '--hl-live-bg'],
+  ['"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab', '--hl-pend', '--hl-pend-bg'],
+  // The site list while all-sites is on: the row drops its own fill, so both
+  // its text and the calm note under it are painted straight onto the rail.
+  ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--hl-ink-3', '--hl-rail'],
+  ['"Not in use" note — .hl-fieldnote-calm', '--hl-ink-3', '--hl-rail'],
   ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
   ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
   ['the ? mark — .hl-helpmark', '--hl-ink-3', '--hl-rail'],
@@ -154,6 +165,10 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--hl-off-track', '--hl-card'],
   ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--hl-off-track', '--hl-rail'],
   ['unchecked type box — .hl-tybox on the rail', '--hl-off-track', '--hl-rail'],
+  // The idle row's dot is a hollow ring rather than a fill — there is no access
+  // state to report on a host nothing is scoped to — so what has to stay
+  // visible is its outline.
+  ['not-in-use site dot ring — .hl-dom[data-state=idle] .hl-domstate', '--hl-ink-3', '--hl-rail'],
 ];
 
 describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {

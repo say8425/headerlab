@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/entrypoints/popup/App';
@@ -9,7 +9,7 @@ import * as probe from '@/lib/permissions/probe';
 import type { AppState, Profile } from '@/lib/model/types';
 
 function seed(state: AppState) {
-  return fakeBrowser.storage.local.set({ state, state$: { v: 1 } });
+  return fakeBrowser.storage.local.set({ state, state$: { v: 2 } });
 }
 
 function stored(): Promise<AppState> {
@@ -19,7 +19,7 @@ function stored(): Promise<AppState> {
 function stateWith(over: Partial<AppState> = {}): AppState {
   const p = createProfile('Local', 0);
   return {
-    version: 1,
+    version: 2,
     globalPause: false,
     theme: 'system',
     profiles: [{
@@ -41,6 +41,11 @@ beforeEach(() => {
   fakeBrowser.reset();
   // permissions.* are throwing stubs in fake-browser; the popup probes on mount.
   vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'api.example.com', granted: true }]);
+  // The all-sites probe is a second, independent mount-time call. Answered
+  // `true` by default so the fixtures above — which are all scoped, with the
+  // mode off — never render an all-sites Grant button that the existing
+  // `{ name: 'Grant' }` queries would then find beside the host ones.
+  vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -317,7 +322,7 @@ describe('a store that fails validation', () => {
     // popup that merely looks right while the store is being overwritten
     // underneath is exactly the failure this is about.
     const before = unreadable();
-    await fakeBrowser.storage.local.set({ state: before, state$: { v: 1 } });
+    await fakeBrowser.storage.local.set({ state: before, state$: { v: 2 } });
     render(<App />);
     await screen.findByTestId('unreadable-store');
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -327,7 +332,7 @@ describe('a store that fails validation', () => {
   });
 
   it('says so on screen, not only to a console in a window that has closed', async () => {
-    await fakeBrowser.storage.local.set({ state: unreadable(), state$: { v: 1 } });
+    await fakeBrowser.storage.local.set({ state: unreadable(), state$: { v: 2 } });
     render(<App />);
 
     const shown = await screen.findByTestId('unreadable-store');
@@ -764,5 +769,175 @@ describe('editing rules', () => {
     // A patch that rebuilt the list from the rendered cards would quietly
     // rewrite the other rule too.
     expect((await stored()).profiles[0]!.headers[1]!.name).toBe('X-B');
+  });
+});
+
+describe('all-sites mode', () => {
+  const allSitesSwitch = () => screen.getByRole('switch', { name: 'Apply to every site' });
+
+  /** Renders on a scoped store and waits for the popup to be interactive. */
+  async function openOn(over: Partial<Profile> = {}) {
+    const s = stateWith();
+    s.profiles[0] = { ...s.profiles[0]!, ...over };
+    await seed(s);
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+  }
+
+  it('asks for <all_urls> at the moment the mode is switched on', async () => {
+    // The cost of the mode, charged when it is chosen. Letting the switch flip
+    // and asking later — or not at all — is how rules end up registered and
+    // silently inert, which is the failure this extension exists to rule out.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
+    const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
+    await openOn();
+
+    await userEvent.click(allSitesSwitch());
+
+    expect(requestAllSites).toHaveBeenCalledTimes(1);
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
+    );
+  });
+
+  it('asks for nothing when the mode is switched off', async () => {
+    // Turning it off needs no permission, and prompting on the way out would
+    // ask for the broadest grant there is at the exact moment the user said
+    // they wanted less.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
+    const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
+    const p = createProfile('Local', 0);
+    await openOn({ filter: { ...p.filter, allSites: true, domains: ['api.example.com'] } });
+
+    await userEvent.click(allSitesSwitch());
+
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(false),
+    );
+    expect(requestAllSites).not.toHaveBeenCalled();
+  });
+
+  it('keeps the mode on when the prompt is declined, and offers Grant instead', async () => {
+    // The switch records the user's decision; the browser's answer is a
+    // separate fact. Tying them together would make a declined prompt swallow
+    // a choice plainly made, leaving a control that visibly does nothing.
+    // Both facts stay on screen, and the way back is a button rather than
+    // toggling off and on to re-trigger the prompt.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
+    vi.spyOn(probe, 'requestAllSites').mockResolvedValue(false);
+    await openOn();
+
+    await userEvent.click(allSitesSwitch());
+
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
+    );
+    const bar = await screen.findByTestId('all-sites');
+    expect(bar.getAttribute('data-granted')).toBe('no');
+    expect(within(bar).getByRole('button', { name: 'Grant' })).toBeTruthy();
+  });
+
+  it('clears the Grant once the access is given', async () => {
+    // The recovery path, end to end: the migrated and the declined store both
+    // arrive here, and a Grant button that never goes away is a badge nobody
+    // can satisfy.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
+    const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
+    const p = createProfile('Local', 0);
+    await openOn({ filter: { ...p.filter, allSites: true, domains: [] } });
+
+    const bar = await screen.findByTestId('all-sites');
+    await waitFor(() => expect(bar.getAttribute('data-granted')).toBe('no'));
+    await userEvent.click(within(bar).getByRole('button', { name: 'Grant' }));
+
+    expect(requestAllSites).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(bar.getAttribute('data-granted')).toBeNull());
+    expect(within(bar).queryByRole('button', { name: 'Grant' })).toBeNull();
+  });
+
+  it('does not prompt again for access it already holds', async () => {
+    // `request()` would resolve true without showing anything, but a popup
+    // that calls it on every toggle is one Chrome release away from prompting
+    // on every toggle.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
+    const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
+    await openOn();
+
+    // The mount probe has to have landed first, or the handler reads `null`
+    // and asks — which is correct behaviour for "not known yet" and would make
+    // this assert the opposite of what it names.
+    await waitFor(() =>
+      expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull(),
+    );
+    await userEvent.click(allSitesSwitch());
+
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
+    );
+    expect(requestAllSites).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stored sites through a round trip of the switch', async () => {
+    // The reversibility the whole design rests on. If turning the mode on
+    // cleared the list, turning it off would drop the user into the no-scope
+    // state with their work gone — and nothing on screen would have warned
+    // them that was the trade.
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
+    vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
+    await openOn();
+
+    await userEvent.click(allSitesSwitch());
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
+    );
+    expect((await stored()).profiles[0]!.filter.domains).toEqual(['api.example.com']);
+
+    await userEvent.click(allSitesSwitch());
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.allSites).toBe(false),
+    );
+    expect((await stored()).profiles[0]!.filter.domains).toEqual(['api.example.com']);
+  });
+
+  it('reads each of the four scope states differently in the rail', async () => {
+    // The states the owner will judge this by, asserted as the readout text
+    // the rail actually shows. Two of them stop every rule and must not say
+    // the same thing about why.
+    const p = createProfile('Local', 0);
+    const open = async (filter: Partial<typeof p.filter>) => {
+      const s = stateWith();
+      s.profiles[0] = { ...s.profiles[0]!, filter: { ...p.filter, ...filter } };
+      await seed(s);
+      render(<App />);
+      await screen.findByDisplayValue('X-A');
+    };
+
+    // off + none: inert, and said without alarm.
+    await open({ allSites: false, domains: [] });
+    expect(readout()).toBe('0of 2 rules live2 blocked until a site is set');
+    expect(screen.getByTestId('site-count').textContent).toBe('0');
+    expect(screen.getByTestId('scope-note').getAttribute('data-severity')).toBe('incomplete');
+    expect(screen.getByTestId('scope-note').textContent)
+      .toBe('No site set yet, so nothing is being applied. Add a site above, or turn on All sites.');
+    cleanup();
+
+    // off + some: ordinary scoped operation, nothing to report.
+    await open({ allSites: false, domains: ['api.example.com'] });
+    expect(readout()).toBe('2of 2 rules live');
+    expect(screen.getByTestId('site-count').textContent).toBe('1');
+    expect(screen.queryAllByTestId('scope-note')).toEqual([]);
+    cleanup();
+
+    // on: everywhere, by choice, and equally quiet.
+    await open({ allSites: true, domains: [] });
+    expect(readout()).toBe('2of 2 rules live');
+    expect(screen.getByTestId('site-count').textContent).toBe('all');
+    expect(screen.queryAllByTestId('scope-note')).toEqual([]);
+    cleanup();
+
+    // off + unusable: the one that is genuinely wrong, and still an error.
+    await open({ allSites: false, domains: ['a b.com'] });
+    expect(readout()).toBe('0of 2 rules live2 blocked by an unusable site');
+    expect(screen.getByTestId('scope-note').getAttribute('data-severity')).toBe('error');
   });
 });

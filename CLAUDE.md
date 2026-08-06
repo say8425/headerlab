@@ -101,7 +101,16 @@ looping would reduce `example.com:80:90` to a plausible-looking host.
 **WXT specifics.** Storage via `#imports`, not `wxt/storage`. Keys carry an area prefix
 (`local:`, `session:`). `public/` is copied to the output root. Output directories are
 mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding storage
-must also seed the companion version key: `{ state, state$: { v: 1 } }`.
+must also seed the companion version key at the **current** `STATE_VERSION`:
+`{ state, state$: { v: 2 } }`.
+
+**Migrations run once, at module evaluation — not per read.** WXT builds the migration
+promise inside `defineItem`, and every `getValue()` awaits that one promise. A value
+written to `local:state` *after* `lib/storage/state.ts` was imported is therefore never
+migrated, which is why a fixture planting an old shape has to plant the matching version
+too rather than relying on the migration to fix it. Testing the migration itself needs
+`vi.resetModules()` before importing both fake-browser and `state.ts`, so the seed lands
+in front of the read — `tests/unit/migrate.test.ts` does this.
 
 ## No silent failures
 
@@ -112,6 +121,17 @@ because a filter with no domain condition matches *every site* — and that supp
 must reach the screen. Fail-open is asymmetric here: headers skip per row, domains
 suppress the whole profile.
 
+**Applying everywhere is a mode, not an empty list.** `filter.domains: []` used to mean
+both "not scoped yet" and "deliberately everywhere", and the standing warning about it
+existed only because the code could not tell those apart. `filter.allSites` names the
+second one, so the first can mean what it looks like: nothing applies, stated calmly
+(`no-scope`, severity `incomplete`) rather than warned about. All-sites keeps the stored
+site list and compiles none of it, so the switch is reversible — which means **what the
+list holds and what scopes the rule are no longer the same thing.** Ask `scopingHosts`,
+never `filter.domains`; the conflict detector read the list directly and would have
+judged an all-sites profile narrow. The mode costs `<all_urls>`, requested in the click
+that turns it on.
+
 **Never show something the user cannot reach.** Storage holding state the UI cannot
 display must not go on modifying headers. Equally, do not write over a user's stored
 bytes to make the UI simpler: a store that fails validation is never compiled, so
@@ -119,8 +139,10 @@ there is nothing to neutralise and nothing to justify an unprompted overwrite.
 
 **One predicate, one definition.** The most expensive defect in this repo's history was
 "is this profile alive" implemented four times and then diverging. `isSuppressed` lives
-once in `lib/compile/suppression.ts` — call it, never restate it. `HEADER_TOKEN` and the
-profile colour list are the same lesson.
+once in `lib/compile/suppression.ts` — call it, never restate it, and when you need to
+know *why* a profile is suppressed ask `suppressionReason` rather than re-reading the
+fields: the rail and the diagnostics both word themselves from it. `HEADER_TOKEN`,
+`scopingHosts` and the profile colour list are the same lesson.
 
 ## Testing
 

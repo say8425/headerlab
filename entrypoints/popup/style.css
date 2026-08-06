@@ -359,6 +359,57 @@ body {
 
 /* ---- sites: the row IS the permission control ---- */
 
+/* The all-sites switch. Shaped like the pause bar above it rather than like a
+   site row below it, because that is what it is: a mode switch that decides
+   what the rows underneath mean. Giving it a chip in the list would put the
+   control that overrides the list inside the list — the same conflation that
+   let an empty list stand for "everywhere" in the first place.
+
+   Off is the resting state and stays quiet: a neutral surface, no colour, no
+   claim. Colour arrives only once the mode is on, because that is when there
+   is something to report. */
+.hl-allsites {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-rail-edge);
+    border-radius: 6px;
+    padding: 7px 7px 7px 9px;
+    margin-bottom: 1px;
+}
+
+.hl-allsiteslab {
+    flex: 1;
+    min-width: 0;
+    font: 600 11.5px/1.25 var(--hl-sans);
+    color: var(--hl-ink-2);
+}
+
+/* On and granted: live, and coloured like everything else that is working. */
+.hl-allsites[data-on] {
+    background: var(--hl-live-bg);
+    border-color: color-mix(in srgb, var(--hl-live) 32%, transparent);
+}
+
+.hl-allsites[data-on] .hl-allsiteslab {
+    color: var(--hl-live);
+}
+
+/* On but ungranted — the migrated store, and the declined prompt. It borrows
+   the pending site row's amber rather than an error red: nothing is broken,
+   the mode is on and waiting for an access the user can still give, and the
+   remedy is the same Grant button on the same surface. Two controls in the
+   same state should not need two vocabularies. */
+.hl-allsites[data-granted="no"] {
+    background: var(--hl-pend-bg);
+    border-color: var(--hl-pend-edge);
+}
+
+.hl-allsites[data-granted="no"] .hl-allsiteslab {
+    color: var(--hl-pend);
+}
+
 .hl-dom {
     display: flex;
     align-items: center;
@@ -428,6 +479,27 @@ body {
 .hl-dom[data-state="unusable"] .hl-domstate {
     background: var(--hl-err);
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
+}
+
+/* Stored, still editable, and not in use — the list while all-sites is on. It
+   recedes rather than disappearing: hiding it would make turning the mode off
+   look like it had discarded the user's scope, and leave no way to see what
+   turning it back off returns to. The dot goes hollow because there is no
+   access state to report on a host nothing is scoped to; a green one here
+   would be claiming a grant no probe has asked for. */
+.hl-dom[data-state="idle"] {
+    background: none;
+    border-style: dashed;
+}
+
+.hl-dom[data-state="idle"] .hl-domhost {
+    color: var(--hl-ink-3);
+}
+
+.hl-dom[data-state="idle"] .hl-domstate {
+    background: none;
+    border: 1.5px solid var(--hl-ink-3);
+    box-shadow: none;
 }
 
 /* `min-width: 0` is defence in depth rather than the thing doing the work: the
@@ -572,6 +644,16 @@ body {
 
 .hl-fieldnote b {
     font: 600 10.5px/1.4 var(--hl-mono);
+}
+
+/* The same note shape without the complaint. `.hl-fieldnote` is amber because
+   its one user is "already in the list" — something the user tried that did
+   not take. "Not in use while All sites is on" is not a failed attempt and
+   nothing is wrong with it; painting it amber would put a caution next to a
+   list that is behaving exactly as asked, which is how a palette stops meaning
+   anything. */
+.hl-fieldnote-calm {
+    color: var(--hl-ink-3);
 }
 
 /* ---- request types: all eight, no disclosure. The rail has vertical room the

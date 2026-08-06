@@ -1,5 +1,5 @@
 import { isSuppressed } from '@/lib/compile/suppression';
-import { analyzeDomain } from '@/lib/permissions/origins';
+import { scopingHosts } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
 /** One domain's audit answer, as produced by the adapter. */
@@ -15,18 +15,22 @@ export interface DomainGrant {
  * rule for it, so a permission badge on it would point at a rule that does not
  * exist, and granting the permission would change nothing. This is the criterion
  * `isSuppressed` names — applied to the whole profile, not entry by entry,
- * because the compiler's decision is all-or-nothing. A profile with no domains
- * at all is not suppressed but yields no hosts either: `<all_urls>` is not
- * auditable per-domain.
+ * because the compiler's decision is all-or-nothing.
+ *
+ * The hosts come from `scopingHosts`, which answers the same "what actually
+ * narrows this rule" question the compiler and the conflict detector ask. That
+ * is what keeps an all-sites profile out: it applies everywhere, so its stored
+ * entries scope nothing, and probing them would put a permission badge on rows
+ * that are not in use — the same wrong answer as auditing a suppressed
+ * profile, arriving through a different door. What that mode needs instead is
+ * `<all_urls>`, which is not auditable per-domain and is probed on its own
+ * (`probeAllSites`).
  */
 export function domainsToAudit(profiles: readonly Profile[]): string[] {
   const hosts: string[] = [];
   for (const profile of profiles) {
     if (!profile.enabled || isSuppressed(profile)) continue;
-    // Every remaining domain is valid — isSuppressed guarantees it — so this
-    // loop normalizes rather than filters.
-    for (const domain of profile.filter.domains) {
-      const { host } = analyzeDomain(domain);
+    for (const host of scopingHosts(profile.filter)) {
       if (!hosts.includes(host)) hosts.push(host);
     }
   }
@@ -57,8 +61,10 @@ export function auditDiagnostics(
   for (const profile of profiles) {
     if (!profile.enabled || isSuppressed(profile)) continue;
     const seen = new Set<string>();
-    for (const domain of profile.filter.domains) {
-      const { host } = analyzeDomain(domain);
+    // Same source as `domainsToAudit` above, so the hosts probed and the hosts
+    // reported cannot come apart — a badge for a host nobody probed would
+    // never clear, and a probed host with no badge is a silent failure.
+    for (const host of scopingHosts(profile.filter)) {
       if (!ungranted.has(host) || seen.has(host)) continue;
       seen.add(host);
       diagnostics.push({
