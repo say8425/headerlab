@@ -56,11 +56,18 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       // entry left the fix is to repair the bad lines, with none left there is
       // nothing to salvage — and clearing the list is itself a fix, because a
       // regex profile with no domains is legitimate.
+      // States the cause, then the remedy. The version this replaces named
+      // only the consequence — "the whole profile is not applied" — which
+      // leaves a user who pasted something reasonable with nothing to act on.
+      // "Profile" is gone from the wording too: the UI has one implicit rule
+      // set and no profiles, so the word named something the reader cannot
+      // see. The internal `profileId` is untouched.
       message: anyValid
-        ? `${bad.length === 1 ? 'Unusable domain' : 'Unusable domains'}: ${bad.join(', ')}. ` +
-          'The whole profile is not applied until every domain in it is usable.'
-        : `No usable domain: ${bad.join(', ')}. This profile is not applied. ` +
-          'Fix these, or clear the domain list so the regex alone decides what matches.',
+        ? `${bad.length === 1 ? 'Unusable site' : 'Unusable sites'}: ${bad.join(', ')}. ` +
+          'A site must be a bare hostname like example.com. ' +
+          'No rule is applied until every site here is usable.'
+        : `No usable site: ${bad.join(', ')}. Use a bare hostname like example.com. ` +
+          'Nothing is applied while every site is unusable.',
     });
   }
 
@@ -101,32 +108,20 @@ export function validateFilter(profile: Profile): Diagnostic[] {
     });
   }
 
-  // Deduped by host: 'localhost:3000' and 'localhost:8080' both normalize to
-  // the same host, and requestDomains only ever sees that one host — the same
-  // reason originsForFilter (origins.ts) dedupes with a Set. Without this, the
-  // user sees the identical warning once per port instead of once per host.
-  const portIgnoredHosts = new Set<string>();
-  for (const a of analyses) {
-    if (!a.portDropped || !a.valid || portIgnoredHosts.has(a.host)) continue;
-    portIgnoredHosts.add(a.host);
-    diagnostics.push({
-      kind: 'port-ignored',
-      severity: 'warning',
-      profileId: profile.id,
-      message:
-        `Port ignored — this applies to every port on ${a.host}. ` +
-        'Chrome matches requests by host, not by port.',
-    });
-  }
-
   if (!analyses.some((a) => a.valid)) {
     diagnostics.push({
       kind: 'empty-filter',
       severity: 'warning',
       profileId: profile.id,
+      // Both branches name the cause and what to do about it. The suppression
+      // itself is correct and unchanged: a filter whose sites are all unusable
+      // would carry no condition at all and match *every* site, so refusing to
+      // apply it is the safe answer — only the explanation was at fault.
       message: filter.domains.length === 0
-        ? 'No domain set — this profile applies to every site.'
-        : 'No usable domain — this profile would apply to every site, so it is not applied.',
+        ? 'No site set, so these rules apply everywhere. Add a site above to narrow them.'
+        : 'No usable site here, so nothing is applied — with no site to match, ' +
+          'these rules would apply to every site instead of none. ' +
+          'Use a bare hostname like example.com.',
     });
   }
 

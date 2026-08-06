@@ -8,18 +8,18 @@ beforeEach(() => {
 
 describe('sync status', () => {
   it('starts clean', async () => {
-    expect(await getSyncStatus()).toEqual({ lastError: null, ruleCount: 0 });
+    expect(await getSyncStatus()).toEqual({ lastError: null, ruleCount: 0, iconError: null });
   });
 
   it('round-trips a failure message', async () => {
-    await setSyncStatus({ lastError: 'Rule 3 is invalid', ruleCount: 0 });
+    await setSyncStatus({ lastError: 'Rule 3 is invalid', ruleCount: 0, iconError: null });
     expect((await getSyncStatus()).lastError).toBe('Rule 3 is invalid');
   });
 
   it('clears the message on a later success', async () => {
-    await setSyncStatus({ lastError: 'boom', ruleCount: 0 });
-    await setSyncStatus({ lastError: null, ruleCount: 4 });
-    expect(await getSyncStatus()).toEqual({ lastError: null, ruleCount: 4 });
+    await setSyncStatus({ lastError: 'boom', ruleCount: 0, iconError: null });
+    await setSyncStatus({ lastError: null, ruleCount: 4, iconError: null });
+    expect(await getSyncStatus()).toEqual({ lastError: null, ruleCount: 4, iconError: null });
   });
 
   it('writes to the session area, not local — that choice is why this module exists', async () => {
@@ -32,10 +32,10 @@ describe('sync status', () => {
     // error about a rule set that was rebuilt from scratch. fake-browser cannot
     // simulate that clearing, but it does route by area — which is the part a
     // regression would break.
-    await setSyncStatus({ lastError: 'boom', ruleCount: 0 });
+    await setSyncStatus({ lastError: 'boom', ruleCount: 0, iconError: null });
 
     expect(await fakeBrowser.storage.session.get(null)).toEqual({
-      syncStatus: { lastError: 'boom', ruleCount: 0 },
+      syncStatus: { lastError: 'boom', ruleCount: 0, iconError: null },
     });
     expect(await fakeBrowser.storage.local.get(null)).toEqual({});
   });

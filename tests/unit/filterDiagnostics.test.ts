@@ -26,12 +26,12 @@ describe('validateFilter', () => {
     expect(d[0]?.kind).toBe('empty-filter');
   });
 
-  it('reports a dropped port without calling the domain invalid', () => {
-    const d = validateFilter(profileWith({ domains: ['localhost:3000'] }));
-    expect(d).toHaveLength(1);
-    expect(d[0]?.kind).toBe('port-ignored');
-    expect(d[0]?.severity).toBe('warning');
-    expect(d[0]?.message).toContain('localhost');
+  it('says nothing at all about a domain that merely carried a port', () => {
+    // The announcement this replaces is gone: the popup stores and shows the
+    // host, so the drop is visible in the chip, and the fact a port could
+    // never have narrowed anything is help text on the field. A warning per
+    // entry on top of that is noise in a 196px rail.
+    expect(validateFilter(profileWith({ domains: ['localhost:3000'] }))).toEqual([]);
   });
 
   it('does not warn about an empty filter when a port-bearing domain survives', () => {
@@ -39,15 +39,10 @@ describe('validateFilter', () => {
     expect(d.map((x) => x.kind)).not.toContain('empty-filter');
   });
 
-  it('does not report port-ignored when the port-bearing host is itself unusable', () => {
+  it('still calls a port-bearing host unusable when the host itself is broken', () => {
+    // Stripping the port must not rescue what is wrong with the rest of it.
     const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }));
-    expect(d.map((x) => x.kind)).not.toContain('port-ignored');
-    expect(d.map((x) => x.kind)).toContain('empty-filter');
-  });
-
-  it('dedupes port-ignored by host — same host, different ports, one warning', () => {
-    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'localhost:8080'] }));
-    expect(d.filter((x) => x.kind === 'port-ignored')).toHaveLength(1);
+    expect(d.map((x) => x.kind)).toEqual(['empty-filter']);
   });
 
   it('flags a non-ASCII regex — regexFilter is ASCII-only', () => {
@@ -85,28 +80,45 @@ describe('validateFilter', () => {
     // compile.ts suppresses the whole profile here, and `empty-filter` stays
     // quiet because one entry is valid — this diagnostic is what closes that
     // silence, so the exact message is part of the contract.
+    // Internal whitespace, not a pasted URL: a URL is normalized to its host
+    // now and is perfectly usable, so it can no longer stand for "unusable".
     const d = validateFilter(profileWith({
-      domains: ['api.example.com', 'https://staging.example.com'],
+      domains: ['api.example.com', 'a b.com'],
     }));
     expect(d).toEqual([{
       kind: 'invalid-domain',
       severity: 'error',
       profileId: 'p1',
       message:
-        'Unusable domain: "https://staging.example.com". ' +
-        'The whole profile is not applied until every domain in it is usable.',
+        'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
+        'No rule is applied until every site here is usable.',
     }]);
   });
 
   it('names every unusable entry, in the order the user wrote them', () => {
     const d = validateFilter(profileWith({
-      domains: ['https://staging.example.com', 'api.example.com', 'a b.com'],
+      domains: ['x y.net', 'api.example.com', 'a b.com'],
     }));
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
-      'Unusable domains: "https://staging.example.com", "a b.com". ' +
-      'The whole profile is not applied until every domain in it is usable.',
+      'Unusable sites: "x y.net", "a b.com". A site must be a bare hostname like example.com. ' +
+      'No rule is applied until every site here is usable.',
     );
+  });
+
+  it('says nothing about a pasted URL, because there is nothing left to say', () => {
+    // The owner's literal input. It normalizes to a usable host, the popup
+    // stores and shows that host, and so no diagnostic is owed — the change is
+    // the value on screen. A message here would restate what the chip already
+    // says, permanently, in the narrowest column of the UI.
+    expect(validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }))).toEqual([]);
+  });
+
+  it('says nothing about a deep path either', () => {
+    // The second URL the owner pasted, verbatim.
+    expect(validateFilter(profileWith({
+      domains: ['https://www.musinsa.com/snap/_next/data/K_la.../recommend.json'],
+    }))).toEqual([]);
   });
 
   it('never raises invalid-domain and empty-filter together', () => {
@@ -143,15 +155,15 @@ describe('validateFilter', () => {
     // salvage, and in regex mode clearing the list is a real fix because the
     // pattern alone is a valid condition.
     const d = validateFilter(profileWith({
-      mode: 'regex', regex: '^https://', domains: ['a b.com', 'https://x.com'],
+      mode: 'regex', regex: '^https://', domains: ['a b.com', 'x y.net'],
     }));
     expect(d).toEqual([{
       kind: 'invalid-domain',
       severity: 'error',
       profileId: 'p1',
       message:
-        'No usable domain: "a b.com", "https://x.com". This profile is not applied. ' +
-        'Fix these, or clear the domain list so the regex alone decides what matches.',
+        'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com. ' +
+        'Nothing is applied while every site is unusable.',
     }]);
   });
 
@@ -162,8 +174,10 @@ describe('validateFilter', () => {
       .toEqual([]);
   });
 
-  it('still reports a dropped port alongside the unusable entry', () => {
+  it('reports only the unusable entry when a port-bearing one sits beside it', () => {
+    // The port needs no words — the chip shows `localhost`. The unusable entry
+    // does, and it must not be crowded out or duplicated by the other one.
     const d = validateFilter(profileWith({ domains: ['localhost:3000', 'a b.com'] }));
-    expect(d.map((x) => x.kind)).toEqual(['invalid-domain', 'port-ignored']);
+    expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
 });

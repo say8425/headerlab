@@ -1,426 +1,972 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/*
+ * HeaderLab popup — "Console".
+ *
+ * The screen is split by question. A permanent 224px rail answers *where does
+ * this apply and is it working*; the 524px panel beside it is nothing but
+ * rules. 748px total, under Chrome's 800px ceiling with room for its frame.
+ *
+ * Region boundaries are carried by SURFACE, not by hairlines: the rail is a
+ * different material from the panel, and rules are cards on it. A 1px line is
+ * never the only thing saying where you are — that was the structural
+ * complaint about the build this replaces, and it is not fixable by darkening
+ * a hairline.
+ *
+ * Every colour below is hand-tuned per theme and every text pair is at least
+ * 4.5:1 in both. Nothing sits in the 3:1 "de-emphasised" band except the
+ * off-switch track, which is a shape rather than a word. The previous palette
+ * expressed "de-emphasised" by fading text toward the background and reached
+ * 2.89:1; nothing here does that, and a switched-off rule keeps full-contrast
+ * text and is marked by its switch plus a dashed card instead.
+ *
+ * tests/unit/contrast.test.ts reads the two blocks below and asserts every
+ * pair. Change a value there, not only here.
+ */
 
-@custom-variant dark (&:is(.dark *));
+:root {
+    --hl-panel: #ffffff;
+    --hl-rail: #e9ecf1;
+    --hl-rail-edge: #cdd4de;
+    --hl-card: #f6f8fa;
+    --hl-card-edge: #dae0e8;
+    --hl-ink: #101720;
+    --hl-ink-2: #4c5563;
+    --hl-ink-3: #616b79;
 
-@theme inline {
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    --hl-req-bg: #d7e7fa;
+    --hl-req-fg: #0e4b87;
+    --hl-res-bg: #e9e1f9;
+    --hl-res-fg: #59299f;
+
+    --hl-live: #136b3e;
+    --hl-live-bg: #dcf0e4;
+    --hl-pend: #8a4b00;
+    --hl-pend-bg: #fbeeda;
+    --hl-pend-edge: #e8c88e;
+    --hl-err: #a32718;
+    --hl-err-bg: #fbe6e3;
+    --hl-act: #12569f;
+
+    --hl-off-track: #7a8593;
+}
+
+/*
+ * Deliberate, not inverted. In light the rail is the *darker* material and the
+ * panel is the bright working surface; carrying that straight over would put a
+ * near-black rail against a lifted panel, which reads as a hole punched in the
+ * window. So dark flips the material order — the rail becomes the lighter,
+ * raised surface and the panel recedes to true near-black — and "panel = where
+ * the work is" survives the flip.
+ *
+ * The class is set by public/theme.js at parse time, before first paint. MV3's
+ * CSP forbids inline scripts, so that logic cannot move into the HTML.
+ */
+.dark {
+    --hl-panel: #0b0f14;
+    --hl-rail: #141a21;
+    --hl-rail-edge: #232b36;
+    --hl-card: #161d25;
+    --hl-card-edge: #242d38;
+    --hl-ink: #e7eef6;
+    --hl-ink-2: #a6b3c1;
+    --hl-ink-3: #8b98a6;
+
+    --hl-req-bg: #0f3050;
+    --hl-req-fg: #8dc5f7;
+    --hl-res-bg: #2b1f49;
+    --hl-res-fg: #c6abf7;
+
+    --hl-live: #4cde84;
+    --hl-live-bg: #10301e;
+    --hl-pend: #f0b45c;
+    --hl-pend-bg: #2c2113;
+    --hl-pend-edge: #4e3a1b;
+    --hl-err: #f08c7c;
+    --hl-err-bg: #331916;
+    --hl-act: #7fb8f0;
+
+    --hl-off-track: #5f6b79;
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --hl-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --hl-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --hl-card-sh: 0 1px 1px rgba(16, 23, 32, 0.04);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --hl-card-sh: none;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
-  html {
-    @apply font-sans;
-    }
+* {
+    box-sizing: border-box;
 }
 
-/* ===== HeaderLab palette — from docs/design/popup-{dark,light}.html =====
-   Five colours, one meaning each: focus / applying / tab lock / needs access
-   / removal. `set` is the common case and spends no colour at all.
-
-   The light values are not an inversion of the dark ones. They were derived
-   separately and WCAG-audited (18 fixes, 2 of them blockers), so read them
-   from the table rather than computing them. */
-:root {
-  --hl-bg: #fafbfc;
-  --hl-bar: #ffffff;
-  --hl-row-hi: #edf1f7;
-  --hl-cell: #e7eaf1;
-  --hl-line: #d9dee7;
-  --hl-txt: #1b2432;
-  --hl-txt2: #5a6678;
-  --hl-txt3: #8b96a8;
-  --hl-acc: #2b5fd9;
-  --hl-grn: #0f8536;
-  --hl-amb: #9d6410;
-  --hl-cyn: #0a749e;
-  --hl-red: #c12544;
-  --hl-sbw: 9px;
+html,
+body {
+    margin: 0;
+    width: 748px;
+    height: 600px;
+    overflow: hidden;
 }
 
-.dark {
-  --hl-bg: #0e1116;
-  --hl-bar: #141922;
-  --hl-row-hi: #151a22;
-  --hl-cell: #171c24;
-  --hl-line: #1d232d;
-  --hl-txt: #dde4ee;
-  --hl-txt2: #94a2b6;
-  --hl-txt3: #626e7f;
-  --hl-acc: #7aa2f7;
-  --hl-grn: #62c98d;
-  --hl-amb: #e0af68;
-  --hl-cyn: #74cbf0;
-  --hl-red: #f2708b;
+body {
+    font-family: var(--hl-sans);
+    background: var(--hl-panel);
+    color: var(--hl-ink);
+    -webkit-font-smoothing: antialiased;
 }
 
 #root {
-  width: 560px;
-  height: 600px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--hl-bg);
-  color: var(--hl-txt);
-  font-size: 11.5px;
-  line-height: 1.35;
-  -webkit-font-smoothing: antialiased;
+    height: 100%;
 }
 
-/* ===== the grid =====
-   `--cols` is declared once, on the element carrying `data-cols-owner`, and
-   every row-shaped child reads it. Duplicating the track list is what kills
-   this design — see the uniqueness assertion in HeaderGrid.test.tsx. */
-.hl-gbody {
-  --cols: 38px 64px 186px 1fr 26px;
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+.hl-loading {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    font: 400 12px/1 var(--hl-sans);
+    color: var(--hl-ink-2);
 }
 
-.hl-ghead,
-.hl-grp,
-.hl-row,
-.hl-subrow,
-.hl-addrow {
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: center;
-  border-bottom: 1px solid var(--hl-cell);
+/* The store could not be read. Deliberately not the normal two-column shell:
+   there is no scope and there are no rules to show, and dressing the failure up
+   as the working screen is how it gets missed. */
+.hl-broken {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    height: 100%;
+    padding: 0 40px;
+    background: var(--hl-rail);
+    color: var(--hl-ink);
 }
 
-.hl-ghead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--hl-bg);
-  color: var(--hl-txt3);
-  height: 22px;
+.hl-broken b {
+    font: 700 13px/1.4 var(--hl-sans);
+    color: var(--hl-err);
 }
 
-.hl-grp,
-.hl-addrow {
-  height: 24px;
-  color: var(--hl-txt2);
-  background: var(--hl-bar);
+.hl-broken p {
+    margin: 0;
+    font: 400 12px/1.55 var(--hl-sans);
+    color: var(--hl-ink-2);
+    max-width: 420px;
 }
 
-/* `.hl-addrow` is a <button>, and Chrome sizes buttons shrink-to-fit even as a
-   block-level grid container — so it took the track list above but resolved
-   `1fr` to 0 and stopped 246px short of every other row, breaking the value
-   column's tint at exactly the seam the shared template exists to close.
-   The sibling rows are <div>s and fill the container on their own; only the
-   button needs telling. Exact because Tailwind's preflight already puts
-   `box-sizing: border-box` on it, and the row carries no padding or side
-   borders — see the resolved-template assertion in the E2E popup test. */
-.hl-addrow {
-  width: 100%;
+.hl-pop {
+    display: grid;
+    grid-template-columns: 224px 1fr;
+    height: 100%;
 }
 
-/* These two keep the shared `var(--cols)` template above and place their
-   contents with grid-column, which is what the mockup does and why
-   (docs/design/popup-dark.html:229): on the same template the value column's
-   tint and its left rule run unbroken from the sticky header to the last row,
-   instead of breaking at every divider and add row.
-
-   The padding therefore lives on the contents, not on the row — padding on a
-   grid container insets every track and would break the alignment this is
-   for. */
-.hl-glabel {
-  grid-column: 1 / 4;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-left: 8px;
-}
-.hl-gright {
-  grid-column: 4 / -1;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
-  background: color-mix(in oklab, var(--hl-cell) 35%, transparent);
-  border-left: 1px solid var(--hl-cell);
-}
-/* Track 3 is Header name, and `.hl-c`'s 6px inset is what the name column's
-   text sits at — so "+ Add request header" lines up with the names above it. */
-.hl-ghost {
-  grid-column: 3 / -1;
-  padding-left: 6px;
-  text-align: left;
+/* Focus is never removed, only restyled — a popup driven from the keyboard is
+   the fast path this product is for. */
+:focus-visible {
+    outline: 2px solid var(--hl-act);
+    outline-offset: 1px;
+    border-radius: 4px;
 }
 
-.hl-row { min-height: 30px; }
-.hl-row:hover { background: var(--hl-row-hi); }
-.hl-row[data-off] { color: var(--hl-txt3); }
+/* ============================= LEFT RAIL ============================= */
 
-.hl-c { padding: 0 6px; border-right: 1px solid var(--hl-cell); overflow: hidden; }
-.hl-c-act { border-right: 0; }
-
-/* The value column carries its own shading unbroken from the header to the
-   last row, so the eye scans down a column instead of parsing a list. */
-.hl-c-val { background: color-mix(in oklab, var(--hl-cell) 35%, transparent); }
-
-.hl-val {
-  user-select: text;
-  word-break: break-all;
-  /* Design §8.2: the value is legible at rest, wrapped to two lines — the
-     review that shaped this direction found long values were only readable
-     once you clicked into them. The cap is what keeps a 2KB paste from
-     stretching the row, and it belongs on the read view too, not only the
-     editor. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.hl-rail {
+    background: var(--hl-rail);
+    border-right: 1px solid var(--hl-rail-edge);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
 }
-.hl-val-empty { color: var(--hl-txt3); }
 
-.hl-op[data-op='remove'] { color: var(--hl-red); }
-.hl-sig { display: inline-block; width: 8px; }
+.hl-brand {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 14px 14px 12px;
+}
 
-.hl-val-read { display: flex; align-items: center; gap: 4px; width: 100%; }
-.hl-val-read .hl-vbtn { margin-left: auto; opacity: 0; color: var(--hl-txt3); }
-.hl-row:hover .hl-vbtn { opacity: 1; }
+.hl-mark {
+    width: 17px;
+    height: 17px;
+    border-radius: 5px;
+    background: var(--hl-ink);
+    color: var(--hl-panel);
+    flex: none;
+    display: grid;
+    place-items: center;
+}
 
-.hl-textarea,
-.hl-nm {
-  width: 100%;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  border: 0;
-  outline: 0;
+.hl-mark svg {
+    display: block;
 }
-.hl-textarea {
-  max-height: 56px;      /* design §8.2 — a 2KB paste must not stretch the row */
-  resize: none;
-  background: var(--hl-bg);
-  outline: 1px solid var(--hl-acc);
-}
-.hl-nm:focus { outline: 1px solid var(--hl-acc); }
 
-/* ===== diagnostics ===== */
-.hl-subrow {
-  min-height: 22px;
+.hl-name {
+    font: 700 11px/1 var(--hl-sans);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--hl-ink);
 }
-.hl-subrow .hl-sub {
-  grid-column: 2 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px 6px;
-}
-.hl-subline,
-.hl-bandline { color: var(--hl-txt2); }
-.hl-subline[data-severity='error'],
-.hl-bandline[data-severity='error'] { color: var(--hl-red); }
 
-.hl-band {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 5px 8px;
-  background: var(--hl-bar);
-  border-bottom: 1px solid var(--hl-line);
+.hl-name i {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--hl-ink-3);
 }
-.hl-bandline { display: flex; align-items: center; gap: 6px; }
+
+/* A number big enough to read from the far side of the desk, because "is it
+   on" is the question asked most often. */
+.hl-readout {
+    flex: none;
+    padding: 2px 14px 14px;
+}
+
+.hl-bignum {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.hl-bignum b {
+    font: 650 30px/1 var(--hl-sans);
+    letter-spacing: -0.02em;
+    color: var(--hl-ink);
+}
+
+.hl-bignum span {
+    font: 500 12.5px/1 var(--hl-sans);
+    color: var(--hl-ink-2);
+}
+
+.hl-subcount {
+    margin-top: 6px;
+    font: 400 11.5px/1.4 var(--hl-sans);
+    color: var(--hl-ink-2);
+}
+
+.hl-subcount:empty {
+    display: none;
+}
+
+.hl-pip {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--hl-off-track);
+    margin-right: 5px;
+    vertical-align: 1px;
+}
+
+.hl-pausebar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 14px;
+    padding: 8px 9px;
+    background: var(--hl-live-bg);
+    border: 1px solid color-mix(in srgb, var(--hl-live) 32%, transparent);
+    border-radius: 7px;
+}
+
+.hl-pauselab {
+    flex: 1;
+    font: 600 11.5px/1 var(--hl-sans);
+    color: var(--hl-live);
+}
+
+/* Paused is deliberate, not broken, so it recedes to a neutral surface rather
+   than borrowing the amber that means "something needs you". */
+.hl-pausebar[data-paused] {
+    background: var(--hl-panel);
+    border-color: var(--hl-rail-edge);
+}
+
+.hl-pausebar[data-paused] .hl-pauselab {
+    color: var(--hl-ink-2);
+}
+
+.hl-sw {
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0;
+    background: var(--hl-live);
+    position: relative;
+    cursor: pointer;
+    flex: none;
+}
+
+.hl-sw::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 16px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--hl-panel);
+}
+
+.hl-sw[aria-checked="false"] {
+    background: var(--hl-off-track);
+}
+
+.hl-sw[aria-checked="false"]::after {
+    left: 2px;
+}
+
+.hl-railsec {
+    padding: 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Stated on the section rather than as an adjacent-sibling rule: any number of
+   scope notes can sit between the two sections, and a `+` selector silently
+   stops applying the moment one does. */
+.hl-railsec-types {
+    margin-top: 15px;
+}
+
+/* Positioned so the help bubble can span this heading's full width. The rail
+   sets `overflow-y: auto`, which makes overflow-x compute to `auto` as well —
+   so anything anchored to the 13px `?` itself gets sliced off at the rail's
+   224px edge. Anchoring to the heading, which is already exactly the rail's
+   content width, is what keeps the bubble whole without a portal. */
+.hl-railhead {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 700 9.5px/1 var(--hl-sans);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--hl-ink-2);
+    margin-bottom: 1px;
+}
+
+.hl-n {
+    font: 600 9.5px/1 var(--hl-sans);
+    letter-spacing: 0;
+    color: var(--hl-ink-3);
+}
+
+/* ---- sites: the row IS the permission control ---- */
+
+.hl-dom {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-rail-edge);
+    border-radius: 6px;
+    padding: 6px 7px 6px 8px;
+}
+
+.hl-domhost {
+    flex: 1;
+    min-width: 0;
+    font: 500 11.5px/1.25 var(--hl-mono);
+    color: var(--hl-ink);
+    overflow-wrap: anywhere;
+}
+
+.hl-domstate {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--hl-live);
+    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
+}
+
+.hl-domx {
+    flex: none;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--hl-ink-3);
+    font: 400 13px/1 var(--hl-sans);
+    padding: 0 1px;
+}
+
+.hl-domx:hover {
+    color: var(--hl-err);
+}
+
+/* A site awaiting permission keeps its identity and gains a step. It is not
+   moved into a separate error region — the thing to act on is the thing just
+   typed. */
+.hl-dom[data-state="pending"] {
+    background: var(--hl-pend-bg);
+    border-color: var(--hl-pend-edge);
+    flex-wrap: wrap;
+    row-gap: 7px;
+    padding-bottom: 7px;
+}
+
+.hl-dom[data-state="pending"] .hl-domstate {
+    background: var(--hl-pend);
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-pend) 22%, transparent);
+}
+
+/* A site that cannot be used at all. It used to render the same green dot as a
+   granted, working one while the explanation sat in a paragraph elsewhere —
+   one symbol meaning two opposite things, and the broken object the only one
+   on screen not admitting it. */
+.hl-dom[data-state="unusable"] {
+    background: var(--hl-err-bg);
+    border-color: color-mix(in srgb, var(--hl-err) 45%, transparent);
+}
+
+.hl-dom[data-state="unusable"] .hl-domstate {
+    background: var(--hl-err);
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
+}
+
+/* `min-width: 0` is defence in depth rather than the thing doing the work: the
+   child below wraps, so this block's min-content already fits. It is kept
+   because the Grant button beside that text is `flex: none`, and any future
+   change that stops the text wrapping puts this row back over the rail's
+   width. Mutation-checked — removing it alone does not fail the layout guard. */
+.hl-need {
+    flex: 0 0 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
 .hl-grant {
-  margin-left: auto;
-  padding: 1px 7px;
-  border-radius: 3px;
-  color: var(--hl-cyn);
-  border: 1px solid color-mix(in oklab, var(--hl-cyn) 45%, transparent);
+    flex: none;
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+    background: var(--hl-act);
+    color: var(--hl-panel);
+    font: 600 10.5px/1 var(--hl-sans);
+    padding: 6px 11px;
+    align-self: flex-start;
 }
 
-/* ===== profile bar + in-place edit strip ===== */
-.hl-profbar {
-  display: flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 8px;
-  background: var(--hl-bar);
-  border-bottom: 1px solid var(--hl-line);
+.hl-grant:hover {
+    filter: brightness(1.12);
 }
-.hl-profs { display: flex; align-items: center; gap: 3px; }
-.hl-prof {
-  display: flex; align-items: center; gap: 5px;
-  padding: 2px 8px; border-radius: 4px;
-  color: var(--hl-txt2);
+
+.hl-addfield {
+    display: block;
+    width: 100%;
+    background: var(--hl-panel);
+    border: 1px dashed var(--hl-rail-edge);
+    border-radius: 6px;
+    padding: 7px 8px;
+    font: 400 11.5px/1.25 var(--hl-mono);
+    color: var(--hl-ink);
 }
-.hl-prof[aria-selected='true'] { background: var(--hl-bg); color: var(--hl-txt); }
-.hl-prof[data-marker='error']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-red); }
-.hl-prof[data-marker='permission']::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--hl-cyn); }
 
-/* The identity dot reuses the profile colour muted, and only saturates when
-   active — design §8.3. It says which profile, never whether it works. */
-.hl-pdot { width: 6px; height: 6px; border-radius: 50%; opacity: .45; }
-.hl-pdot[data-active] { opacity: 1; }
-.hl-pdot[data-tone='green']  { background: var(--hl-grn); }
-.hl-pdot[data-tone='amber']  { background: var(--hl-amb); }
-.hl-pdot[data-tone='red']    { background: var(--hl-red); }
-.hl-pdot[data-tone='blue']   { background: var(--hl-acc); }
-.hl-pdot[data-tone='violet'] { background: #a48cf0; }
-.hl-pdot[data-tone='cyan']   { background: var(--hl-cyn); }
-
-.hl-prof-meta { margin-left: auto; color: var(--hl-txt3); }
-
-.hl-editstrip {
-  display: flex; align-items: center; gap: 8px;
-  height: 28px; padding: 0 8px;
-  background: var(--hl-bg);
-  border-bottom: 1px solid var(--hl-line);
+.hl-addfield::placeholder {
+    color: var(--hl-ink-3);
 }
-.hl-swatches { display: flex; gap: 4px; }
-.hl-swatch { width: 12px; height: 12px; border-radius: 50%; }
-.hl-swatch[data-chosen] { outline: 1.5px solid var(--hl-acc); outline-offset: 1px; }
-.hl-swatch[data-tone='green']  { background: var(--hl-grn); }
-.hl-swatch[data-tone='amber']  { background: var(--hl-amb); }
-.hl-swatch[data-tone='red']    { background: var(--hl-red); }
-.hl-swatch[data-tone='blue']   { background: var(--hl-acc); }
-.hl-swatch[data-tone='violet'] { background: #a48cf0; }
-.hl-delete { margin-left: auto; color: var(--hl-red); }
 
-/* ===== top bar, filter block, status foot ===== */
-.hl-topbar {
-  display: flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 10px;
-  background: var(--hl-bar);
-  border-bottom: 1px solid var(--hl-line);
+.hl-addfield:focus {
+    border-style: solid;
+    border-color: var(--hl-act);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
 }
-.hl-brand { font-weight: 500; letter-spacing: .2px; }
-.hl-runstate { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--hl-grn); }
-.hl-runstate[data-paused] { color: var(--hl-txt3); }
-.hl-fdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.hl-pause { padding: 2px 8px; border-radius: 4px; color: var(--hl-txt2); }
 
-.hl-filters { padding: 5px 8px; background: var(--hl-bar); border-bottom: 1px solid var(--hl-line); }
-.hl-frow { display: flex; align-items: center; gap: 8px; min-height: 24px; }
-.hl-flabel { width: 40px; color: var(--hl-txt3); }
-.hl-field { flex: 1; background: transparent; color: inherit; font: inherit; border: 0; outline: 0; }
-.hl-field:focus { outline: 1px solid var(--hl-acc); }
-.hl-chips { display: flex; flex-wrap: wrap; gap: 3px; }
-.hl-chip { padding: 1px 6px; border-radius: 3px; color: var(--hl-txt3); border: 1px solid var(--hl-cell); }
-.hl-chip[aria-pressed='true'] { color: var(--hl-txt); border-color: var(--hl-acc); }
+/* ---- the `?` and its bubble ---- */
 
-.hl-foot {
-  display: flex; align-items: center; gap: 5px;
-  height: 26px; padding: 0 10px;
-  background: var(--hl-bar);
-  border-top: 1px solid var(--hl-line);
-  color: var(--hl-txt2);
+.hl-helptip {
+    display: inline-flex;
 }
-.hl-sep { color: var(--hl-txt3); }
-.hl-footerr { color: var(--hl-red); }
-.hl-pendtag { margin-left: auto; color: var(--hl-cyn); }
+
+.hl-helpmark {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1px solid var(--hl-ink-3);
+    background: none;
+    color: var(--hl-ink-3);
+    font: 700 8.5px/1 var(--hl-sans);
+    letter-spacing: 0;
+    cursor: help;
+    padding: 0;
+    display: grid;
+    place-items: center;
+}
+
+.hl-helpmark:hover,
+.hl-helpmark[aria-expanded="true"] {
+    border-color: var(--hl-ink);
+    color: var(--hl-ink);
+}
+
+/* Spans the heading rather than hugging the mark — see .hl-railhead for why a
+   224px column with its own overflow leaves no room to sit beside it. The
+   arrow points back up at the mark instead of across at it. */
+.hl-helpbubble {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: var(--hl-ink);
+    color: var(--hl-panel);
+    border-radius: 7px;
+    padding: 7px 9px;
+    font: 400 10.5px/1.45 var(--hl-sans);
+    letter-spacing: 0;
+    text-transform: none;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+/* Aimed at the one mark there is, measured in the built popup. This was a
+   custom property while two contexts each needed their own offset; with a
+   single call site the indirection pointed at nothing. */
+.hl-helpbubble::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 54px;
+    border: 5px solid transparent;
+    border-bottom-color: var(--hl-ink);
+}
+
+.hl-helpex {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 5px;
+}
+
+.hl-helprow {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    color: var(--hl-panel);
+}
+
+.hl-helprow code {
+    font: 500 9.5px/1.35 var(--hl-mono);
+    overflow-wrap: anywhere;
+}
+
+.hl-helpsay {
+    display: block;
+}
+
+.hl-fieldnote {
+    margin: 3px 1px 0;
+    font: 400 10.5px/1.4 var(--hl-sans);
+    color: var(--hl-pend);
+    overflow-wrap: anywhere;
+}
+
+.hl-fieldnote b {
+    font: 600 10.5px/1.4 var(--hl-mono);
+}
+
+/* ---- request types: all eight, no disclosure. The rail has vertical room the
+   grid never had, so a rarely-touched control can be visible and small instead
+   of hidden behind a chevron. ---- */
+
+.hl-types {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 8px;
+}
+
+.hl-ty {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font: 400 10.5px/1.3 var(--hl-mono);
+    color: var(--hl-ink-3);
+    background: none;
+    border: 0;
+    padding: 1px 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.hl-tybox {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: none;
+    border: 1.5px solid var(--hl-off-track);
+    background: var(--hl-panel);
+}
+
+.hl-ty[aria-pressed="true"] {
+    color: var(--hl-ink);
+    font-weight: 500;
+}
+
+.hl-ty[aria-pressed="true"] .hl-tybox {
+    background: var(--hl-act);
+    border-color: var(--hl-act);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-size: 12px 12px;
+}
+
+/* ---- a whole-screen note, parked against its cause ---- */
+/* A neutral card with a coloured edge, never a coloured block. A pending site
+   is already carrying colour; a stack of amber slabs beside it would rebuild
+   the wall of yellow this layout exists to remove. Severity is carried by the
+   edge, not by the mass. */
+
+.hl-note {
+    margin: 15px 14px 0;
+    padding: 8px 9px 8px 10px;
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-rail-edge);
+    border-left: 3px solid var(--hl-pend);
+    border-radius: 6px;
+    font: 400 10.5px/1.45 var(--hl-sans);
+    color: var(--hl-ink);
+    /* These name hosts, and a host is one word — without this a domain longer
+       than the rail pushes the note out of the 224px column. */
+    overflow-wrap: anywhere;
+}
+
+.hl-note[data-severity="error"] {
+    border-left-color: var(--hl-err);
+}
+
+.hl-note-err {
+    border-left-color: var(--hl-err);
+}
+
+.hl-note b {
+    display: block;
+    margin-bottom: 2px;
+    font-weight: 700;
+    color: var(--hl-err);
+}
+
+.hl-railfill {
+    flex: 1;
+    min-height: 14px;
+}
+
+/* ============================= RIGHT PANEL ============================= */
+
+.hl-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.hl-panelhead {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 16px 11px;
+    border-bottom: 1px solid var(--hl-card-edge);
+}
+
+.hl-panelhead h2 {
+    margin: 0;
+    flex: 1;
+    font: 700 9.5px/1 var(--hl-sans);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--hl-ink-2);
+}
+
+.hl-newbtn {
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: var(--hl-ink);
+    color: var(--hl-panel);
+    font: 600 11.5px/1 var(--hl-sans);
+    padding: 7px 12px;
+}
+
+.hl-newbtn:hover {
+    filter: brightness(1.25);
+}
+
+.hl-stack {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 9px 12px 12px;
+}
+
+/* ---- a rule: two tiers, so the value gets real width ---- */
+
+.hl-rule {
+    position: relative;
+    background: var(--hl-card);
+    border: 1px solid var(--hl-card-edge);
+    border-radius: 8px;
+    padding: 8px 9px 9px;
+    box-shadow: var(--hl-card-sh);
+}
+
+.hl-rule + .hl-rule,
+.hl-rule + .hl-ghostrule {
+    margin-top: 7px;
+}
+
+/* A switched-off rule keeps full-contrast text. It is marked by its switch and
+   by losing the card's fill — never by fading its words toward the background,
+   which is how the previous palette reached 2.99:1. */
+.hl-rule[data-off] {
+    background: none;
+    border-style: dashed;
+}
+
+.hl-r1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* The delete button is out of this row's flow (it is last in the DOM so
+       Tab reaches it after the value) but still sits on top of it. This is the
+       width it used to occupy — 22px of button plus the row's 8px gap — so the
+       name field ends exactly where it did before. */
+    padding-right: 30px;
+}
+
+.hl-tog {
+    width: 30px;
+    height: 17px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0;
+    background: var(--hl-live);
+    position: relative;
+    cursor: pointer;
+    flex: none;
+}
+
+.hl-tog::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 15px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.28);
+}
+
+.hl-tog[aria-checked="false"] {
+    background: var(--hl-off-track);
+}
+
+.hl-tog[aria-checked="false"]::after {
+    left: 2px;
+}
+
+/* Direction is a coloured pill, so it is never read out of a column. */
+.hl-pill {
+    flex: none;
+    border: 0;
+    cursor: pointer;
+    font: 700 9.5px/1 var(--hl-sans);
+    letter-spacing: 0.07em;
+    padding: 5px 7px;
+    border-radius: 5px;
+}
+
+.hl-pill[data-target="request"] {
+    background: var(--hl-req-bg);
+    color: var(--hl-req-fg);
+}
+
+.hl-pill[data-target="response"] {
+    background: var(--hl-res-bg);
+    color: var(--hl-res-fg);
+}
+
+.hl-op {
+    flex: none;
+    cursor: pointer;
+    font: 600 10.5px/1 var(--hl-mono);
+    color: var(--hl-ink-2);
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-card-edge);
+    border-radius: 5px;
+    padding: 5px 7px;
+}
+
+.hl-op[data-op="remove"] {
+    color: var(--hl-err);
+    border-color: color-mix(in srgb, var(--hl-err) 35%, transparent);
+}
+
+.hl-hname {
+    flex: 1;
+    min-width: 0;
+    font: 600 12.5px/1.3 var(--hl-mono);
+    color: var(--hl-ink);
+    letter-spacing: -0.1px;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    padding: 2px 0;
+}
+
+.hl-hname::placeholder {
+    color: var(--hl-ink-3);
+    font-weight: 500;
+}
+
+.hl-hname:hover {
+    border-bottom-color: var(--hl-card-edge);
+}
+
+.hl-hname:focus {
+    outline: none;
+    border-bottom-color: var(--hl-act);
+}
+
+.hl-del {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 0;
+    background: none;
+    color: var(--hl-ink-3);
+    font: 400 15px/1 var(--hl-sans);
+    cursor: pointer;
+    opacity: 0;
+}
+
+/* `focus-within` as well as hover: a control that only exists for a mouse is
+   a control a keyboard cannot reach. */
+.hl-rule:hover .hl-del,
+.hl-rule:focus-within .hl-del {
+    opacity: 1;
+}
+
+.hl-del:hover {
+    background: var(--hl-err);
+    color: #fff;
+    opacity: 1;
+}
+
+.hl-r2 {
+    margin-top: 7px;
+    padding-left: 38px;
+}
+
+.hl-hval {
+    display: block;
+    width: 100%;
+    font: 400 12px/1.4 var(--hl-mono);
+    color: var(--hl-ink);
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-card-edge);
+    border-radius: 6px;
+    padding: 6px 8px;
+    /* The value wraps and grows instead of truncating — a 246px cell with an
+       ellipsis was the first thing named about the layout this replaces. The
+       wrapping is the textarea's own (a soft-wrapped textarea breaks an
+       unbroken token on its own, so `overflow-wrap` here is inert and is kept
+       only for a future element that is not a textarea); `field-sizing` is
+       what makes it grow to fit rather than scroll inside a fixed box. */
+    overflow-wrap: anywhere;
+    field-sizing: content;
+    resize: none;
+    min-height: 30px;
+    max-height: 96px;
+}
+
+.hl-hval::placeholder {
+    color: var(--hl-ink-3);
+}
+
+.hl-hval:hover {
+    border-color: var(--hl-ink-3);
+}
+
+.hl-hval:focus {
+    outline: none;
+    border-color: var(--hl-act);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
+}
+
+.hl-hval-none {
+    background: none;
+    border-style: dashed;
+    color: var(--hl-ink-3);
+    font: italic 400 11.5px/1.4 var(--hl-sans);
+    min-height: 0;
+}
+
+/* ---- a problem, inside the card it belongs to ---- */
+
+.hl-rprob {
+    margin: 7px 0 0 38px;
+    display: flex;
+    gap: 7px;
+    align-items: flex-start;
+    background: var(--hl-pend-bg);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: 400 11px/1.4 var(--hl-sans);
+    color: var(--hl-ink);
+    /* These quote header names and hostnames back at the user verbatim. */
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.hl-rprob[data-severity="error"] {
+    background: var(--hl-err-bg);
+}
+
+.hl-rprob-ic {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--hl-pend);
+    color: var(--hl-pend-bg);
+    font: 700 9px/13px var(--hl-sans);
+    text-align: center;
+    margin-top: 1px;
+}
+
+.hl-rprob[data-severity="error"] .hl-rprob-ic {
+    background: var(--hl-err);
+    color: var(--hl-err-bg);
+}
+
+.hl-ghostrule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    background: none;
+    border: 1px dashed var(--hl-card-edge);
+    border-radius: 8px;
+    padding: 11px 9px;
+    font: 400 11.5px/1 var(--hl-sans);
+    color: var(--hl-ink-3);
+}
+
+.hl-ghostrule:hover {
+    border-color: var(--hl-ink-3);
+    color: var(--hl-ink-2);
+}

@@ -1,0 +1,96 @@
+import type { Diagnostic } from '@/lib/model/types';
+
+export interface SiteRowProps {
+  /**
+   * The value to show: the effective host, or the raw entry when nothing can be
+   * made of it. `ScopeRail` resolves this; the row does not see what is stored.
+   */
+  domain: string;
+  /**
+   * Whether this domain can be used at all — `analyzeDomain(...).valid`, asked
+   * of the one module that decides it rather than restated here.
+   */
+  usable: boolean;
+  /** Whatever is wrong with this site's access, already matched to its host. */
+  diagnostics: readonly Diagnostic[];
+  onGrant: (host: string) => void;
+  onRemove: () => void;
+}
+
+/**
+ * A site, and its access state, as one object.
+ *
+ * Permission stops being a banner here. A domain and whether HeaderLab may act
+ * on it are the same fact, so Grant happens on the row that named the domain —
+ * you add `api.example.com`, that row goes amber and offers Grant, you press
+ * it and the row goes green. The old build collected these into a band above
+ * the grid, where two prompts and a filter warning pushed the actual work off
+ * the screen.
+ *
+ * Grant takes the host from the diagnostic's own `host` field, never from its
+ * message and never from `domain`: the message is copy and copy changes, and
+ * `domain` may carry a port that no match pattern can express — the diagnostic
+ * is the only party that already knows which host was probed.
+ */
+/** What each row state is called when it cannot be seen. */
+const STATE_LABEL = {
+  granted: 'Access granted',
+  pending: 'Awaiting permission',
+  unusable: 'Unusable site',
+} as const;
+
+export function SiteRow({ domain, usable, diagnostics, onGrant, onRemove }: SiteRowProps) {
+  /**
+   * One symbol, one meaning.
+   *
+   * A domain that cannot be used used to render the same green dot as one that
+   * is granted and working, while the explanation sat in a paragraph somewhere
+   * else — so the object holding the bad value was the one object on screen
+   * not admitting to it. That is the opposite of what this layout is for: a
+   * domain and its state are the same thing here, so the state belongs on the
+   * row.
+   */
+  const state = !usable ? 'unusable' : diagnostics.length > 0 ? 'pending' : 'granted';
+
+  /**
+   * The permission this row is waiting on, if any.
+   *
+   * There is no "everything else" branch beside this one. `permission-missing`
+   * is the only `DiagnosticKind` that ever sets `host`, so `byHost` cannot
+   * contain anything else, and `auditDiagnostics` emits at most one per host —
+   * a sibling branch for the other cases was code no user could reach, and a
+   * contrast pair and three tests were describing it. An unusable site is still
+   * explained in words; that message has no `host`, so it reaches the screen as
+   * a scope note in the rail.
+   */
+  const awaitingGrant = diagnostics.find(
+    (d) => d.kind === 'permission-missing' && d.host !== undefined,
+  );
+
+  return (
+    <div className="hl-dom" data-testid="site" data-state={state}>
+      {/* Was `aria-hidden`, which left a granted row and an unusable row with
+          identical accessible names — the colour was the only thing telling
+          them apart. */}
+      <span className="hl-domstate" role="img" aria-label={STATE_LABEL[state]} />
+      <span className="hl-domhost">{domain}</span>
+      <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>×</button>
+
+      {/* A pending permission is state and remedy, and nothing else. The
+          sentence this replaces spent four lines telling a developer what a
+          Grant button beside a hostname already says; two of them filled the
+          rail. A `?` explaining the button went the same way for the same
+          reason — a help mark on every pending row is a repeated affordance
+          for something nobody was confused by.
+
+          Never on an unusable row: granting a host that cannot be used changes
+          nothing, so the button would be an action that looks like the remedy
+          and is not. */}
+      {awaitingGrant !== undefined && state !== 'unusable' && (
+        <span className="hl-need" data-testid="site-pending">
+          <button className="hl-grant" onClick={() => onGrant(awaitingGrant.host!)}>Grant</button>
+        </span>
+      )}
+    </div>
+  );
+}

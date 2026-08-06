@@ -62,15 +62,44 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
 
     const name = rule.name.trim();
 
+    // Unfinished, not wrong — and the two are genuinely different events. The
+    // popup creates a rule with an empty name on purpose, so an error here
+    // means the product manufactures an invalid object and then tells the user
+    // off for it before they have touched the keyboard.
+    //
+    // It still earns a diagnostic. Going quiet would trade this flaw for the
+    // failure mode the whole product exists to remove: a rule that sends
+    // nothing and says nothing. What it earns is a severity that says "not
+    // finished" rather than "broken", which is what lets the popup count it
+    // separately instead of colouring it red.
+    //
+    // Raised ahead of the token test rather than branched inside it. The check
+    // below used to pick its message by testing `name.length === 0` while
+    // emitting one kind and one severity for both — so the only thing telling
+    // the two apart was the copy, and no consumer reads copy.
+    //
+    // Whitespace-only counts as unfinished: `name` is already trimmed here, the
+    // same trim the compiler applies before deciding what to emit, so "   " and
+    // "" are the same header name — none.
+    if (name.length === 0) {
+      diagnostics.push({
+        kind: 'incomplete-header',
+        severity: 'incomplete',
+        profileId: profile.id,
+        headerRuleId: rule.id,
+        message: 'This rule has no name yet, so nothing is sent for it.',
+      });
+      continue;
+    }
+
     if (!HEADER_TOKEN.test(name)) {
       diagnostics.push({
         kind: 'invalid-header-name',
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: name.length === 0
-          ? 'Header name is empty.'
-          : `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
+        message:
+          `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -96,7 +125,14 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: `"${name}" is set more than once in this profile.`,
+        // No "profile" here either: the UI shows one implicit rule set and no
+        // profiles, so the word named something the reader cannot see.
+        //
+        // Deliberately does not say *which* of the two wins. Both are emitted
+        // into one action's header list and Chrome's resolution between them
+        // is not something this project has measured; naming a winner would be
+        // a claim the code cannot back.
+        message: `"${name}" is set more than once — only one of them can take effect.`,
       });
     }
     seen.add(key);

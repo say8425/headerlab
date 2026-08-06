@@ -2,6 +2,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
 import { getState } from '@/lib/storage/state';
 import { setSyncStatus, type SyncStatus } from '@/lib/storage/session';
+import { setToolbarIcon } from '@/lib/sync/icon';
 import type { CompileResult, DnrRule } from '@/lib/model/types';
 
 /**
@@ -80,15 +81,29 @@ export async function reconcile(): Promise<void> {
           await recordStatus({
             lastError: error instanceof Error ? error.message : String(error),
             ruleCount: 0,
+            iconError: null,
           });
           // Recording is a side record — the failure still propagates
           // exactly as before, console log and all (see background.ts).
           throw error;
         }
-        await recordStatus({
-          lastError: null,
-          ruleCount: result.dynamic.length + result.session.length,
-        });
+        const ruleCount = result.dynamic.length + result.session.length;
+        await recordStatus({ lastError: null, ruleCount, iconError: null });
+        // On the single entry path, not beside it. An icon driven by its own
+        // listener is a second route to the same fact, free to disagree with
+        // the rules actually registered; here it can only ever describe the
+        // state this pass just applied.
+        //
+        // It is also what survives a restart. Chromium holds the action icon
+        // in the browser process rather than the worker, so an ordinary worker
+        // termination looks survivable and a *browser* restart resets it to the
+        // manifest default — which is the active icon, so a paused extension
+        // would quietly show colour again. Measured for the browser-restart
+        // case; the worker-wake case is covered by the same prescription rather
+        // than by a separate claim. Re-applying on every pass is a superset of
+        // both, and background.ts calls reconcile() at module evaluation, which
+        // MV3 re-runs on every wake.
+        await recordIcon(state.globalPause, ruleCount);
       } while (rerunQueued);
     } finally {
       inFlight = null;
@@ -109,5 +124,29 @@ async function recordStatus(status: SyncStatus): Promise<void> {
     await setSyncStatus(status);
   } catch (error) {
     console.error('[HeaderLab] failed to record sync status', error);
+  }
+}
+
+/**
+ * Best-effort, for the same reason `recordStatus` is: the icon is a report on
+ * what happened, and a report failing must not turn a reconcile that actually
+ * registered its rules into a failed one.
+ */
+async function recordIcon(paused: boolean, ruleCount: number): Promise<void> {
+  try {
+    await setToolbarIcon(paused);
+  } catch (error) {
+    console.error('[HeaderLab] failed to set the toolbar icon', error);
+    // Recorded where the popup already reads failures, not just to a worker
+    // console nobody is watching. The direction is what makes this worth
+    // saying: unpause registers the rules and *then* sets the icon, so a
+    // failure here leaves a grey toolbar over an extension that is modifying
+    // headers. Under-reporting that is precisely the class this product exists
+    // to rule out.
+    await recordStatus({
+      lastError: null,
+      ruleCount,
+      iconError: error instanceof Error ? error.message : String(error),
+    });
   }
 }

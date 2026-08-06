@@ -58,7 +58,9 @@ describe('the pure layer stays pure', () => {
         'lib/compile/priority.ts',
         'lib/compile/suppression.ts',
         'lib/compile/validate.ts',
-        'lib/view/grid.ts',
+        'lib/view/rules.ts',
+        'lib/view/singleProfile.ts',
+        'lib/view/useCommittedDraft.ts',
       ]),
     );
   });

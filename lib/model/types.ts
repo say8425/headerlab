@@ -109,8 +109,17 @@ export type DiagnosticKind =
   | 'permission-missing'
   | 'tab-lock-stale'
   | 'empty-filter'
-  /** A port was normalized away: requestDomains is host-only and matches every port. */
-  | 'port-ignored'
+  /**
+   * A rule that has not been given a name yet.
+   *
+   * Distinct from `invalid-header-name` because they are not the same event.
+   * A typo is a *mistake* — the user typed something and it is wrong. An empty
+   * name is *unfinished* — the popup creates rules empty on purpose, so this is
+   * the state every rule is born in, and it clears the moment a name is typed.
+   * Filing both under one kind meant a rule the user had not touched yet was
+   * reported as broken the instant it appeared.
+   */
+  | 'incomplete-header'
   /**
    * Some of a profile's domains are usable and some are not, so the compiler
    * suppresses the whole profile. See lib/compile/suppression.ts for why it is
@@ -120,7 +129,21 @@ export type DiagnosticKind =
 
 export interface Diagnostic {
   kind: DiagnosticKind;
-  severity: 'error' | 'warning';
+  /**
+   * How to read this, and — for a rule — which of the not-live states it is in.
+   *
+   * - `error` — it is wrong, and nothing goes out for it.
+   * - `warning` — it goes out; there is something worth knowing about it.
+   * - `incomplete` — it is not finished, so there is nothing to send yet.
+   *
+   * `incomplete` is a **severity** and not merely a kind because the popup has
+   * to tell these three apart to count them, and it classifies by field rather
+   * than by a table of kinds. A kind table has to be edited every time
+   * `DiagnosticKind` grows, and this union has now grown three times; a
+   * severity that names the consequence keeps every consumer correct by
+   * default when the next kind arrives.
+   */
+  severity: 'error' | 'warning' | 'incomplete';
   profileId: string;
   headerRuleId?: string;
   /**

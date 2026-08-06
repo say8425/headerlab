@@ -195,7 +195,7 @@ describe('compile emits diagnostics', () => {
     // (e.g. validateHeaders called twice for this profile) would slip past a
     // toContain check but not this one.
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+    expect(result.diagnostics[0]?.kind).toBe('incomplete-header');
     expect(result.dynamic).toHaveLength(1);
   });
 
@@ -230,7 +230,7 @@ describe('compile emits diagnostics', () => {
     }));
     expect(result.dynamic).toHaveLength(0);
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.kind).toBe('invalid-header-name');
+    expect(result.diagnostics[0]?.kind).toBe('incomplete-header');
   });
 
   it('does not go silent when only some of a profile\'s domains are usable', () => {
@@ -240,7 +240,7 @@ describe('compile emits diagnostics', () => {
     const base = profile();
     const result = compile(state({
       profiles: [profile({
-        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+        filter: { ...base.filter, domains: ['api.example.com', 'a b.com'] },
       })],
     }));
     expect(result.dynamic).toHaveLength(0);
@@ -250,29 +250,44 @@ describe('compile emits diagnostics', () => {
       severity: 'error',
       profileId: 'p1',
       message:
-        'Unusable domain: "https://staging.example.com". ' +
-        'The whole profile is not applied until every domain in it is usable.',
+        'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
+        'No rule is applied until every site here is usable.',
     }]);
   });
 
   it('never lets a pattern that permissions.contains() rejects reach requiredOrigins', () => {
-    // Measured in docs/research/2026-08-01-permission-audit-spike.md §3:
-    // `*://*.https://x.com/*` throws Invalid port, and one throwing entry
-    // poisons the whole permissions call Phase 2b will build on this field.
+    // Measured in docs/research/2026-08-01-permission-audit-spike.md §3: one
+    // entry that throws poisons the whole permissions call this field feeds.
+    // The scheme fixture that used to stand here is normalized to a host now,
+    // so the surviving hazard is an entry no normalization can rescue.
     const base = profile();
     const result = compile(state({
       profiles: [profile({
-        filter: { ...base.filter, domains: ['api.example.com', 'https://staging.example.com'] },
+        filter: { ...base.filter, domains: ['api.example.com', 'a b.com'] },
       })],
     }));
     expect(result.requiredOrigins).toEqual(['*://*.api.example.com/*']);
+  });
+
+  it('lets a pasted URL through as its host, rather than dropping it', () => {
+    // The other side of that rule, and the owner's actual input. Normalizing
+    // is what stops a paste becoming either a never-matching rule or a
+    // throwing permissions call.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, domains: ['https://www.musinsa.com/'] },
+      })],
+    }));
+    expect(result.requiredOrigins).toEqual(['*://*.www.musinsa.com/*']);
+    expect(result.dynamic).toHaveLength(1);
   });
 
   it('falls back to <all_urls> when no domain is usable at all', () => {
     const base = profile();
     const result = compile(state({
       profiles: [profile({
-        filter: { ...base.filter, domains: ['https://staging.example.com'] },
+        filter: { ...base.filter, domains: ['a b.com'] },
       })],
     }));
     expect(result.requiredOrigins).toEqual(['<all_urls>']);
@@ -305,7 +320,9 @@ describe('compile emits diagnostics', () => {
       severity: 'warning',
       profileId: 'p0',
       message:
-        'No usable domain — this profile would apply to every site, so it is not applied.',
+        'No usable site here, so nothing is applied — with no site to match, ' +
+        'these rules would apply to every site instead of none. ' +
+        'Use a bare hostname like example.com.',
     }]);
     // And the half the diagnostics were lying about: P1 compiles and survives.
     expect(result.dynamic).toHaveLength(1);
@@ -329,8 +346,8 @@ describe('compile emits diagnostics', () => {
       severity: 'error',
       profileId: 'p1',
       message:
-        'No usable domain: "a b.com". This profile is not applied. ' +
-        'Fix these, or clear the domain list so the regex alone decides what matches.',
+        'No usable site: "a b.com". Use a bare hostname like example.com. ' +
+        'Nothing is applied while every site is unusable.',
     }]);
   });
 
