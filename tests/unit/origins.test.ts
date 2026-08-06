@@ -253,6 +253,26 @@ describe('effectiveDomain', () => {
     expect(effectiveDomain('https://')).toBe('https://');
   });
 
+  it('normalizes to a fixed point, not one pass each', () => {
+    // The strips used to run once apiece, so `*.*.example.com` came out as
+    // `*.example.com` — a value that still normalizes further on the next read.
+    // Display survived that because the rail re-normalizes what it shows; the
+    // *dedupe* did not, since the popup stores this value and compares stored
+    // against typed. Asserted as a fixed point rather than on one input:
+    // `effectiveDomain` of its own output must be its own output.
+    for (const input of ['*.*.example.com', '..example.com', 'example.com..', '*..example.com']) {
+      expect(effectiveDomain(input)).toBe('example.com');
+      expect(effectiveDomain(effectiveDomain(input))).toBe(effectiveDomain(input));
+    }
+  });
+
+  it('still refuses to reduce a double port to a usable host', () => {
+    // The port strip stays outside the loop on purpose. Looping it would turn
+    // `example.com:80:90` into something that looks like one site, and no
+    // reading of that input supports it.
+    expect(analyzeDomain('example.com:80:90').valid).toBe(false);
+  });
+
   it('collapses two spellings of one site onto the same value', () => {
     // Which is what makes de-duplication on commit possible at all: after
     // normalization these are not two sites, and the popup has to know it.

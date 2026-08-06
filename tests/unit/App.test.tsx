@@ -285,6 +285,71 @@ describe('a fresh install', () => {
   });
 });
 
+describe('a store that fails validation', () => {
+  /** Plainly the user's work, but one enum this build cannot read. */
+  function unreadable(): unknown {
+    const s = stateWith();
+    return {
+      ...s,
+      profiles: [{
+        ...s.profiles[0]!,
+        color: 'chartreuse',
+        headers: [{
+          id: 'h1', enabled: true, target: 'request',
+          operation: 'set', name: 'X-Precious', value: 'do-not-lose-me',
+        }],
+      }],
+    };
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('leaves the stored bytes exactly as they were, having been merely opened', async () => {
+    // The blocker. `getState` returns DEFAULT_STATE for an invalid store, which
+    // is indistinguishable from a fresh install — so the bootstrap minted a
+    // profile onto the fallback and `patchState` wrote it over the real thing.
+    // Opening the popup was enough to destroy someone's rules, with no user
+    // action and nothing on screen.
+    //
+    // Asserting the *stored bytes* rather than the screen is the whole point: a
+    // popup that merely looks right while the store is being overwritten
+    // underneath is exactly the failure this is about.
+    const before = unreadable();
+    await fakeBrowser.storage.local.set({ state: before, state$: { v: 1 } });
+    render(<App />);
+    await screen.findByTestId('unreadable-store');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const after = (await fakeBrowser.storage.local.get('state')).state;
+    expect(after).toEqual(before);
+  });
+
+  it('says so on screen, not only to a console in a window that has closed', async () => {
+    await fakeBrowser.storage.local.set({ state: unreadable(), state$: { v: 1 } });
+    render(<App />);
+
+    const shown = await screen.findByTestId('unreadable-store');
+    expect(shown.textContent).toContain('could not be read');
+    expect(shown.textContent).toContain('Nothing has been changed or overwritten');
+    // And emphatically not the working screen — no rail, no rules, nothing that
+    // invites an edit that would write over the bytes still on disk.
+    expect(screen.queryByTestId('readout')).toBeNull();
+    expect(screen.queryAllByTestId('rule')).toEqual([]);
+  });
+
+  it('still writes the starter rule set when the store is merely empty', async () => {
+    // The other side of the distinction: "empty" and "invalid" both arrive as
+    // DEFAULT_STATE, and only one of them should be written to. Without this,
+    // refusing to write on invalid could be achieved by never writing at all.
+    await seed({ version: 1, globalPause: false, theme: 'system', profiles: [] });
+    render(<App />);
+    await screen.findByRole('textbox', { name: 'Header name' });
+    await waitFor(async () => expect((await stored()).profiles).toHaveLength(1));
+  });
+});
+
 describe('legacy state holding more than one rule set', () => {
   function threeSets(): AppState {
     const make = (id: string, name: string, order: number): Profile => {
@@ -519,6 +584,28 @@ describe('editing scope', () => {
     expect(site.getAttribute('data-state')).toBe('granted');
   });
 
+  it('refuses a spelling that needs more than one normalization pass', async () => {
+    // The reviewer's scenario, verbatim. `*.*.example.com` is a plausible thing
+    // to type for anyone carrying the match-pattern habit. It used to store as
+    // `*.example.com` — a value that normalizes further on the next read — so
+    // the dedupe compared `example.com` against `*.example.com`, found no
+    // clash, and appended: two rows both reading `example.com`, both keyed to
+    // the same host, each with its own Grant.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['example.com'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'example.com', granted: true }]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(field, '*.*.example.com{Enter}');
+
+    expect(screen.getByTestId('add-site-note').textContent)
+      .toBe('example.com is already in the list.');
+    expect((await stored()).profiles[0]!.filter.domains).toEqual(['example.com']);
+    expect(screen.getAllByTestId('site')).toHaveLength(1);
+  });
+
   it('removes the site whose × was clicked', async () => {
     const s = stateWith();
     s.profiles[0]!.filter.domains = ['a.example.com', 'b.example.com'];
@@ -554,11 +641,13 @@ describe('editing scope', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'image' }));
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.resourceTypes).toContain('image'),
+      expect((await stored()).profiles[0]!.filter.resourceTypes)
+        .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame', 'image']),
     );
     await userEvent.click(screen.getByRole('button', { name: 'image' }));
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.resourceTypes).not.toContain('image'),
+      expect((await stored()).profiles[0]!.filter.resourceTypes)
+        .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame']),
     );
   });
 });

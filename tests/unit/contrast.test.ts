@@ -124,12 +124,20 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the rail, whose surface is the darker material in light and the
   //     lighter one in dark; both directions are asserted by running every
   //     pair against both palettes ---
-  ['site host — .hl-domhost', '--hl-ink', '--hl-rail'],
+  // `.hl-dom` paints its own background and swaps it by `data-state`, so every
+  // text node on a site row is measured against the row, not the rail. The
+  // guard used to write these against `--hl-panel` alone and so never saw the
+  // pending and unusable rows at all — where the popup's true lowest text ratio
+  // turned out to live.
+  ['site host, granted row — .hl-domhost', '--hl-ink', '--hl-panel'],
+  ['site host, pending row — .hl-dom[data-state=pending]', '--hl-ink', '--hl-pend-bg'],
+  ['site host, unusable row — .hl-dom[data-state=unusable]', '--hl-ink', '--hl-err-bg'],
+  ['site remove ×, pending row — .hl-domx', '--hl-ink-3', '--hl-pend-bg'],
+  ['site remove ×, unusable row — .hl-domx', '--hl-ink-3', '--hl-err-bg'],
   ['readout subcount and section headings — .hl-subcount / .hl-railhead', '--hl-ink-2', '--hl-rail'],
   ['section counts and unchecked type labels — .hl-n / .hl-ty', '--hl-ink-3', '--hl-rail'],
   ['"Active" — .hl-pauselab', '--hl-live', '--hl-live-bg'],
   ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--hl-ink-2', '--hl-panel'],
-  ['pending-permission message — .hl-needtext', '--hl-pend', '--hl-pend-bg'],
   ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
   ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
   ['the ? mark — .hl-helpmark', '--hl-ink-3', '--hl-rail'],

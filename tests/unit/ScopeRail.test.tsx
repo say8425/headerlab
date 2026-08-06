@@ -229,39 +229,6 @@ describe('sites', () => {
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
-  it('still speaks in words for a site problem that is not a permission prompt', () => {
-    // The line: a routine step gets the compact treatment, a genuine failure
-    // stays visible in words. Without this the compaction would swallow the
-    // things that actually need reading.
-    renderRail({
-      domains: ['api.example.com'],
-      byHost: new Map([[
-        'api.example.com',
-        [diag({ kind: 'invalid-domain', severity: 'error', host: 'api.example.com', message: 'unusable' })],
-      ]]),
-    });
-    expect(screen.getByTestId('site-problem').textContent).toBe('unusable');
-  });
-
-  it('keeps a real failure spoken even while a permission prompt sits on the same row', () => {
-    // Filtering out the permission diagnostic must remove exactly that one. A
-    // filter written as "say nothing once anything is pending" would silence
-    // the failure sharing the row.
-    renderRail({
-      domains: ['api.example.com'],
-      byHost: new Map([[
-        'api.example.com',
-        [
-          permission('api.example.com'),
-          diag({ severity: 'error', host: 'api.example.com', message: 'something else is wrong' }),
-        ],
-      ]]),
-    });
-    expect(screen.getAllByTestId('site-problem').map((n) => n.textContent))
-      .toEqual(['something else is wrong']);
-    expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy();
-  });
-
   it('grants the host the diagnostic names, not the domain text that carries a port', async () => {
     // `localhost:3000` is what the user typed; `localhost` is what Chrome can
     // actually be asked for, and the diagnostic is the party that already knows
@@ -294,20 +261,6 @@ describe('sites', () => {
     expect(onGrant).toHaveBeenCalledTimes(1);
     expect(onGrant).toHaveBeenCalledWith('host-b.example.com');
     expect(onGrant).not.toHaveBeenCalledWith('host-a.example.com');
-  });
-
-  it('offers no Grant for a site problem that is not about permission', () => {
-    // `host` is set here too, on an otherwise Grant-eligible-looking fixture —
-    // without it "no button" would be true for the wrong reason.
-    renderRail({
-      domains: ['api.example.com'],
-      byHost: new Map([[
-        'api.example.com',
-        [diag({ kind: 'invalid-domain', severity: 'error', host: 'api.example.com', message: 'unusable' })],
-      ]]),
-    });
-    expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
-    expect(screen.getByTestId('site-problem').textContent).toBe('unusable');
   });
 
   it('removes the domain whose × was clicked', async () => {

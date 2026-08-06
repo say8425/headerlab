@@ -81,16 +81,33 @@ export function analyzeDomain(domain: string): DomainAnalysis {
   const pathAt = d.search(PATH_START);
   if (pathAt !== -1) d = d.slice(0, pathAt);
 
-  if (d.startsWith('*.')) d = d.slice(2);
-  if (d.startsWith('.')) d = d.slice(1);
-
   const withPort = TRAILING_PORT.exec(d);
   // `noUncheckedIndexedAccess` makes the capture `string | undefined`.
-  const host = withPort?.[1];
-  if (host !== undefined) d = host;
+  const port = withPort?.[1];
+  if (port !== undefined) d = port;
 
-  // `example.com.` and `example.com` are the same host spelled two ways.
-  if (d.endsWith('.')) d = d.slice(0, -1);
+  // **To a fixed point, not once each.** These three used to run one pass, so
+  // `*.*.example.com` came out as `*.example.com` — still a host that
+  // normalizes further on the next read. Display survived that, because the
+  // rail re-normalizes what it shows, but de-duplication did not: the popup
+  // stores this value and then compares stored-against-typed, so
+  // `*.*.example.com` did not collide with an `example.com` already in the
+  // list and both were kept — two rows reading the same host, each with its
+  // own Grant.
+  //
+  // Every branch strictly shortens `d`, so this terminates.
+  //
+  // The port strip stays outside, deliberately: looping it too would reduce
+  // `example.com:80:90` to a usable-looking host, and accepting that as one
+  // site is not something any reading of the input supports.
+  let previous: string;
+  do {
+    previous = d;
+    if (d.startsWith('*.')) d = d.slice(2);
+    if (d.startsWith('.')) d = d.slice(1);
+    // `example.com.` and `example.com` are the same host spelled two ways.
+    if (d.endsWith('.')) d = d.slice(0, -1);
+  } while (d !== previous);
 
   const valid = d.length > 0 && ASCII_ONLY.test(d) && !HOST_FORBIDDEN.test(d);
   return { host: d, valid };

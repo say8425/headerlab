@@ -16,18 +16,47 @@ export const stateItem = storage.defineItem<AppState>('local:state', {
   version: STATE_VERSION,
 });
 
-export async function getState(): Promise<AppState> {
+export interface LoadedState {
+  /** Always usable: the parsed state, or the defaults when parsing failed. */
+  state: AppState;
+  /**
+   * False when the stored bytes failed validation and `state` is the fallback.
+   *
+   * The distinction exists because "empty" and "invalid" look identical once
+   * both are `DEFAULT_STATE`, and they call for opposite behaviour: an empty
+   * store is a fresh install that should be written to, while an invalid one
+   * is somebody's work in a shape this build cannot read — and writing to it
+   * destroys the bytes that could still be recovered. The popup used to mint a
+   * profile onto the fallback and `patchState` then wrote it over the original,
+   * so opening the popup was enough to lose the lot.
+   */
+  valid: boolean;
+}
+
+/**
+ * Reads and validates the store, reporting *whether* it validated.
+ *
+ * Callers that only compile can keep using {@link getState}; callers that
+ * might **write** have to know, because a write derived from the fallback
+ * overwrites whatever was really there.
+ */
+export async function loadState(): Promise<LoadedState> {
   const value = await stateItem.getValue();
   try {
-    return parseAppState(value);
+    return { state: parseAppState(value), valid: true };
   } catch (error) {
     // Whatever sits at local:state is a trust boundary — a hand-edited or
     // partially-migrated value must not flow into compile() unvalidated.
     // Not silent: surfaced so a corrupted store is diagnosable, not just
-    // quietly reset.
+    // quietly reset. The popup says so on screen too — a console line in a
+    // window that has since closed is not something anyone sees.
     console.error('[HeaderLab] stored state failed validation, falling back to defaults', error);
-    return DEFAULT_STATE;
+    return { state: DEFAULT_STATE, valid: false };
   }
+}
+
+export async function getState(): Promise<AppState> {
+  return (await loadState()).state;
 }
 
 export async function setState(next: AppState): Promise<void> {

@@ -45,7 +45,7 @@ function bootstrapProfile(): Profile {
 }
 
 export default function App() {
-  const { state, patch } = useAppState();
+  const { state, valid, patch } = useAppState();
   const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -88,6 +88,19 @@ export default function App() {
    */
   useEffect(() => {
     if (!resolved) return;
+    // Never write onto a fallback. When the stored bytes fail validation
+    // `getState` hands back DEFAULT_STATE, which is indistinguishable from a
+    // fresh install — and minting a profile onto it made `patchState` re-read
+    // that same fallback and write it over somebody's real rules. Opening the
+    // popup was enough to lose them, with no user action and nothing on
+    // screen.
+    //
+    // The truncation below does not have this problem and its reasoning does
+    // not extend here: rule sets the UI cannot show must not go on modifying
+    // headers invisibly, but a store that fails validation is never compiled,
+    // so nothing is being applied and there is nothing to neutralise. That
+    // write is earned; this one was not.
+    if (!valid) return;
     if (!resolved.profile) {
       patch(() => ({ profiles: [bootstrapProfile()] }));
       return;
@@ -100,8 +113,12 @@ export default function App() {
       `${resolved.dropped.map((p) => `"${p.name}" (${p.id})`).join(', ')} — ` +
       'they would otherwise have gone on modifying headers with nothing able to show them.',
     );
-    patch(() => ({ profiles: [kept] }));
-  }, [state]);
+    // Derived from the patch draft like every other write in this file, rather
+    // than from the `kept` this render closed over — the window is small, but
+    // this was the one write that opted out of the rule the rest of the file
+    // follows.
+    patch((s) => ({ profiles: s.profiles.slice(0, 1) }));
+  }, [state, valid]);
 
   useEffect(() => {
     if (!state) return;
@@ -116,6 +133,26 @@ export default function App() {
   useEffect(() => {
     getSyncStatus().then((s) => setLastError(s.lastError)).catch(() => setLastError(null));
   }, [state]);
+
+  // Said on screen, not only to a console nobody is watching. `state.ts` claims
+  // its error exists "so a corrupted store is diagnosable, not just quietly
+  // reset" — a devtools line in a popup that closes the moment you look away
+  // does not make that true. No remedy is offered because there honestly is
+  // none yet: there is no import/export, and a "start fresh" button here would
+  // be the same destructive write the guard above just removed, one click
+  // further away.
+  if (state !== null && !valid) {
+    return (
+      <div className="hl-broken" data-testid="unreadable-store">
+        <b>Saved rules could not be read</b>
+        <p>
+          The stored settings do not match the format this version expects, so no rule is
+          being applied.
+        </p>
+        <p>Nothing has been changed or overwritten — your data is still on disk.</p>
+      </div>
+    );
+  }
 
   const active = resolved?.profile;
   if (!state || !compiled || !active) return <div className="hl-loading">Loading…</div>;

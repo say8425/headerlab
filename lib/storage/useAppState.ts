@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
-import { getState, patchState, stateItem } from '@/lib/storage/state';
+import { loadState, patchState, stateItem } from '@/lib/storage/state';
 import type { AppState } from '@/lib/model/types';
 
 export function useAppState() {
   const [state, setLocal] = useState<AppState | null>(null);
+  // Starts true so the first render is "loading", not "broken".
+  const [valid, setValid] = useState(true);
 
   useEffect(() => {
-    getState().then(setLocal);
+    loadState().then((loaded) => {
+      setLocal(loaded.state);
+      setValid(loaded.valid);
+    });
     return stateItem.watch((next) => setLocal(next));
   }, []);
 
@@ -33,5 +38,5 @@ export function useAppState() {
     });
   };
 
-  return { state, patch };
+  return { state, valid, patch };
 }
