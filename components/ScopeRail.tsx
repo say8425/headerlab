@@ -68,7 +68,7 @@ export function ScopeRail({
   const blame = blockedBy === null ? '' : BLAMED[blockedBy];
 
   const subcount: string[] = [];
-  if (tally.off > 0) subcount.push(`${tally.off} switched off`);
+  if (tally.off > 0) subcount.push(`${tally.off} off`);
   if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
   if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
 
