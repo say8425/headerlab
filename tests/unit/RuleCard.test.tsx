@@ -209,6 +209,87 @@ describe('RuleCard controls', () => {
   });
 });
 
+describe('RuleCard tab order', () => {
+  /** A readable name for whatever currently holds focus. */
+  function focused(): string {
+    const el = document.activeElement;
+    if (!el || el === document.body) return 'body';
+    return el.getAttribute('aria-label') ?? el.tagName.toLowerCase();
+  }
+
+  async function walk(steps: number): Promise<string[]> {
+    const seq: string[] = [];
+    for (let i = 0; i < steps; i += 1) {
+      await userEvent.tab();
+      seq.push(focused());
+    }
+    return seq;
+  }
+
+  it('goes name → value, with delete last', async () => {
+    // Typing a name and pressing Tab used to land on Delete, because the
+    // button sat beside the name input in the DOM and tab order follows the
+    // document. Name then value is the one sequence this card exists to
+    // support, and its destructive action belongs at the end.
+    //
+    // The whole sequence is asserted, not merely that each control is
+    // reachable: a test checking only that the value field and the delete
+    // button exist passes against the broken order. `userEvent.tab()` was
+    // checked against this setup first — jsdom implements no sequential focus
+    // navigation of its own, but user-event walks the document's tabbable
+    // elements in source order, which is exactly the property under test.
+    render(
+      <RuleCard rule={rule({ name: 'X-Test' })} diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(await walk(6)).toEqual([
+      'X-Test enabled',
+      'Direction: request',
+      'Operation: set',
+      'Header name',
+      'Header value',
+      'Delete rule',
+    ]);
+  });
+
+  it('keeps that order on a rule whose value is still empty', async () => {
+    // An empty `set` rule still renders a real textarea, so it is in the
+    // sequence like any other. (Only `remove` swaps the value for a span —
+    // see below.) Without this case the order could hold for filled rules and
+    // break for the one a user meets first.
+    render(
+      <RuleCard rule={rule({ name: '', value: '' })} diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(await walk(6)).toEqual([
+      'Unnamed enabled',
+      'Direction: request',
+      'Operation: set',
+      'Header name',
+      'Header value',
+      'Delete rule',
+    ]);
+  });
+
+  it('skips the value on a remove rule, which has none to focus', async () => {
+    // `remove` takes no value, so that slot is a span rather than a field and
+    // Tab goes straight from the name to delete. Asserted rather than left to
+    // chance, because it is the one row where "name then value" cannot hold
+    // and the reason must be visible here.
+    render(
+      <RuleCard
+        rule={rule({ operation: 'remove', value: '' })}
+        diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()}
+      />,
+    );
+    expect(await walk(5)).toEqual([
+      'X-Test enabled',
+      'Direction: request',
+      'Operation: remove',
+      'Header name',
+      'Delete rule',
+    ]);
+  });
+});
+
 describe('RuleCard value slot', () => {
   it('says a remove rule takes no value, and offers no field to type one into', () => {
     // The grid this replaces drew an empty cell for `remove` because a column

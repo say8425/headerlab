@@ -100,7 +100,6 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             if (e.key === 'Escape') name.cancel();
           }}
         />
-        <button className="hl-del" aria-label="Delete rule" onClick={onDelete}>×</button>
       </div>
 
       <div className="hl-r2">
@@ -132,6 +131,17 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           />
         )}
       </div>
+
+      {/* Last in the DOM, top-right on screen.
+          Tab order follows the document, so while this sat beside the name
+          input a Tab out of the name landed on Delete instead of the value —
+          the one sequence this card exists to support, name then value,
+          interrupted by its destructive action. Moving the markup is the fix;
+          a positive `tabindex` would pull it into a separate sequence that has
+          to be maintained against every future change. CSS puts it back where
+          it looks right, and `.hl-r1` reserves the width it used to occupy so
+          the card's appearance does not move. */}
+      <button className="hl-del" aria-label="Delete rule" onClick={onDelete}>×</button>
 
       {problems.map((d, i) => (
         <div

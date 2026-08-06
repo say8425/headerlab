@@ -581,6 +581,7 @@ body {
 /* ---- a rule: two tiers, so the value gets real width ---- */
 
 .hl-rule {
+    position: relative;
     background: var(--hl-card);
     border: 1px solid var(--hl-card-edge);
     border-radius: 8px;
@@ -605,6 +606,11 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    /* The delete button is out of this row's flow (it is last in the DOM so
+       Tab reaches it after the value) but still sits on top of it. This is the
+       width it used to occupy — 22px of button plus the row's 8px gap — so the
+       name field ends exactly where it did before. */
+    padding-right: 30px;
 }
 
 .hl-tog {
@@ -703,7 +709,9 @@ body {
 }
 
 .hl-del {
-    flex: none;
+    position: absolute;
+    top: 8px;
+    right: 9px;
     width: 22px;
     height: 22px;
     border-radius: 5px;
