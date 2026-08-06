@@ -9,7 +9,7 @@ function profile(over: Partial<Profile> = {}): Profile {
     color: 'green',
     enabled: true,
     order: 0,
-    filter: { mode: 'structured', domains: [], excludedDomains: [], resourceTypes: ['xmlhttprequest'] },
+    filter: { mode: 'structured', allSites: false, domains: [], excludedDomains: [], resourceTypes: ['xmlhttprequest'] },
     tabLock: { enabled: false, tabId: null, tabTitle: null },
     headers: [],
     ...over,

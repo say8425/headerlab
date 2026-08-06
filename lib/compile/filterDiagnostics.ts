@@ -1,4 +1,4 @@
-import { isSuppressed } from '@/lib/compile/suppression';
+import { suppressionReason } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile } from '@/lib/model/types';
 
@@ -19,6 +19,15 @@ const REGEX_MAX_SOURCE = 2048;
  * ASCII-ness and size. `chrome.declarativeNetRequest.isRegexSupported()` is the
  * authority on RE2 syntax and lives in the adapter layer; the regex editor that
  * would call it is Phase 2c.
+ *
+ * **Says nothing about the domain list while all-sites is on.** Both messages
+ * below promise something about whether rules are applied, and in that mode
+ * both promises are false: the list is not compiled (conditions.ts), so an
+ * unusable entry in it stops nothing and an empty one means nothing. The entry
+ * is still marked broken on its own row in the rail, which is where a value
+ * the user can see and edit belongs — an error card claiming "nothing is
+ * applied" over an extension applying to every site would be the screen
+ * contradicting itself.
  */
 export function validateFilter(profile: Profile): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
@@ -37,16 +46,20 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // Raised above the regex branch on purpose. compile.ts's suppression is
   // mode-agnostic and conditions.ts sets requestDomains for a regex rule too,
   // so a regex profile that lists a broken domain dies the same way — and the
-  // regex branch below returns before `empty-filter` could catch it.
+  // regex branch below returns before the no-scope check could catch it.
   //
-  // Never fires together with `empty-filter`, whose condition is untouched:
-  //   structured + all-invalid  -> empty-filter (this branch declines)
-  //   structured + empty        -> empty-filter (not suppressed)
-  //   structured + mixed        -> here
-  //   regex + anything invalid  -> here (empty-filter never fires in regex mode)
-  //   regex + empty             -> neither; the pattern is the condition
+  // The reason comes from `suppressionReason`, never from re-reading the
+  // fields. That is what collapsed the old branch: this used to ask
+  // `isSuppressed(...) && (mode === 'regex' || anyValid)`, a hand-built
+  // restatement of which suppressed states belonged to which message, and it
+  // left structured-and-all-invalid to be reported by `empty-filter` as a
+  // *warning* — a profile applying to nothing, filed under the same kind and
+  // severity as one applying to everything. The two now split by reason:
+  //   'unusable-site' -> here, an error, in either mode
+  //   'no-scope'      -> below, incomplete, structured only
+  const reason = suppressionReason(profile);
   const anyValid = analyses.some((a) => a.valid);
-  if (isSuppressed(profile) && (filter.mode === 'regex' || anyValid)) {
+  if (reason === 'unusable-site') {
     const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
     diagnostics.push({
       kind: 'invalid-domain',
@@ -54,8 +67,11 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       profileId: profile.id,
       // Two different problems needing two different actions: with a usable
       // entry left the fix is to repair the bad lines, with none left there is
-      // nothing to salvage — and clearing the list is itself a fix, because a
-      // regex profile with no domains is legitimate.
+      // nothing to salvage. Neither branch tells the reader to clear the list.
+      // It used to, on the grounds that a regex profile with no domains is
+      // legitimate — but that advice was only ever true in regex mode, and in
+      // structured mode an empty list is now its own suppressed state, so
+      // following it would move the profile from one silence to another.
       // States the cause, then the remedy. The version this replaces named
       // only the consequence — "the whole profile is not applied" — which
       // leaves a user who pasted something reasonable with nothing to act on.
@@ -108,20 +124,27 @@ export function validateFilter(profile: Profile): Diagnostic[] {
     });
   }
 
-  if (!analyses.some((a) => a.valid)) {
+  // The state a fresh install opens in: nothing has been said about where
+  // these rules apply, so they do not apply. It still has to reach the screen
+  // — "never suppress without saying so" holds however ordinary the cause —
+  // but it is said calmly and not warned about, because nothing here is wrong
+  // or at risk. Nothing is happening, which is the safe direction, and the two
+  // ways out are named rather than implied.
+  //
+  // The standing warning this replaces said the opposite ("these rules apply
+  // everywhere"), and it was accurate: with no way to declare all-sites, an
+  // empty list really did compile to a rule matching every site. Removing the
+  // warning without `Filter.allSites` would have been removing the only notice
+  // of that; with it, the state being warned about no longer happens by
+  // accident, so the warning has nothing left to describe.
+  if (reason === 'no-scope') {
     diagnostics.push({
-      kind: 'empty-filter',
-      severity: 'warning',
+      kind: 'no-scope',
+      severity: 'incomplete',
       profileId: profile.id,
-      // Both branches name the cause and what to do about it. The suppression
-      // itself is correct and unchanged: a filter whose sites are all unusable
-      // would carry no condition at all and match *every* site, so refusing to
-      // apply it is the safe answer — only the explanation was at fault.
-      message: filter.domains.length === 0
-        ? 'No site set, so these rules apply everywhere. Add a site above to narrow them.'
-        : 'No usable site here, so nothing is applied — with no site to match, ' +
-          'these rules would apply to every site instead of none. ' +
-          'Use a bare hostname like example.com.',
+      message:
+        'No site set yet, so nothing is being applied. ' +
+        'Add a site above, or turn on All sites.',
     });
   }
 

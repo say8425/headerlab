@@ -6,7 +6,7 @@ import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import type { Diagnostic } from '@/lib/model/types';
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
-  return { kind: 'empty-filter', severity: 'warning', profileId: 'p1', message: 'm', ...over };
+  return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
 }
 
 function permission(host: string): Diagnostic {
@@ -433,7 +433,7 @@ describe('scope notes', () => {
   it('shows one note per scope diagnostic, in order, with its severity marked', () => {
     renderRail({
       notes: [
-        diag({ kind: 'empty-filter', message: 'No site set.' }),
+        diag({ kind: 'no-scope', message: 'No site set.' }),
         diag({ kind: 'invalid-domain', severity: 'error', message: 'Unusable site.' }),
       ],
     });
@@ -451,7 +451,7 @@ describe('scope notes', () => {
     // control on screen, so it is the part that can afford to be scrolled to.
     renderRail({
       domains: ['api.example.com'],
-      notes: [diag({ kind: 'empty-filter', message: 'No site set.' })],
+      notes: [diag({ kind: 'no-scope', message: 'No site set.' })],
     });
     const note = screen.getByTestId('scope-note');
     const types = screen.getByText('Request types');

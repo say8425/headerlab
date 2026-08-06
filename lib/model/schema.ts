@@ -23,6 +23,12 @@ const headerRuleSchema = z.object({
 
 const filterSchema = z.object({
   mode: z.enum(['structured', 'regex']),
+  // Required, with no default. A default would let a v1 value slip through
+  // unmigrated and be silently reinterpreted — which is the whole hazard
+  // lib/model/migrate.ts exists to handle, reintroduced one layer down and out
+  // of sight. Missing here means "this build cannot read these bytes", which
+  // the popup says out loud.
+  allSites: z.boolean(),
   domains: z.array(z.string()),
   excludedDomains: z.array(z.string()),
   pathPattern: z.string().optional(),

@@ -35,7 +35,13 @@ export function filterToCondition(
   // lib/compile/compile.ts — because dropping just the bad domain would
   // leave a rule with no domain condition, which DNR matches against every
   // site.
-  const domains = filter.domains.map(normalizeDomain);
+  //
+  // All-sites drops the list entirely: applying everywhere *is* a rule with no
+  // `requestDomains`, and that is now something the user asked for rather than
+  // something the compiler fell into. The stored entries are left untouched in
+  // state so turning the mode back off restores the scope they had built —
+  // this is the only place that decides not to compile them.
+  const domains = filter.allSites ? [] : filter.domains.map(normalizeDomain);
 
   const condition: DnrRuleCondition = {
     resourceTypes: [...filter.resourceTypes],

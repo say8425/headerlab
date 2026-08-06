@@ -22,7 +22,11 @@ import type { AppState, Profile, ProfileColor } from '@/lib/model/types';
 export const SELECTABLE_COLORS: readonly ProfileColor[] =
   ['green', 'amber', 'red', 'blue', 'violet'];
 
-export const STATE_VERSION = 1;
+/**
+ * Bumped to 2 when `Filter.allSites` became explicit. Every bump needs a
+ * matching entry in `stateItem`'s `migrations` — see lib/storage/state.ts.
+ */
+export const STATE_VERSION = 2;
 
 export function createProfile(name: string, order: number): Profile {
   return {
@@ -33,6 +37,13 @@ export function createProfile(name: string, order: number): Profile {
     order,
     filter: {
       mode: 'structured',
+      // A new rule set is *unscoped*, not global. v1 had no way to say that —
+      // an empty list compiled to a rule matching every site — so a fresh
+      // install started out pointed at the whole internet and warned about it.
+      // Off means nothing is applied until the user says where, which is the
+      // only default that matches a product whose claim is zero host access at
+      // install.
+      allSites: false,
       domains: [],
       excludedDomains: [],
       // Explicit by policy: DNR's default silently excludes main_frame.

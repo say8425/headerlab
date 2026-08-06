@@ -83,11 +83,45 @@ describe('detectConflicts', () => {
     expect(detectConflicts([a, bRegex])).toHaveLength(1);
   });
 
-  it('treats a domainless profile as overlapping everything', () => {
+  it('treats an all-sites profile as overlapping everything', () => {
+    // Was spelled "domainless": an empty list used to be the only way to reach
+    // a rule with no domain condition. It is reached by asking now, and an
+    // empty list with all-sites off is suppressed and never gets here at all.
+    const a = p('a', 'A', [], [{ name: 'Authorization' }], 0);
+    expect(detectConflicts([
+      { ...a, filter: { ...a.filter, allSites: true } },
+      p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+    ])).toHaveLength(1);
+  });
+
+  it('treats an all-sites profile as overlapping even a host its own list does not name', () => {
+    // The defect this guards. All-sites keeps the stored list and compiles
+    // none of it, so a detector reading `filter.domains` would compare
+    // `x.com` against `y.com`, find no overlap, and stay silent — while the
+    // registered rule matches every site and Chrome silently discards B's
+    // header. Mutation-checked by pointing `scopingHosts` back at the list.
+    const a = p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0);
+    expect(detectConflicts([
+      { ...a, filter: { ...a.filter, allSites: true } },
+      p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+    ])).toHaveLength(1);
+    // The same pair with all-sites off is genuinely disjoint, so this cannot
+    // pass by warning about everything.
+    expect(detectConflicts([
+      a,
+      p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+    ])).toEqual([]);
+  });
+
+  it('says nothing about a profile that has no scope at all', () => {
+    // Suppressed, so it emits no rule — and a profile that emits no rule can
+    // neither discard a neighbour's row nor have its own discarded. Filing it
+    // as a conflict would contradict the `no-scope` diagnostic reporting that
+    // it is not applied.
     expect(detectConflicts([
       p('a', 'A', [], [{ name: 'Authorization' }], 0),
       p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-    ])).toHaveLength(1);
+    ])).toEqual([]);
   });
 
   it('ignores disabled profiles and disabled rows', () => {

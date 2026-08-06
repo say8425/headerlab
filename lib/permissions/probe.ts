@@ -56,3 +56,41 @@ export async function requestHost(host: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The one origin all-sites mode needs.
+ *
+ * `<all_urls>` is not a host and cannot go through the two functions above:
+ * `originCandidates` would build `https://<all_urls>/*`, and the ladder it
+ * exists to climb has no rungs here — there is no narrower grant that could
+ * satisfy this and no broader one to fall back to. One pattern, asked
+ * directly.
+ *
+ * Declared in `optional_host_permissions` in wxt.config.ts, which is what
+ * makes it requestable at runtime. Deliberately **not** in `permissions` — the
+ * manifest still asks for no host access at install, and
+ * tests/unit/manifest.test.ts holds that line.
+ */
+export const ALL_URLS = '<all_urls>';
+
+/** Whether every site has already been granted. */
+export async function probeAllSites(): Promise<boolean> {
+  return covers(ALL_URLS);
+}
+
+/**
+ * Asks for every site. Must be called from a user gesture — flipping the
+ * all-sites switch on is that gesture, and so is its Grant button.
+ *
+ * The grant belongs to the mode rather than following it: applying everywhere
+ * is exactly what `<all_urls>` buys, so the cost is put in front of the user at
+ * the moment of choosing instead of being discovered later, by rules that
+ * registered and quietly never fired.
+ */
+export async function requestAllSites(): Promise<boolean> {
+  try {
+    return await browser.permissions.request({ origins: [ALL_URLS] });
+  } catch {
+    return false;
+  }
+}

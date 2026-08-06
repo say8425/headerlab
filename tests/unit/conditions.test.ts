@@ -5,6 +5,7 @@ import type { Filter } from '@/lib/model/types';
 
 const base: Filter = {
   mode: 'structured',
+  allSites: false,
   domains: ['api.example.com'],
   excludedDomains: [],
   resourceTypes: ['xmlhttprequest'],
@@ -126,6 +127,7 @@ describe('filterToCondition — shared', () => {
 describe('excludedRequestDomains goes through the same normalization', () => {
   const base: Filter = {
     mode: 'structured',
+    allSites: false,
     domains: ['example.com'],
     excludedDomains: [],
     resourceTypes: ['xmlhttprequest'],

@@ -1,5 +1,5 @@
 import { isSuppressed } from '@/lib/compile/suppression';
-import { analyzeDomain } from '@/lib/permissions/origins';
+import { scopingHosts } from '@/lib/permissions/origins';
 import type { Diagnostic, HeaderRule, Operation, Profile } from '@/lib/model/types';
 
 /**
@@ -23,16 +23,21 @@ function allowsAfter(first: Operation, second: Operation): boolean {
 function mayOverlap(a: Profile, b: Profile): boolean {
   if (a.filter.mode === 'regex' || b.filter.mode === 'regex') return true;
 
-  const hostsOf = (p: Profile) =>
-    p.filter.domains.map(analyzeDomain).filter((x) => x.valid).map((x) => x.host);
+  // Asked of `scopingHosts`, never re-derived from `filter.domains`. What
+  // narrows a rule and what is stored in the list stopped being the same thing
+  // when all-sites arrived: that mode keeps the user's entries and compiles
+  // none of them, so reading the list here would see a profile scoped to one
+  // host where the registered rule matches every site — and a profile that
+  // overlaps everything would be judged to overlap almost nothing, discarding
+  // its neighbours' headers with no warning at all.
+  const aHosts = scopingHosts(a.filter);
+  const bHosts = scopingHosts(b.filter);
 
-  const aHosts = hostsOf(a);
-  const bHosts = hostsOf(b);
-
-  // A rule with no domain condition matches every site. Only an *empty* domain
-  // list produces one — a non-empty list that is entirely unusable makes the
-  // compiler emit no rule at all, and those profiles never reach this function
-  // (see `active` below). So an empty `hosts` here means an empty list.
+  // A rule with no domain condition matches every site, so an empty answer
+  // overlaps anything. Two ways to get one now: all-sites, which says so on
+  // purpose, and regex mode, handled above. An entirely unusable list makes
+  // the compiler emit no rule at all and an empty list with all-sites off is
+  // suppressed too — neither reaches this function (see `active` below).
   if (aHosts.length === 0 || bHosts.length === 0) return true;
 
   // Domains match subdomains too, so `example.com` and `api.example.com`

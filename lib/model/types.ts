@@ -27,6 +27,25 @@ export interface HeaderRule {
 
 export interface Filter {
   mode: 'structured' | 'regex';
+  /**
+   * Apply to every site, by explicit choice.
+   *
+   * Exists because `domains: []` was carrying two opposite meanings at once —
+   * *not scoped yet* and *deliberately everywhere* — and nothing could tell
+   * them apart. The compiler had to guess, and it guessed "everywhere", so the
+   * only honest thing the UI could do was warn about a state the user might
+   * well have meant. Naming the mode removes the guess: an empty list is now
+   * simply an empty list, and applying everywhere is something the user turns
+   * on.
+   *
+   * When on, `domains` is **kept but not compiled** (conditions.ts). Keeping it
+   * is what makes the switch reversible: turning all-sites off restores the
+   * scope the user had built rather than handing them a blank list.
+   *
+   * Costs `<all_urls>`, which is the broadest grant this extension can ask for
+   * — see `originsForFilter`.
+   */
+  allSites: boolean;
   domains: string[];
   excludedDomains: string[];
   pathPattern?: string;
@@ -108,7 +127,20 @@ export type DiagnosticKind =
   | 'profile-conflict'
   | 'permission-missing'
   | 'tab-lock-stale'
-  | 'empty-filter'
+  /**
+   * Nothing says where these rules apply, so nothing is applied.
+   *
+   * Replaces `empty-filter`, which had to cover this *and* its opposite — a
+   * filter deliberately left open to every site — because an empty domain list
+   * was the only spelling of both. `Filter.allSites` separates them, so this
+   * kind now names one state: no site listed and all-sites off.
+   *
+   * Carries severity `incomplete` rather than `warning`. Nothing is wrong here
+   * and nothing is at risk; the rules simply have no scope yet, which is the
+   * state a fresh install opens in. Reporting it as a warning is what put a
+   * standing complaint on a screen the user had not finished filling in.
+   */
+  | 'no-scope'
   /**
    * A rule that has not been given a name yet.
    *

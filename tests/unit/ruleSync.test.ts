@@ -17,7 +17,7 @@ function appState(headerName: string): AppState {
       {
         id: 'p1', name: 'P', color: 'green', enabled: true, order: 0,
         filter: {
-          mode: 'structured', domains: ['api.example.com'],
+          mode: 'structured', allSites: false, domains: ['api.example.com'],
           excludedDomains: [], resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
