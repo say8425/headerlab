@@ -2,6 +2,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
 import { getState } from '@/lib/storage/state';
 import { setSyncStatus, type SyncStatus } from '@/lib/storage/session';
+import { setToolbarIcon } from '@/lib/sync/icon';
 import type { CompileResult, DnrRule } from '@/lib/model/types';
 
 /**
@@ -89,6 +90,19 @@ export async function reconcile(): Promise<void> {
           lastError: null,
           ruleCount: result.dynamic.length + result.session.length,
         });
+        // On the single entry path, not beside it. An icon driven by its own
+        // listener is a second route to the same fact, free to disagree with
+        // the rules actually registered; here it can only ever describe the
+        // state this pass just applied.
+        //
+        // It is also what survives a worker restart. MV3 kills the worker
+        // aggressively and `setIcon` does not persist — Chrome falls back to
+        // the manifest's default, which is the *active* icon — so a paused
+        // extension would quietly show colour again after an idle period.
+        // background.ts calls reconcile() at module evaluation, so every wake
+        // re-applies this. Same class as the tab-lock liveness sweep: state
+        // living only in the browser's memory has to be rebuilt on wake.
+        await recordIcon(state.globalPause);
       } while (rerunQueued);
     } finally {
       inFlight = null;
@@ -109,5 +123,18 @@ async function recordStatus(status: SyncStatus): Promise<void> {
     await setSyncStatus(status);
   } catch (error) {
     console.error('[HeaderLab] failed to record sync status', error);
+  }
+}
+
+/**
+ * Best-effort, for the same reason `recordStatus` is: the icon is a report on
+ * what happened, and a report failing must not turn a reconcile that actually
+ * registered its rules into a failed one.
+ */
+async function recordIcon(paused: boolean): Promise<void> {
+  try {
+    await setToolbarIcon(paused);
+  } catch (error) {
+    console.error('[HeaderLab] failed to set the toolbar icon', error);
   }
 }

@@ -94,8 +94,14 @@ describe('syncRules', () => {
 });
 
 describe('reconcile', () => {
+  const setIcon = vi.fn<(details: unknown) => Promise<void>>();
+
   beforeEach(() => {
     fakeBrowser.reset();
+    setIcon.mockReset().mockResolvedValue(undefined);
+    // `chrome.action` is not part of fake-browser; planted by hand, the same
+    // way this file already supplies the DNR surface.
+    (fakeBrowser as unknown as { action: unknown }).action = { setIcon };
     vi.spyOn(dnr(), 'getDynamicRules').mockResolvedValue([] as never);
     vi.spyOn(dnr(), 'getSessionRules').mockResolvedValue([] as never);
     vi.spyOn(dnr(), 'updateDynamicRules').mockResolvedValue(undefined);
@@ -217,5 +223,56 @@ describe('reconcile', () => {
     // updateDynamicRules/updateSessionRules succeed via this describe
     // block's beforeEach — only the best-effort status write fails.
     await expect(reconcile()).resolves.toBeUndefined();
+  });
+
+  it('sets the toolbar icon from the state it just applied, and the two states differ', async () => {
+    // The icon rides the single entry path rather than its own listener, so it
+    // can only ever describe the rules this pass actually registered. Both
+    // states are driven in one test because the claim is that they *differ* —
+    // asserting a call happened would pass against an icon that never changes.
+    const running = appState('X-A');
+    const paused: AppState = { ...appState('X-A'), globalPause: true };
+    const getState = vi.spyOn(stateModule, 'getState').mockResolvedValue(running);
+    vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
+
+    await reconcile();
+    getState.mockResolvedValue(paused);
+    await reconcile();
+
+    expect(setIcon).toHaveBeenCalledTimes(2);
+    const first = (setIcon.mock.calls[0]![0] as { path: Record<string, string> }).path;
+    const second = (setIcon.mock.calls[1]![0] as { path: Record<string, string> }).path;
+    expect(first[16]).toBe('/icon/active-16.png');
+    expect(second[16]).toBe('/icon/paused-16.png');
+    expect(second).not.toEqual(first);
+  });
+
+  it('re-applies the icon on every pass, which is what survives a worker restart', async () => {
+    // `setIcon` does not persist: MV3 kills the worker and Chrome falls back to
+    // the manifest default, which is the colour icon. background.ts calls
+    // reconcile() at module evaluation, so a wake re-applies the paused icon —
+    // but only if reconcile actually sets it every time rather than on change.
+    vi.spyOn(stateModule, 'getState').mockResolvedValue({ ...appState('X-A'), globalPause: true });
+    vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
+
+    await reconcile();
+    await reconcile();
+
+    expect(setIcon).toHaveBeenCalledTimes(2);
+    for (const [details] of setIcon.mock.calls) {
+      expect((details as { path: Record<string, string> }).path[16]).toBe('/icon/paused-16.png');
+    }
+  });
+
+  it('does not let a failing icon sink a reconcile that registered its rules', async () => {
+    // Same bargain as the status record: the icon is a report on what happened,
+    // and a report failing must not turn a successful pass into a failed one.
+    setIcon.mockRejectedValue(new Error('icon missing'));
+    vi.spyOn(stateModule, 'getState').mockResolvedValue(appState('X-A'));
+    vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(reconcile()).resolves.toBeUndefined();
+    expect(dnr().updateDynamicRules).toHaveBeenCalled();
   });
 });
