@@ -6,6 +6,7 @@ import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
+import { effectiveDomain } from '@/lib/permissions/origins';
 import { probeGrants, requestHost } from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
 import { createProfile } from '@/lib/model/defaults';
@@ -172,13 +173,28 @@ export default function App() {
         blockedBy={blockedBy}
         lastError={lastError}
         resourceTypes={active.filter.resourceTypes}
-        onAddDomain={(domain) =>
+        onAddDomain={(typed) => {
+          // Normalized here, at the moment it is committed, so what is stored
+          // is what the extension actually matches on and what the rail shows.
+          // Storing the raw text and normalizing at every read is what put one
+          // value on screen and a different one on the wire.
+          //
+          // Unusable input keeps its typed form: there is no host to store, and
+          // the row has to be able to name what the user actually wrote.
+          const host = effectiveDomain(typed);
+          const clash = active.filter.domains.find((d) => effectiveDomain(d) === host);
+          if (clash !== undefined) return { added: false, alreadyThere: host };
           patchProfile((p) =>
-            p.filter.domains.includes(domain)
+            // Re-checked against the draft rather than trusting the snapshot
+            // above — the guard that decides what the user is told and the
+            // guard that protects the list are allowed to be different reads,
+            // but neither may be the only one.
+            p.filter.domains.some((d) => effectiveDomain(d) === host)
               ? p
-              : { ...p, filter: { ...p.filter, domains: [...p.filter.domains, domain] } },
-          )
-        }
+              : { ...p, filter: { ...p.filter, domains: [...p.filter.domains, host] } },
+          );
+          return { added: true };
+        }}
         onRemoveDomain={(domain) =>
           patchProfile((p) => ({
             ...p,

@@ -27,7 +27,7 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     blockedBy: null,
     lastError: null,
     resourceTypes: ['xmlhttprequest', 'main_frame'],
-    onAddDomain: vi.fn(),
+    onAddDomain: vi.fn(() => ({ added: true as const })),
     onRemoveDomain: vi.fn(),
     onToggleType: vi.fn(),
     onGrant: vi.fn(),
@@ -247,11 +247,11 @@ describe('sites', () => {
       domains: ['api.example.com'],
       byHost: new Map([[
         'api.example.com',
-        [diag({ kind: 'port-ignored', host: 'api.example.com', message: 'port ignored' })],
+        [diag({ kind: 'invalid-domain', severity: 'error', host: 'api.example.com', message: 'unusable' })],
       ]]),
     });
     expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
-    expect(screen.getByTestId('site-problem').textContent).toBe('port ignored');
+    expect(screen.getByTestId('site-problem').textContent).toBe('unusable');
   });
 
   it('removes the domain whose × was clicked', async () => {
@@ -267,7 +267,7 @@ describe('adding a site', () => {
   const field = () => screen.getByRole('textbox', { name: 'Add a site' });
 
   it('adds on Enter, trimmed, and clears itself', async () => {
-    const onAddDomain = vi.fn();
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });
     await userEvent.type(field(), '  api.example.com  {Enter}');
     expect(onAddDomain).toHaveBeenCalledTimes(1);
@@ -276,7 +276,7 @@ describe('adding a site', () => {
   });
 
   it('adds on blur, for a domain typed and then clicked away from', async () => {
-    const onAddDomain = vi.fn();
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });
     await userEvent.type(field(), 'api.example.com');
     expect(onAddDomain).not.toHaveBeenCalled();
@@ -288,7 +288,7 @@ describe('adding a site', () => {
   it('adds once when Enter is followed by a blur', async () => {
     // Same "once per edit" promise the editable fields make, reached a
     // different way: adding clears the field, so the blur has nothing left.
-    const onAddDomain = vi.fn();
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });
     await userEvent.type(field(), 'api.example.com{Enter}');
     await userEvent.tab();
@@ -296,7 +296,7 @@ describe('adding a site', () => {
   });
 
   it('discards the entry on Escape, so the following blur adds nothing', async () => {
-    const onAddDomain = vi.fn();
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });
     await userEvent.type(field(), 'api.example.com{Escape}');
     await userEvent.tab();
@@ -304,10 +304,44 @@ describe('adding a site', () => {
     expect(field()).toHaveProperty('value', '');
   });
 
+  it('says so when the site is already there, and keeps the entry visible', async () => {
+    // Silently clearing the field on a duplicate looks exactly like a
+    // successful add — the user is told nothing and sees nothing change. The
+    // note names the *host*, because after normalization `https://x.com/` and
+    // `x.com` are one site and the host is the only thing that explains why two
+    // different-looking entries collided.
+    const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: 'x.com' }));
+    renderRail({ domains: ['x.com'], onAddDomain });
+    await userEvent.type(field(), 'https://x.com/{Enter}');
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    expect(field()).toHaveProperty('value', 'https://x.com/');
+  });
+
+  it('drops the complaint as soon as the entry is edited', async () => {
+    // The note is about the text as it stands; leaving it up while the user
+    // types something else would be complaining about a value that is gone.
+    const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: 'x.com' }));
+    renderRail({ domains: ['x.com'], onAddDomain });
+    await userEvent.type(field(), 'x.com{Enter}');
+    expect(screen.getByTestId('add-site-note')).toBeTruthy();
+    await userEvent.type(field(), 'y');
+    expect(screen.queryByTestId('add-site-note')).toBeNull();
+  });
+
+  it('teaches the host-only rule on the field, once, rather than after each entry', async () => {
+    // The one fact the chip cannot convey: a port could never have narrowed
+    // anything, because requestDomains is host-only. Said before the typing it
+    // prevents the mistake; said after it would only explain a change already
+    // visible in the chip.
+    renderRail();
+    expect(screen.getByText(/Matched by host/).textContent)
+      .toBe('Matched by host — a port or path cannot narrow it.');
+  });
+
   it('adds nothing for whitespace alone', async () => {
     // An empty entry in a non-empty list is a domain that can never match,
     // which narrows the scope to nothing without saying so.
-    const onAddDomain = vi.fn();
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });
     await userEvent.type(field(), '   {Enter}');
     expect(onAddDomain).not.toHaveBeenCalled();
@@ -365,12 +399,12 @@ describe('scope notes', () => {
   it('shows one note per scope diagnostic, in order, with its severity marked', () => {
     renderRail({
       notes: [
-        diag({ kind: 'port-ignored', message: 'Port ignored.' }),
-        diag({ kind: 'invalid-domain', severity: 'error', message: 'Unusable domain.' }),
+        diag({ kind: 'empty-filter', message: 'No site set.' }),
+        diag({ kind: 'invalid-domain', severity: 'error', message: 'Unusable site.' }),
       ],
     });
     const notes = screen.getAllByTestId('scope-note');
-    expect(notes.map((n) => n.textContent)).toEqual(['Port ignored.', 'Unusable domain.']);
+    expect(notes.map((n) => n.textContent)).toEqual(['No site set.', 'Unusable site.']);
     expect(notes.map((n) => n.getAttribute('data-severity'))).toEqual(['warning', 'error']);
   });
 
@@ -383,7 +417,7 @@ describe('scope notes', () => {
     // control on screen, so it is the part that can afford to be scrolled to.
     renderRail({
       domains: ['api.example.com'],
-      notes: [diag({ kind: 'port-ignored', message: 'Port ignored.' })],
+      notes: [diag({ kind: 'empty-filter', message: 'No site set.' })],
     });
     const note = screen.getByTestId('scope-note');
     const types = screen.getByText('Request types');

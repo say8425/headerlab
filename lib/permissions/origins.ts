@@ -45,67 +45,75 @@ const PATH_START = /[/?#]/;
 export interface DomainAnalysis {
   /** Normalized bare host: trimmed, lowercased, no scheme, no path, no leading `*.`/`.`, no port. */
   host: string;
-  /** The input carried a port and it was dropped. */
-  portDropped: boolean;
-  /** The input was a URL — a scheme, a path, or both — and only the host was kept. */
-  urlTrimmed: boolean;
   /** The host can be used in a DNR condition and in a match pattern. */
   valid: boolean;
 }
 
 /**
- * Normalizes a user-entered domain and reports what had to be changed.
+ * Reduces a user-entered site to the bare host Chrome can actually match on.
  *
- * Ports are **normalized away, not rejected.** `requestDomains` is host-only —
- * it cannot express a port, and a host match applies on every port. Rejecting
- * `localhost:3000` would block the most common input this tool receives; the
- * caller raises a `port-ignored` diagnostic so the change is never silent.
+ * A port, a scheme and a path are all **normalized away, not rejected.**
+ * `requestDomains` is host-only: it cannot express any of them, and a host
+ * match applies on every port and every path. Rejecting `localhost:3000` or a
+ * pasted URL would block the two most natural inputs this field receives, and
+ * dropping the only entry in a list would leave a rule with no condition at all
+ * — matching every site, which is the fail-open trap normalization exists to
+ * remove (spike §4).
+ *
+ * Nothing here announces what it changed, and nothing needs to: the popup
+ * stores and shows this host, so the change *is* the value on screen. What the
+ * host cannot say — that a port could never have narrowed anything in the first
+ * place — is help text on the field itself, where it teaches before the input
+ * rather than explaining after it.
+ *
+ * Still applied at **read** time as well as write time. Values stored before
+ * the popup normalized on commit are raw, and everything downstream — the
+ * compiled condition, the permission audit, the chip — goes on reading them
+ * through here.
  */
 export function analyzeDomain(domain: string): DomainAnalysis {
   let d = domain.trim().toLowerCase();
 
-  // A pasted URL is normalized to its host, not rejected — the same decision
-  // the spike reached for ports, applied to the same table row. §4 measured
-  // `https://example.com` as a string DNR accepts into a rule that can never
-  // match *and* that makes `permissions.contains()` throw, which kills the
-  // whole audit call. Rejecting it instead would block the single most natural
-  // thing to do with a field labelled "add a site", and dropping it from a
-  // one-domain list would leave a rule with no condition that matches every
-  // site — the fail-open trap normalization exists to remove.
-  //
-  // Done before the port test so the scheme's own colon is gone by the time
-  // TRAILING_PORT runs; that regex still only accepts a trailing colon plus
-  // digits, so `https://example.com` was never mistaken for a port and still
-  // is not.
-  let urlTrimmed = false;
-  const withoutScheme = d.replace(LEADING_SCHEME, '');
-  if (withoutScheme !== d) {
-    d = withoutScheme;
-    urlTrimmed = true;
-  }
+  // Scheme first, so its own colon is gone before TRAILING_PORT runs. That
+  // regex still only accepts a trailing colon plus digits, so
+  // `https://example.com` was never mistaken for a port and still is not.
+  d = d.replace(LEADING_SCHEME, '');
   const pathAt = d.search(PATH_START);
-  if (pathAt !== -1) {
-    d = d.slice(0, pathAt);
-    urlTrimmed = true;
-  }
+  if (pathAt !== -1) d = d.slice(0, pathAt);
 
   if (d.startsWith('*.')) d = d.slice(2);
   if (d.startsWith('.')) d = d.slice(1);
 
-  let portDropped = false;
   const withPort = TRAILING_PORT.exec(d);
   // `noUncheckedIndexedAccess` makes the capture `string | undefined`.
   const host = withPort?.[1];
-  if (host !== undefined) {
-    d = host;
-    portDropped = true;
-  }
+  if (host !== undefined) d = host;
 
   // `example.com.` and `example.com` are the same host spelled two ways.
   if (d.endsWith('.')) d = d.slice(0, -1);
 
   const valid = d.length > 0 && ASCII_ONLY.test(d) && !HOST_FORBIDDEN.test(d);
-  return { host: d, portDropped, urlTrimmed, valid };
+  return { host: d, valid };
+}
+
+/**
+ * What to store, and what to show, for a site the user entered.
+ *
+ * The host when there is a usable one, and otherwise the input exactly as
+ * typed. That second half is the point: an entry nothing can rescue —
+ * `a b.com`, or a bare `https://` with no host after it — has to stay on
+ * screen as the text the user actually wrote, so the row can name it and the
+ * diagnostic can quote it. Reducing it to a normalized fragment, or to the
+ * empty string, would leave a broken chip that cannot say what is broken.
+ *
+ * One function for both jobs on purpose. The defect this closes was the screen
+ * showing one value while the extension operated on another; storing and
+ * displaying through the same expression is what makes that gap unable to
+ * reopen.
+ */
+export function effectiveDomain(input: string): string {
+  const analysis = analyzeDomain(input);
+  return analysis.valid ? analysis.host : input.trim();
 }
 
 /**

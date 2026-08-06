@@ -26,12 +26,12 @@ describe('validateFilter', () => {
     expect(d[0]?.kind).toBe('empty-filter');
   });
 
-  it('reports a dropped port without calling the domain invalid', () => {
-    const d = validateFilter(profileWith({ domains: ['localhost:3000'] }));
-    expect(d).toHaveLength(1);
-    expect(d[0]?.kind).toBe('port-ignored');
-    expect(d[0]?.severity).toBe('warning');
-    expect(d[0]?.message).toContain('localhost');
+  it('says nothing at all about a domain that merely carried a port', () => {
+    // The announcement this replaces is gone: the popup stores and shows the
+    // host, so the drop is visible in the chip, and the fact a port could
+    // never have narrowed anything is help text on the field. A warning per
+    // entry on top of that is noise in a 196px rail.
+    expect(validateFilter(profileWith({ domains: ['localhost:3000'] }))).toEqual([]);
   });
 
   it('does not warn about an empty filter when a port-bearing domain survives', () => {
@@ -39,15 +39,10 @@ describe('validateFilter', () => {
     expect(d.map((x) => x.kind)).not.toContain('empty-filter');
   });
 
-  it('does not report port-ignored when the port-bearing host is itself unusable', () => {
+  it('still calls a port-bearing host unusable when the host itself is broken', () => {
+    // Stripping the port must not rescue what is wrong with the rest of it.
     const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }));
-    expect(d.map((x) => x.kind)).not.toContain('port-ignored');
-    expect(d.map((x) => x.kind)).toContain('empty-filter');
-  });
-
-  it('dedupes port-ignored by host — same host, different ports, one warning', () => {
-    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'localhost:8080'] }));
-    expect(d.filter((x) => x.kind === 'port-ignored')).toHaveLength(1);
+    expect(d.map((x) => x.kind)).toEqual(['empty-filter']);
   });
 
   it('flags a non-ASCII regex — regexFilter is ASCII-only', () => {
@@ -111,41 +106,19 @@ describe('validateFilter', () => {
     );
   });
 
-  it('says a pasted URL was trimmed to its host', () => {
-    // The owner's literal input. Normalizing without saying so would be a
-    // silent rewrite — the input typed is not the input that gets matched, and
-    // `port-ignored` set the precedent that such a change is announced.
-    const d = validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }));
-    expect(d).toEqual([{
-      kind: 'url-trimmed',
-      severity: 'warning',
-      profileId: 'p1',
-      message:
-        'Address trimmed to www.musinsa.com — Chrome matches requests by host, ' +
-        'so a scheme and path cannot narrow it.',
-    }]);
+  it('says nothing about a pasted URL, because there is nothing left to say', () => {
+    // The owner's literal input. It normalizes to a usable host, the popup
+    // stores and shows that host, and so no diagnostic is owed — the change is
+    // the value on screen. A message here would restate what the chip already
+    // says, permanently, in the narrowest column of the UI.
+    expect(validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }))).toEqual([]);
   });
 
-  it('says nothing about a host that was already bare', () => {
-    // Otherwise every ordinary entry would carry a warning about a rewrite
-    // that never happened.
-    expect(validateFilter(profileWith({ domains: ['api.example.com'] }))).toEqual([]);
-  });
-
-  it('warns once per host when two addresses trim to the same one', () => {
-    // Deduped like the port warning: two paths on one site are one host, and
-    // one host is one thing to say.
-    const d = validateFilter(profileWith({
-      domains: ['https://example.com/a', 'https://example.com/b'],
-    }));
-    expect(d.filter((x) => x.kind === 'url-trimmed')).toHaveLength(1);
-  });
-
-  it('reports a trimmed URL that also carried a port as both', () => {
-    // The two normalizations are independent and both changed the input, so
-    // both are said. Neither may swallow the other.
-    const d = validateFilter(profileWith({ domains: ['https://example.com:8443/x'] }));
-    expect(d.map((x) => x.kind).sort()).toEqual(['port-ignored', 'url-trimmed']);
+  it('says nothing about a deep path either', () => {
+    // The second URL the owner pasted, verbatim.
+    expect(validateFilter(profileWith({
+      domains: ['https://www.musinsa.com/snap/_next/data/K_la.../recommend.json'],
+    }))).toEqual([]);
   });
 
   it('never raises invalid-domain and empty-filter together', () => {
@@ -201,8 +174,10 @@ describe('validateFilter', () => {
       .toEqual([]);
   });
 
-  it('still reports a dropped port alongside the unusable entry', () => {
+  it('reports only the unusable entry when a port-bearing one sits beside it', () => {
+    // The port needs no words — the chip shows `localhost`. The unusable entry
+    // does, and it must not be crowded out or duplicated by the other one.
     const d = validateFilter(profileWith({ domains: ['localhost:3000', 'a b.com'] }));
-    expect(d.map((x) => x.kind)).toEqual(['invalid-domain', 'port-ignored']);
+    expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
 });

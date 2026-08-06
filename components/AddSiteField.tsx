@@ -1,7 +1,19 @@
 import { useState } from 'react';
 
+/**
+ * What happened to an entry the field handed over.
+ *
+ * `alreadyThere` carries the **host** that collided, not the text that was
+ * typed — after normalization `https://x.com/` and `x.com` are one site, so the
+ * host is the only thing that explains why two different-looking entries are
+ * the same one.
+ */
+export type AddSiteResult =
+  | { added: true }
+  | { added: false; alreadyThere: string };
+
 export interface AddSiteFieldProps {
-  onAdd: (domain: string) => void;
+  onAdd: (domain: string) => AddSiteResult;
 }
 
 /**
@@ -19,25 +31,62 @@ export interface AddSiteFieldProps {
  */
 export function AddSiteField({ onAdd }: AddSiteFieldProps) {
   const [draft, setDraft] = useState('');
+  const [alreadyThere, setAlreadyThere] = useState<string | null>(null);
 
   const add = () => {
     const domain = draft.trim();
+    if (domain.length === 0) {
+      setDraft('');
+      setAlreadyThere(null);
+      return;
+    }
+    const result = onAdd(domain);
+    if (!result.added) {
+      // Deliberately keeps the text. Clearing the field on a duplicate looks
+      // exactly like a successful add, which is the silent no-op this has to
+      // avoid; leaving the entry in place says plainly that nothing was
+      // committed, and the note beside it says why.
+      setAlreadyThere(result.alreadyThere);
+      return;
+    }
     setDraft('');
-    if (domain.length > 0) onAdd(domain);
+    setAlreadyThere(null);
   };
 
   return (
-    <input
-      aria-label="Add a site"
-      className="hl-addfield"
-      placeholder="+ add a site"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={add}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') add();
-        if (e.key === 'Escape') setDraft('');
-      }}
-    />
+    <>
+      <input
+        aria-label="Add a site"
+        className="hl-addfield"
+        placeholder="+ add a site"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          // The complaint is about the text as it stands; editing it makes the
+          // complaint stale.
+          setAlreadyThere(null);
+        }}
+        onBlur={add}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') add();
+          if (e.key === 'Escape') {
+            setDraft('');
+            setAlreadyThere(null);
+          }
+        }}
+      />
+      {alreadyThere !== null && (
+        <p className="hl-fieldnote" data-testid="add-site-note">
+          <b>{alreadyThere}</b> is already in the list.
+        </p>
+      )}
+      {/* Persistent, and above the input's own errors rather than instead of
+          them. A port or a path is silently useless here — `requestDomains` is
+          host-only, so neither can narrow anything — and that is a fact about
+          the platform, not about any one entry. Said once, before the typing,
+          it prevents the mistake; said after each entry it would only explain
+          a change the user can already see in the chip. */}
+      <p className="hl-fieldhelp">Matched by host — a port or path cannot narrow it.</p>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeDomain, originCandidates, originsForFilter, requestPattern } from '@/lib/permissions/origins';
+import { analyzeDomain, effectiveDomain, originCandidates, originsForFilter, requestPattern } from '@/lib/permissions/origins';
 import type { Filter } from '@/lib/model/types';
 
 describe('originCandidates', () => {
@@ -105,8 +105,6 @@ describe('analyzeDomain', () => {
   it('strips a trailing port and says so', () => {
     expect(analyzeDomain('localhost:3000')).toEqual({
       host: 'localhost',
-      portDropped: true,
-      urlTrimmed: false,
       valid: true,
     });
   });
@@ -114,8 +112,6 @@ describe('analyzeDomain', () => {
   it('leaves a plain host untouched', () => {
     expect(analyzeDomain('api.example.com')).toEqual({
       host: 'api.example.com',
-      portDropped: false,
-      urlTrimmed: false,
       valid: true,
     });
   });
@@ -137,12 +133,12 @@ describe('analyzeDomain', () => {
 
   it('does not mistake a scheme\'s own colon for a port', () => {
     // Only a trailing :digits is a port, and the scheme is stripped before
-    // that test runs — so neither half can see the other's colon. Both
-    // directions are pinned: a scheme alone drops no port, and a scheme with a
-    // real port still drops the port.
-    expect(analyzeDomain('https://example.com').portDropped).toBe(false);
-    expect(analyzeDomain('https://example.com:8443')).toMatchObject({
-      host: 'example.com', portDropped: true, urlTrimmed: true, valid: true,
+    // that test runs, so neither colon can be read as the other's. Both
+    // directions are pinned on the host that comes out: a scheme alone leaves
+    // the whole host, and a scheme with a real port still loses the port.
+    expect(analyzeDomain('https://example.com').host).toBe('example.com');
+    expect(analyzeDomain('https://example.com:8443')).toEqual({
+      host: 'example.com', valid: true,
     });
   });
 
@@ -152,8 +148,6 @@ describe('analyzeDomain', () => {
     // settled that question for ports already: normalize, then say so.
     expect(analyzeDomain('https://www.musinsa.com/')).toEqual({
       host: 'www.musinsa.com',
-      portDropped: false,
-      urlTrimmed: true,
       valid: true,
     });
   });
@@ -171,8 +165,8 @@ describe('analyzeDomain', () => {
   it('strips a path even with no scheme in front of it', () => {
     // A host with a path but no scheme is the other half of a pasted address,
     // and it reaches the same host.
-    expect(analyzeDomain('example.com/api')).toMatchObject({
-      host: 'example.com', urlTrimmed: true, valid: true,
+    expect(analyzeDomain('example.com/api')).toEqual({
+      host: 'example.com', valid: true,
     });
   });
 
@@ -184,11 +178,11 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('example.com#frag').host).toBe('example.com');
   });
 
-  it('reports nothing trimmed for a host that was already bare', () => {
-    // Otherwise the popup would announce a rewrite that never happened, on
-    // every ordinary entry.
-    expect(analyzeDomain('example.com').urlTrimmed).toBe(false);
-    expect(analyzeDomain('localhost:3000').urlTrimmed).toBe(false);
+  it('leaves an already-bare host exactly as it was', () => {
+    // The ordinary entry has to survive every strip above untouched — a
+    // normalizer that quietly edited a plain hostname would change what the
+    // popup stores and shows for input that needed no help.
+    expect(analyzeDomain('example.com')).toEqual({ host: 'example.com', valid: true });
   });
 
   it('rejects an empty host', () => {
@@ -203,8 +197,6 @@ describe('analyzeDomain', () => {
   it('accepts an IPv4 literal', () => {
     expect(analyzeDomain('127.0.0.1')).toEqual({
       host: '127.0.0.1',
-      portDropped: false,
-      urlTrimmed: false,
       valid: true,
     });
   });
@@ -233,5 +225,37 @@ describe('originCandidates — narrowest to broadest, both schemes', () => {
 
   it('normalizes before building candidates', () => {
     expect(originCandidates('localhost:3000')[0]).toBe('https://localhost/*');
+  });
+});
+
+describe('effectiveDomain', () => {
+  it('gives back the host for anything that has one', () => {
+    // This is the value the popup stores *and* the value it shows, so the two
+    // cannot drift apart. The owner's own paste is the first case.
+    expect(effectiveDomain('https://www.musinsa.com/')).toBe('www.musinsa.com');
+    expect(effectiveDomain('localhost:3000')).toBe('localhost');
+    expect(effectiveDomain('EXAMPLE.COM')).toBe('example.com');
+    expect(effectiveDomain('  api.example.com  ')).toBe('api.example.com');
+  });
+
+  it('gives back the host of a deep path, not the path', () => {
+    // The URL the owner actually pasted the second time, verbatim.
+    expect(effectiveDomain(
+      'https://www.musinsa.com/snap/_next/data/K_la.../recommend.json',
+    )).toBe('www.musinsa.com');
+  });
+
+  it('keeps unusable input exactly as typed, so the row can name it', () => {
+    // There is no host to fall back on here, and reducing it to a fragment —
+    // or to the empty string — would leave a broken chip that cannot say what
+    // is broken. The text the user wrote is the only useful thing to show.
+    expect(effectiveDomain('a b.com')).toBe('a b.com');
+    expect(effectiveDomain('https://')).toBe('https://');
+  });
+
+  it('collapses two spellings of one site onto the same value', () => {
+    // Which is what makes de-duplication on commit possible at all: after
+    // normalization these are not two sites, and the popup has to know it.
+    expect(effectiveDomain('https://x.com/')).toBe(effectiveDomain('x.com'));
   });
 });

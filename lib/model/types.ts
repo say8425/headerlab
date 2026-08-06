@@ -109,15 +109,6 @@ export type DiagnosticKind =
   | 'permission-missing'
   | 'tab-lock-stale'
   | 'empty-filter'
-  /** A port was normalized away: requestDomains is host-only and matches every port. */
-  | 'port-ignored'
-  /**
-   * A whole URL was entered and only its host was kept. Same principle as
-   * `port-ignored`: Chrome matches by host, so a scheme and path cannot narrow
-   * anything, and normalizing beats rejecting the most natural thing to paste
-   * into a field asking for a site.
-   */
-  | 'url-trimmed'
   /**
    * A rule that has not been given a name yet.
    *

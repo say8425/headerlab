@@ -26,7 +26,7 @@ describe('routeDiagnostics', () => {
     // diagnostic into every bucket.
     const onRule = diag({ kind: 'invalid-header-name', severity: 'error', headerRuleId: 'h1' });
     const onHost = diag({ kind: 'permission-missing', host: 'api.example.com' });
-    const onScreen = diag({ kind: 'port-ignored' });
+    const onScreen = diag({ kind: 'empty-filter' });
     const routed = routeDiagnostics([onRule, onHost, onScreen]);
 
     expect([...routed.byRow.entries()]).toEqual([['h1', [onRule]]]);
@@ -58,7 +58,7 @@ describe('routeDiagnostics', () => {
 
   it('collects several diagnostics on one host, in input order', () => {
     const a = diag({ kind: 'permission-missing', host: 'api.example.com' });
-    const b = diag({ kind: 'port-ignored', host: 'api.example.com' });
+    const b = diag({ kind: 'invalid-domain', severity: 'error', host: 'api.example.com' });
     expect(routeDiagnostics([a, b]).byHost.get('api.example.com')).toEqual([a, b]);
   });
 

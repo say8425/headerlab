@@ -1,7 +1,7 @@
-import { AddSiteField } from './AddSiteField';
+import { AddSiteField, type AddSiteResult } from './AddSiteField';
 import { SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
-import { analyzeDomain } from '@/lib/permissions/origins';
+import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
 import type { RuleTally } from '@/lib/view/rules';
 import type { Diagnostic, ResourceType } from '@/lib/model/types';
 
@@ -24,7 +24,7 @@ export interface ScopeRailProps {
   /** The real text of the last failed reconcile, from session storage. */
   lastError: string | null;
   resourceTypes: readonly ResourceType[];
-  onAddDomain: (domain: string) => void;
+  onAddDomain: (domain: string) => AddSiteResult;
   onRemoveDomain: (domain: string) => void;
   onToggleType: (type: ResourceType) => void;
   onGrant: (host: string) => void;
@@ -130,19 +130,26 @@ export function ScopeRail({
         <div className="hl-railhead">
           Sites <span className="hl-n">{domains.length > 0 ? domains.length : 'all'}</span>
         </div>
-        {domains.map((domain) => {
+        {domains.map((stored) => {
           // `analyzeDomain` is asked, never restated — it is the one definition
           // of what a usable host is, and the same call already supplies the
           // key this row's diagnostics are filed under.
-          const analysis = analyzeDomain(domain);
+          //
+          // The row shows the *effective* value, not the stored one. New
+          // entries are already normalized on commit, so for those the two are
+          // the same string; entries written before that are still raw, and
+          // showing those verbatim would put the old defect back on screen for
+          // exactly the people who already hit it. `key` and removal stay on
+          // the stored value, which is what identifies the entry in the list.
+          const analysis = analyzeDomain(stored);
           return (
             <SiteRow
-              key={domain}
-              domain={domain}
+              key={stored}
+              domain={effectiveDomain(stored)}
               usable={analysis.valid}
               diagnostics={byHost.get(analysis.host) ?? []}
               onGrant={onGrant}
-              onRemove={() => onRemoveDomain(domain)}
+              onRemove={() => onRemoveDomain(stored)}
             />
           );
         })}

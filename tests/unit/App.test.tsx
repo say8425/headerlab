@@ -82,13 +82,13 @@ describe('App', () => {
     // the build this replaces every one of these stacked above the grid and
     // pushed the actual work off the screen.
     const s = stateWith();
-    s.profiles[0]!.filter.domains = ['localhost:3000'];
-    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'localhost', granted: true }]);
+    s.profiles[0]!.filter.domains = [];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
     await seed(s);
     render(<App />);
 
     const notes = await screen.findAllByTestId('scope-note');
-    expect(notes.some((el) => /Port ignored/.test(el.textContent ?? ''))).toBe(true);
+    expect(notes.some((el) => /No site set/.test(el.textContent ?? ''))).toBe(true);
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
 
@@ -405,19 +405,20 @@ describe('editing scope', () => {
     // The rule stays live: the site normalized to a usable host, so nothing is
     // suppressed and nothing is blamed.
     await waitFor(() => expect(readout()).toBe('1of 1 rules live'));
-    // The chip is a usable site, not a broken one.
+    // The chip shows the value the extension actually ended up with — which is
+    // the whole fix. Showing the raw paste and explaining the difference in a
+    // paragraph was the defect.
+    expect(screen.getByTestId('site').textContent).toContain('www.musinsa.com');
+    expect(screen.getByTestId('site').textContent).not.toContain('https://');
     expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted');
-    // And the rewrite is stated rather than done silently.
-    const notes = screen.getAllByTestId('scope-note').map((n) => n.textContent ?? '');
-    expect(notes.some((t) => /Address trimmed to www\.musinsa\.com/.test(t))).toBe(true);
+    // And nothing is announced, because there is nothing left to announce.
+    expect(screen.queryAllByTestId('scope-note')).toEqual([]);
   });
 
-  it('stores what the user typed and normalizes on the way out, as it does for a port', async () => {
-    // Deliberately *not* rewriting the stored entry. `localhost:3000` has
-    // always been kept verbatim and turned into `localhost` at each use, so
-    // the chip keeps showing the line the user actually wrote and the
-    // diagnostics can quote it back to them. A paste follows the same rule;
-    // storing the derived host instead would silently edit their list.
+  it('stores the host, so what is saved is what the extension matches on', async () => {
+    // This is the change. Storing the raw text and normalizing at every read
+    // is what put one value on screen and another on the wire; committing the
+    // host means the two cannot drift apart again.
     const s = stateWith();
     s.profiles[0]!.filter.domains = [];
     vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
@@ -427,10 +428,85 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, 'https://www.musinsa.com/{Enter}');
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.domains).toEqual(['https://www.musinsa.com/']),
+      expect((await stored()).profiles[0]!.filter.domains).toEqual(['www.musinsa.com']),
     );
-    // The host is what actually reaches the browser, though.
-    expect(screen.getByTestId('site').textContent).toContain('https://www.musinsa.com/');
+  });
+
+  it('stores the host of the deep path the owner actually pasted', async () => {
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = [];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(
+      field,
+      'https://www.musinsa.com/snap/_next/data/K_la.../recommend.json{Enter}',
+    );
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains).toEqual(['www.musinsa.com']),
+    );
+  });
+
+  it('refuses a second spelling of a site it already has, and says which', async () => {
+    // Normalizing at input creates collisions that could not happen before:
+    // these two entries are one site now. Doing nothing silently would look
+    // exactly like a successful add.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['x.com'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'x.com', granted: true }]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(field, 'https://x.com/{Enter}');
+
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    expect((await stored()).profiles[0]!.filter.domains).toEqual(['x.com']);
+  });
+
+  it('keeps unsalvageable input as typed, on a chip that names it', async () => {
+    // Internal whitespace has no host to fall back on. It still has to land as
+    // an unusable chip showing what the user wrote, with a diagnostic that
+    // states the cause and the remedy — this is the one path here that
+    // genuinely needs words.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = [];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
+    await seed(s);
+    render(<App />);
+
+    const field = await screen.findByRole('textbox', { name: 'Add a site' });
+    await userEvent.type(field, 'a b.com{Enter}');
+
+    await waitFor(async () =>
+      expect((await stored()).profiles[0]!.filter.domains).toEqual(['a b.com']),
+    );
+    const site = await screen.findByTestId('site');
+    expect(site.getAttribute('data-state')).toBe('unusable');
+    expect(site.textContent).toContain('a b.com');
+    const notes = screen.getAllByTestId('scope-note').map((n) => n.textContent ?? '');
+    expect(notes.some((t) => /bare hostname like example\.com/.test(t))).toBe(true);
+  });
+
+  it('shows a legacy raw entry as its host, without needing it rewritten first', async () => {
+    // Values stored before this change still carry their scheme and path.
+    // Read-time normalization goes on working, and the chip shows the
+    // effective value — otherwise the defect would survive for exactly the
+    // people who already hit it.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['https://legacy.example.com/deep/path'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'legacy.example.com', granted: true },
+    ]);
+    await seed(s);
+    render(<App />);
+
+    const site = await screen.findByTestId('site');
+    expect(site.textContent).toContain('legacy.example.com');
+    expect(site.textContent).not.toContain('deep/path');
+    expect(site.getAttribute('data-state')).toBe('granted');
   });
 
   it('removes the site whose × was clicked', async () => {

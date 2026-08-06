@@ -108,43 +108,6 @@ export function validateFilter(profile: Profile): Diagnostic[] {
     });
   }
 
-  // A pasted URL was normalized to its host. Said out loud for the same reason
-  // `port-ignored` is: the input the user typed is not the input that will be
-  // matched, and a silent rewrite is how a tool loses trust. Deduped by host
-  // like the port warning below, since two paths on one site normalize to the
-  // same host and would otherwise warn twice about one thing.
-  const trimmedHosts = new Set<string>();
-  for (const a of analyses) {
-    if (!a.urlTrimmed || !a.valid || trimmedHosts.has(a.host)) continue;
-    trimmedHosts.add(a.host);
-    diagnostics.push({
-      kind: 'url-trimmed',
-      severity: 'warning',
-      profileId: profile.id,
-      message:
-        `Address trimmed to ${a.host} — Chrome matches requests by host, ` +
-        'so a scheme and path cannot narrow it.',
-    });
-  }
-
-  // Deduped by host: 'localhost:3000' and 'localhost:8080' both normalize to
-  // the same host, and requestDomains only ever sees that one host — the same
-  // reason originsForFilter (origins.ts) dedupes with a Set. Without this, the
-  // user sees the identical warning once per port instead of once per host.
-  const portIgnoredHosts = new Set<string>();
-  for (const a of analyses) {
-    if (!a.portDropped || !a.valid || portIgnoredHosts.has(a.host)) continue;
-    portIgnoredHosts.add(a.host);
-    diagnostics.push({
-      kind: 'port-ignored',
-      severity: 'warning',
-      profileId: profile.id,
-      message:
-        `Port ignored — this applies to every port on ${a.host}. ` +
-        'Chrome matches requests by host, not by port.',
-    });
-  }
-
   if (!analyses.some((a) => a.valid)) {
     diagnostics.push({
       kind: 'empty-filter',

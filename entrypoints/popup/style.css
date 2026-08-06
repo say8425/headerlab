@@ -461,6 +461,25 @@ body {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
 }
 
+/* Said once, under the field, rather than after every entry — teaching before
+   the input instead of explaining a change the chip already shows. */
+.hl-fieldhelp {
+    margin: 1px 1px 0;
+    font: 400 10px/1.4 var(--hl-sans);
+    color: var(--hl-ink-3);
+}
+
+.hl-fieldnote {
+    margin: 3px 1px 0;
+    font: 400 10.5px/1.4 var(--hl-sans);
+    color: var(--hl-pend);
+    overflow-wrap: anywhere;
+}
+
+.hl-fieldnote b {
+    font: 600 10.5px/1.4 var(--hl-mono);
+}
+
 /* ---- request types: all eight, no disclosure. The rail has vertical room the
    grid never had, so a rarely-touched control can be visible and small instead
    of hidden behind a chevron. ---- */
