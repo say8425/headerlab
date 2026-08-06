@@ -308,7 +308,13 @@ body {
     margin-top: 15px;
 }
 
+/* Positioned so the help bubble can span this heading's full width. The rail
+   sets `overflow-y: auto`, which makes overflow-x compute to `auto` as well —
+   so anything anchored to the 13px `?` itself gets sliced off at the rail's
+   224px edge. Anchoring to the heading, which is already exactly the rail's
+   content width, is what keeps the bubble whole without a portal. */
 .hl-railhead {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -461,12 +467,60 @@ body {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
 }
 
-/* Said once, under the field, rather than after every entry — teaching before
-   the input instead of explaining a change the chip already shows. */
-.hl-fieldhelp {
-    margin: 1px 1px 0;
-    font: 400 10px/1.4 var(--hl-sans);
+/* ---- the `?` and its bubble ---- */
+
+.hl-helptip {
+    display: inline-flex;
+}
+
+.hl-helpmark {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1px solid var(--hl-ink-3);
+    background: none;
     color: var(--hl-ink-3);
+    font: 700 8.5px/1 var(--hl-sans);
+    letter-spacing: 0;
+    cursor: help;
+    padding: 0;
+    display: grid;
+    place-items: center;
+}
+
+.hl-helpmark:hover,
+.hl-helpmark[aria-expanded="true"] {
+    border-color: var(--hl-ink);
+    color: var(--hl-ink);
+}
+
+/* Spans the heading rather than hugging the mark — see .hl-railhead for why a
+   224px column with its own overflow leaves no room to sit beside it. The
+   arrow points back up at the mark instead of across at it. */
+.hl-helpbubble {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: var(--hl-ink);
+    color: var(--hl-panel);
+    border-radius: 7px;
+    padding: 7px 9px;
+    font: 400 10.5px/1.45 var(--hl-sans);
+    letter-spacing: 0;
+    text-transform: none;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+.hl-helpbubble::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 46px;
+    border: 5px solid transparent;
+    border-bottom-color: var(--hl-ink);
 }
 
 .hl-fieldnote {

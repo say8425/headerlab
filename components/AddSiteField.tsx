@@ -80,13 +80,6 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           <b>{alreadyThere}</b> is already in the list.
         </p>
       )}
-      {/* Persistent, and above the input's own errors rather than instead of
-          them. A port or a path is silently useless here — `requestDomains` is
-          host-only, so neither can narrow anything — and that is a fact about
-          the platform, not about any one entry. Said once, before the typing,
-          it prevents the mistake; said after each entry it would only explain
-          a change the user can already see in the chip. */}
-      <p className="hl-fieldhelp">Matched by host — a port or path cannot narrow it.</p>
     </>
   );
 }

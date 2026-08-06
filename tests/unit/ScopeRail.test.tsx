@@ -142,12 +142,12 @@ describe('sites', () => {
       'api.example.com×',
       'staging.acme.dev×',
     ]);
-    expect(screen.getByText('Sites').textContent).toBe('Sites 2');
+    expect(screen.getByTestId('site-count').textContent).toBe('2');
   });
 
   it('says the scope is every site when no domain is set', () => {
     renderRail({ domains: [] });
-    expect(screen.getByText('Sites').textContent).toBe('Sites all');
+    expect(screen.getByTestId('site-count').textContent).toBe('all');
     expect(screen.queryAllByTestId('site')).toEqual([]);
   });
 
@@ -328,14 +328,17 @@ describe('adding a site', () => {
     expect(screen.queryByTestId('add-site-note')).toBeNull();
   });
 
-  it('teaches the host-only rule on the field, once, rather than after each entry', async () => {
+  it('keeps the host-only rule behind a ?, out of the rail until it is asked for', async () => {
     // The one fact the chip cannot convey: a port could never have narrowed
-    // anything, because requestDomains is host-only. Said before the typing it
-    // prevents the mistake; said after it would only explain a change already
-    // visible in the chip.
+    // anything, because requestDomains is host-only. It is worth knowing once,
+    // not worth permanent space in a 196px column — so the rail carries a `?`
+    // and nothing else until someone reaches for it.
     renderRail();
-    expect(screen.getByText(/Matched by host/).textContent)
-      .toBe('Matched by host — a port or path cannot narrow it.');
+    expect(screen.queryByTestId('help-bubble')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'About matching sites' }));
+    expect(screen.getByTestId('help-bubble').textContent)
+      .toBe('Chrome matches requests by host, so a port or a path cannot narrow a site.');
   });
 
   it('adds nothing for whitespace alone', async () => {

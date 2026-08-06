@@ -1,4 +1,5 @@
 import { AddSiteField, type AddSiteResult } from './AddSiteField';
+import { HelpTip } from './HelpTip';
 import { SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
 import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
@@ -128,7 +129,17 @@ export function ScopeRail({
 
       <div className="hl-railsec">
         <div className="hl-railhead">
-          Sites <span className="hl-n">{domains.length > 0 ? domains.length : 'all'}</span>
+          Sites <span className="hl-n" data-testid="site-count">
+            {domains.length > 0 ? domains.length : 'all'}
+          </span>
+          {/* The one fact the chip cannot convey: a port or a path could never
+              have narrowed anything, because `requestDomains` is host-only.
+              Behind a `?` rather than standing under the field — it is worth
+              knowing once, not worth 196px of permanent rail. */}
+          <HelpTip
+            label="About matching sites"
+            text="Chrome matches requests by host, so a port or a path cannot narrow a site."
+          />
         </div>
         {domains.map((stored) => {
           // `analyzeDomain` is asked, never restated — it is the one definition
