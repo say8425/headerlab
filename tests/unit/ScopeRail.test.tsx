@@ -218,8 +218,11 @@ describe('sites', () => {
       domains: ['api.example.com'],
       byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
     });
+    // Asserted on the row's own text rather than on a `site-problem` testid:
+    // that element cannot render at all now, so querying for it would be an
+    // assertion that can never fail — and one sitting inside a live test reads
+    // as coverage it is not providing.
     const row = screen.getByTestId('site');
-    expect(within(row).queryAllByTestId('site-problem')).toEqual([]);
     expect(row.textContent).not.toMatch(/needs permission/);
     // …but the state and the action are still on screen, unhidden.
     expect(row.getAttribute('data-state')).toBe('pending');

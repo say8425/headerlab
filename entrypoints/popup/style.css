@@ -633,7 +633,8 @@ body {
     border-radius: 6px;
     font: 400 10.5px/1.45 var(--hl-sans);
     color: var(--hl-ink);
-    /* Same reason as .hl-needtext: these name hosts, and a host is one word. */
+    /* These name hosts, and a host is one word — without this a domain longer
+       than the rail pushes the note out of the 224px column. */
     overflow-wrap: anywhere;
 }
 

@@ -67,11 +67,11 @@ describe('the toolbar icon', () => {
   });
 
   it('defaults to the colour icon, which is why paused must be re-applied on wake', () => {
-    // `setIcon` does not persist across a service worker restart — Chrome falls
-    // back to exactly this. Pinning that the default is the *active* set is
-    // what makes the reconcile-time re-apply a requirement rather than a
-    // nicety: without it a paused extension shows colour again after an idle
-    // period.
+    // Chromium holds the action icon in the browser process, so a *browser*
+    // restart drops back to exactly this — measured. Pinning that the default
+    // is the *active* set is what makes the reconcile-time re-apply a
+    // requirement rather than a nicety: without it a paused extension shows
+    // colour again after a restart.
     const action = readManifest().action as Record<string, Record<string, string>>;
     expect(Object.values(action.default_icon!).every((p) => p.includes('active'))).toBe(true);
   });

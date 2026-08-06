@@ -247,11 +247,13 @@ describe('reconcile', () => {
     expect(second).not.toEqual(first);
   });
 
-  it('re-applies the icon on every pass, which is what survives a worker restart', async () => {
-    // `setIcon` does not persist: MV3 kills the worker and Chrome falls back to
-    // the manifest default, which is the colour icon. background.ts calls
-    // reconcile() at module evaluation, so a wake re-applies the paused icon —
-    // but only if reconcile actually sets it every time rather than on change.
+  it('re-applies the icon on every pass, so no restart can leave it stale', async () => {
+    // Chromium keeps the action icon in the browser process, so an ordinary
+    // worker termination survives and a *browser* restart is what drops back to
+    // the manifest default — the colour icon. background.ts calls reconcile()
+    // at module evaluation, which MV3 re-runs on every wake, so re-applying
+    // unconditionally covers both cases. Only true if reconcile sets it every
+    // time rather than on change, which is what this pins.
     vi.spyOn(stateModule, 'getState').mockResolvedValue({ ...appState('X-A'), globalPause: true });
     vi.spyOn(sessionModule, 'setSyncStatus').mockResolvedValue(undefined);
 

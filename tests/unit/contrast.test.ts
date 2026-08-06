@@ -96,7 +96,10 @@ describe('palette parsing', () => {
  *
  * The floor is 4.5:1 for anything a user reads and 3:1 for a shape that carries
  * state without words. **Every piece of text in this design clears 4.5 in both
- * themes**; the lowest is `--hl-ink-3` on the rail at 4.56 / 5.95. Nothing is
+ * themes**; the lowest asserted here is the remove `×` on an unusable site row
+ * — `--hl-ink-3` on `--hl-err-bg` — at **4.51** light. (It reads 4.56 on the
+ * rail, which this sentence used to name as the floor; the site rows paint
+ * their own background and were added to the guard later.) Nothing is
  * parked in the 3:1 allowance except the off-switch track, which is a shape.
  * That is deliberate and it is the direct answer to the original complaint: the
  * palette this replaces expressed "de-emphasised" by fading text toward the
