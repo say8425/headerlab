@@ -160,12 +160,21 @@ the minimum churn (40 files at 100, against 50 at 80 and 45 at 120). `singleQuot
 matches what the repo already wrote. **oxfmt also sorts `package.json` keys** by default —
 that is why `dependencies` now precedes `devDependencies`.
 
-**The lockfile is not portable yet, so CI runs `npm install` rather than `npm ci`.**
-Two separate faults, both measured. First, `package-lock.json` was generated behind the
-Nexus proxy, so ~400 of its `resolved` URLs name a host GitHub's runners cannot reach —
-handled by `NPM_CONFIG_REPLACE_REGISTRY_HOST: always` in the workflow, which rewrites the
-host and leaves the `integrity` hashes verifying the bytes. Second, and not fixable from
-here: the proxy serves **stale metadata for oxlint's and oxfmt's per-platform native
+**`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
+A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
+office, and 420 of them were in the lockfile — a public repository that only its author
+can install. `replace-registry-host=always` does **not** fix it: it swaps the host and
+keeps the path, producing `registry.npmjs.org/repository/npm-all/zod/-/zod-4.4.3.tgz`,
+which 404s. Measured on CI. The whole base has to be rewritten —
+`https://nexus.mng.musinsa.io/repository/npm-all/` → `https://registry.npmjs.org/` — and
+that is safe because the `integrity` hashes are untouched: the URL says where to look,
+the hash says what is acceptable. Locally npm rewrites canonical URLs back to the
+configured registry on its own, which is why the 428 entries that were already in this
+form have always worked. **If a future lockfile write reintroduces proxy URLs, rewrite
+them before committing.**
+
+**CI still runs `npm install` rather than `npm ci`**, for a fault that is not fixable
+from here: the proxy serves **stale metadata for oxlint's and oxfmt's per-platform native
 bindings**. It carries `binding-darwin-arm64` at the current version and nothing newer
 than oxlint 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of
 refreshing the packument. npm therefore records the 18 non-darwin bindings as entries with

@@ -27,15 +27,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # `package-lock.json` was generated behind a corporate Nexus proxy, so ~400 of
-  # its `resolved` URLs name a host this runner cannot reach. npm's default
-  # (`npmjs`) only rewrites URLs that already point at registry.npmjs.org;
-  # `always` rewrites every one of them to the configured registry. The
-  # `integrity` hashes are untouched, so the bytes are still verified — this
-  # changes where a tarball is fetched from, never what is accepted.
-  NPM_CONFIG_REPLACE_REGISTRY_HOST: always
-
 jobs:
   check:
     name: typecheck · lint · format · unit
