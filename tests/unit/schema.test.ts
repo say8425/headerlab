@@ -41,8 +41,15 @@ describe('parseAppState', () => {
     // The two are asserted apart rather than as "both throw": a string is the
     // case that would slip through a schema which only checked for null, and
     // matching the received type is what tells them apart.
-    expect(() => parseAppState(null)).toThrow(/expected object, received null/);
-    expect(() => parseAppState('{}')).toThrow(/expected object, received string/);
+    //
+    // Matched on the received type alone, not on zod's full sentence. The
+    // discriminating power is identical — these are the only two cases here —
+    // and the shorter pattern does not turn a zod upgrade that rewords
+    // "Invalid input: expected object" into a puzzling failure about a schema
+    // that still works. The other three matchers in this file pin *field
+    // names*, which are ours rather than zod's and so are not exposed to this.
+    expect(() => parseAppState(null)).toThrow(/received null/);
+    expect(() => parseAppState('{}')).toThrow(/received string/);
   });
 
   it('strips unknown keys rather than failing — forward compatibility', () => {

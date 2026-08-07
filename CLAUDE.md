@@ -83,12 +83,20 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   exception list, which is the point: the claim is verifiable by a stranger who trusts
   none of this file. (Vite's modulepreload polyfill once left a dead `fetch(` literal in
   the bundle; `build.modulePreload: false` removes it.)
-  **Nothing automates that check.** It is the only non-negotiable here with no test
-  behind it — `grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3`
-  is currently a thing a person has to remember to run, and it currently returns
-  nothing. The other two are pinned by `tests/unit/manifest.test.ts`; this one is a
-  standing offer to regress silently, and a suite that reads the build already exists to
-  put it in.
+  `tests/unit/bundle.test.ts` guards it, and it reads the **build**, not the sources —
+  the modulepreload incident is the proof that this arrives from tooling rather than from
+  authored code, so a source-level check would have missed the only instance there has
+  ever been. Mutation-verified: a `fetch()` planted in `entrypoints/background.ts` fails
+  it naming `background.js`. Note the first attempt at that mutation planted an unused
+  export in `lib/storage/session.ts` and the suite stayed green — correctly, because
+  tree-shaking meant it never shipped. Plant in an entrypoint or you are testing nothing.
+  The patterns match **call and construction forms**, never bare words: `fetch`,
+  `websocket` and `xmlhttprequest` all occur in the bundle as harmless substrings (React
+  DOM's `prefetchDNS`/`fetchPriority`/`dns-prefetch`, and two DNR resource-type names the
+  popup offers as checkboxes), and matching words would need exactly the exception list
+  this claim promises there isn't one of. Two of the tests in that file exist to hold
+  that line: one plants each forbidden form and requires the patterns to match, the other
+  feeds them the benign substrings and requires they do not.
 - **No new dependencies.** npm here runs under a rolling 72-hour publish quarantine, so
   a recently published package fails with `ETARGET`. Do not bypass it, and do not run
   `npm audit fix`.
@@ -155,15 +163,24 @@ else, which reads as working and is not.
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
 `**/*.html` are in `ignorePatterns`: the stylesheet is hand-tuned at 4-space indent with a
 comment explaining why, and reformatting it to 2-space is 1124 lines of churn for a
-machine's opinion. `printWidth: 100` was chosen by sweeping 80/90/96/100/110/120 and taking
-the minimum churn (40 files at 100, against 50 at 80 and 45 at 120). `singleQuote: true`
-matches what the repo already wrote. **oxfmt also sorts `package.json` keys** by default —
-that is why `dependencies` now precedes `devDependencies`.
+machine's opinion. Measured, one pattern at a time: dropping the stylesheet exposes it,
+dropping `**/*.md` exposes CLAUDE.md and README.md, and `docs/**` and `**/*.html` **overlap**
+— each alone can go without exposing anything, but dropping both exposes the two design
+mocks under `docs/design/`. Note the measurement only works with the probe config written
+into the repo root: `ignorePatterns` resolve relative to the config file, so a copy in
+`/tmp` silently matches nothing and every pattern looks load-bearing.
+`printWidth: 100` was chosen by sweeping 80/90/96/100/110/120 and taking the minimum churn
+— 48 files at 100 against 58 at 80 and 53 at 120, counted over everything the config
+actually formats. (An earlier note said 40/50/45; that was a narrower hand-written glob
+set, and the *ordering* is what the choice rests on, which reproduces either way.)
+`singleQuote: true` matches what the repo already wrote. **oxfmt also sorts `package.json`
+keys** by default — that is why `dependencies` now precedes `devDependencies`.
 
 **`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
 A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
-office, and 420 of them were in the lockfile — a public repository that only its author
-can install. `replace-registry-host=always` does **not** fix it: it swaps the host and
+office, and the lockfile was full of them — 397 on the base commit, 420 by the time they
+were rewritten, the extra 23 added by this branch's own `npm install`. A public
+repository that only its author could install. `replace-registry-host=always` does **not** fix it: it swaps the host and
 keeps the path, producing `registry.npmjs.org/repository/npm-all/zod/-/zod-4.4.3.tgz`,
 which 404s. Measured on CI. The whole base has to be rewritten —
 `https://nexus.mng.musinsa.io/repository/npm-all/` → `https://registry.npmjs.org/` — and
@@ -189,10 +206,11 @@ run's install step. The 18 entries carry `os`/`cpu` constraints, so `npm ci` on 
 skips fetching the ones it cannot use; having them in the file costs nothing locally and
 is what makes the repository installable anywhere else.
 
-The workaround is visible rather than silent: the `check` job diffs `package-lock.json`
-after installing, warns when it drifted, and uploads the resolved lockfile as an artifact.
-**Commit that artifact and switch the install step back to `npm ci`** — that is the fix,
-and the workflow is written to hand it to you rather than to hide the gap.
+That is history now: CI ran `npm install`, diffed the lockfile, uploaded the resolved one
+as an artifact, and that artifact — the committed lockfile plus exactly the 18 bindings,
+with no version changes and nothing removed — is what is committed. The workflow uses
+`npm ci` again and those steps are gone. If the lockfile ever needs regenerating from a
+machine that can see the whole registry, that is the loop to re-run.
 
 **CI pins every action to a commit SHA**, with the tag it resolved from in a comment
 beside it. A tag is mutable by the account that owns it, and this repository's premise is

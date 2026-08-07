@@ -33,7 +33,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # `persist-credentials: false` because nothing here uses git after the
+      # checkout, so there is no reason to leave a token in `.git/config`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -76,7 +80,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # `persist-credentials: false` because nothing here uses git after the
+      # checkout, so there is no reason to leave a token in `.git/config`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -99,12 +107,19 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # `--no-shell` is load-bearing. Playwright's default headless download is
-      # `chromium-headless-shell`, a stripped build that **cannot load
-      # extensions** — and this suite exists to load one. Without the full
-      # binary the failure looks like a code problem rather than a missing
-      # dependency. `--with-deps` is still run on a cache hit: it installs the
-      # system libraries Chromium links against, which live outside the cached
+      # `--no-shell` saves a download; it is not what makes the suite work.
+      # Measured with `--dry-run`: plain `playwright install chromium` fetches
+      # full Chromium *and* `chromium-headless-shell`, and `--no-shell` fetches
+      # only the first. The shell genuinely cannot load extensions, but the
+      # thing that keeps this suite off it is `channel: 'chromium'` in
+      # tests/e2e/fixtures.ts, which selects the full build regardless of what
+      # else is on disk. So this flag skips ~80MB nothing here uses. Said
+      # precisely because the earlier comment called it load-bearing, which
+      # would send someone debugging a future extension-loading failure to the
+      # wrong place.
+      #
+      # `--with-deps` is still run on a cache hit: it installs the system
+      # libraries Chromium links against, which live outside the cached
       # directory.
       - name: Install Chromium
         run: npx playwright install --with-deps --no-shell chromium
