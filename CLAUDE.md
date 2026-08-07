@@ -173,20 +173,21 @@ configured registry on its own, which is why the 428 entries that were already i
 form have always worked. **If a future lockfile write reintroduces proxy URLs, rewrite
 them before committing.**
 
-**CI still runs `npm install` rather than `npm ci`**, for a fault that is not fixable
-from here: the proxy serves **stale metadata for oxlint's and oxfmt's per-platform native
-bindings**. It carries `binding-darwin-arm64` at the current version and nothing newer
-than oxlint 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of
-refreshing the packument. npm therefore records the 18 non-darwin bindings as entries with
-**no version at all**, and both `npm ci` *and* `npm install` die on them with
-`Invalid Version:` before touching the network — measured on a real CI run, which is the
-only reason this is known. The committed lockfile has those 18 entries **stripped**:
-absence breaks only `npm ci` (which rejects the lockfile as out of sync), while a stub
-breaks everything. `registry.npmjs.org` is unreachable from here (503), so a portable
-lockfile cannot be produced on this machine at all.
+**A local `npm install` will corrupt the lockfile. `npm ci` will not.** The proxy serves
+stale metadata for oxlint's and oxfmt's per-platform native bindings — it carries
+`binding-darwin-arm64` at the current version and nothing newer than oxlint 1.43.0 /
+oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of refreshing the
+packument. So an `npm install` here writes the 18 non-darwin bindings as entries with **no
+version at all**, and both `npm ci` *and* `npm install` then die on those stubs with
+`Invalid Version:` before touching the network. `registry.npmjs.org` is unreachable from
+this machine (503), so the correct entries cannot be produced here at all.
 
-**A local `npm install` re-adds the stubs.** After running one, strip them again before
-committing, or CI goes back to `Invalid Version:`. There is no guard for this yet.
+They came from CI, which can see the whole registry, and are committed. **Use `npm ci`.**
+If you must `npm install` — adding a dependency — check `git diff package-lock.json` for
+versionless entries and proxy URLs before committing, or get the lockfile back from a CI
+run's install step. The 18 entries carry `os`/`cpu` constraints, so `npm ci` on macOS
+skips fetching the ones it cannot use; having them in the file costs nothing locally and
+is what makes the repository installable anywhere else.
 
 The workaround is visible rather than silent: the `check` job diffs `package-lock.json`
 after installing, warns when it drifted, and uploads the resolved lockfile as an artifact.
