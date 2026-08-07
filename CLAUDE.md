@@ -212,14 +212,20 @@ with no version changes and nothing removed — is what is committed. The workfl
 `npm ci` again and those steps are gone. If the lockfile ever needs regenerating from a
 machine that can see the whole registry, that is the loop to re-run.
 
-**CI pins actions to exact version tags**, not to commit SHAs and not to floating majors.
-A SHA is the stronger guarantee — a tag can be moved by the account that owns it — and
-that is what was written first; it was traded away deliberately, because a wall of
-40-character hashes made the workflow unreadable and an unreadable pin is one nobody
-audits either. `.github/dependabot.yml` keeps the versions current, which is the half a
-SHA never gave. If the supply-chain guarantee is ever wanted back, re-resolve with
-`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha` and put the tag in a
-comment beside each hash.
+**CI references actions by floating major — `actions/checkout@v7`, not a SHA and not
+`@v7.0.1`.** This went SHA → exact tag → major, each step trading supply-chain strength
+for legibility, and the trade is worth naming rather than discovering: a moved tag is a
+real attack and a SHA is the only thing that forecloses it. What makes it acceptable here
+is that all four actions are published by GitHub itself, the workflow holds only
+`contents: read` with `persist-credentials: false`, and it never interpolates
+`github.event.*`, so the blast radius of a hijacked action is this repository's own
+source — which is public. A third-party action would not clear that bar; pin one to a SHA
+if it ever arrives.
+
+`.github/dependabot.yml` exists for the **major** bumps, since patches and minors now
+arrive on their own. To go back to SHAs:
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`, with the tag in a
+comment beside each hash — commit `a1f8122` has the last version that did this.
 
 **The workflow carries almost no comments, and that is deliberate.** It had many, and they
 restated what this file already says at more length. The reasoning lives here; the YAML
