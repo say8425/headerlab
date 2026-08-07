@@ -8,7 +8,7 @@
 # the list below happens to have today.
 
 .superpowers/
-node_modules/
+node_modules
 .output/
 .wxt/
 .worktrees/
