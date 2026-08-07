@@ -1,0 +1,921 @@
+<style>
+/* ==========================================================================
+   MOCK E — "Tight instrument"
+   HeaderLab popup · 748 x 600 · light theme · 224px rail + 522px panel.
+
+   The blend the owner asked for: C's density, A's sensibility.
+   FROM C  compact two-line rows, the 11/12/14/24 scale, affordances always
+           present rather than revealed on hover, a panel whose lower half
+           reads as instrument capacity rather than as leftover window.
+   FROM A  low chrome — surfaces separated by TONE, not outlines; one button
+           family in three tones; a radius ladder that steps down as boxes
+           nest; monospace only for payload the user literally types;
+           sentence case everywhere except REQ / RES; a 4px vertical grid.
+
+   TYPE SCALE  (four sizes, one sans; rank comes from size + weight + colour,
+                never from typeface and never from letterspaced capitals)
+     24 / 650   the readout numeral
+     14 / 600   "HeaderLab", "Rules"
+     12 / 500-600  hostnames, rule names, row labels
+     11 / 500-600  section labels, values, operations, notes, type names
+
+   TYPEFACE = PROVENANCE, NOT RANK
+     mono   only what the user literally types: hostnames, header values.
+     sans   everything else — header names, section labels, resource types,
+            operations, prose. ("All sites" is sans, a hostname is mono; that
+            alone tells you the mode row is not a site.)
+
+   RADIUS LADDER  (nested corners step down instead of colliding)
+     4px   controls <= 22px      icon buttons, checkbox, direction tag,
+                                 Grant button, the ghost row's plus slot
+     6px   controls 24-32px      New rule button, Add-a-site slot, brand mark
+     8px   rows raised on a field   site rows, all-sites row, rule rows
+    10px   surfaces              the readout card, the rules tray
+    999px  RESERVED for switch tracks. Nothing else is a stadium.
+
+   BUTTON FAMILY  one family, three tones, told apart by weight and fill —
+     never by shape:
+       solid   ink fill, white label      "New rule"
+       subtle  tint fill, tinted ink      "Grant access"
+       ghost   no fill                    delete, remove, help
+     The two dashed slots are not a fourth tone; they are empty capacity, and
+     their outline is load-bearing, so it is held above 3:1.
+
+   CONTRAST  (computed from these hex values, not estimated)
+     text, need >= 4.5
+       ink   #14161c   18.1 white · 16.0 rail · 15.3 tray
+       ink-2 #454b57    8.8 white ·  7.8 rail ·  7.4 tray
+       ink-3 #5c6371    6.0 white ·  5.4 rail ·  5.1 tray · 5.4 off-row
+       live  #0d6b41    6.6 white ·  5.8 rail          req #1a56c4  6.6 white
+       warn  #8a5200    6.4 white ·  5.6 on its tint   res #6a2fbd  7.6 white
+       err   #b3261e    6.5 white ·  5.8 rail
+     boundaries, need >= 3.0 (WCAG 1.4.11)
+       dashed slot outline #767d8c   4.1 white · 3.7 rail · 3.5 tray
+       unchecked box edge  #747b8a   3.8 rail
+       switch ON track     #0f7a49   5.4 white · 4.8 rail
+     the one sanctioned exception
+       switch OFF track    #b6bcc7   1.9 — a shape, never a word, and the
+       only sub-3:1 element in the file.
+
+   GEOMETRY IS FROZEN
+     Every row reserves the space its LARGEST state needs. A site row's second
+     line is 20px in all four states because the tallest thing it can hold is
+     a 20px Grant BUTTON, not a line of text — measure the button, size the
+     band to it. Colour, weight, opacity and content follow state; box
+     dimensions and positions never do.
+
+   NOTHING VANISHES SILENTLY
+     The rail's site list and the panel's rule list are real scroll containers
+     (overflow-y:auto + min-height:0 on the whole flex chain). Row heights are
+     fixed, so adding or deleting a sibling never resizes a row. Both
+     containers carry scrollbar-gutter:stable, so the moment a list starts
+     scrolling the rows do not jump 8px left — the same reserve-the-space rule
+     the Grant band follows, applied to the scrollbar.
+     Both lists are sized to land MID-ROW, so the cut row at the bottom edge
+     is itself the signal that there is more below.
+   ========================================================================== */
+
+.mock-e {
+  /* surfaces */
+  --page:   #ffffff;
+  --rail:   #f0f1f4;
+  --raised: #ffffff;
+  --tray:   #e9ecf1;   /* rules well; also the 1px between contiguous rows */
+  --slot:   #eef0f4;   /* empty row silhouette inside the well */
+  --foot:   #e2e6ed;
+  --rowoff: #f1f3f7;   /* a switched-off rule recedes toward the well */
+  --edge:   #d5d9e1;
+
+  /* ink */
+  --ink:    #14161c;
+  --ink-2:  #454b57;
+  --ink-3:  #5c6371;
+
+  /* state */
+  --live:      #0d6b41;
+  --live-trk:  #0f7a49;
+  --warn:      #8a5200;
+  --warn-tint: #fbefdb;
+  --err:       #b3261e;
+  --req:       #1a56c4;
+  --req-tint:  #e4ecfb;
+  --res:       #6a2fbd;
+  --res-tint:  #efe7fb;
+  --neutral:   #e8eaf0;
+
+  /* shapes */
+  --dash:   #767d8c;   /* load-bearing outline, 3.5:1 worst case */
+  --boxed:  #747b8a;   /* unchecked box edge, 3.8:1 on rail */
+  --off:    #b6bcc7;   /* switch OFF track — the sanctioned exception */
+  --thumb:  #b3bac6;
+
+  /* radius ladder */
+  --r-ctl:  4px;
+  --r-ctl2: 6px;
+  --r-row:  8px;
+  --r-surf: 10px;
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  box-sizing: border-box;
+  width: 748px;
+  height: 600px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--page);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;          /* the outer radius clips the rail's tone, nothing else */
+}
+
+.mock-e *,
+.mock-e *::before,
+.mock-e *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.mock-e i { font-style: normal; }
+.mock-e svg { display: block; flex: none; }
+.mock-e .te-sp { flex: 1 1 auto; }
+
+.mock-e .te-shell { display: flex; height: 100%; }
+
+/* --- the two scroll containers ------------------------------------------- */
+/* Styling the scrollbar opts Chromium out of overlay scrollbars, so the bar
+   is really there when it is needed; scrollbar-gutter keeps the 8px reserved
+   when it is not, so rows never shift as a list grows past its box. */
+.mock-e .te-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+.mock-e .te-scroll::-webkit-scrollbar { width: 8px; }
+.mock-e .te-scroll::-webkit-scrollbar-track { background: transparent; }
+.mock-e .te-scroll::-webkit-scrollbar-thumb {
+  background: var(--thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* --- button family: solid / subtle / ghost -------------------------------- */
+
+.mock-e .te-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex: none;
+  font-family: var(--sans);
+}
+.mock-e .te-btn--solid {
+  height: 28px;
+  border-radius: var(--r-ctl2);
+  padding: 0 10px 0 8px;
+  gap: 6px;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+}
+.mock-e .te-btn--subtle {
+  height: 20px;
+  border-radius: var(--r-ctl);
+  padding: 0 8px;
+  background: var(--warn-tint);
+  color: var(--warn);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: -0.002em;
+}
+.mock-e .te-icb {                      /* ghost, 22px */
+  width: 22px; height: 22px;
+  border-radius: var(--r-ctl);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-3);
+  flex: none;
+}
+.mock-e .te-icb--sm { width: 20px; height: 20px; }
+
+/* --- switch: the only stadium in the system ------------------------------ */
+
+.mock-e .te-sw {
+  width: 30px; height: 18px;
+  border-radius: 999px;
+  background: var(--off);
+  position: relative;
+  display: block;
+  flex: none;
+}
+.mock-e .te-sw i {
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 1.5px rgba(18, 22, 30, .3);
+}
+.mock-e .te-sw[data-on="true"] { background: var(--live-trk); }
+.mock-e .te-sw[data-on="true"] i { left: 14px; }
+
+/* --- dashed capacity slots ----------------------------------------------- */
+
+.mock-e .te-slot {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px;
+  border-radius: var(--r-ctl2);
+  box-shadow: inset 0 0 0 1px var(--dash);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: -0.002em;
+}
+.mock-e .te-slot--site { border: 1px dashed var(--dash); box-shadow: none; }
+
+/* ==========================================================================
+   RAIL — 224px, padding 12 -> 200 x 574 of content
+   ========================================================================== */
+
+.mock-e .te-rail {
+  flex: 0 0 224px;
+  width: 224px;
+  background: var(--rail);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mock-e .te-brand { height: 24px; display: flex; align-items: center; gap: 8px; flex: none; }
+.mock-e .te-mark {
+  width: 24px; height: 24px;
+  border-radius: var(--r-ctl2);
+  background: var(--ink);
+  color: #ffffff;
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+}
+.mock-e .te-word { font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.014em; }
+
+/* readout + run state: one raised surface on the recessed rail */
+.mock-e .te-card {
+  flex: none;
+  margin-top: 16px;
+  height: 104px;
+  background: var(--raised);
+  border-radius: var(--r-surf);
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(18, 22, 30, .06);
+}
+.mock-e .te-ro1 { height: 28px; display: flex; align-items: baseline; gap: 7px; }
+.mock-e .te-num {
+  font-size: 24px; line-height: 28px; font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.mock-e .te-ro-txt { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-2); letter-spacing: -0.006em; }
+.mock-e .te-ro2 {
+  height: 16px; margin-top: 4px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; line-height: 14px; font-weight: 500; color: var(--ink-3);
+}
+.mock-e .te-run { height: 20px; margin-top: 12px; display: flex; align-items: center; gap: 7px; }
+.mock-e .te-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--live-trk); flex: none; }
+.mock-e .te-run-l { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: -0.008em; }
+
+/* section headers — sentence case, rank from weight and colour */
+.mock-e .te-sec { flex: none; height: 20px; display: flex; align-items: center; gap: 6px; }
+.mock-e .te-sec--sites { margin-top: 16px; }
+.mock-e .te-sec--types { margin-top: 14px; }
+.mock-e .te-sec-l { font-size: 11px; line-height: 14px; font-weight: 600; color: var(--ink-2); letter-spacing: -0.002em; }
+.mock-e .te-sec-n { font-size: 11px; line-height: 14px; font-weight: 500; color: var(--ink-3); }
+
+/* rows raised on the rail */
+.mock-e .te-row {
+  height: 48px;
+  background: var(--raised);
+  border-radius: var(--r-row);
+  padding: 4px 6px 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 2px rgba(18, 22, 30, .06);
+  flex: none;
+}
+.mock-e .te-row--all { margin-top: 6px; }
+.mock-e .te-row--site { margin-bottom: 4px; }
+
+.mock-e .te-row-t { flex: 1 1 auto; min-width: 0; }
+
+/* display:block, NOT flex — text-overflow:ellipsis is inert on a flex
+   container, which silently hard-clips instead of marking the truncation.
+   line-height == height does the vertical centring align-items was doing. */
+.mock-e .te-l1 {
+  height: 16px;
+  display: block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* a hostname is typed payload -> mono. "All sites" is a mode -> sans. */
+.mock-e .te-l1--host  { font-family: var(--mono); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: -0.024em; color: var(--ink); }
+.mock-e .te-l1--label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: -0.008em; color: var(--ink); }
+
+/* THE RESERVED BAND — 20px in every state, because a 20px Grant button is
+   the tallest thing it can ever hold. */
+.mock-e .te-l2 {
+  height: 20px;
+  margin-top: 4px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; line-height: 14px; font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: -0.004em;
+  white-space: nowrap; overflow: hidden;
+}
+.mock-e .te-l2 > span { overflow: hidden; text-overflow: ellipsis; }
+.mock-e .te-l2--live { color: var(--live); font-weight: 600; }
+.mock-e .te-l2--err  { color: var(--err);  font-weight: 600; }
+
+/* A capped viewport, not flex:1. At 176px it shows three rows and part of a
+   fourth: the cut row IS the affordance that says the list continues. Capping
+   it also keeps the leftover rail space at the foot of the column, instead of
+   opening a hole between the last site and "Request types". */
+.mock-e .te-sites { flex: 0 0 176px; margin-top: 6px; }
+
+/* request types — resource names are sans, per the typeface rule */
+.mock-e .te-grid {
+  flex: none;
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+.mock-e .te-cb { height: 22px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.mock-e .te-box {
+  width: 14px; height: 14px;
+  border-radius: var(--r-ctl);
+  border: 1.25px solid var(--boxed);
+  display: flex; align-items: center; justify-content: center;
+  color: transparent;
+  flex: none;
+}
+.mock-e .te-cb[data-on="true"] .te-box { background: var(--ink); border-color: var(--ink); color: #ffffff; }
+.mock-e .te-cb-l {
+  font-size: 11px; line-height: 14px; font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mock-e .te-cb[data-on="true"] .te-cb-l { color: var(--ink-2); font-weight: 600; }
+
+/* ==========================================================================
+   PANEL — 522px, padding 12 -> 498 x 574 of content
+   ========================================================================== */
+
+.mock-e .te-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--page);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mock-e .te-head { height: 28px; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; flex: none; }
+.mock-e .te-title { font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.014em; }
+
+/* the well: rules are contiguous white bands, separated by 1px of the well's
+   own tone — a tone step, not a drawn outline */
+.mock-e .te-tray {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--tray);
+  border-radius: var(--r-surf);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mock-e .te-rules { flex: 1 1 auto; display: flex; flex-direction: column; }
+
+.mock-e .te-rule {
+  flex: none;
+  height: 52px;
+  margin-bottom: 1px;
+  background: var(--raised);
+  padding: 0 8px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mock-e .te-rule[data-on="false"] { background: var(--rowoff); }
+
+.mock-e .te-dir {
+  width: 48px; height: 18px;
+  border-radius: var(--r-ctl);
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; line-height: 14px; font-weight: 600;
+  letter-spacing: 0.01em;
+  flex: none;
+}
+.mock-e .te-dir[data-dir="req"] { background: var(--req-tint); color: var(--req); }
+.mock-e .te-dir[data-dir="res"] { background: var(--res-tint); color: var(--res); }
+.mock-e .te-rule[data-on="false"] .te-dir { background: var(--neutral); color: var(--ink-3); }
+
+.mock-e .te-rule-t { flex: 1 1 auto; min-width: 0; }
+
+/* a header NAME is not typed payload in the same sense as its value: it is a
+   known token from a list, so it is sans. The value is mono. */
+.mock-e .te-name {
+  height: 18px;
+  display: block;                       /* see .te-l1 — flex kills the ellipsis */
+  font-size: 12px; line-height: 18px; font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mock-e .te-rule[data-on="false"] .te-name { color: var(--ink-2); font-weight: 500; }
+
+.mock-e .te-line2 {
+  height: 16px; margin-top: 2px;
+  display: flex; align-items: center;
+  min-width: 0;
+}
+.mock-e .te-op {
+  width: 44px; flex: none;
+  font-size: 11px; line-height: 14px; font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: -0.004em;
+}
+.mock-e .te-val {
+  font-family: var(--mono);
+  font-size: 11px; line-height: 14px; font-weight: 500;
+  letter-spacing: -0.016em;
+  color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.mock-e .te-rule[data-on="false"] .te-val { color: var(--ink-3); }
+/* "takes no value" is prose about the row, not payload — so, sans */
+.mock-e .te-noval { font-size: 11px; line-height: 14px; font-weight: 500; color: var(--ink-3); letter-spacing: -0.004em; }
+
+/* ghost row: a rule-shaped placeholder. Its plus sits in the switch's column,
+   so the row reads as the next rule rather than as a banner. */
+.mock-e .te-ghost {
+  flex: none;
+  height: 52px;
+  margin-bottom: 1px;
+  padding: 0 8px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--slot);   /* it is the first empty slot, so it is toned as one */
+}
+.mock-e .te-ghost-plus {
+  width: 30px; height: 18px;
+  border-radius: var(--r-ctl);
+  border: 1px dashed var(--dash);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-3);
+  flex: none;
+}
+.mock-e .te-ghost-l { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink-2); letter-spacing: -0.008em; }
+
+/* the tail keeps the row pitch, so the space below the list reads as the
+   instrument's remaining capacity rather than as unfinished window */
+.mock-e .te-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--slot) 0 52px,
+    var(--tray) 52px 53px
+  );
+}
+
+.mock-e .te-foot {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  background: var(--foot);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: -0.004em;
+}
+.mock-e .te-foot-i { display: flex; align-items: center; gap: 4px; }
+.mock-e .te-foot-i[data-dir="req"] { color: var(--req); }
+.mock-e .te-foot-i[data-dir="res"] { color: var(--res); }
+.mock-e .te-sep { width: 1px; height: 10px; background: #c4cad4; flex: none; }
+</style>
+
+<!-- ============================ NOMINAL ============================ -->
+<div class="mock-e">
+  <div class="te-shell">
+    <aside class="te-rail">
+      <div class="te-brand">
+        <span class="te-mark"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+        <span class="te-word">HeaderLab</span>
+      </div>
+      <div class="te-card">
+        <div class="te-ro1">
+          <span class="te-num">3</span>
+          <span class="te-ro-txt">of 4 rules live</span>
+        </div>
+        <div class="te-ro2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg><span>1 off</span></div>
+        <div class="te-run">
+          <span class="te-dot"></span>
+          <span class="te-run-l">Active</span>
+          <span class="te-sp"></span>
+          <span class="te-sw" data-on="true"><i></i></span>
+        </div>
+      </div>
+      <div class="te-sec te-sec--sites">
+        <span class="te-sec-l">Sites</span>
+        <span class="te-sec-n">2</span>
+        <span class="te-sp"></span>
+        <span class="te-icb te-icb--sm" role="button" aria-label="About site scope"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+      </div>
+      <div class="te-row te-row--all">
+        <span class="te-row-t">
+          <span class="te-l1 te-l1--label">All sites</span>
+          <span class="te-l2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span>The list below applies</span></span>
+        </span>
+        <span class="te-sw" data-on="false"><i></i></span>
+      </div>
+      <div class="te-sites te-scroll">
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="api.example.com">api.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove api.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="staging.example.com">staging.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove staging.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-slot te-slot--site" role="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add a site</span></div>
+      </div>
+      <div class="te-sec te-sec--types">
+        <span class="te-sec-l">Request types</span>
+        <span class="te-sec-n">3 of 8</span>
+      </div>
+      <div class="te-grid">
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">main_frame</span>
+        </label>
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">sub_frame</span>
+        </label>
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">xhr</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">script</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">stylesheet</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">image</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">font</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">media</span>
+        </label>
+      </div>
+    </aside>
+    <main class="te-panel">
+      <div class="te-head">
+        <span class="te-title">Rules</span>
+        <span class="te-sp"></span>
+        <span class="te-btn te-btn--solid" role="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>New rule</span></span>
+      </div>
+      <div class="te-tray">
+        <div class="te-rules te-scroll">
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Authorization">Authorization</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="Bearer dev-eyJhbGciOiJIUzI1NiJ9">Bearer dev-eyJhbGciOiJIUzI1NiJ9</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Authorization rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="X-Debug-User">X-Debug-User</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="qa@example.com">qa@example.com</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete X-Debug-User rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Content-Security-Policy">Content-Security-Policy</span>
+              <span class="te-line2"><span class="te-op">remove</span><span class="te-noval">takes no value</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Content-Security-Policy rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="false">
+            <span class="te-sw" data-on="false"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Cache-Control">Cache-Control</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="no-store">no-store</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Cache-Control rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-ghost" role="button">
+            <span class="te-ghost-plus"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span>
+            <span class="te-ghost-l">New rule</span>
+          </div>
+          <div class="te-fill"></div>
+        </div>
+        <div class="te-foot">
+          <span>4 rules</span>
+          <span class="te-sep"></span>
+          <span class="te-foot-i" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>2 request</span></span>
+          <span class="te-sep"></span>
+          <span class="te-foot-i" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>2 response</span></span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ===================== STRESS: 8 sites, 10 rules ===================== -->
+<div class="mock-e stress">
+  <div class="te-shell">
+    <aside class="te-rail">
+      <div class="te-brand">
+        <span class="te-mark"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+        <span class="te-word">HeaderLab</span>
+      </div>
+      <div class="te-card">
+        <div class="te-ro1">
+          <span class="te-num">8</span>
+          <span class="te-ro-txt">of 10 rules live</span>
+        </div>
+        <div class="te-ro2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg><span>2 off</span></div>
+        <div class="te-run">
+          <span class="te-dot"></span>
+          <span class="te-run-l">Active</span>
+          <span class="te-sp"></span>
+          <span class="te-sw" data-on="true"><i></i></span>
+        </div>
+      </div>
+      <div class="te-sec te-sec--sites">
+        <span class="te-sec-l">Sites</span>
+        <span class="te-sec-n">8</span>
+        <span class="te-sp"></span>
+        <span class="te-icb te-icb--sm" role="button" aria-label="About site scope"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+      </div>
+      <div class="te-row te-row--all">
+        <span class="te-row-t">
+          <span class="te-l1 te-l1--label">All sites</span>
+          <span class="te-l2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span>The list below applies</span></span>
+        </span>
+        <span class="te-sw" data-on="false"><i></i></span>
+      </div>
+      <div class="te-sites te-scroll">
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="api.example.com">api.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove api.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="staging.example.com">staging.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove staging.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="pending">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="internal.example.com">internal.example.com</span>
+            <span class="te-l2"><span class="te-btn te-btn--subtle" role="button">Grant access</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove internal.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="cdn.example.com">cdn.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove cdn.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="auth.example.com">auth.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove auth.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="unusable">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="metrics.example.com">metrics.example.com</span>
+            <span class="te-l2 te-l2--err"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Cannot be used</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove metrics.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="a.example.com">a.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove a.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-row te-row--site" data-state="granted">
+          <span class="te-row-t">
+            <span class="te-l1 te-l1--host" title="a-very-long-subdomain.staging.example.com">a-very-long-subdomain.staging.example.com</span>
+            <span class="te-l2 te-l2--live"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>Access granted</span></span>
+          </span>
+          <span class="te-icb te-icb--sm" role="button" aria-label="Remove a-very-long-subdomain.staging.example.com"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="te-slot te-slot--site" role="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add a site</span></div>
+      </div>
+      <div class="te-sec te-sec--types">
+        <span class="te-sec-l">Request types</span>
+        <span class="te-sec-n">3 of 8</span>
+      </div>
+      <div class="te-grid">
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">main_frame</span>
+        </label>
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">sub_frame</span>
+        </label>
+        <label class="te-cb" data-on="true">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">xhr</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">script</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">stylesheet</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">image</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">font</span>
+        </label>
+        <label class="te-cb" data-on="false">
+          <span class="te-box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="te-cb-l">media</span>
+        </label>
+      </div>
+    </aside>
+    <main class="te-panel">
+      <div class="te-head">
+        <span class="te-title">Rules</span>
+        <span class="te-sp"></span>
+        <span class="te-btn te-btn--solid" role="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>New rule</span></span>
+      </div>
+      <div class="te-tray">
+        <div class="te-rules te-scroll">
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Authorization">Authorization</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="Bearer dev-eyJhbGciOiJIUzI1NiJ9">Bearer dev-eyJhbGciOiJIUzI1NiJ9</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Authorization rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="X-Debug-User">X-Debug-User</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="qa@example.com">qa@example.com</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete X-Debug-User rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Content-Security-Policy">Content-Security-Policy</span>
+              <span class="te-line2"><span class="te-op">remove</span><span class="te-noval">takes no value</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Content-Security-Policy rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="false">
+            <span class="te-sw" data-on="false"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Cache-Control">Cache-Control</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="no-store">no-store</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Cache-Control rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="X-Request-Id">X-Request-Id</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="0f3c9a1e-7b42-4c88-9d10-6ae5f2b31c47">0f3c9a1e-7b42-4c88-9d10-6ae5f2b31c47</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete X-Request-Id rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="User-Agent">User-Agent</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="HeaderLab/1.4 (staging smoke test; contact qa@example.com; build 20260807.3)">HeaderLab/1.4 (staging smoke test; contact qa@example.com; build 20260807.3)</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete User-Agent rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="X-Frame-Options">X-Frame-Options</span>
+              <span class="te-line2"><span class="te-op">remove</span><span class="te-noval">takes no value</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete X-Frame-Options rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Accept-Language">Accept-Language</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="ko-KR,ko;q=0.9,en-US;q=0.8">ko-KR,ko;q=0.9,en-US;q=0.8</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Accept-Language rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="false">
+            <span class="te-sw" data-on="false"><i></i></span>
+            <span class="te-dir" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>RES</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="Access-Control-Allow-Origin">Access-Control-Allow-Origin</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="*">*</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete Access-Control-Allow-Origin rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-rule" data-on="true">
+            <span class="te-sw" data-on="true"><i></i></span>
+            <span class="te-dir" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>REQ</span></span>
+            <span class="te-rule-t">
+              <span class="te-name" title="X-Forwarded-For">X-Forwarded-For</span>
+              <span class="te-line2"><span class="te-op">set</span><span class="te-val" title="203.0.113.42">203.0.113.42</span></span>
+            </span>
+            <span class="te-icb" role="button" aria-label="Delete X-Forwarded-For rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+          </div>
+          <div class="te-ghost" role="button">
+            <span class="te-ghost-plus"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span>
+            <span class="te-ghost-l">New rule</span>
+          </div>
+          <div class="te-fill"></div>
+        </div>
+        <div class="te-foot">
+          <span>10 rules</span>
+          <span class="te-sep"></span>
+          <span class="te-foot-i" data-dir="req"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span>6 request</span></span>
+          <span class="te-sep"></span>
+          <span class="te-foot-i" data-dir="res"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span>4 response</span></span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
