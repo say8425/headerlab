@@ -22,15 +22,24 @@ function stateWith(over: Partial<AppState> = {}): AppState {
     version: 2,
     globalPause: false,
     theme: 'system',
-    profiles: [{
-      ...p,
-      id: 'p1',
-      filter: { ...p.filter, domains: ['api.example.com'] },
-      headers: [
-        { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-A', value: '1' },
-        { id: 'h2', enabled: true, target: 'response', operation: 'set', name: 'X-B', value: '2' },
-      ],
-    }],
+    profiles: [
+      {
+        ...p,
+        id: 'p1',
+        filter: { ...p.filter, domains: ['api.example.com'] },
+        headers: [
+          { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-A', value: '1' },
+          {
+            id: 'h2',
+            enabled: true,
+            target: 'response',
+            operation: 'set',
+            name: 'X-B',
+            value: '2',
+          },
+        ],
+      },
+    ],
     ...over,
   };
 }
@@ -47,7 +56,9 @@ beforeEach(() => {
   // `{ name: 'Grant' }` queries would then find beside the host ones.
   vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('App', () => {
   it('renders every rule from stored state as one list, request and response together', async () => {
@@ -176,12 +187,17 @@ describe('App', () => {
     // ungranted, so the diagnostic that lands names exactly the domain set it
     // was called with — that is how this tells "used the state closed over at
     // click time" apart from "used the state once the prompt closed".
-    const probeGrants = vi.spyOn(probe, 'probeGrants').mockImplementation(
-      async (hosts: readonly string[]) => hosts.map((domain) => ({ domain, granted: false })),
-    );
+    const probeGrants = vi
+      .spyOn(probe, 'probeGrants')
+      .mockImplementation(async (hosts: readonly string[]) =>
+        hosts.map((domain) => ({ domain, granted: false })),
+      );
     let resolveRequest: (granted: boolean) => void = () => {};
     vi.spyOn(probe, 'requestHost').mockImplementation(
-      () => new Promise<boolean>((resolve) => { resolveRequest = resolve; }),
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRequest = resolve;
+        }),
     );
 
     await seed(stateWith());
@@ -216,10 +232,12 @@ describe('App', () => {
     // landed describe the domain current when the prompt resolved, not the one
     // captured when Grant was clicked — only its visible form moved.
     const rows = screen.getAllByTestId('site');
-    expect(rows.map((r) => r.textContent ?? '').some((t) => /new-host\.example\.com/.test(t)))
-      .toBe(true);
-    expect(rows.map((r) => r.textContent ?? '').some((t) => /api\.example\.com/.test(t)))
-      .toBe(false);
+    expect(rows.map((r) => r.textContent ?? '').some((t) => /new-host\.example\.com/.test(t))).toBe(
+      true,
+    );
+    expect(rows.map((r) => r.textContent ?? '').some((t) => /api\.example\.com/.test(t))).toBe(
+      false,
+    );
     // And it is the *pending* state that proves the recomputed audit reached
     // the row — a row rendered from state alone would look granted.
     expect(rows[0]!.getAttribute('data-state')).toBe('pending');
@@ -267,7 +285,11 @@ describe('a fresh install', () => {
     const only = (await stored()).profiles[0]!;
     expect(only.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(only.headers[0]).toMatchObject({
-      enabled: true, target: 'request', operation: 'set', name: '', value: '',
+      enabled: true,
+      target: 'request',
+      operation: 'set',
+      name: '',
+      value: '',
     });
   });
 
@@ -296,14 +318,22 @@ describe('a store that fails validation', () => {
     const s = stateWith();
     return {
       ...s,
-      profiles: [{
-        ...s.profiles[0]!,
-        color: 'chartreuse',
-        headers: [{
-          id: 'h1', enabled: true, target: 'request',
-          operation: 'set', name: 'X-Precious', value: 'do-not-lose-me',
-        }],
-      }],
+      profiles: [
+        {
+          ...s.profiles[0]!,
+          color: 'chartreuse',
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Precious',
+              value: 'do-not-lose-me',
+            },
+          ],
+        },
+      ],
     };
   }
 
@@ -360,12 +390,20 @@ describe('legacy state holding more than one rule set', () => {
     const make = (id: string, name: string, order: number): Profile => {
       const p = createProfile(name, order);
       return {
-        ...p, id, name,
+        ...p,
+        id,
+        name,
         filter: { ...p.filter, domains: [`${id}.example.com`] },
-        headers: [{
-          id: `${id}-h`, enabled: true, target: 'request',
-          operation: 'set', name: `X-${name}`, value: 'v',
-        }],
+        headers: [
+          {
+            id: `${id}-h`,
+            enabled: true,
+            target: 'request',
+            operation: 'set',
+            name: `X-${name}`,
+            value: 'v',
+          },
+        ],
       };
     };
     return {
@@ -430,7 +468,9 @@ describe('legacy state holding more than one rule set', () => {
     // open is a warning nobody reads, and a needless write on every open would
     // wake the background's reconcile loop for nothing.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'api.example.com', granted: true }]);
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'api.example.com', granted: true },
+    ]);
     await seed(stateWith());
     render(<App />);
     await screen.findByDisplayValue('X-A');
@@ -448,16 +488,20 @@ describe('editing scope', () => {
 
     await userEvent.type(field, 'staging.acme.dev{Enter}');
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.domains)
-        .toEqual(['api.example.com', 'staging.acme.dev']),
+      expect((await stored()).profiles[0]!.filter.domains).toEqual([
+        'api.example.com',
+        'staging.acme.dev',
+      ]),
     );
 
     // A duplicate would compile to a repeated requestDomains entry and show two
     // rows for one site.
     await userEvent.type(field, 'staging.acme.dev{Enter}');
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.domains)
-        .toEqual(['api.example.com', 'staging.acme.dev']),
+      expect((await stored()).profiles[0]!.filter.domains).toEqual([
+        'api.example.com',
+        'staging.acme.dev',
+      ]),
     );
   });
 
@@ -469,10 +513,16 @@ describe('editing scope', () => {
     // would leave the screen still contradicting itself.
     const s = stateWith();
     s.profiles[0]!.filter.domains = [];
-    s.profiles[0]!.headers = [{
-      id: 'h1', enabled: true, target: 'request', operation: 'set',
-      name: 'x-canary', value: '1',
-    }];
+    s.profiles[0]!.headers = [
+      {
+        id: 'h1',
+        enabled: true,
+        target: 'request',
+        operation: 'set',
+        name: 'x-canary',
+        value: '1',
+      },
+    ];
     vi.spyOn(probe, 'probeGrants').mockResolvedValue([
       { domain: 'www.musinsa.com', granted: true },
     ]);
@@ -605,8 +655,9 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, '*.*.example.com{Enter}');
 
-    expect(screen.getByTestId('add-site-note').textContent)
-      .toBe('example.com is already in the list.');
+    expect(screen.getByTestId('add-site-note').textContent).toBe(
+      'example.com is already in the list.',
+    );
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['example.com']);
     expect(screen.getAllByTestId('site')).toHaveLength(1);
   });
@@ -646,13 +697,20 @@ describe('editing scope', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'image' }));
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.resourceTypes)
-        .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame', 'image']),
+      expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
+        'xmlhttprequest',
+        'main_frame',
+        'sub_frame',
+        'image',
+      ]),
     );
     await userEvent.click(screen.getByRole('button', { name: 'image' }));
     await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.resourceTypes)
-        .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame']),
+      expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
+        'xmlhttprequest',
+        'main_frame',
+        'sub_frame',
+      ]),
     );
   });
 });
@@ -694,7 +752,12 @@ describe('a rule that has not been named yet', () => {
     // reads back.
     const s = stateWith();
     s.profiles[0]!.headers.push({
-      id: 'h3', enabled: true, target: 'request', operation: 'set', name: '', value: '',
+      id: 'h3',
+      enabled: true,
+      target: 'request',
+      operation: 'set',
+      name: '',
+      value: '',
     });
     await seed(s);
     render(<App />);
@@ -724,9 +787,16 @@ describe('a rule that has not been named yet', () => {
     // (tests/unit/headers.test.ts), so an unfinished rule registers no DNR
     // rule — and the readout must agree with that rather than flatter it.
     const s = stateWith();
-    s.profiles[0]!.headers = [{
-      id: 'h1', enabled: true, target: 'request', operation: 'set', name: '', value: '',
-    }];
+    s.profiles[0]!.headers = [
+      {
+        id: 'h1',
+        enabled: true,
+        target: 'request',
+        operation: 'set',
+        name: '',
+        value: '',
+      },
+    ];
     await seed(s);
     render(<App />);
 
@@ -801,17 +871,14 @@ describe('all-sites mode', () => {
     await userEvent.click(allSitesSwitch());
 
     expect(requestAllSites).not.toHaveBeenCalled();
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
-    );
+    await waitFor(async () => expect((await stored()).profiles[0]!.filter.allSites).toBe(true));
     // And the mode is not silently broken meanwhile: the state says it is on
     // and unpermitted, and carries the remedy — exactly what a pending site
     // row does. Without this the absence above could be satisfied by a switch
     // that simply did nothing.
     expect(allSitesSwitch().getAttribute('aria-checked')).toBe('true');
     await waitFor(() => expect(bar.getAttribute('data-granted')).toBe('no'));
-    expect(within(bar).getByRole('img').getAttribute('aria-label'))
-      .toBe('Awaiting permission');
+    expect(within(bar).getByRole('img').getAttribute('aria-label')).toBe('Awaiting permission');
     expect(within(bar).getByRole('button', { name: 'Grant' })).toBeTruthy();
   });
 
@@ -826,9 +893,7 @@ describe('all-sites mode', () => {
 
     await userEvent.click(allSitesSwitch());
 
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(false),
-    );
+    await waitFor(async () => expect((await stored()).profiles[0]!.filter.allSites).toBe(false));
     expect(requestAllSites).not.toHaveBeenCalled();
   });
 
@@ -887,9 +952,7 @@ describe('all-sites mode', () => {
     );
     await userEvent.click(allSitesSwitch());
 
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
-    );
+    await waitFor(async () => expect((await stored()).profiles[0]!.filter.allSites).toBe(true));
     expect(requestAllSites).not.toHaveBeenCalled();
   });
 
@@ -903,15 +966,11 @@ describe('all-sites mode', () => {
     await openOn();
 
     await userEvent.click(allSitesSwitch());
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
-    );
+    await waitFor(async () => expect((await stored()).profiles[0]!.filter.allSites).toBe(true));
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['api.example.com']);
 
     await userEvent.click(allSitesSwitch());
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(false),
-    );
+    await waitFor(async () => expect((await stored()).profiles[0]!.filter.allSites).toBe(false));
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['api.example.com']);
   });
 
@@ -933,8 +992,9 @@ describe('all-sites mode', () => {
     expect(readout()).toBe('0of 2 rules live2 blocked until a site is set');
     expect(screen.getByTestId('site-count').textContent).toBe('0');
     expect(screen.getByTestId('scope-note').getAttribute('data-severity')).toBe('incomplete');
-    expect(screen.getByTestId('scope-note').textContent)
-      .toBe('No site set yet, so nothing is being applied. Add a site above, or turn on All sites.');
+    expect(screen.getByTestId('scope-note').textContent).toBe(
+      'No site set yet, so nothing is being applied. Add a site above, or turn on All sites.',
+    );
     cleanup();
 
     // off + some: ordinary scoped operation, nothing to report.

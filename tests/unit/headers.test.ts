@@ -29,9 +29,7 @@ describe('compileHeaders', () => {
 
   it('keeps an empty value for set — an empty header value is legal', () => {
     const out = compileHeaders([rule({ operation: 'set', value: '' })]);
-    expect(out.requestHeaders).toEqual([
-      { header: 'X-Debug-Mode', operation: 'set', value: '' },
-    ]);
+    expect(out.requestHeaders).toEqual([{ header: 'X-Debug-Mode', operation: 'set', value: '' }]);
   });
 
   it('skips disabled rules', () => {

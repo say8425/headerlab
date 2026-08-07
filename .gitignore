@@ -13,6 +13,13 @@ node_modules
 .wxt/
 .worktrees/
 test-results/
+# @vitest/coverage-v8 is installed, so `--coverage` is one flag away. Untracked
+# and unignored, its output would land in tests/support/build.ts's source set
+# and report both builds stale — every build-reading test failing with a message
+# about staleness rather than about coverage. A root-level artifact, like the
+# rest of this list, which is what makes it safe: newestSource() excludes the
+# repo root's own mtime.
+coverage/
 playwright-report/
 blob-report/
 playwright/.cache/

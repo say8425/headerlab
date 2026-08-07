@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  // Replaces the base set rather than extending it — typescript/unicorn/oxc are
+  // on by default and stop running if dropped from this list. `vitest` must be
+  // here, not in the tests override: an override cannot enable a plugin.
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "import", "promise", "vitest"],
+
+  // correctness only. See CLAUDE.md for the counts behind that choice.
+  "categories": { "correctness": "error" },
+
+  "rules": {
+    // warn/error are user-facing diagnostics here, not debug output.
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+
+    // Both already hold across the tree — 0 findings each, so these pin the
+    // existing style rather than demanding a refactor. `func-style` is the
+    // stricter cousin and is deliberately absent: it wants 124 `function`
+    // declarations rewritten, which is a different change.
+    "prefer-arrow-callback": "error",
+    "arrow-body-style": "error"
+  },
+
+  "overrides": [
+    // Generators: console.log is their output.
+    { "files": ["scripts/**"], "rules": { "no-console": "off" } },
+    {
+      "files": ["tests/**"],
+      // Off for now: 59 call sites whose types the props interface already fixes.
+      // `require-to-throw-message` stays on deliberately.
+      "rules": { "vitest/require-mock-type-parameters": "off" }
+    }
+  ]
+}

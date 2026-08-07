@@ -11,8 +11,12 @@ const perms = () => fakeBrowser.permissions;
 
 type ContainsArg = { origins?: string[] };
 
-beforeEach(() => { fakeBrowser.reset(); });
-afterEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => {
+  fakeBrowser.reset();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('probeGrants', () => {
   it('asks one origin per call — a batch would lose every answer to one bad member', async () => {
@@ -36,25 +40,20 @@ describe('probeGrants', () => {
       return origin === 'https://example.com/*';
     }) as never);
 
-    expect(await probeGrants(['example.com'])).toEqual([
-      { domain: 'example.com', granted: true },
-    ]);
+    expect(await probeGrants(['example.com'])).toEqual([{ domain: 'example.com', granted: true }]);
     expect(asked).toEqual(['https://example.com/*']);
   });
 
   it('finds a grant on the http rung — the loopback case', async () => {
-    vi.spyOn(perms(), 'contains').mockImplementation((async (p: ContainsArg) =>
-      p.origins?.[0] === 'http://127.0.0.1/*') as never);
-    expect(await probeGrants(['127.0.0.1'])).toEqual([
-      { domain: '127.0.0.1', granted: true },
-    ]);
+    vi.spyOn(perms(), 'contains').mockImplementation(
+      (async (p: ContainsArg) => p.origins?.[0] === 'http://127.0.0.1/*') as never,
+    );
+    expect(await probeGrants(['127.0.0.1'])).toEqual([{ domain: '127.0.0.1', granted: true }]);
   });
 
   it('reports ungranted when every candidate says no', async () => {
     vi.spyOn(perms(), 'contains').mockResolvedValue(false as never);
-    expect(await probeGrants(['example.com'])).toEqual([
-      { domain: 'example.com', granted: false },
-    ]);
+    expect(await probeGrants(['example.com'])).toEqual([{ domain: 'example.com', granted: false }]);
   });
 
   it('survives a candidate that throws and keeps checking the rest', async () => {
@@ -63,9 +62,7 @@ describe('probeGrants', () => {
       if (origin.startsWith('https://')) throw new Error('Invalid value for origin pattern');
       return origin === 'http://example.com/*';
     }) as never);
-    expect(await probeGrants(['example.com'])).toEqual([
-      { domain: 'example.com', granted: true },
-    ]);
+    expect(await probeGrants(['example.com'])).toEqual([{ domain: 'example.com', granted: true }]);
   });
 
   it('reports ungranted, not a rejection, when every candidate throws', async () => {

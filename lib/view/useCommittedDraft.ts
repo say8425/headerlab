@@ -38,10 +38,7 @@ export interface CommittedDraft {
  * reach the field, which is the same trade the components made before and for
  * the same reason — the alternative is the round trip fighting the typing.
  */
-export function useCommittedDraft(
-  value: string,
-  onCommit: (next: string) => void,
-): CommittedDraft {
+export function useCommittedDraft(value: string, onCommit: (next: string) => void): CommittedDraft {
   const [draft, setDraft] = useState(value);
   const lastSent = useRef(value);
 

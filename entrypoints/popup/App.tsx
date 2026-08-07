@@ -52,9 +52,10 @@ export default function App() {
   // that appears and withdraws itself on every open is one people learn to
   // ignore, which costs more than the moment of blankness does.
   const [allSitesGranted, setAllSitesGranted] = useState<boolean | null>(null);
-  const [status, setStatus] = useState<{ lastError: string | null; iconError: string | null }>(
-    { lastError: null, iconError: null },
-  );
+  const [status, setStatus] = useState<{ lastError: string | null; iconError: string | null }>({
+    lastError: null,
+    iconError: null,
+  });
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -71,7 +72,9 @@ export default function App() {
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   // compile() is pure, so the popup runs the same function on the same state
@@ -116,15 +119,23 @@ export default function App() {
     const kept = resolved.profile;
     console.warn(
       `[HeaderLab] storage held ${resolved.dropped.length + 1} rule sets and this build shows one. ` +
-      `Kept "${kept.name}" (${kept.id}); removed ` +
-      `${resolved.dropped.map((p) => `"${p.name}" (${p.id})`).join(', ')} — ` +
-      'they would otherwise have gone on modifying headers with nothing able to show them.',
+        `Kept "${kept.name}" (${kept.id}); removed ` +
+        `${resolved.dropped.map((p) => `"${p.name}" (${p.id})`).join(', ')} — ` +
+        'they would otherwise have gone on modifying headers with nothing able to show them.',
     );
     // Derived from the patch draft like every other write in this file, rather
     // than from the `kept` this render closed over — the window is small, but
     // this was the one write that opted out of the rule the rest of the file
     // follows.
     patch((s) => ({ profiles: s.profiles.slice(0, 1) }));
+    // `resolved` is derived from `state` on every render, so listing it would
+    // add a dependency that changes identity each time and re-run a *writing*
+    // effect on its own output. `patch` is likewise re-created per render.
+    // `[state, valid]` names the two values this effect actually reacts to, and
+    // every write inside it is derived from the patch draft rather than from
+    // what this render closed over — which is what makes the narrower list safe
+    // rather than merely quieter.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [state, valid]);
 
   useEffect(() => {
@@ -134,7 +145,9 @@ export default function App() {
       const grants = await probeGrants(domainsToAudit(state.profiles));
       if (!cancelled) setGrantDiagnostics(auditDiagnostics(state.profiles, grants));
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [state]);
 
   /**
@@ -157,9 +170,15 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     probeAllSites()
-      .then((granted) => { if (!cancelled) setAllSitesGranted(granted); })
-      .catch(() => { if (!cancelled) setAllSitesGranted(false); });
-    return () => { cancelled = true; };
+      .then((granted) => {
+        if (!cancelled) setAllSitesGranted(granted);
+      })
+      .catch(() => {
+        if (!cancelled) setAllSitesGranted(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [state]);
 
   useEffect(() => {
@@ -180,8 +199,8 @@ export default function App() {
       <div className="hl-broken" data-testid="unreadable-store">
         <b>Saved rules could not be read</b>
         <p>
-          The stored settings do not match the format this version expects, so no rule is
-          being applied.
+          The stored settings do not match the format this version expects, so no rule is being
+          applied.
         </p>
         <p>Nothing has been changed or overwritten — your data is still on disk.</p>
       </div>
@@ -233,9 +252,7 @@ export default function App() {
   // entry, which in the empty case does not exist.
   const REASON_BLAME = { 'unusable-site': 'sites', 'no-scope': 'scope' } as const;
   const reason = suppressionReason(active);
-  const blockedBy = reason !== null
-    ? REASON_BLAME[reason]
-    : state.globalPause ? 'pause' : null;
+  const blockedBy = reason !== null ? REASON_BLAME[reason] : state.globalPause ? 'pause' : null;
 
   // Take the caret only when there is nothing else on screen to look at: one
   // rule, and it has no name yet. Anything more and the popup would be

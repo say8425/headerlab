@@ -4,15 +4,21 @@ import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function row(over: Partial<HeaderRule> = {}): HeaderRule {
   return {
-    id: 'h1', enabled: true, target: 'request',
-    operation: 'set', name: 'X-Test', value: 'v',
+    id: 'h1',
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: 'X-Test',
+    value: 'v',
     ...over,
   };
 }
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
   return {
-    kind: 'no-scope', severity: 'warning', profileId: 'p1',
+    kind: 'no-scope',
+    severity: 'warning',
+    profileId: 'p1',
     message: 'm',
     ...over,
   };
@@ -116,12 +122,23 @@ describe('ruleTally', () => {
       // Not going out either, but not blocked: nothing is stopping it, it is
       // simply not a rule yet. Counting it as blocked is what put a red error
       // on a row created one click ago.
-      ['unnamed', [diag({
-        kind: 'incomplete-header', severity: 'incomplete', headerRuleId: 'unnamed',
-      })]],
+      [
+        'unnamed',
+        [
+          diag({
+            kind: 'incomplete-header',
+            severity: 'incomplete',
+            headerRuleId: 'unnamed',
+          }),
+        ],
+      ],
     ]);
     expect(ruleTally(rows, byRow, live)).toEqual({
-      total: 7, live: 4, off: 1, unfinished: 1, blocked: 1,
+      total: 7,
+      live: 4,
+      off: 1,
+      unfinished: 1,
+      blocked: 1,
     });
   });
 
@@ -131,7 +148,13 @@ describe('ruleTally', () => {
     // would report more rules than exist.
     const rows = [row({ id: 'a', enabled: false })];
     const byRow = new Map([['a', [diag({ severity: 'error', headerRuleId: 'a' })]]]);
-    expect(ruleTally(rows, byRow, live)).toEqual({ total: 1, live: 0, off: 1, unfinished: 0, blocked: 0 });
+    expect(ruleTally(rows, byRow, live)).toEqual({
+      total: 1,
+      live: 0,
+      off: 1,
+      unfinished: 0,
+      blocked: 0,
+    });
   });
 
   it('blocks every switched-on rule when the set emits nothing, while off stays off', () => {
@@ -141,13 +164,13 @@ describe('ruleTally', () => {
     // wrong in the other direction, reporting rules as applying while zero were
     // registered — here they must all read as blocked, and the rules the user
     // switched off must still read as off rather than being swept in.
-    const rows = [
-      row({ id: 'a' }),
-      row({ id: 'b' }),
-      row({ id: 'c', enabled: false }),
-    ];
+    const rows = [row({ id: 'a' }), row({ id: 'b' }), row({ id: 'c', enabled: false })];
     expect(ruleTally(rows, new Map(), { live: false })).toEqual({
-      total: 3, live: 0, off: 1, unfinished: 0, blocked: 2,
+      total: 3,
+      live: 0,
+      off: 1,
+      unfinished: 0,
+      blocked: 2,
     });
   });
 
@@ -161,12 +184,23 @@ describe('ruleTally', () => {
     // collapse into one figure.
     const rows = [row({ id: 'unnamed' }), row({ id: 'ready' })];
     const byRow = new Map([
-      ['unnamed', [diag({
-        kind: 'incomplete-header', severity: 'incomplete', headerRuleId: 'unnamed',
-      })]],
+      [
+        'unnamed',
+        [
+          diag({
+            kind: 'incomplete-header',
+            severity: 'incomplete',
+            headerRuleId: 'unnamed',
+          }),
+        ],
+      ],
     ]);
     expect(ruleTally(rows, byRow, { live: false })).toEqual({
-      total: 2, live: 0, off: 0, unfinished: 1, blocked: 1,
+      total: 2,
+      live: 0,
+      off: 0,
+      unfinished: 1,
+      blocked: 1,
     });
   });
 
@@ -178,7 +212,11 @@ describe('ruleTally', () => {
     // rather than re-deriving "unnamed" from the row itself.
     const rows = [row({ id: 'a', enabled: false, name: '' })];
     expect(ruleTally(rows, new Map(), live)).toEqual({
-      total: 1, live: 0, off: 1, unfinished: 0, blocked: 0,
+      total: 1,
+      live: 0,
+      off: 1,
+      unfinished: 0,
+      blocked: 0,
     });
   });
 
@@ -192,13 +230,21 @@ describe('ruleTally', () => {
       ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
     ]);
     expect(ruleTally(rows, byRow, live)).toEqual({
-      total: 2, live: 1, off: 0, unfinished: 0, blocked: 1,
+      total: 2,
+      live: 1,
+      off: 0,
+      unfinished: 0,
+      blocked: 1,
     });
   });
 
   it('counts nothing for an empty rule set', () => {
     expect(ruleTally([], new Map(), live)).toEqual({
-      total: 0, live: 0, off: 0, unfinished: 0, blocked: 0,
+      total: 0,
+      live: 0,
+      off: 0,
+      unfinished: 0,
+      blocked: 0,
     });
   });
 });

@@ -4,13 +4,32 @@ export type Operation = 'set' | 'append' | 'remove';
 export type HeaderTarget = 'request' | 'response';
 
 export type ResourceType =
-  | 'main_frame' | 'sub_frame' | 'stylesheet' | 'script' | 'image'
-  | 'font' | 'object' | 'xmlhttprequest' | 'ping' | 'csp_report'
-  | 'media' | 'websocket' | 'webtransport' | 'webbundle' | 'other';
+  | 'main_frame'
+  | 'sub_frame'
+  | 'stylesheet'
+  | 'script'
+  | 'image'
+  | 'font'
+  | 'object'
+  | 'xmlhttprequest'
+  | 'ping'
+  | 'csp_report'
+  | 'media'
+  | 'websocket'
+  | 'webtransport'
+  | 'webbundle'
+  | 'other';
 
 export type RequestMethod =
-  | 'connect' | 'delete' | 'get' | 'head' | 'options'
-  | 'patch' | 'post' | 'put' | 'other';
+  | 'connect'
+  | 'delete'
+  | 'get'
+  | 'head'
+  | 'options'
+  | 'patch'
+  | 'post'
+  | 'put'
+  | 'other';
 
 export type ProfileColor = 'green' | 'amber' | 'red' | 'blue' | 'violet' | 'cyan';
 

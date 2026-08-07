@@ -11,13 +11,20 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
+npm run check        # typecheck · lint · format:check · test — what CI runs, in one command
 npm test             # wxt build && vitest run  — the build is not optional, see below
 npm run test:e2e     # wxt build --mode e2e && playwright test
-npm run compile      # tsc --noEmit
+npm run typecheck    # wxt prepare && tsc --noEmit
+npm run lint         # oxlint --deny-warnings   (npm run lint:fix to apply fixes)
+npm run format:check # oxfmt --check            (npm run format to write)
 npm run build        # production build → .output/chrome-mv3
 npm run dev          # WXT dev server
 npm run screenshots  # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 ```
+
+**`typecheck`, not `compile`.** The script was renamed when CI arrived; the dated plans
+under `docs/superpowers/plans/` still say `npm run compile` because they are records of
+what was run at the time, not instructions for now.
 
 **Run `npm test`, not `npx vitest run`.** Several tests assert against *built* output,
 and the bare tools do not build. Running them directly reports on a stale artifact —
@@ -76,12 +83,20 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   exception list, which is the point: the claim is verifiable by a stranger who trusts
   none of this file. (Vite's modulepreload polyfill once left a dead `fetch(` literal in
   the bundle; `build.modulePreload: false` removes it.)
-  **Nothing automates that check.** It is the only non-negotiable here with no test
-  behind it — `grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3`
-  is currently a thing a person has to remember to run, and it currently returns
-  nothing. The other two are pinned by `tests/unit/manifest.test.ts`; this one is a
-  standing offer to regress silently, and a suite that reads the build already exists to
-  put it in.
+  `tests/unit/bundle.test.ts` guards it, and it reads the **build**, not the sources —
+  the modulepreload incident is the proof that this arrives from tooling rather than from
+  authored code, so a source-level check would have missed the only instance there has
+  ever been. Mutation-verified: a `fetch()` planted in `entrypoints/background.ts` fails
+  it naming `background.js`. Note the first attempt at that mutation planted an unused
+  export in `lib/storage/session.ts` and the suite stayed green — correctly, because
+  tree-shaking meant it never shipped. Plant in an entrypoint or you are testing nothing.
+  The patterns match **call and construction forms**, never bare words: `fetch`,
+  `websocket` and `xmlhttprequest` all occur in the bundle as harmless substrings (React
+  DOM's `prefetchDNS`/`fetchPriority`/`dns-prefetch`, and two DNR resource-type names the
+  popup offers as checkboxes), and matching words would need exactly the exception list
+  this claim promises there isn't one of. Two of the tests in that file exist to hold
+  that line: one plants each forbidden form and requires the patterns to match, the other
+  feeds them the benign substrings and requires they do not.
 - **No new dependencies.** npm here runs under a rolling 72-hour publish quarantine, so
   a recently published package fails with `ETARGET`. Do not bypass it, and do not run
   `npm audit fix`.
@@ -95,9 +110,127 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   actually answers it: the quarantine shows up as a resolved `before` date (npm reads
   `min-release-age` in days and turns 3 into a timestamp 72 hours back), and
   `ignore-scripts` shows up verbatim. `package.json` still declares
-  `postinstall: wxt prepare`, and here it has never once fired — `.wxt/` gets generated
-  by `wxt build` instead, which is why `npm run compile` fails on a fresh clone until
-  something has built (`tsconfig.json` extends `./.wxt/tsconfig.json`).
+  `postinstall: wxt prepare`, and here it has never once fired — which is why
+  `typecheck` is `wxt prepare && tsc --noEmit` rather than `tsc --noEmit` alone.
+  `tsconfig.json` extends `./.wxt/tsconfig.json`, so without that chained prepare a
+  fresh clone type-checks against a file that does not exist yet. `wxt prepare` is
+  177ms and idempotent; running it every time costs less than the trap does.
+
+## Toolchain
+
+**oxlint runs `correctness` only, as an error.** Measured on this tree before choosing:
+correctness 6, perf 16, suspicious 187, pedantic 220, restriction 1208, style 3990. The
+big numbers are not defects — 162 of `suspicious` are `react-in-jsx-scope`, a rule for
+the *old* JSX transform that React 19 does not use, and most of `style` is now oxfmt's
+job. A category that needs a page of suppressions to go green is a category nobody
+reads. CI adds `--deny-warnings` so a rule that arrives at warning level in a future
+release still stops the build.
+
+**`lint` chains `wxt prepare`, and that is a correctness fix rather than a convenience.**
+`tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
+through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
+not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
+`correctness` enables (`import/default`, `import/namespace`), across 126 `@/…` imports.
+Reproduced both ways with a one-line probe importing a non-existent default: an error with
+`.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
+because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
+deliberately *not* chained — oxfmt reads no tsconfig and resolves nothing.
+
+**`coverage/` is gitignored on purpose.** `@vitest/coverage-v8` is installed, so
+`--coverage` is one flag away, and its output is untracked — which puts it in
+`tests/support/build.ts`'s source set and reports **both** builds stale. Every
+build-reading test then fails with a message about staleness rather than about coverage.
+Never cache or pass `.output/` between CI jobs for the mirror-image reason: a restore
+writes fresh mtimes *after* checkout, so `isStale()` returns false against sources the
+artifact was not built from — a silent false green, which is the exact thing the guard
+exists to prevent. Both builds are under a second; rebuild in each job.
+
+**Setting `plugins` replaces oxlint's base set; it does not extend it.** The three that
+are on by default (typescript, unicorn, oxc) have to be re-listed or they silently stop
+running. And an override's `plugins` key does **not** enable a plugin — measured: with
+`vitest` declared only in the `tests/**` override, `oxlint tests/unit/schema.test.ts`
+reported nothing while `oxlint --vitest-plugin` on the same file reported four. Overrides
+retune rules; only the top-level list turns a plugin on.
+
+**Suppressions are per-site and carry a reason.** Four exist, and each is a rule that
+cannot see the intent rather than a rule this repo disagrees with: two `no-control-regex`
+on `/^[\x00-\x7F]/` ASCII range checks, one `no-empty-pattern` on Playwright's
+`async ({}, use)` fixture idiom, one `react-hooks/exhaustive-deps` on the truncating
+effect in App.tsx. The disable comment must be the line *immediately* before its subject —
+a two-line comment ending in the directive suppresses the second comment line and nothing
+else, which reads as working and is not.
+
+**oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
+`**/*.html` are in `ignorePatterns`: the stylesheet is hand-tuned at 4-space indent with a
+comment explaining why, and reformatting it to 2-space is 1124 lines of churn for a
+machine's opinion. Measured, one pattern at a time: dropping the stylesheet exposes it,
+dropping `**/*.md` exposes CLAUDE.md and README.md, and `docs/**` and `**/*.html` **overlap**
+— each alone can go without exposing anything, but dropping both exposes the two design
+mocks under `docs/design/`. Note the measurement only works with the probe config written
+into the repo root: `ignorePatterns` resolve relative to the config file, so a copy in
+`/tmp` silently matches nothing and every pattern looks load-bearing.
+`printWidth: 100` was chosen by sweeping 80/90/96/100/110/120 and taking the minimum churn
+— 48 files at 100 against 58 at 80 and 53 at 120, counted over everything the config
+actually formats. (An earlier note said 40/50/45; that was a narrower hand-written glob
+set, and the *ordering* is what the choice rests on, which reproduces either way.)
+`singleQuote: true` matches what the repo already wrote. **oxfmt also sorts `package.json`
+keys** by default — that is why `dependencies` now precedes `devDependencies`.
+
+**`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
+A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
+office, and the lockfile was full of them — 397 on the base commit, 420 by the time they
+were rewritten, the extra 23 added by this branch's own `npm install`. A public
+repository that only its author could install. `replace-registry-host=always` does **not** fix it: it swaps the host and
+keeps the path, producing `registry.npmjs.org/repository/npm-all/zod/-/zod-4.4.3.tgz`,
+which 404s. Measured on CI. The whole base has to be rewritten —
+`https://nexus.mng.musinsa.io/repository/npm-all/` → `https://registry.npmjs.org/` — and
+that is safe because the `integrity` hashes are untouched: the URL says where to look,
+the hash says what is acceptable. Locally npm rewrites canonical URLs back to the
+configured registry on its own, which is why the 428 entries that were already in this
+form have always worked. **If a future lockfile write reintroduces proxy URLs, rewrite
+them before committing.**
+
+**A local `npm install` will corrupt the lockfile. `npm ci` will not.** The proxy serves
+stale metadata for oxlint's and oxfmt's per-platform native bindings — it carries
+`binding-darwin-arm64` at the current version and nothing newer than oxlint 1.43.0 /
+oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of refreshing the
+packument. So an `npm install` here writes the 18 non-darwin bindings as entries with **no
+version at all**, and both `npm ci` *and* `npm install` then die on those stubs with
+`Invalid Version:` before touching the network. `registry.npmjs.org` is unreachable from
+this machine (503), so the correct entries cannot be produced here at all.
+
+They came from CI, which can see the whole registry, and are committed. **Use `npm ci`.**
+If you must `npm install` — adding a dependency — check `git diff package-lock.json` for
+versionless entries and proxy URLs before committing, or get the lockfile back from a CI
+run's install step. The 18 entries carry `os`/`cpu` constraints, so `npm ci` on macOS
+skips fetching the ones it cannot use; having them in the file costs nothing locally and
+is what makes the repository installable anywhere else.
+
+That is history now: CI ran `npm install`, diffed the lockfile, uploaded the resolved one
+as an artifact, and that artifact — the committed lockfile plus exactly the 18 bindings,
+with no version changes and nothing removed — is what is committed. The workflow uses
+`npm ci` again and those steps are gone. If the lockfile ever needs regenerating from a
+machine that can see the whole registry, that is the loop to re-run.
+
+**CI references actions by floating major — `actions/checkout@v7`, not a SHA and not
+`@v7.0.1`.** This went SHA → exact tag → major, each step trading supply-chain strength
+for legibility, and the trade is worth naming rather than discovering: a moved tag is a
+real attack and a SHA is the only thing that forecloses it. What makes it acceptable here
+is that all four actions are published by GitHub itself, the workflow holds only
+`contents: read` with `persist-credentials: false`, and it never interpolates
+`github.event.*`, so the blast radius of a hijacked action is this repository's own
+source — which is public. A third-party action would not clear that bar; pin one to a SHA
+if it ever arrives.
+
+Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
+there is no dependabot here yet. To go back to SHAs:
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`, with the tag in a
+comment beside each hash — commit `a1f8122` has the last version that did this.
+
+**The workflow carries almost no comments, and that is deliberate.** It had many, and they
+restated what this file already says at more length. The reasoning lives here; the YAML
+should be readable as YAML. What stayed is the two lines that are surprising *at the point
+of use* — why later steps run after a failure, and why `--with-deps` runs on a cache hit.
 
 ## Platform traps that have already cost time
 

@@ -19,8 +19,13 @@ import type { AppState, Profile, ProfileColor } from '@/lib/model/types';
  * eventually disagrees with the first. Add a third consumer by importing this,
  * not by writing the names again.
  */
-export const SELECTABLE_COLORS: readonly ProfileColor[] =
-  ['green', 'amber', 'red', 'blue', 'violet'];
+export const SELECTABLE_COLORS: readonly ProfileColor[] = [
+  'green',
+  'amber',
+  'red',
+  'blue',
+  'violet',
+];
 
 /**
  * Bumped to 2 when `Filter.allSites` became explicit. Every bump needs a

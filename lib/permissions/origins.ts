@@ -1,5 +1,10 @@
 import type { Filter } from '@/lib/model/types';
 
+// The control characters are the point: this asks "is every character ASCII",
+// and \x00-\x1F is the bottom of ASCII. The rule cannot tell a range check from
+// a pattern that means to match a control character, so it is answered here
+// rather than switched off repo-wide.
+// oxlint-disable-next-line no-control-regex
 const ASCII_ONLY = /^[\x00-\x7F]+$/;
 
 /**

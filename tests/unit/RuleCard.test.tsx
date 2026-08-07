@@ -7,8 +7,12 @@ import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
   return {
-    id: 'h1', enabled: true, target: 'request',
-    operation: 'set', name: 'X-Test', value: 'v',
+    id: 'h1',
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: 'X-Test',
+    value: 'v',
     ...over,
   };
 }
@@ -17,11 +21,14 @@ function diag(over: Partial<Diagnostic> = {}): Diagnostic {
   return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
 }
 
-function renderCard(over: Partial<HeaderRule> = {}, props: Partial<{
-  diagnostics: Diagnostic[];
-  onPatch: (patch: Partial<HeaderRule>) => void;
-  onDelete: () => void;
-}> = {}) {
+function renderCard(
+  over: Partial<HeaderRule> = {},
+  props: Partial<{
+    diagnostics: Diagnostic[];
+    onPatch: (patch: Partial<HeaderRule>) => void;
+    onDelete: () => void;
+  }> = {},
+) {
   return render(
     <RuleCard
       rule={rule(over)}
@@ -146,13 +153,23 @@ describe('RuleCard controls', () => {
     // would pass either case alone. It has to read the current state.
     const onPatch = vi.fn();
     const { rerender } = render(
-      <RuleCard rule={rule({ enabled: true })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ enabled: true })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole('switch'));
     expect(onPatch).toHaveBeenLastCalledWith({ enabled: false });
 
     rerender(
-      <RuleCard rule={rule({ enabled: false })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ enabled: false })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole('switch'));
     expect(onPatch).toHaveBeenLastCalledWith({ enabled: true });
@@ -163,19 +180,34 @@ describe('RuleCard controls', () => {
     // re-rendering with the operation a real parent would have stored.
     const onPatch = vi.fn();
     const { rerender } = render(
-      <RuleCard rule={rule({ operation: 'set' })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ operation: 'set' })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
     expect(onPatch).toHaveBeenLastCalledWith({ operation: 'append' });
 
     rerender(
-      <RuleCard rule={rule({ operation: 'append' })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ operation: 'append' })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
     expect(onPatch).toHaveBeenLastCalledWith({ operation: 'remove' });
 
     rerender(
-      <RuleCard rule={rule({ operation: 'remove' })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ operation: 'remove' })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Operation/ }));
     expect(onPatch).toHaveBeenLastCalledWith({ operation: 'set' });
@@ -187,14 +219,24 @@ describe('RuleCard controls', () => {
     // it currently shows, not a fixed value.
     const onPatch = vi.fn();
     const { rerender } = render(
-      <RuleCard rule={rule({ target: 'request' })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ target: 'request' })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     expect(screen.getByRole('button', { name: /Direction/ }).textContent).toBe('REQ');
     await userEvent.click(screen.getByRole('button', { name: /Direction/ }));
     expect(onPatch).toHaveBeenLastCalledWith({ target: 'response' });
 
     rerender(
-      <RuleCard rule={rule({ target: 'response' })} diagnostics={[]} onPatch={onPatch} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ target: 'response' })}
+        diagnostics={[]}
+        onPatch={onPatch}
+        onDelete={vi.fn()}
+      />,
     );
     expect(screen.getByRole('button', { name: /Direction/ }).textContent).toBe('RES');
     await userEvent.click(screen.getByRole('button', { name: /Direction/ }));
@@ -239,7 +281,12 @@ describe('RuleCard tab order', () => {
     // navigation of its own, but user-event walks the document's tabbable
     // elements in source order, which is exactly the property under test.
     render(
-      <RuleCard rule={rule({ name: 'X-Test' })} diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ name: 'X-Test' })}
+        diagnostics={[]}
+        onPatch={vi.fn()}
+        onDelete={vi.fn()}
+      />,
     );
     expect(await walk(6)).toEqual([
       'X-Test enabled',
@@ -257,7 +304,12 @@ describe('RuleCard tab order', () => {
     // see below.) Without this case the order could hold for filled rules and
     // break for the one a user meets first.
     render(
-      <RuleCard rule={rule({ name: '', value: '' })} diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()} />,
+      <RuleCard
+        rule={rule({ name: '', value: '' })}
+        diagnostics={[]}
+        onPatch={vi.fn()}
+        onDelete={vi.fn()}
+      />,
     );
     expect(await walk(6)).toEqual([
       'Unnamed enabled',
@@ -277,7 +329,9 @@ describe('RuleCard tab order', () => {
     render(
       <RuleCard
         rule={rule({ operation: 'remove', value: '' })}
-        diagnostics={[]} onPatch={vi.fn()} onDelete={vi.fn()}
+        diagnostics={[]}
+        onPatch={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
     expect(await walk(5)).toEqual([
@@ -318,12 +372,18 @@ describe('RuleCard problems', () => {
     // empty." on a row created one click ago. The empty field and its
     // placeholder already say the rule is unfinished, and they say it without
     // accusing anyone. The state is not lost — the rail counts it.
-    renderCard({ name: '' }, {
-      diagnostics: [diag({
-        kind: 'incomplete-header', severity: 'incomplete',
-        message: 'This rule has no name yet, so nothing is sent for it.',
-      })],
-    });
+    renderCard(
+      { name: '' },
+      {
+        diagnostics: [
+          diag({
+            kind: 'incomplete-header',
+            severity: 'incomplete',
+            message: 'This rule has no name yet, so nothing is sent for it.',
+          }),
+        ],
+      },
+    );
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
     expect(screen.getByTestId('rule').getAttribute('data-unfinished')).toBe('true');
   });
@@ -332,12 +392,15 @@ describe('RuleCard problems', () => {
     // Filtering by severity must remove the incomplete one and nothing else.
     // A filter written as "drop everything when any diagnostic is incomplete"
     // would silence a genuine error sitting on the same row.
-    renderCard({ name: '' }, {
-      diagnostics: [
-        diag({ kind: 'incomplete-header', severity: 'incomplete', message: 'unfinished' }),
-        diag({ severity: 'error', message: 'a real problem' }),
-      ],
-    });
+    renderCard(
+      { name: '' },
+      {
+        diagnostics: [
+          diag({ kind: 'incomplete-header', severity: 'incomplete', message: 'unfinished' }),
+          diag({ severity: 'error', message: 'a real problem' }),
+        ],
+      },
+    );
     const lines = screen.getAllByTestId('rule-problem');
     expect(lines.map((l) => l.textContent)).toEqual(['!a real problem']);
   });
@@ -350,12 +413,15 @@ describe('RuleCard problems', () => {
   });
 
   it('shows one line per diagnostic, in order, with its severity marked', () => {
-    renderCard({}, {
-      diagnostics: [
-        diag({ severity: 'error', message: 'first' }),
-        diag({ severity: 'warning', message: 'second' }),
-      ],
-    });
+    renderCard(
+      {},
+      {
+        diagnostics: [
+          diag({ severity: 'error', message: 'first' }),
+          diag({ severity: 'warning', message: 'second' }),
+        ],
+      },
+    );
     const lines = screen.getAllByTestId('rule-problem');
     expect(lines.map((l) => l.textContent)).toEqual(['!first', '!second']);
     expect(lines.map((l) => l.getAttribute('data-severity'))).toEqual(['error', 'warning']);

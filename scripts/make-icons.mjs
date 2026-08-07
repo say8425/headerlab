@@ -86,9 +86,10 @@ for (const [state, fill] of Object.entries(FILL)) {
 if (process.argv.includes('--preview')) {
   // The check that matters is not "does the file look right in a viewer" but
   // "is it legible at 16px against a toolbar" — and Chrome has two toolbars.
-  const shot = (s, n) => `<img src="data:image/png;base64,${
-    readFileSync(path.join(OUT, `${s}-${n}.png`)).toString('base64')
-  }" width="${n}" height="${n}">`;
+  const shot = (s, n) =>
+    `<img src="data:image/png;base64,${readFileSync(path.join(OUT, `${s}-${n}.png`)).toString(
+      'base64',
+    )}" width="${n}" height="${n}">`;
   const row = (bg, label) => `
     <div style="background:${bg};padding:14px 18px;display:flex;gap:22px;align-items:center">
       <span style="font:600 11px system-ui;color:${bg === '#292a2d' ? '#e8eaed' : '#3c4043'};
