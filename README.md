@@ -1,65 +1,179 @@
 # HeaderLab
 
-Add, modify and remove HTTP request and response headers. Chrome (Edge is
-untested — an Edge run of the E2E suite is planned for Phase 3).
+Add, modify and remove HTTP request and response headers, in Chrome, with no
+host access until you grant it.
 
-A replacement for ModHeader, which was removed from both stores in July 2026
-after a hidden tracker was found in it.
+A replacement for ModHeader, which was pulled from the Chrome Web Store in July
+2026 after a hidden tracker was found in it. That is the whole reason this
+exists, and it is why the trust posture below is a hard constraint rather than a
+feature list.
+
+| Light | Dark |
+|---|---|
+| ![The HeaderLab popup in light theme: three of four rules live, two granted sites, four header rules](docs/screenshots/popup-light.png) | ![The same popup in dark theme, which follows the operating system setting](docs/screenshots/popup-dark.png) |
+
+Access is asked for per site, on the row that names the site — never as a side
+effect of typing a hostname or flipping a switch. Until you press **Grant**, the
+row is amber and says so:
+
+![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
+
+<sub>Captured from the real production build loaded in Chrome. Only the manifest
+was patched, to pre-grant the two example hosts so the granted state could be
+photographed without a native permission dialog.</sub>
 
 ## Trust posture
 
-- **No network calls.** No analytics, telemetry, remote config, or update pings.
-- **No content scripts.** Nothing is injected into any page.
-- **No host permissions at install.** Site access is granted by you, per site or
-  all at once, and can be revoked at any time.
-- **No external resources.** No CDN, no web fonts.
+- **No host permissions at install.** The manifest asks for exactly `storage`
+  and `declarativeNetRequestWithHostAccess`. Site access is granted by you, per
+  host, at runtime, and can be revoked from Chrome at any time.
+- **No network calls.** No analytics, telemetry, remote config or update pings.
+  The shipped bundle contains no `fetch`, `XMLHttpRequest`, `WebSocket` or
+  `sendBeacon` at all — checkable by reading `.output/chrome-mv3`, with no
+  exception list to trust.
+- **No content scripts.** Nothing is injected into any page. Headers are changed
+  by Chrome's `declarativeNetRequest` engine, which never hands request contents
+  to the extension.
+- **No external resources.** No CDN, no web fonts, no remote images.
+- **No silent failures.** Anything that stops a rule going out is stated on
+  screen — a missing permission, an unusable hostname, a header name Chrome will
+  reject. A rule that is not applying always says why.
+
+## What it does
+
+- **Set, append or remove** any header, on the **request** or the **response**
+  side. `append` is limited by Chrome to a 21-header allowlist on requests;
+  HeaderLab tells you when a rule falls outside it instead of silently dropping
+  the whole batch.
+- **Scope by site.** Sites are matched by host: a port or a path is dropped when
+  you add one, and the stored value is the value that operates, so what the rail
+  shows is what goes on the wire.
+- **Apply everywhere**, as an explicit mode rather than an empty site list. It
+  costs `<all_urls>`, and the switch does not ask for it — the Grant button
+  beside it does.
+- **Filter by request type** — eight of Chrome's resource types, checkable
+  individually. `main_frame` is on by default, because DNR's own default
+  silently excludes it.
+- **Pause everything** with one switch. The toolbar icon greys out to match, and
+  is re-applied when the service worker wakes.
+- **Follows your OS theme**, light or dark, before first paint.
+
+## Install
+
+There is no Chrome Web Store listing. Build it and load it unpacked:
+
+```bash
+npm install
+npm run build            # → .output/chrome-mv3
+```
+
+Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
+unpacked**, and select `.output/chrome-mv3`.
+
+Chrome only. Edge is untested — it is the same engine and should work, but no
+one has run the suite against it.
 
 ## Development
 
 ```bash
-npm install
-npx playwright install --with-deps --no-shell chromium  # see note below
-npm run dev          # load .output/chrome-mv3-dev as an unpacked extension
-npm test             # unit tests, no browser required
-npm run test:e2e     # end-to-end, proves headers change on the wire
-npm run compile      # type check
-npm run build        # production build
+npm run dev          # WXT dev server → load .output/chrome-mv3-dev unpacked
+npm test             # wxt build && vitest run — unit tests, no browser
+npm run test:e2e     # wxt build --mode e2e && playwright test — real Chrome
+npm run compile      # tsc --noEmit
+npm run build        # production build → .output/chrome-mv3
+npm run screenshots  # rebuild the images in this README from the real popup
 ```
 
-`npm install` does not fetch Playwright's browser binaries — that's a separate
-step. `--no-shell` matters: Playwright's default headless build is
-`chromium-headless-shell`, a stripped build that cannot load extensions. Without
-the full Chromium binary, `npm run test:e2e` fails in a way that looks like a
-code problem rather than a missing dependency.
+**Run `npm test`, not a bare `npx vitest run`.** Several suites assert against
+*built* output, and the bare tools do not build. A stale artifact has produced
+both a false green that silently disabled a guard and a false red that cost an
+hour, so `tests/support/build.ts` now detects staleness and fails with the
+command to run.
+
+**`npm install` may not run `postinstall`.** `npm config get ignore-scripts` is
+`true` on some setups (it is a common hardening default), which skips the
+`wxt prepare` that generates `.wxt/`. `tsconfig.json` extends
+`./.wxt/tsconfig.json`, so `npm run compile` fails on a fresh clone until either
+`npm run build` or `npx wxt prepare` has run once.
+
+**E2E needs a browser Playwright does not install by default:**
+
+```bash
+npx playwright install --with-deps --no-shell chromium
+```
+
+`--no-shell` matters. Playwright's default headless download is
+`chromium-headless-shell`, a stripped build that cannot load extensions, and
+without the full binary `npm run test:e2e` fails in a way that looks like a code
+problem rather than a missing dependency.
 
 `npm run test:e2e` builds into `.output/chrome-mv3-e2e`, a second output
-directory alongside the production `.output/chrome-mv3`. The e2e build carries
-a loopback host permission (`http://127.0.0.1/*`) that the shipped build does
-not, so the suite can drive the local echo server without a runtime permission
-prompt Playwright cannot click. `npm run test:e2e` does not touch
-`.output/chrome-mv3` — run `npm run build` to get a fresh production build.
+directory beside the production one. That build carries a loopback host
+permission (`http://127.0.0.1/*`) the shipped build does not, so the suite can
+drive a local echo server without a runtime prompt Playwright cannot click.
+`tests/unit/manifest.test.ts` asserts it never reaches production. Running the
+e2e suite does not touch `.output/chrome-mv3` — run `npm run build` for a fresh
+production build.
 
 ## Architecture
 
-All correctness lives in a pure layer that never imports `chrome.*`:
+```
+lib/model/       types, zod schema, defaults, migrations   pure
+lib/compile/     AppState → DNR rules + diagnostics        pure
+lib/permissions/ origins.ts, audit.ts pure · probe.ts calls the browser
+lib/view/        popup view models                         pure
+lib/storage/     state.ts, session.ts, useAppState.ts
+lib/sync/        ruleSync.ts (reconcile), icon.ts
+components/      popup UI
+entrypoints/     background.ts, popup/
+```
 
-- `lib/compile/` — application state to declarativeNetRequest rules
-- `lib/permissions/origins.ts` — filters to origin patterns
+**All correctness lives in a pure layer that never imports `chrome.*`.**
+`compile()` turns the whole application state into declarativeNetRequest rules
+plus a list of diagnostics, and the popup runs that same function on that same
+state — so what the screen says and what the browser was told cannot disagree.
 
-One thin adapter, `lib/sync/ruleSync.ts`, is the only module that calls
-`chrome.declarativeNetRequest`. A single `reconcile()` in the background service
-worker recompiles from storage and replaces every rule atomically; storage
-changes, worker startup, and permission changes all funnel into it.
+**One reconcile loop.** Every trigger — a storage change, worker startup, a
+permission granted or revoked — funnels into `reconcile()` in
+`lib/sync/ruleSync.ts`, which recompiles from scratch and replaces the ruleset
+wholesale. It is idempotent, and there is no second path by which state can
+drift down.
 
-This shape is forced rather than chosen: `@webext-core/fake-browser` does not
-implement `declarativeNetRequest`, so browser-imitation testing is unavailable.
-Making the browser irrelevant to the logic is the response.
+This shape is forced rather than chosen: `@webext-core/fake-browser` implements
+`declarativeNetRequest` and `permissions.*` as throwing stubs, so
+browser-imitation testing is unavailable. Making the browser irrelevant to the
+logic is the response.
 
-See `docs/superpowers/specs/` for the design and `docs/research/` for the
-verified platform constraints behind it.
+Design documents live in `docs/superpowers/specs/`, and the measured platform
+constraints behind them in `docs/research/`.
+
+## Testing
+
+Three layers: pure logic with no browser, adapters driven by hand-planted spies,
+and end-to-end against a genuinely loaded extension. Two of the five e2e tests
+put a real request on the wire through a local echo server and read the headers
+back off it — those are the strongest evidence in the repo.
+
+At the time of writing: 583 unit tests across 28 files, plus 5 e2e tests.
 
 ## Status
 
-Phase 1 (walking skeleton) complete: rules compile, sync, and demonstrably
-modify real headers. Diagnostics, permission UX, the full Data Grid UI, themes,
-and tab lock are Phase 2.
+The popup is complete and the extension works: rules compile, sync, and
+demonstrably modify real headers.
+
+Deliberately not built yet, and worth knowing before you look for them:
+
+- **One rule set.** The popup shows a single rule set; the data model carries
+  multiple profiles and the compiler handles them, but there is no UI for
+  switching between them, and storage holding more than one is truncated to what
+  the screen can show rather than left applying invisibly.
+- **No JSON export/import.** If it is ever built, its validation has to come
+  first — import is what makes the unvalidated surfaces reachable.
+- **No tab lock UI.** The compile path exists and is tested; nothing can turn it
+  on.
+- **No regex scoping UI**, and no RE2 validation to go with it.
+- **No manual theme toggle.** The theme follows the OS.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
