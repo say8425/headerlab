@@ -148,10 +148,19 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['"All sites", off — .hl-allsiteslab', '--hl-ink-2', '--hl-panel'],
   ['"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab', '--hl-live', '--hl-live-bg'],
   ['"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab', '--hl-pend', '--hl-pend-bg'],
+  // Every site row now carries a second line naming its state, and that line is
+  // painted on whichever fill the row is wearing — so it needs the pair its
+  // hostname needs, once per surface. The idle one replaces the pair that was
+  // written for `.hl-fieldnote-calm`: those exact words moved from a paragraph
+  // above the list onto the row itself, so the guard moved with them rather
+  // than being deleted.
+  ['row state line, granted — .hl-needsay', '--hl-ink-3', '--hl-panel'],
+  ['row state line, pending — .hl-dom[data-state=pending] .hl-needsay', '--hl-ink-3', '--hl-pend-bg'],
+  ['row state line, unusable — .hl-dom[data-state=unusable] .hl-needsay', '--hl-ink-3', '--hl-err-bg'],
   // The site list while all-sites is on: the row drops its own fill, so both
-  // its text and the calm note under it are painted straight onto the rail.
+  // its text and its state line are painted straight onto the rail.
   ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--hl-ink-3', '--hl-rail'],
-  ['"Not in use" note — .hl-fieldnote-calm', '--hl-ink-3', '--hl-rail'],
+  ['row state line, not in use — .hl-dom[data-state=idle] .hl-needsay', '--hl-ink-3', '--hl-rail'],
   ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
   ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
   ['the ? mark — .hl-helpmark', '--hl-ink-3', '--hl-rail'],

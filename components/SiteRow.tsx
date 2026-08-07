@@ -49,6 +49,26 @@ const STATE_LABEL = {
   idle: 'Not in use',
 } as const;
 
+type RowState = keyof typeof STATE_LABEL;
+
+/**
+ * What the row's second line says when it is not holding the Grant button.
+ *
+ * The line exists in every state — see the markup for why — so the question is
+ * only what fills it. A blank band inside a card reads as a rendering fault,
+ * and these three states each have something true to put there.
+ *
+ * `pending` is absent on purpose: that state's line is the button, and a word
+ * for it would be a branch nothing can reach. A pending row with no grantable
+ * host would fall through to an empty line, which is the honest rendering of
+ * "waiting, with nothing to press".
+ */
+const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
+  granted: 'Access granted',
+  unusable: 'Cannot be used',
+  idle: 'Not in use while All sites is on',
+};
+
 export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
    * One symbol, one meaning.
@@ -67,7 +87,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
    * until then would spring the failure on the user at the exact moment they
    * narrowed their scope and expected it to start working.
    */
-  const state = !usable
+  const state: RowState = !usable
     ? 'unusable'
     : inert
       ? 'idle'
@@ -97,7 +117,27 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
       <span className="hl-domhost">{domain}</span>
       <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>×</button>
 
-      {/* A pending permission is state and remedy, and nothing else. The
+      {/* The row's second line, present in **every** state and always the same
+          height.
+
+          It used to render only when a permission was pending, which made the
+          Grant button's arrival add 30.5px to the row — pushing the sites under
+          it, the add field and the whole rail below down by that much, at the
+          moment the user was reading the row that had just changed. A control
+          appearing must not resize what holds it (CLAUDE.md, Interface), so the
+          line is sized to the tallest thing it can hold, which is the button,
+          and the other states occupy that space rather than removing it.
+
+          It is not reserved by rendering a hidden button. An invisible control
+          is still in the accessibility tree and still lands in the tab order,
+          which would put an unpressable Grant between the × of one row and the
+          host of the next. The space is reserved; the control is not.
+
+          The words are `aria-hidden` because the dot at the head of the row
+          already carries the same fact as its accessible name — without that,
+          every row would announce its state twice.
+
+          A pending permission is state and remedy, and nothing else. The
           sentence this replaces spent four lines telling a developer what a
           Grant button beside a hostname already says; two of them filled the
           rail. A `?` explaining the button went the same way for the same
@@ -107,11 +147,21 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           Never on an unusable row: granting a host that cannot be used changes
           nothing, so the button would be an action that looks like the remedy
           and is not. */}
-      {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' && (
-        <span className="hl-need" data-testid="site-pending">
-          <button className="hl-grant" onClick={() => onGrant(awaitingGrant.host!)}>Grant</button>
-        </span>
-      )}
+      <span className="hl-need" data-testid="site-line">
+        {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
+          <button
+            className="hl-grant"
+            data-testid="site-pending"
+            onClick={() => onGrant(awaitingGrant.host!)}
+          >
+            Grant
+          </button>
+        ) : (
+          <span className="hl-needsay" aria-hidden="true">
+            {state === 'pending' ? '' : STATE_LINE[state]}
+          </span>
+        )}
+      </span>
     </div>
   );
 }

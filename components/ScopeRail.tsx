@@ -216,12 +216,27 @@ export function ScopeRail({
               that was `aria-hidden` gave a granted row and an unusable one
               identical accessible names. Same words as those rows, because it
               is the same state. */}
-          {allSites && allSitesGranted !== null && (
+          {/* The dot's *slot* is unconditional; only its meaning is not. It
+              used to render solely once the state was known, so "All sites"
+              slid 14px sideways the moment a probe answered — and the same
+              14px back when the mode went off. State changes appearance, not
+              geometry (CLAUDE.md, Interface).
+
+              With nothing to report it is a blank 7px, carrying no `role` and
+              no label: reserving the space must not put a phantom image into
+              the accessibility tree, and a dot that named a state before the
+              browser had been asked is the flicker `allSitesGranted: null`
+              exists to prevent. It also lands the label on the same x as the
+              hostnames below, which the conditional version only managed in
+              one of its two states. */}
+          {allSites && allSitesGranted !== null ? (
             <span
               className="hl-allsitesstate"
               role="img"
               aria-label={allSitesGranted ? 'Access granted' : 'Awaiting permission'}
             />
+          ) : (
+            <span className="hl-allsitesstate" data-unknown="" />
           )}
           <span className="hl-allsiteslab">All sites</span>
           {/* The only control here that asks the browser for anything. The
@@ -244,16 +259,21 @@ export function ScopeRail({
           />
         </div>
 
-        {/* Kept on screen, not hidden, while all-sites is on. Hiding it would
-            make turning the mode off look like it had thrown the user's scope
-            away, and there would be no way to see what turning it back off
-            returns to. It is shown as what it is: still there, not in use. */}
-        {allSites && domains.length > 0 && (
-          <p className="hl-fieldnote hl-fieldnote-calm" data-testid="sites-idle">
-            Not in use while All sites is on.
-          </p>
-        )}
+        {/* The list is kept on screen, not hidden, while all-sites is on:
+            hiding it would make turning the mode off look like it had thrown
+            the user's scope away, and there would be no way to see what
+            turning it back off returns to. It is shown as what it is — still
+            there, not in use — and each row now says so on its own second
+            line.
 
+            That sentence used to be a paragraph here, above the list. It said
+            the same words about the same rows, and it appeared and vanished
+            with the mode, adding 23.7px above every site the instant the
+            switch moved. Its subject survives on the object it describes,
+            which is where this rail puts a site's state anyway: "a domain and
+            whether HeaderLab may act on it are the same fact" (SiteRow). The
+            row's line is reserved in every state, so saying it there costs no
+            movement at all. */}
         {domains.map((stored) => {
           // `analyzeDomain` is asked, never restated — it is the one definition
           // of what a usable host is, and the same call already supplies the

@@ -187,9 +187,14 @@ describe('the master switch', () => {
 describe('sites', () => {
   it('renders one row per domain, in order, and counts them in the heading', () => {
     renderRail({ domains: ['api.example.com', 'staging.acme.dev'] });
+    // The state line is part of the row's text now — reserved in every state so
+    // that a Grant button arriving cannot resize the row. Kept in the exact
+    // expectation rather than stripped out of it: a row that stopped rendering
+    // the line would still fit the layout, and this is the assertion that
+    // notices.
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.com×',
-      'staging.acme.dev×',
+      'api.example.com×Access granted',
+      'staging.acme.dev×Access granted',
     ]);
     expect(screen.getByTestId('site-count').textContent).toBe('2');
   });
@@ -441,27 +446,39 @@ describe('the all-sites switch', () => {
 });
 
 describe('the site list while all-sites is on', () => {
-  it('keeps the stored sites on screen and says they are not in use', () => {
+  it('keeps the stored sites on screen and says on each one that it is not in use', () => {
     // Hiding them would make turning the mode off look like it had discarded
     // the user's scope, and leave nothing to say what turning it back off
     // returns to.
+    //
+    // The sentence used to be one paragraph above the list, keyed off
+    // `sites-idle`. It is on every row now, because a paragraph that comes and
+    // goes with the mode moves the whole list 23.7px each way — and because a
+    // site's state belongs on the site. Asserted on both rows and as exact
+    // text: one row carrying it, or a row saying merely "not in use" without
+    // naming what is overriding it, would leave the reader looking for why.
     renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
-    expect(screen.getAllByTestId('site').map((s) => s.textContent))
-      .toEqual(['api.example.com×', 'x.com×']);
-    expect(screen.getByTestId('sites-idle').textContent)
-      .toBe('Not in use while All sites is on.');
+    expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
+      'api.example.com×Not in use while All sites is on',
+      'x.com×Not in use while All sites is on',
+    ]);
   });
 
-  it('says that only when there is a list to say it about', () => {
-    // With no entries there is nothing sitting idle, and a note explaining the
-    // state of an empty list is a line that describes nothing.
-    renderRail({ allSites: true, domains: [] });
-    expect(screen.queryByTestId('sites-idle')).toBeNull();
+  it('says that only about entries there are — an empty list has nothing sitting idle', () => {
+    // The paragraph this replaces was guarded against describing an empty list.
+    // The row carries the words now, so "no rows" is what makes it unsaid, and
+    // the absence has to be asserted rather than assumed from there being no
+    // paragraph left to query.
+    const { container } = renderRail({ allSites: true, domains: [] });
+    expect(screen.queryAllByTestId('site')).toEqual([]);
+    expect(container.textContent).not.toMatch(/Not in use/);
   });
 
   it('says nothing of the sort while the list is the thing in use', () => {
     renderRail({ allSites: false, domains: ['api.example.com'] });
-    expect(screen.queryByTestId('sites-idle')).toBeNull();
+    expect(screen.getByTestId('site').textContent).not.toMatch(/Not in use/);
+    // …and the row is not merely silent: it states the state it is actually in.
+    expect(screen.getByTestId('site').textContent).toBe('api.example.com×Access granted');
   });
 
   it('stops claiming access is granted for a host nothing is scoped to', () => {
