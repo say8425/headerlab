@@ -168,11 +168,16 @@ host and leaves the `integrity` hashes verifying the bytes. Second, and not fixa
 here: the proxy serves **stale metadata for oxlint's and oxfmt's per-platform native
 bindings**. It carries `binding-darwin-arm64` at the current version and nothing newer
 than oxlint 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of
-refreshing the packument. npm therefore records 18 entries with no version at all, and
-`npm ci` dies on them with `Invalid Version:` before it touches the network. Deleting
-those entries does not help — `npm ci` then rejects the lockfile as out of sync. Both
-measured. `registry.npmjs.org` is unreachable from here (503), so a portable lockfile
-cannot be produced on this machine at all.
+refreshing the packument. npm therefore records the 18 non-darwin bindings as entries with
+**no version at all**, and both `npm ci` *and* `npm install` die on them with
+`Invalid Version:` before touching the network — measured on a real CI run, which is the
+only reason this is known. The committed lockfile has those 18 entries **stripped**:
+absence breaks only `npm ci` (which rejects the lockfile as out of sync), while a stub
+breaks everything. `registry.npmjs.org` is unreachable from here (503), so a portable
+lockfile cannot be produced on this machine at all.
+
+**A local `npm install` re-adds the stubs.** After running one, strip them again before
+committing, or CI goes back to `Invalid Version:`. There is no guard for this yet.
 
 The workaround is visible rather than silent: the `check` job diffs `package-lock.json`
 after installing, warns when it drifted, and uploads the resolved lockfile as an artifact.
