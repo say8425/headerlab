@@ -108,25 +108,27 @@ describe('validateHeaders', () => {
   });
 
   it('flags append on a request header outside the allowlist', () => {
-    const d = validateHeaders(profileWith([
-      row({ operation: 'append', name: 'X-Custom' }),
-    ]));
+    const d = validateHeaders(profileWith([row({ operation: 'append', name: 'X-Custom' })]));
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('append-not-allowed');
     expect(d[0]?.severity).toBe('error');
   });
 
   it('does not flag append on a response header', () => {
-    expect(validateHeaders(profileWith([
-      row({ target: 'response', operation: 'append', name: 'X-Custom' }),
-    ]))).toEqual([]);
+    expect(
+      validateHeaders(
+        profileWith([row({ target: 'response', operation: 'append', name: 'X-Custom' })]),
+      ),
+    ).toEqual([]);
   });
 
   it('flags two enabled rows touching the same header on the same target', () => {
-    const d = validateHeaders(profileWith([
-      row({ id: 'a', name: 'Authorization' }),
-      row({ id: 'b', name: 'authorization' }),
-    ]));
+    const d = validateHeaders(
+      profileWith([
+        row({ id: 'a', name: 'Authorization' }),
+        row({ id: 'b', name: 'authorization' }),
+      ]),
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('duplicate-header');
     // Flags the later of two rows touching the same header.
@@ -134,10 +136,14 @@ describe('validateHeaders', () => {
   });
 
   it('does not call the same name on different targets a duplicate', () => {
-    expect(validateHeaders(profileWith([
-      row({ id: 'a', target: 'request', name: 'X-Same' }),
-      row({ id: 'b', target: 'response', name: 'X-Same' }),
-    ]))).toEqual([]);
+    expect(
+      validateHeaders(
+        profileWith([
+          row({ id: 'a', target: 'request', name: 'X-Same' }),
+          row({ id: 'b', target: 'response', name: 'X-Same' }),
+        ]),
+      ),
+    ).toEqual([]);
   });
 
   it('ignores disabled rows entirely, including an unfinished one', () => {
@@ -146,10 +152,14 @@ describe('validateHeaders', () => {
     // giving it two competing labels: with no diagnostic to find, the tally
     // files it under "switched off", which is the reason the user chose, and
     // never also under "unfinished".
-    expect(validateHeaders(profileWith([
-      row({ id: 'a', enabled: false, name: '' }),
-      row({ id: 'b', enabled: false, operation: 'append', name: 'X-Custom' }),
-    ]))).toEqual([]);
+    expect(
+      validateHeaders(
+        profileWith([
+          row({ id: 'a', enabled: false, name: '' }),
+          row({ id: 'b', enabled: false, operation: 'append', name: 'X-Custom' }),
+        ]),
+      ),
+    ).toEqual([]);
   });
 
   it('carries the profile id on every diagnostic', () => {

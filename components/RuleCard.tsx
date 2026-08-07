@@ -141,7 +141,9 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           to be maintained against every future change. CSS puts it back where
           it looks right, and `.hl-r1` reserves the width it used to occupy so
           the card's appearance does not move. */}
-      <button className="hl-del" aria-label="Delete rule" onClick={onDelete}>×</button>
+      <button className="hl-del" aria-label="Delete rule" onClick={onDelete}>
+        ×
+      </button>
 
       {problems.map((d, i) => (
         <div
@@ -150,7 +152,9 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           data-severity={d.severity}
           className="hl-rprob"
         >
-          <span className="hl-rprob-ic" aria-hidden="true">!</span>
+          <span className="hl-rprob-ic" aria-hidden="true">
+            !
+          </span>
           <span>{d.message}</span>
         </div>
       ))}

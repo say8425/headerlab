@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeDomain, effectiveDomain, originCandidates, originsForFilter, requestPattern } from '@/lib/permissions/origins';
+import {
+  analyzeDomain,
+  effectiveDomain,
+  originCandidates,
+  originsForFilter,
+  requestPattern,
+} from '@/lib/permissions/origins';
 import type { Filter } from '@/lib/model/types';
 
 describe('originCandidates', () => {
@@ -55,16 +61,16 @@ describe('originsForFilter', () => {
   });
 
   it('returns <all_urls> for an all-sites filter — that is what the mode costs', () => {
-    expect(originsForFilter({ ...base, allSites: true, domains: [] }))
-      .toEqual(['<all_urls>']);
+    expect(originsForFilter({ ...base, allSites: true, domains: [] })).toEqual(['<all_urls>']);
   });
 
   it('still returns <all_urls> for an all-sites filter that has sites listed', () => {
     // The list is kept but not compiled, so the rule matches every site and
     // needs access to every site. Narrowing the grant to the stored entries
     // would leave the rule registered and quietly inert everywhere else.
-    expect(originsForFilter({ ...base, allSites: true, domains: ['api.example.com'] }))
-      .toEqual(['<all_urls>']);
+    expect(originsForFilter({ ...base, allSites: true, domains: ['api.example.com'] })).toEqual([
+      '<all_urls>',
+    ]);
   });
 
   it('asks for nothing when no domain narrows the filter and all-sites is off', () => {
@@ -85,8 +91,9 @@ describe('originsForFilter', () => {
   });
 
   it('ignores blank domain entries', () => {
-    expect(originsForFilter({ ...base, domains: ['  ', 'api.example.com'] }))
-      .toEqual(['*://*.api.example.com/*']);
+    expect(originsForFilter({ ...base, domains: ['  ', 'api.example.com'] })).toEqual([
+      '*://*.api.example.com/*',
+    ]);
   });
 
   it('normalizes a pasted URL into a usable pattern instead of dropping it', () => {
@@ -96,18 +103,21 @@ describe('originsForFilter', () => {
     // normalize rather than reject. Normalizing removes both hazards at once —
     // the host reaches requiredOrigins as a pattern that actually matches, so
     // there is nothing left to drop and nothing left to throw.
-    expect(originsForFilter({
-      ...base,
-      domains: ['api.example.com', 'https://staging.example.com/admin'],
-    })).toEqual(['*://*.api.example.com/*', '*://*.staging.example.com/*']);
+    expect(
+      originsForFilter({
+        ...base,
+        domains: ['api.example.com', 'https://staging.example.com/admin'],
+      }),
+    ).toEqual(['*://*.api.example.com/*', '*://*.staging.example.com/*']);
   });
 
   it('drops an entry with internal whitespace too', () => {
     // The same table records `a b.com` as returning false without throwing —
     // a different failure, but a pattern that can never match is still one
     // this field must not carry.
-    expect(originsForFilter({ ...base, domains: ['api.example.com', 'a b.com'] }))
-      .toEqual(['*://*.api.example.com/*']);
+    expect(originsForFilter({ ...base, domains: ['api.example.com', 'a b.com'] })).toEqual([
+      '*://*.api.example.com/*',
+    ]);
   });
 
   it('asks for nothing when no entry is usable, because nothing is registered', () => {
@@ -149,14 +159,15 @@ describe('analyzeDomain', () => {
     expect(analyzeDomain('example.com.:8080').host).toBe('example.com');
   });
 
-  it('does not mistake a scheme\'s own colon for a port', () => {
+  it("does not mistake a scheme's own colon for a port", () => {
     // Only a trailing :digits is a port, and the scheme is stripped before
     // that test runs, so neither colon can be read as the other's. Both
     // directions are pinned on the host that comes out: a scheme alone leaves
     // the whole host, and a scheme with a real port still loses the port.
     expect(analyzeDomain('https://example.com').host).toBe('example.com');
     expect(analyzeDomain('https://example.com:8443')).toEqual({
-      host: 'example.com', valid: true,
+      host: 'example.com',
+      valid: true,
     });
   });
 
@@ -184,7 +195,8 @@ describe('analyzeDomain', () => {
     // A host with a path but no scheme is the other half of a pasted address,
     // and it reaches the same host.
     expect(analyzeDomain('example.com/api')).toEqual({
-      host: 'example.com', valid: true,
+      host: 'example.com',
+      valid: true,
     });
   });
 
@@ -258,9 +270,9 @@ describe('effectiveDomain', () => {
 
   it('gives back the host of a deep path, not the path', () => {
     // The URL the owner actually pasted the second time, verbatim.
-    expect(effectiveDomain(
-      'https://www.musinsa.com/snap/_next/data/K_la.../recommend.json',
-    )).toBe('www.musinsa.com');
+    expect(effectiveDomain('https://www.musinsa.com/snap/_next/data/K_la.../recommend.json')).toBe(
+      'www.musinsa.com',
+    );
   });
 
   it('keeps unusable input exactly as typed, so the row can name it', () => {

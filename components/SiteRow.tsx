@@ -91,7 +91,9 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     ? 'unusable'
     : inert
       ? 'idle'
-      : diagnostics.length > 0 ? 'pending' : 'granted';
+      : diagnostics.length > 0
+        ? 'pending'
+        : 'granted';
 
   /**
    * The permission this row is waiting on, if any.
@@ -115,7 +117,9 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           them apart. */}
       <span className="hl-domstate" role="img" aria-label={STATE_LABEL[state]} />
       <span className="hl-domhost">{domain}</span>
-      <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>×</button>
+      <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>
+        ×
+      </button>
 
       {/* The row's second line, present in **every** state and always the same
           height.

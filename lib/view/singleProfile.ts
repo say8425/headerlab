@@ -33,9 +33,7 @@ export interface SingleProfileResolution {
  * caller, and keeping them out is what lets every case here be asserted
  * without a browser.
  */
-export function resolveSingleProfile(
-  profiles: readonly Profile[],
-): SingleProfileResolution {
+export function resolveSingleProfile(profiles: readonly Profile[]): SingleProfileResolution {
   const [first, ...rest] = profiles;
   if (!first) return { profile: null, dropped: [] };
   return { profile: first, dropped: rest };

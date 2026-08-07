@@ -32,13 +32,20 @@ export interface RulePanelProps {
  * would spend a header on something already legible from the row.
  */
 export function RulePanel({
-  rules, byRow, autoFocusFirstRule, onPatchRule, onDeleteRule, onAddRule,
+  rules,
+  byRow,
+  autoFocusFirstRule,
+  onPatchRule,
+  onDeleteRule,
+  onAddRule,
 }: RulePanelProps) {
   return (
     <section className="hl-panel">
       <div className="hl-panelhead">
         <h2>Rules</h2>
-        <button className="hl-newbtn" onClick={onAddRule}>+ New rule</button>
+        <button className="hl-newbtn" onClick={onAddRule}>
+          + New rule
+        </button>
       </div>
 
       <div className="hl-stack">

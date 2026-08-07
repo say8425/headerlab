@@ -7,8 +7,12 @@ import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
   return {
-    id: 'h1', enabled: true, target: 'request',
-    operation: 'set', name: 'X-Test', value: 'v',
+    id: 'h1',
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: 'X-Test',
+    value: 'v',
     ...over,
   };
 }

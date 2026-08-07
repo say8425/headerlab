@@ -11,7 +11,10 @@ function diag(over: Partial<Diagnostic> = {}): Diagnostic {
 
 function permission(host: string): Diagnostic {
   return {
-    kind: 'permission-missing', severity: 'warning', profileId: 'p1', host,
+    kind: 'permission-missing',
+    severity: 'warning',
+    profileId: 'p1',
+    host,
     message: `HeaderLab needs permission for ${host}.`,
   };
 }
@@ -52,17 +55,21 @@ describe('the readout', () => {
   it('reports live, off and blocked together — and different figures read back differently', () => {
     // A single fixture would pass a component that renders any of these as a
     // literal. Re-rendering with a different tally forces it to read its prop.
-    const { rerender } = renderRail({ tally: { total: 5, live: 2, off: 1, unfinished: 0, blocked: 2 } });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '2of 5 rules live1 off · 2 blocked',
+    const { rerender } = renderRail({
+      tally: { total: 5, live: 2, off: 1, unfinished: 0, blocked: 2 },
+    });
+    expect(screen.getByTestId('readout').textContent).toBe('2of 5 rules live1 off · 2 blocked');
+    rerender(
+      <ScopeRail {...props({ tally: { total: 9, live: 7, off: 2, unfinished: 0, blocked: 0 } })} />,
     );
-    rerender(<ScopeRail {...props({ tally: { total: 9, live: 7, off: 2, unfinished: 0, blocked: 0 } })} />);
     expect(screen.getByTestId('readout').textContent).toBe('7of 9 rules live2 off');
   });
 
   it('says nothing is configured yet when there are no rules at all', () => {
     renderRail({ tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 } });
-    expect(screen.getByTestId('readout').textContent).toBe('0of 0 rules livenothing configured yet');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 0 rules livenothing configured yet',
+    );
   });
 
   it('adds no second line when every rule is going out', () => {
@@ -85,12 +92,14 @@ describe('the readout', () => {
     // an implementation that ignored the prop would still pass any one alone.
     const tally = { total: 2, live: 1, off: 0, unfinished: 0, blocked: 1 };
     const { rerender } = renderRail({ tally, blockedBy: 'sites' });
-    expect(screen.getByTestId('readout').textContent)
-      .toBe('1of 2 rules live1 blocked by an unusable site');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '1of 2 rules live1 blocked by an unusable site',
+    );
 
     rerender(<ScopeRail {...props({ tally, blockedBy: 'pause' })} />);
-    expect(screen.getByTestId('readout').textContent)
-      .toBe('1of 2 rules live1 blocked while paused');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '1of 2 rules live1 blocked while paused',
+    );
 
     rerender(<ScopeRail {...props({ tally, blockedBy: null })} />);
     expect(screen.getByTestId('readout').textContent).toBe('1of 2 rules live1 blocked');
@@ -104,12 +113,14 @@ describe('the readout', () => {
     // quietly converge on one string.
     const tally = { total: 2, live: 0, off: 0, unfinished: 0, blocked: 2 };
     const { rerender } = renderRail({ tally, blockedBy: 'scope' });
-    expect(screen.getByTestId('readout').textContent)
-      .toBe('0of 2 rules live2 blocked until a site is set');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 2 rules live2 blocked until a site is set',
+    );
 
     rerender(<ScopeRail {...props({ tally, blockedBy: 'sites' })} />);
-    expect(screen.getByTestId('readout').textContent)
-      .toBe('0of 2 rules live2 blocked by an unusable site');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 2 rules live2 blocked by an unusable site',
+    );
   });
 
   it('names unfinished rules, so a row left quiet is still said out loud', () => {
@@ -144,8 +155,7 @@ describe('the master switch', () => {
   // switches now, and `getByRole('switch')` would throw on the ambiguity —
   // or, worse, a later single-switch refactor would silently point these at
   // whichever one happened to remain.
-  const pauseSwitch = () =>
-    screen.getByRole('switch', { name: /^(Pause|Resume) all rules$/ });
+  const pauseSwitch = () => screen.getByRole('switch', { name: /^(Pause|Resume) all rules$/ });
 
   it('mirrors the run state on the switch itself, not only in the word beside it', () => {
     const { rerender } = renderRail({ paused: false });
@@ -315,7 +325,8 @@ describe('sites', () => {
       domains: ['ok.example.com', 'pending.example.com', 'a b.com'],
       byHost: new Map([['pending.example.com', [permission('pending.example.com')]]]),
     });
-    const labels = screen.getAllByTestId('site')
+    const labels = screen
+      .getAllByTestId('site')
       .map((row) => within(row).getByRole('img').getAttribute('aria-label'));
     expect(labels).toEqual(['Access granted', 'Awaiting permission', 'Unusable site']);
   });
@@ -393,8 +404,9 @@ describe('the all-sites switch', () => {
     // half alone.
     const { rerender } = renderRail({ allSites: true, allSitesGranted: false });
     expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBe('no');
-    expect(within(screen.getByTestId('all-sites')).getByRole('button', { name: 'Grant' }))
-      .toBeTruthy();
+    expect(
+      within(screen.getByTestId('all-sites')).getByRole('button', { name: 'Grant' }),
+    ).toBeTruthy();
 
     rerender(<ScopeRail {...props({ allSites: true, allSitesGranted: true })} />);
     expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull();
@@ -408,8 +420,7 @@ describe('the all-sites switch', () => {
     // by itself. Same words the site rows use — it is the same state.
     const bar = () => screen.getByTestId('all-sites');
     const { rerender } = renderRail({ allSites: true, allSitesGranted: false });
-    expect(within(bar()).getByRole('img').getAttribute('aria-label'))
-      .toBe('Awaiting permission');
+    expect(within(bar()).getByRole('img').getAttribute('aria-label')).toBe('Awaiting permission');
 
     rerender(<ScopeRail {...props({ allSites: true, allSitesGranted: true })} />);
     expect(within(bar()).getByRole('img').getAttribute('aria-label')).toBe('Access granted');
@@ -502,8 +513,10 @@ describe('the site list while all-sites is on', () => {
     // then would spring the failure on the user at the exact moment they
     // narrowed their scope and expected it to start working.
     renderRail({ allSites: true, domains: ['a b.com', 'ok.example.com'] });
-    expect(screen.getAllByTestId('site').map((s) => s.getAttribute('data-state')))
-      .toEqual(['unusable', 'idle']);
+    expect(screen.getAllByTestId('site').map((s) => s.getAttribute('data-state'))).toEqual([
+      'unusable',
+      'idle',
+    ]);
   });
 
   it('offers no Grant on an idle row — its access is not what is being used', () => {
@@ -514,8 +527,7 @@ describe('the site list while all-sites is on', () => {
       domains: ['api.example.com'],
       byHost: new Map([['api.example.com', [permission('api.example.com')]]]),
     });
-    expect(within(screen.getByTestId('site')).queryByRole('button', { name: 'Grant' }))
-      .toBeNull();
+    expect(within(screen.getByTestId('site')).queryByRole('button', { name: 'Grant' })).toBeNull();
   });
 });
 
@@ -596,8 +608,8 @@ describe('adding a site', () => {
     // Worked pairs first, then the rule they demonstrate — a developer
     // pattern-matches the transformation faster than a sentence describing it.
     expect(screen.getByTestId('help-bubble').textContent).toBe(
-      'https://x.com/a/b→x.comlocalhost:3000→localhost'
-      + 'Matched by host — a port or path is dropped.',
+      'https://x.com/a/b→x.comlocalhost:3000→localhost' +
+        'Matched by host — a port or path is dropped.',
     );
   });
 
@@ -618,8 +630,14 @@ describe('request types', () => {
     // because that is the word the user has to match against every other tool.
     renderRail();
     expect(screen.getAllByTestId('type-check').map((c) => c.getAttribute('aria-label'))).toEqual([
-      'main_frame', 'sub_frame', 'xmlhttprequest', 'script',
-      'stylesheet', 'image', 'font', 'media',
+      'main_frame',
+      'sub_frame',
+      'xmlhttprequest',
+      'script',
+      'stylesheet',
+      'image',
+      'font',
+      'media',
     ]);
   });
 
@@ -630,8 +648,12 @@ describe('request types', () => {
 
   it('marks the selected types and leaves the rest unmarked', () => {
     renderRail({ resourceTypes: ['script'] });
-    expect(screen.getByRole('button', { name: 'script' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: 'image' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'script' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'image' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
   });
 
   it('counts only the offered types in the heading, so a stored oddity cannot read 9 of 8', () => {
@@ -694,8 +716,9 @@ describe('scope notes', () => {
     // direction that under-reports an active extension.
     renderRail({ iconError: 'icon missing' });
     const note = screen.getByTestId('icon-error');
-    expect(note.textContent)
-      .toBe('Toolbar icon out of dateThe icon may not match the run state above. icon missing');
+    expect(note.textContent).toBe(
+      'Toolbar icon out of dateThe icon may not match the run state above. icon missing',
+    );
     expect(screen.queryByTestId('sync-error')).toBeNull();
   });
 
@@ -709,7 +732,9 @@ describe('scope notes', () => {
     // run state directly above it. It is not about scope and must not be filed
     // among the things that are.
     renderRail({ lastError: 'Rule 3 is invalid' });
-    expect(screen.getByTestId('sync-error').textContent).toBe('Rules not registeredRule 3 is invalid');
+    expect(screen.getByTestId('sync-error').textContent).toBe(
+      'Rules not registeredRule 3 is invalid',
+    );
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
   });
 });

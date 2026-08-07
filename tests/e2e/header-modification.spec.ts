@@ -26,45 +26,66 @@ test.afterEach(async () => {
 test('a configured set rule reaches the wire', async ({ context, serviceWorker }) => {
   const worker = serviceWorker;
 
-  await worker.evaluate(async (state) => {
-    // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
-    // item's version alongside it at `state$`; seed both so the versioned item
-    // is not read as un-versioned. See the troubleshooting note below if the
-    // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 2 } });
-  }, {
-    version: 2,
-    globalPause: false,
-    theme: 'system',
-    profiles: [{
-      id: 'p1',
-      name: 'E2E',
-      color: 'green',
-      enabled: true,
-      order: 0,
-      filter: {
-        mode: 'structured',
-        allSites: false,
-        domains: ['127.0.0.1'],
-        excludedDomains: [],
-        // Explicit: the DNR default excludes main_frame, which page.goto() is.
-        resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
-      },
-      tabLock: { enabled: false, tabId: null, tabTitle: null },
-      headers: [
-        { id: 'h1', enabled: true, target: 'request',
-          operation: 'set', name: 'X-Headerlab-Test', value: 'applied' },
-        { id: 'h2', enabled: false, target: 'request',
-          operation: 'set', name: 'X-Headerlab-Disabled', value: 'nope' },
+  await worker.evaluate(
+    async (state) => {
+      // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
+      // item's version alongside it at `state$`; seed both so the versioned item
+      // is not read as un-versioned. See the troubleshooting note below if the
+      // rule count never reaches 1.
+      await chrome.storage.local.set({ state, state$: { v: 2 } });
+    },
+    {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'E2E',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            domains: ['127.0.0.1'],
+            excludedDomains: [],
+            // Explicit: the DNR default excludes main_frame, which page.goto() is.
+            resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Headerlab-Test',
+              value: 'applied',
+            },
+            {
+              id: 'h2',
+              enabled: false,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Headerlab-Disabled',
+              value: 'nope',
+            },
+          ],
+        },
       ],
-    }],
-  });
+    },
+  );
 
   // Wait for the storage watcher to drive reconcile to completion.
   await expect
-    .poll(async () => (await worker.evaluate(() =>
-      chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length),
-    )), { timeout: 10_000 })
+    .poll(
+      async () =>
+        await worker.evaluate(() =>
+          chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length),
+        ),
+      { timeout: 10_000 },
+    )
     .toBe(1);
 
   const page = await context.newPage();
@@ -84,34 +105,56 @@ test('a remove rule strips a header the page would otherwise send', async ({
 }) => {
   const worker = serviceWorker;
 
-  await worker.evaluate(async (state) => {
-    // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
-    // item's version alongside it at `state$`; seed both so the versioned item
-    // is not read as un-versioned. See the troubleshooting note below if the
-    // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 2 } });
-  }, {
-    version: 2,
-    globalPause: false,
-    theme: 'system',
-    profiles: [{
-      id: 'p1', name: 'E2E', color: 'green', enabled: true, order: 0,
-      filter: {
-        mode: 'structured', allSites: false, domains: ['127.0.0.1'], excludedDomains: [],
-        resourceTypes: ['xmlhttprequest'],
-      },
-      tabLock: { enabled: false, tabId: null, tabTitle: null },
-      headers: [
-        { id: 'h1', enabled: true, target: 'request',
-          operation: 'remove', name: 'X-Remove-Me', value: '' },
+  await worker.evaluate(
+    async (state) => {
+      // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
+      // item's version alongside it at `state$`; seed both so the versioned item
+      // is not read as un-versioned. See the troubleshooting note below if the
+      // rule count never reaches 1.
+      await chrome.storage.local.set({ state, state$: { v: 2 } });
+    },
+    {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'E2E',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            domains: ['127.0.0.1'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'remove',
+              name: 'X-Remove-Me',
+              value: '',
+            },
+          ],
+        },
       ],
-    }],
-  });
+    },
+  );
 
   await expect
-    .poll(async () => (await worker.evaluate(() =>
-      chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length),
-    )), { timeout: 10_000 })
+    .poll(
+      async () =>
+        await worker.evaluate(() =>
+          chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length),
+        ),
+      { timeout: 10_000 },
+    )
     .toBe(1);
 
   const page = await context.newPage();
@@ -137,23 +180,43 @@ test('a remove rule strips a header the page would otherwise send', async ({
   await page.close();
 });
 
-test('the popup renders its rules from stored state', async ({ context, extensionId, serviceWorker }) => {
+test('the popup renders its rules from stored state', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 2,
       globalPause: false,
       theme: 'system',
-      profiles: [{
-        id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
-        filter: {
-          mode: 'structured', allSites: false, domains: ['api.example.com'],
-          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            domains: ['api.example.com'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-From-E2E',
+              value: 'yes',
+            },
+          ],
         },
-        tabLock: { enabled: false, tabId: null, tabTitle: null },
-        headers: [
-          { id: 'h1', enabled: true, target: 'request', operation: 'set', name: 'X-From-E2E', value: 'yes' },
-        ],
-      }],
+      ],
     };
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
     // version in a companion key.
@@ -177,7 +240,7 @@ test('the popup renders its rules from stored state', async ({ context, extensio
   await page.close();
 });
 
-test('nothing in the popup is wider than what holds it, at the popup\'s own width', async ({
+test("nothing in the popup is wider than what holds it, at the popup's own width", async ({
   context,
   extensionId,
   serviceWorker,
@@ -201,33 +264,52 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
       version: 2,
       globalPause: false,
       theme: 'system',
-      profiles: [{
-        id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
-        filter: {
-          mode: 'structured',
-          allSites: false,
-          // A long host with a port, so the rail's site row and its
-          // permission message both have to wrap — the rail is 224px and its
-          // rows are the narrowest thing on screen. **No hyphens**: browsers
-          // already break after a hyphen, so a hyphenated host would wrap on
-          // its own and this fixture would prove nothing about the rules that
-          // make an unbreakable run wrap.
-          domains: ['averylongsubdomainlabelwithnobreaks.staging.example.com:8443'],
-          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            // A long host with a port, so the rail's site row and its
+            // permission message both have to wrap — the rail is 224px and its
+            // rows are the narrowest thing on screen. **No hyphens**: browsers
+            // already break after a hyphen, so a hyphenated host would wrap on
+            // its own and this fixture would prove nothing about the rules that
+            // make an unbreakable run wrap.
+            domains: ['averylongsubdomainlabelwithnobreaks.staging.example.com:8443'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            // An unbroken 600-character token: no spaces to wrap at, which is
+            // what a pasted JWT actually looks like and the case that overflows
+            // if `overflow-wrap` is dropped.
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'Authorization',
+              value: `Bearer ${'e30K'.repeat(150)}`,
+            },
+            // A row-level diagnostic renders a problem block inside the card,
+            // which is a shape none of the other fixtures produce.
+            {
+              id: 'h2',
+              enabled: true,
+              target: 'response',
+              operation: 'set',
+              name: 'Bad Name',
+              value: 'x',
+            },
+          ],
         },
-        tabLock: { enabled: false, tabId: null, tabTitle: null },
-        headers: [
-          // An unbroken 600-character token: no spaces to wrap at, which is
-          // what a pasted JWT actually looks like and the case that overflows
-          // if `overflow-wrap` is dropped.
-          { id: 'h1', enabled: true, target: 'request', operation: 'set',
-            name: 'Authorization', value: `Bearer ${'e30K'.repeat(150)}` },
-          // A row-level diagnostic renders a problem block inside the card,
-          // which is a shape none of the other fixtures produce.
-          { id: 'h2', enabled: true, target: 'response', operation: 'set',
-            name: 'Bad Name', value: 'x' },
-        ],
-      }],
+      ],
     };
     await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
@@ -261,11 +343,14 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
 
   // Presence first. An empty node list agrees with everything, so without this
   // a popup that failed to render at all would pass the two checks below.
-  expect(measured.count, 'the popup must have rendered for its layout to mean anything')
-    .toBeGreaterThan(20);
+  expect(
+    measured.count,
+    'the popup must have rendered for its layout to mean anything',
+  ).toBeGreaterThan(20);
   expect(measured.overflowing, 'every element must fit inside its parent').toEqual([]);
-  expect(measured.scrollWidth, 'the popup must not scroll horizontally at its own width')
-    .toBe(measured.clientWidth);
+  expect(measured.scrollWidth, 'the popup must not scroll horizontally at its own width').toBe(
+    measured.clientWidth,
+  );
 
   await page.close();
 });
@@ -289,8 +374,14 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
  * nothing on screen.
  */
 const RAIL_BOXES = [
-  '.hl-readout', '.hl-pausebar', '.hl-allsites', '.hl-allsitesstate', '.hl-dom',
-  '.hl-addfield', '.hl-railsec-types', '.hl-types',
+  '.hl-readout',
+  '.hl-pausebar',
+  '.hl-allsites',
+  '.hl-allsitesstate',
+  '.hl-dom',
+  '.hl-addfield',
+  '.hl-railsec-types',
+  '.hl-types',
 ] as const;
 
 test('a control appearing in the rail does not move anything', async ({
@@ -312,22 +403,36 @@ test('a control appearing in the rail does not move anything', async ({
       version: 2,
       globalPause: false,
       theme: 'system',
-      profiles: [{
-        id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
-        filter: {
-          mode: 'structured', allSites: false,
-          // Never granted in a fresh profile, and the e2e build's only host
-          // permission is the loopback echo server — so this row opens pending,
-          // with the Grant button that started all this.
-          domains: ['api.example.com'],
-          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            // Never granted in a fresh profile, and the e2e build's only host
+            // permission is the loopback echo server — so this row opens pending,
+            // with the Grant button that started all this.
+            domains: ['api.example.com'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Reflow',
+              value: 'yes',
+            },
+          ],
         },
-        tabLock: { enabled: false, tabId: null, tabTitle: null },
-        headers: [
-          { id: 'h1', enabled: true, target: 'request', operation: 'set',
-            name: 'X-Reflow', value: 'yes' },
-        ],
-      }],
+      ],
     };
     await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
@@ -337,19 +442,26 @@ test('a control appearing in the rail does not move anything', async ({
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.getByTestId('site-pending').waitFor();
 
-  const boxes = () => page.evaluate((selectors) => {
-    const out: Record<string, number[]> = {};
-    for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      // Recorded as a miss rather than skipped. A selector that stopped
-      // matching would otherwise drop out of both sides of the comparison and
-      // take its guarantee with it, silently.
-      if (!el) { out[selector] = []; continue; }
-      const r = el.getBoundingClientRect();
-      out[selector] = [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
-    }
-    return out;
-  }, RAIL_BOXES as unknown as string[]);
+  const boxes = () =>
+    page.evaluate(
+      (selectors) => {
+        const out: Record<string, number[]> = {};
+        for (const selector of selectors) {
+          const el = document.querySelector(selector);
+          // Recorded as a miss rather than skipped. A selector that stopped
+          // matching would otherwise drop out of both sides of the comparison and
+          // take its guarantee with it, silently.
+          if (!el) {
+            out[selector] = [];
+            continue;
+          }
+          const r = el.getBoundingClientRect();
+          out[selector] = [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
+        }
+        return out;
+      },
+      RAIL_BOXES as unknown as string[],
+    );
 
   const allSites = page.getByRole('switch', { name: 'Apply to every site' });
   const grant = page.getByTestId('site-pending');
@@ -359,8 +471,10 @@ test('a control appearing in the rail does not move anything', async ({
   // anything: `toEqual` between two records of empty arrays is a comparison
   // that cannot fail.
   const withGrant = await boxes();
-  expect(Object.values(withGrant).filter((b) => b.length !== 4), 'every probe must match an element')
-    .toEqual([]);
+  expect(
+    Object.values(withGrant).filter((b) => b.length !== 4),
+    'every probe must match an element',
+  ).toEqual([]);
 
   // --- the Grant button vacating its row ---
   // All-sites mode makes this row idle, and an idle row offers no Grant — one

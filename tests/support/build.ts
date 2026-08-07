@@ -277,8 +277,8 @@ export function assertBuildFresh(mode: BuildMode): string {
         : `${source?.file} was modified`;
     throw new Error(
       `${dir} is stale: ${what} ${describeGap((source?.mtimeMs ?? 0) - built)} ` +
-      `after the build. This suite asserts against built output, so anything it reports now ` +
-      `describes the previous sources — ${fix}.`,
+        `after the build. This suite asserts against built output, so anything it reports now ` +
+        `describes the previous sources — ${fix}.`,
     );
   }
 

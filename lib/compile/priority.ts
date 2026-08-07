@@ -20,14 +20,10 @@ export interface Allocation {
  */
 export function allocate(profiles: Profile[]): Allocation[] {
   if (profiles.length > MAX_PROFILES) {
-    throw new RangeError(
-      `profile count ${profiles.length} exceeds MAX_PROFILES (${MAX_PROFILES})`,
-    );
+    throw new RangeError(`profile count ${profiles.length} exceeds MAX_PROFILES (${MAX_PROFILES})`);
   }
 
-  const active = profiles
-    .filter((p) => p.enabled)
-    .sort((a, b) => a.order - b.order);
+  const active = profiles.filter((p) => p.enabled).sort((a, b) => a.order - b.order);
 
   let dynamicId = DYNAMIC_ID_BASE;
   let sessionId = SESSION_ID_BASE;

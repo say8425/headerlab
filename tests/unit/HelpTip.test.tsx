@@ -95,7 +95,10 @@ describe('HelpTip', () => {
     render(
       <HelpTip
         label="About matching sites"
-        examples={[['https://x.com/a/b', 'x.com'], ['localhost:3000', 'localhost']]}
+        examples={[
+          ['https://x.com/a/b', 'x.com'],
+          ['localhost:3000', 'localhost'],
+        ]}
         text="Matched by host — a port or path is dropped."
       />,
     );
@@ -104,8 +107,8 @@ describe('HelpTip', () => {
     expect(codes).toEqual(['https://x.com/a/b', 'x.com', 'localhost:3000', 'localhost']);
     // Order matters: examples, then the rule they demonstrate.
     expect(bubble()!.textContent).toBe(
-      'https://x.com/a/b→x.comlocalhost:3000→localhost'
-      + 'Matched by host — a port or path is dropped.',
+      'https://x.com/a/b→x.comlocalhost:3000→localhost' +
+        'Matched by host — a port or path is dropped.',
     );
   });
 });

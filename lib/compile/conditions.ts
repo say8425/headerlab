@@ -23,10 +23,7 @@ function buildUrlFilter(pathPattern: string, domains: string[]): string | undefi
   return domains.length === 1 ? `||${domains[0]}^*${path}` : path;
 }
 
-export function filterToCondition(
-  filter: Filter,
-  tabId?: number | null,
-): DnrRuleCondition {
+export function filterToCondition(filter: Filter, tabId?: number | null): DnrRuleCondition {
   // Normalized once here so requestDomains and the urlFilter anchor agree with
   // each other and with the permission audit in lib/permissions/origins.ts —
   // "API.Example.com" and "api.example.com" must compile to the same
@@ -65,9 +62,7 @@ export function filterToCondition(
   // Safe by the same reasoning as above: the string could never have matched
   // a real request host with the colon in it, and the change only narrows
   // what gets rewritten.
-  const excluded = [
-    ...new Set(filter.excludedDomains.filter(isValidDomain).map(normalizeDomain)),
-  ];
+  const excluded = [...new Set(filter.excludedDomains.filter(isValidDomain).map(normalizeDomain))];
   if (excluded.length > 0) {
     condition.excludedRequestDomains = excluded;
   }

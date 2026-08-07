@@ -21,14 +21,16 @@ describe('validateFilter', () => {
     // warn about. It is still *said*, because a suppression nobody can see is
     // the silence this project exists to remove.
     const d = validateFilter(profileWith({ domains: [] }));
-    expect(d).toEqual([{
-      kind: 'no-scope',
-      severity: 'incomplete',
-      profileId: 'p1',
-      message:
-        'No site set yet, so nothing is being applied. ' +
-        'Add a site above, or turn on All sites.',
-    }]);
+    expect(d).toEqual([
+      {
+        kind: 'no-scope',
+        severity: 'incomplete',
+        profileId: 'p1',
+        message:
+          'No site set yet, so nothing is being applied. ' +
+          'Add a site above, or turn on All sites.',
+      },
+    ]);
   });
 
   it('says nothing at all when all-sites is on — that is the answer to "where"', () => {
@@ -42,14 +44,16 @@ describe('validateFilter', () => {
     // which meant one kind and one severity covering "applies to everything"
     // and "applies to nothing" at once.
     const d = validateFilter(profileWith({ domains: ['a b.com'] }));
-    expect(d).toEqual([{
-      kind: 'invalid-domain',
-      severity: 'error',
-      profileId: 'p1',
-      message:
-        'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-        'Nothing is applied while every site is unusable.',
-    }]);
+    expect(d).toEqual([
+      {
+        kind: 'invalid-domain',
+        severity: 'error',
+        profileId: 'p1',
+        message:
+          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
+          'Nothing is applied while every site is unusable.',
+      },
+    ]);
   });
 
   it('leaves an unusable entry unreported while all-sites is on', () => {
@@ -59,8 +63,7 @@ describe('validateFilter', () => {
     // where a value the user can edit belongs — an error card reading
     // "nothing is applied" over an extension applying to every site would be
     // the screen contradicting itself.
-    expect(validateFilter(profileWith({ allSites: true, domains: ['a b.com'] })))
-      .toEqual([]);
+    expect(validateFilter(profileWith({ allSites: true, domains: ['a b.com'] }))).toEqual([]);
   });
 
   it('says nothing at all about a domain that merely carried a port', () => {
@@ -119,27 +122,33 @@ describe('validateFilter', () => {
     // silence, so the exact message is part of the contract.
     // Internal whitespace, not a pasted URL: a URL is normalized to its host
     // now and is perfectly usable, so it can no longer stand for "unusable".
-    const d = validateFilter(profileWith({
-      domains: ['api.example.com', 'a b.com'],
-    }));
-    expect(d).toEqual([{
-      kind: 'invalid-domain',
-      severity: 'error',
-      profileId: 'p1',
-      message:
-        'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
-        'No rule is applied until every site here is usable.',
-    }]);
+    const d = validateFilter(
+      profileWith({
+        domains: ['api.example.com', 'a b.com'],
+      }),
+    );
+    expect(d).toEqual([
+      {
+        kind: 'invalid-domain',
+        severity: 'error',
+        profileId: 'p1',
+        message:
+          'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
+          'No rule is applied until every site here is usable.',
+      },
+    ]);
   });
 
   it('names every unusable entry, in the order the user wrote them', () => {
-    const d = validateFilter(profileWith({
-      domains: ['x y.net', 'api.example.com', 'a b.com'],
-    }));
+    const d = validateFilter(
+      profileWith({
+        domains: ['x y.net', 'api.example.com', 'a b.com'],
+      }),
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
       'Unusable sites: "x y.net", "a b.com". A site must be a bare hostname like example.com. ' +
-      'No rule is applied until every site here is usable.',
+        'No rule is applied until every site here is usable.',
     );
   });
 
@@ -153,9 +162,13 @@ describe('validateFilter', () => {
 
   it('says nothing about a deep path either', () => {
     // The second URL the owner pasted, verbatim.
-    expect(validateFilter(profileWith({
-      domains: ['https://www.musinsa.com/snap/_next/data/K_la.../recommend.json'],
-    }))).toEqual([]);
+    expect(
+      validateFilter(
+        profileWith({
+          domains: ['https://www.musinsa.com/snap/_next/data/K_la.../recommend.json'],
+        }),
+      ),
+    ).toEqual([]);
   });
 
   it('gives every combination of mode, list and all-sites exactly one reading', () => {
@@ -190,9 +203,13 @@ describe('validateFilter', () => {
     // compile.ts's suppression does not look at the mode, and conditions.ts
     // sets requestDomains for a regex rule as well. Without this the same
     // silence returns through the regex door.
-    const d = validateFilter(profileWith({
-      mode: 'regex', regex: '^https://', domains: ['ok.com', 'a b.com'],
-    }));
+    const d = validateFilter(
+      profileWith({
+        mode: 'regex',
+        regex: '^https://',
+        domains: ['ok.com', 'a b.com'],
+      }),
+    );
     expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
 
@@ -202,24 +219,31 @@ describe('validateFilter', () => {
     // in silence. Different advice from the mixed case: there is nothing to
     // salvage, and in regex mode clearing the list is a real fix because the
     // pattern alone is a valid condition.
-    const d = validateFilter(profileWith({
-      mode: 'regex', regex: '^https://', domains: ['a b.com', 'x y.net'],
-    }));
-    expect(d).toEqual([{
-      kind: 'invalid-domain',
-      severity: 'error',
-      profileId: 'p1',
-      message:
-        'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com. ' +
-        'Nothing is applied while every site is unusable.',
-    }]);
+    const d = validateFilter(
+      profileWith({
+        mode: 'regex',
+        regex: '^https://',
+        domains: ['a b.com', 'x y.net'],
+      }),
+    );
+    expect(d).toEqual([
+      {
+        kind: 'invalid-domain',
+        severity: 'error',
+        profileId: 'p1',
+        message:
+          'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com. ' +
+          'Nothing is applied while every site is unusable.',
+      },
+    ]);
   });
 
   it('leaves a regex profile with no domains alone — the regex is the condition', () => {
     // The boundary of the branch above: an empty list is not suppressed, so a
     // regex profile that never named a domain must stay quiet.
-    expect(validateFilter(profileWith({ mode: 'regex', regex: '^https://a/', domains: [] })))
-      .toEqual([]);
+    expect(
+      validateFilter(profileWith({ mode: 'regex', regex: '^https://a/', domains: [] })),
+    ).toEqual([]);
   });
 
   it('reports only the unusable entry when a port-bearing one sits beside it', () => {

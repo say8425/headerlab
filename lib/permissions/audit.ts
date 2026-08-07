@@ -52,9 +52,7 @@ export function auditDiagnostics(
   profiles: readonly Profile[],
   grants: readonly DomainGrant[],
 ): Diagnostic[] {
-  const ungranted = new Set(
-    grants.filter((g) => !g.granted).map((g) => g.domain),
-  );
+  const ungranted = new Set(grants.filter((g) => !g.granted).map((g) => g.domain));
   if (ungranted.size === 0) return [];
 
   const diagnostics: Diagnostic[] = [];
