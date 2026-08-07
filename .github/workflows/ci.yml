@@ -53,17 +53,19 @@ jobs:
       # `npm install`, not `npm ci`, and this is a workaround rather than a
       # preference — see CLAUDE.md, "The lockfile is not portable yet".
       #
-      # In short: the same Nexus proxy serves stale package metadata for
-      # oxlint's and oxfmt's per-platform native bindings. It carries
-      # darwin-arm64 at the current version and nothing newer than oxlint
-      # 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s rather
-      # than refreshing. npm therefore writes 18 entries with no version at all,
-      # and `npm ci` dies on them with `Invalid Version:` before it reaches the
-      # network. Deleting the entries does not help: `npm ci` then rejects the
-      # lockfile as out of sync with package.json. Measured both ways.
+      # In short: the Nexus proxy the lockfile was generated behind serves stale
+      # metadata for oxlint's and oxfmt's per-platform native bindings. It has
+      # darwin-arm64 at the current version and nothing newer than oxlint 1.43.0
+      # / oxfmt 0.58.0 for linux, and asking for a newer one 404s rather than
+      # refreshing. The committed lockfile therefore has no entries at all for
+      # the 18 non-darwin bindings — they are omitted rather than written as
+      # versionless stubs, because a stub makes **both** `npm ci` and `npm
+      # install` die with `Invalid Version:` before they reach the network.
+      # Measured: stubs break both; absence breaks only `npm ci`, which rejects
+      # the lockfile as out of sync.
       #
-      # `npm install` resolves against this runner's registry, which has every
-      # platform, so CI installs correctly — at the cost of not verifying the
+      # `npm install` resolves the missing entries against this runner's
+      # registry, which has every platform — at the cost of not verifying the
       # committed lockfile. The step below makes that cost visible instead of
       # silent, and hands back the lockfile that *would* work.
       - name: Install
