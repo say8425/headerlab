@@ -278,10 +278,19 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
  * inside the row, so the row's own height is the first thing that must not
  * change, and an assertion that only watched what came after it would pass a
  * row that grew while everything below happened to be pushed off-screen.
+ *
+ * `.hl-allsitesstate` is the one probe here for a *sideways* move. That dot used
+ * to render only once its state was known, so "All sites" slid 14px right the
+ * moment the mode came on — nothing below it moved, and every vertical anchor
+ * in this list would have agreed that nothing happened. It is probed rather
+ * than the label beside it because the label is a `flex: 1` spacer: its width
+ * follows whatever shares the bar with it while its text stays put at the same
+ * x, so pinning all four of its numbers would fail on a change that moves
+ * nothing on screen.
  */
 const RAIL_BOXES = [
-  '.hl-readout', '.hl-pausebar', '.hl-allsites', '.hl-dom', '.hl-addfield',
-  '.hl-railsec-types', '.hl-types',
+  '.hl-readout', '.hl-pausebar', '.hl-allsites', '.hl-allsitesstate', '.hl-dom',
+  '.hl-addfield', '.hl-railsec-types', '.hl-types',
 ] as const;
 
 test('a control appearing in the rail does not move anything', async ({
