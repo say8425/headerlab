@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+
+  "singleQuote": true,
+
+  "printWidth": 100,
+
+  "ignorePatterns": ["entrypoints/popup/style.css", "docs/**", "**/*.md", "**/*.html"]
+}

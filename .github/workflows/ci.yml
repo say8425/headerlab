@@ -1,0 +1,116 @@
+# Pull-request CI.
+#
+# Two jobs, split on cost rather than on subject: `check` needs nothing but
+# node_modules and finishes in seconds, `e2e` downloads a full Chromium and
+# takes minutes. Putting the fast checks behind the browser download would mean
+# waiting on a 150MB install to be told about a missing semicolon.
+#
+# Actions are pinned to a commit SHA, not a tag. A tag is mutable — the account
+# that owns it can move it — and this repository's whole premise is that its
+# supply chain is checkable. The comment beside each SHA is the human-readable
+# version it was resolved from; update both together.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only by default. Nothing here needs to write to the repository, and a
+# token that cannot write is one that cannot be turned against it.
+permissions:
+  contents: read
+
+# A force-push supersedes the run it interrupted. `github.workflow` is in the
+# key so a future second workflow on the same ref does not cancel this one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · format · unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # One definition of the Node version, shared with local `nvm use`.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Every check runs even after one fails, so a single push reports every
+      # problem instead of one per round trip. `!cancelled()` rather than
+      # `always()`: a cancelled run should stop, not grind through the rest.
+      # The job still fails if any step does.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Format
+        if: ${{ !cancelled() }}
+        run: npm run format:check
+
+      # Builds first — several suites assert against built output, and
+      # tests/support/build.ts fails loudly rather than reporting on a stale
+      # artifact. `npm test` is `wxt build && vitest run` for that reason.
+      - name: Unit tests
+        if: ${{ !cancelled() }}
+        run: npm test
+
+  e2e:
+    name: e2e (real Chrome, headers on the wire)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Keyed on the lockfile, which is what pins the Playwright version that
+      # decides which browser build is wanted. A cache keyed on anything looser
+      # would hand a new Playwright an old binary.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # `--no-shell` is load-bearing. Playwright's default headless download is
+      # `chromium-headless-shell`, a stripped build that **cannot load
+      # extensions** — and this suite exists to load one. Without the full
+      # binary the failure looks like a code problem rather than a missing
+      # dependency. `--with-deps` is still run on a cache hit: it installs the
+      # system libraries Chromium links against, which live outside the cached
+      # directory.
+      - name: Install Chromium
+        run: npx playwright install --with-deps --no-shell chromium
+
+      # Under xvfb rather than bare headless. The suite drives a real extension
+      # through `--load-extension`, which is the one Chromium feature most often
+      # unavailable without a display server; a virtual one costs a second and
+      # removes the question. `--with-deps` above installs xvfb.
+      - name: E2E tests
+        run: xvfb-run -a npm run test:e2e
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

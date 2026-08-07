@@ -6,6 +6,9 @@ import type { Diagnostic, Profile } from '@/lib/model/types';
 // filter.pathPattern can be defined but empty, and an empty pathPattern must
 // not be flagged as non-ASCII. Keep separate — unifying on `+` would
 // misreport an empty pathPattern as invalid.
+// An ASCII range check, not a pattern that means to match a control character.
+// See origins.ts for the same suppression and the same reason.
+// oxlint-disable-next-line no-control-regex
 const ASCII_ONLY = /^[\x00-\x7F]*$/;
 
 /** regexFilter must be under 2KB once compiled. The source length is a cheap
