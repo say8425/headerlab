@@ -208,13 +208,30 @@ export function ScopeRail({
           data-on={allSites || undefined}
           data-granted={allSites && allSitesGranted === false ? 'no' : undefined}
         >
+          {/* The mode is on and the access is not: said, not merely coloured.
+              The switch beside it reports on/off and nothing about permission,
+              which left these two states — working everywhere, and applying
+              nowhere pending a grant — telling apart by an amber tint alone.
+              That is the defect the site rows were already fixed for: a dot
+              that was `aria-hidden` gave a granted row and an unusable one
+              identical accessible names. Same words as those rows, because it
+              is the same state. */}
+          {allSites && allSitesGranted !== null && (
+            <span
+              className="hl-allsitesstate"
+              role="img"
+              aria-label={allSitesGranted ? 'Access granted' : 'Awaiting permission'}
+            />
+          )}
           <span className="hl-allsiteslab">All sites</span>
-          {/* The grant is part of the mode, so the switch asks for it on the
-              way in (App.tsx). This button is the second chance: a declined
-              prompt, or a store migrated from a build that never asked, leaves
-              the mode on and the access missing — and that state has to be
-              recoverable without switching off and on again to re-trigger the
-              prompt. Same shape as a pending site row for the same reason. */}
+          {/* The only control here that asks the browser for anything. The
+              switch sets the mode and stops (App.tsx): `<all_urls>` is the
+              largest grant this extension can request, so it is spent when a
+              button labelled Grant is pressed, never as a side effect of a
+              switch moving. Every way of reaching this state — turning the mode
+              on, declining once, or a store migrated from a build that never
+              asked — therefore arrives at the same button, which is the same
+              shape a pending site row offers for the same reason. */}
           {allSites && allSitesGranted === false && (
             <button className="hl-grant" onClick={onGrantAllSites}>Grant</button>
           )}

@@ -784,20 +784,35 @@ describe('all-sites mode', () => {
     await screen.findByDisplayValue('X-A');
   }
 
-  it('asks for <all_urls> at the moment the mode is switched on', async () => {
-    // The cost of the mode, charged when it is chosen. Letting the switch flip
-    // and asking later — or not at all — is how rules end up registered and
-    // silently inert, which is the failure this extension exists to rule out.
+  it('sets the mode and asks for nothing — Grant is the only control that prompts', async () => {
+    // The switch used to call `requestAllSites` itself, so flipping it fired
+    // Chrome's prompt for `<all_urls>` — the broadest grant this extension can
+    // ask for — before the user had pressed anything labelled Grant. Adding a
+    // site does not prompt either; it produces a pending row and a button. The
+    // same state reached by a different control must not behave differently.
+    //
+    // Asserting that Grant *does* call it would pass against the defect, which
+    // called it from both places. Only the absence here can fail.
     vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
     const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
     await openOn();
+    const bar = await screen.findByTestId('all-sites');
 
     await userEvent.click(allSitesSwitch());
 
-    expect(requestAllSites).toHaveBeenCalledTimes(1);
+    expect(requestAllSites).not.toHaveBeenCalled();
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
     );
+    // And the mode is not silently broken meanwhile: the state says it is on
+    // and unpermitted, and carries the remedy — exactly what a pending site
+    // row does. Without this the absence above could be satisfied by a switch
+    // that simply did nothing.
+    expect(allSitesSwitch().getAttribute('aria-checked')).toBe('true');
+    await waitFor(() => expect(bar.getAttribute('data-granted')).toBe('no'));
+    expect(within(bar).getByRole('img').getAttribute('aria-label'))
+      .toBe('Awaiting permission');
+    expect(within(bar).getByRole('button', { name: 'Grant' })).toBeTruthy();
   });
 
   it('asks for nothing when the mode is switched off', async () => {
@@ -817,22 +832,22 @@ describe('all-sites mode', () => {
     expect(requestAllSites).not.toHaveBeenCalled();
   });
 
-  it('keeps the mode on when the prompt is declined, and offers Grant instead', async () => {
-    // The switch records the user's decision; the browser's answer is a
-    // separate fact. Tying them together would make a declined prompt swallow
-    // a choice plainly made, leaving a control that visibly does nothing.
-    // Both facts stay on screen, and the way back is a button rather than
-    // toggling off and on to re-trigger the prompt.
+  it('keeps the mode on when the Grant prompt is declined, and leaves the way back', async () => {
+    // The mode is the user's decision; the grant is the browser's answer to a
+    // separate question. Tying them together would make a declined prompt
+    // swallow a choice plainly made. The remedy has to survive the refusal too,
+    // or recovering would mean toggling off and on to re-trigger a prompt.
     vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
-    vi.spyOn(probe, 'requestAllSites').mockResolvedValue(false);
-    await openOn();
+    const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(false);
+    const p = createProfile('Local', 0);
+    await openOn({ filter: { ...p.filter, allSites: true, domains: ['api.example.com'] } });
 
-    await userEvent.click(allSitesSwitch());
-
-    await waitFor(async () =>
-      expect((await stored()).profiles[0]!.filter.allSites).toBe(true),
-    );
     const bar = await screen.findByTestId('all-sites');
+    await waitFor(() => expect(bar.getAttribute('data-granted')).toBe('no'));
+    await userEvent.click(within(bar).getByRole('button', { name: 'Grant' }));
+
+    expect(requestAllSites).toHaveBeenCalledTimes(1);
+    expect((await stored()).profiles[0]!.filter.allSites).toBe(true);
     expect(bar.getAttribute('data-granted')).toBe('no');
     expect(within(bar).getByRole('button', { name: 'Grant' })).toBeTruthy();
   });
@@ -855,17 +870,18 @@ describe('all-sites mode', () => {
     expect(within(bar).queryByRole('button', { name: 'Grant' })).toBeNull();
   });
 
-  it('does not prompt again for access it already holds', async () => {
-    // `request()` would resolve true without showing anything, but a popup
-    // that calls it on every toggle is one Chrome release away from prompting
-    // on every toggle.
+  it('does not prompt for access it already holds', async () => {
+    // The other branch of the same switch. The test above covers the ungranted
+    // case; this one pins the granted one, so "never prompts" cannot be
+    // achieved for one state while the other still asks. Re-toggling a mode
+    // whose permission is held is the most ordinary thing a user does with this
+    // control, and it must stay silent.
     vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
     const requestAllSites = vi.spyOn(probe, 'requestAllSites').mockResolvedValue(true);
     await openOn();
 
-    // The mount probe has to have landed first, or the handler reads `null`
-    // and asks — which is correct behaviour for "not known yet" and would make
-    // this assert the opposite of what it names.
+    // Wait for the mount probe, so the click lands on a rail that knows the
+    // permission is held rather than on one that has not been told yet.
     await waitFor(() =>
       expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull(),
     );

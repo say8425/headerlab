@@ -386,6 +386,23 @@ body {
     color: var(--hl-ink-2);
 }
 
+/* The same dot a site row wears, in the same place on the row, because it
+   reports the same fact. Granted is the default; the ungranted rule below
+   overrides it, so the two states cannot drift to different shapes. */
+.hl-allsitesstate {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--hl-live);
+    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
+}
+
+.hl-allsites[data-granted="no"] .hl-allsitesstate {
+    background: var(--hl-pend);
+    box-shadow: 0 0 0 2.5px var(--hl-pend-bg);
+}
+
 /* On and granted: live, and coloured like everything else that is working. */
 .hl-allsites[data-on] {
     background: var(--hl-live-bg);

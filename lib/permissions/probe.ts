@@ -79,13 +79,17 @@ export async function probeAllSites(): Promise<boolean> {
 }
 
 /**
- * Asks for every site. Must be called from a user gesture — flipping the
- * all-sites switch on is that gesture, and so is its Grant button.
+ * Asks for every site. Must be called from a user gesture — the all-sites Grant
+ * button click is that gesture, and it is the only caller.
  *
- * The grant belongs to the mode rather than following it: applying everywhere
- * is exactly what `<all_urls>` buys, so the cost is put in front of the user at
- * the moment of choosing instead of being discovered later, by rules that
- * registered and quietly never fired.
+ * Deliberately **not** called by the switch that turns the mode on. `<all_urls>`
+ * is the largest grant this extension can ask for, and prompting for it because
+ * a switch moved is helping yourself rather than asking. Adding a site does not
+ * prompt either; it produces a pending row whose Grant button does. All-sites
+ * reaches the same state, so it offers the same button.
+ *
+ * The mode is not silently inert while the grant is outstanding — that state is
+ * named on screen and carries this button as its remedy.
  */
 export async function requestAllSites(): Promise<boolean> {
   try {

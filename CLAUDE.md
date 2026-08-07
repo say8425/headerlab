@@ -129,8 +129,16 @@ second one, so the first can mean what it looks like: nothing applies, stated ca
 site list and compiles none of it, so the switch is reversible — which means **what the
 list holds and what scopes the rule are no longer the same thing.** Ask `scopingHosts`,
 never `filter.domains`; the conflict detector read the list directly and would have
-judged an all-sites profile narrow. The mode costs `<all_urls>`, requested in the click
-that turns it on.
+judged an all-sites profile narrow.
+
+**The mode costs `<all_urls>`, and the switch does not ask for it.** The toggle sets the
+mode; `permissions.request()` is called only from the Grant button. Flipping a switch is
+not consent to the largest grant this extension can request, and adding a site does not
+prompt either — it produces a pending row with a Grant button. All-sites reaches the same
+state, so it must offer the same remedy rather than a second vocabulary. The gap between
+"mode on" and "access held" is legible instead: `data-granted="no"`, amber (the pending
+palette, never the error one — the mode is incomplete, not wrong), and a dot named
+"Awaiting permission" in the same words a pending site row uses.
 
 **Never show something the user cannot reach.** Storage holding state the UI cannot
 display must not go on modifying headers. Equally, do not write over a user's stored

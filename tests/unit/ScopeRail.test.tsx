@@ -396,13 +396,29 @@ describe('the all-sites switch', () => {
     expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
   });
 
+  it('names its access state to assistive tech, since colour is the only other cue', () => {
+    // The switch says on/off and nothing about permission, so "on and working"
+    // and "on and waiting for a grant" were told apart by an amber tint alone.
+    // Both are asserted: one label for both states would satisfy either half
+    // by itself. Same words the site rows use — it is the same state.
+    const bar = () => screen.getByTestId('all-sites');
+    const { rerender } = renderRail({ allSites: true, allSitesGranted: false });
+    expect(within(bar()).getByRole('img').getAttribute('aria-label'))
+      .toBe('Awaiting permission');
+
+    rerender(<ScopeRail {...props({ allSites: true, allSitesGranted: true })} />);
+    expect(within(bar()).getByRole('img').getAttribute('aria-label')).toBe('Access granted');
+  });
+
   it('says nothing about access while the probe is still out', () => {
     // `null` is not `false`. A switch that flashes "needs permission" for the
     // instant before the browser has been asked teaches people to disregard
-    // the badge, which costs more than the blank moment does.
+    // the badge, which costs more than the blank moment does. The dot is part
+    // of that claim: a state it cannot know yet must not be named either.
     renderRail({ allSites: true, allSitesGranted: null });
     expect(screen.getByTestId('all-sites').getAttribute('data-granted')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull();
+    expect(within(screen.getByTestId('all-sites')).queryByRole('img')).toBeNull();
   });
 
   it('offers no Grant for access it is not using — the mode is off', () => {

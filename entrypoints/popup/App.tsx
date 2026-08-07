@@ -252,26 +252,30 @@ export default function App() {
         iconError={status.iconError}
         allSites={active.filter.allSites}
         allSitesGranted={allSitesGranted}
-        onToggleAllSites={async (next) => {
-          // Written before the prompt, not after it. The mode is the user's
-          // decision and the grant is the browser's answer to a separate
-          // question — tying the switch to the outcome would let a declined
-          // prompt swallow a choice the user plainly made, leaving a control
-          // that visibly does nothing when clicked. Turning it on and showing
-          // the access as missing keeps both facts on screen, and it is the
-          // same state a migrated store arrives in, so there is one state to
-          // recover from rather than two.
+        onToggleAllSites={(next) => {
+          // The switch sets the mode. It does not ask for anything, and this is
+          // the whole of it.
+          //
+          // It used to call `requestAllSites()` here, on the argument that the
+          // click was "the moment the cost is being chosen" — which fired
+          // Chrome's prompt for `<all_urls>`, the largest grant this extension
+          // can ask for, as a side effect of flipping a switch. Prompting
+          // because a control moved, rather than because a button labelled
+          // Grant was pressed, is the pattern that teaches people to distrust
+          // extensions; it is also what the Grant button beside this switch was
+          // already for.
+          //
+          // Adding a site does not prompt either — it produces a pending row
+          // with a Grant button, and that button prompts. All-sites lands in
+          // the same state, so it behaves the same way. A UI where the same
+          // state reached by a different control acts differently is one you
+          // memorise instead of read.
+          //
+          // Nothing is silently broken in between: the mode is on, the access
+          // is shown as missing, and the remedy is on screen — the same state a
+          // migrated store arrives in, so there is one state to recover from
+          // rather than two.
           patchProfile((p) => ({ ...p, filter: { ...p.filter, allSites: next } }));
-          if (!next) return;
-
-          // Asked here, in the click, because `permissions.request()` needs a
-          // user gesture and because this is the moment the cost is being
-          // chosen. Skipped when it is already held: `request()` would resolve
-          // true without a prompt, but probing first keeps the common re-toggle
-          // from depending on that.
-          if (allSitesGranted === true) return;
-          const granted = await requestAllSites();
-          if (mountedRef.current) setAllSitesGranted(granted);
         }}
         onGrantAllSites={async () => {
           const granted = await requestAllSites();
