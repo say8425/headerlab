@@ -1,16 +1,6 @@
-# Action pins rot silently.
-#
-# ci.yml pins every action to a commit SHA with the resolved tag in a comment
-# beside it, and tells you to "update both together" — which is a step nobody
-# remembers, and the failure mode is not a broken build but a workflow quietly
-# running a year-old action. Dependabot updates the SHA *and* rewrites the
-# version comment in the same PR, which is that discipline automated.
-#
-# Only `github-actions` is enabled. npm is deliberately left off: this repo's
-# lockfile cannot be regenerated on the author's machine (the proxy serves stale
-# metadata for oxlint's and oxfmt's non-darwin native bindings — see CLAUDE.md),
-# so a dependency PR would land a lockfile nobody here can reproduce or verify,
-# and "No new dependencies" is a standing rule anyway.
+# Keeps ci.yml's action versions current. npm is deliberately off — this repo's
+# lockfile cannot be regenerated here (CLAUDE.md, "A local `npm install` will
+# corrupt the lockfile").
 version: 2
 updates:
   - package-ecosystem: github-actions
