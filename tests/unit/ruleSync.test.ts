@@ -15,16 +15,29 @@ function appState(headerName: string): AppState {
     theme: 'system',
     profiles: [
       {
-        id: 'p1', name: 'P', color: 'green', enabled: true, order: 0,
+        id: 'p1',
+        name: 'P',
+        color: 'green',
+        enabled: true,
+        order: 0,
         filter: {
-          mode: 'structured', allSites: false, domains: ['api.example.com'],
-          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+          mode: 'structured',
+          allSites: false,
+          domains: ['api.example.com'],
+          excludedDomains: [],
+          resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
-        headers: [{
-          id: 'h1', enabled: true, target: 'request',
-          operation: 'set', name: headerName, value: '1',
-        }],
+        headers: [
+          {
+            id: 'h1',
+            enabled: true,
+            target: 'request',
+            operation: 'set',
+            name: headerName,
+            value: '1',
+          },
+        ],
       },
     ],
   };
@@ -35,7 +48,10 @@ function rule(id: number): DnrRule {
     id,
     priority: 1,
     condition: { requestDomains: ['api.example.com'], resourceTypes: ['xmlhttprequest'] },
-    action: { type: 'modifyHeaders', requestHeaders: [{ header: 'X', operation: 'set', value: '1' }] },
+    action: {
+      type: 'modifyHeaders',
+      requestHeaders: [{ header: 'X', operation: 'set', value: '1' }],
+    },
   };
 }
 
@@ -83,7 +99,8 @@ describe('syncRules', () => {
 
     expect(dnr().updateDynamicRules).toHaveBeenCalledWith({ removeRuleIds: [1], addRules: [] });
     expect(dnr().updateSessionRules).toHaveBeenCalledWith({
-      removeRuleIds: [10_000], addRules: [],
+      removeRuleIds: [10_000],
+      addRules: [],
     });
   });
 

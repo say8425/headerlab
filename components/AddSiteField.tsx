@@ -8,9 +8,7 @@ import { useState } from 'react';
  * host is the only thing that explains why two different-looking entries are
  * the same one.
  */
-export type AddSiteResult =
-  | { added: true }
-  | { added: false; alreadyThere: string };
+export type AddSiteResult = { added: true } | { added: false; alreadyThere: string };
 
 export interface AddSiteFieldProps {
   onAdd: (domain: string) => AddSiteResult;

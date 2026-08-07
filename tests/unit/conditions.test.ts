@@ -104,8 +104,10 @@ describe('filterToCondition — regex mode', () => {
 describe('filterToCondition — shared', () => {
   it('always emits resourceTypes verbatim', () => {
     const f = { ...base, resourceTypes: ['xmlhttprequest', 'main_frame'] as const };
-    expect(filterToCondition({ ...f, resourceTypes: [...f.resourceTypes] }).resourceTypes)
-      .toEqual(['xmlhttprequest', 'main_frame']);
+    expect(filterToCondition({ ...f, resourceTypes: [...f.resourceTypes] }).resourceTypes).toEqual([
+      'xmlhttprequest',
+      'main_frame',
+    ]);
   });
 
   it('includes requestMethods only when non-empty', () => {

@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 /** Auto-discovered: every new file in these directories is guarded for free. */
 const AUTO_DISCOVERED = ['lib/compile', 'lib/view'].flatMap((dir) =>
-  readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => join(dir, f)),
+  readdirSync(dir)
+    .filter((f) => f.endsWith('.ts'))
+    .map((f) => join(dir, f)),
 );
 
 /**
@@ -44,9 +46,7 @@ const FORBIDDEN = [
  * it would be wrong.
  */
 function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 describe('the pure layer stays pure', () => {

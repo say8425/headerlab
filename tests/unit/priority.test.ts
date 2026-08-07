@@ -9,7 +9,13 @@ function profile(over: Partial<Profile> = {}): Profile {
     color: 'green',
     enabled: true,
     order: 0,
-    filter: { mode: 'structured', allSites: false, domains: [], excludedDomains: [], resourceTypes: ['xmlhttprequest'] },
+    filter: {
+      mode: 'structured',
+      allSites: false,
+      domains: [],
+      excludedDomains: [],
+      resourceTypes: ['xmlhttprequest'],
+    },
     tabLock: { enabled: false, tabId: null, tabTitle: null },
     headers: [],
     ...over,
@@ -37,10 +43,7 @@ describe('allocate', () => {
   });
 
   it('sorts by order, not by array position', () => {
-    const out = allocate([
-      profile({ id: 'later', order: 5 }),
-      profile({ id: 'first', order: 1 }),
-    ]);
+    const out = allocate([profile({ id: 'later', order: 5 }), profile({ id: 'first', order: 1 })]);
     expect(out.map((a) => a.profileId)).toEqual(['first', 'later']);
     expect(out[0]!.priority).toBeGreaterThan(out[1]!.priority);
   });

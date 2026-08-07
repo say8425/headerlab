@@ -19,13 +19,10 @@ function readManifest(): Record<string, unknown> {
 }
 
 describe('production manifest', () => {
-  it(
-    'omits host_permissions — checked by key, not substring: "optional_host_permissions" contains that string',
-    () => {
-      const manifest = readManifest();
-      expect(Object.prototype.hasOwnProperty.call(manifest, 'host_permissions')).toBe(false);
-    },
-  );
+  it('omits host_permissions — checked by key, not substring: "optional_host_permissions" contains that string', () => {
+    const manifest = readManifest();
+    expect(Object.prototype.hasOwnProperty.call(manifest, 'host_permissions')).toBe(false);
+  });
 
   it('carries optional_host_permissions instead', () => {
     const manifest = readManifest();

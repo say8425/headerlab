@@ -10,10 +10,12 @@ function p(id: string, name: string, domains: string[], enabled = true): Profile
 
 describe('domainsToAudit', () => {
   it('collects normalized hosts from enabled profiles, first-seen order', () => {
-    expect(domainsToAudit([
-      p('a', 'A', ['B.example.com', 'a.example.com']),
-      p('b', 'B', ['a.example.com']),
-    ])).toEqual(['b.example.com', 'a.example.com']);
+    expect(
+      domainsToAudit([
+        p('a', 'A', ['B.example.com', 'a.example.com']),
+        p('b', 'B', ['a.example.com']),
+      ]),
+    ).toEqual(['b.example.com', 'a.example.com']);
   });
 
   it('normalizes a port away before auditing — the pattern would otherwise throw', () => {
@@ -29,8 +31,7 @@ describe('domainsToAudit', () => {
   });
 
   it('audits every host of a profile whose domains are all usable', () => {
-    expect(domainsToAudit([p('a', 'A', ['ok.com', 'other.com'])]))
-      .toEqual(['ok.com', 'other.com']);
+    expect(domainsToAudit([p('a', 'A', ['ok.com', 'other.com'])])).toEqual(['ok.com', 'other.com']);
   });
 
   it('ignores disabled profiles', () => {
@@ -44,17 +45,13 @@ describe('domainsToAudit', () => {
 
 describe('auditDiagnostics', () => {
   it('is quiet when every domain is granted', () => {
-    expect(auditDiagnostics(
-      [p('a', 'A', ['x.com'])],
-      [{ domain: 'x.com', granted: true }],
-    )).toEqual([]);
+    expect(
+      auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: true }]),
+    ).toEqual([]);
   });
 
   it('raises permission-missing for an ungranted domain', () => {
-    const d = auditDiagnostics(
-      [p('a', 'A', ['x.com'])],
-      [{ domain: 'x.com', granted: false }],
-    );
+    const d = auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: false }]);
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('permission-missing');
     expect(d[0]?.severity).toBe('warning');
@@ -87,17 +84,13 @@ describe('auditDiagnostics', () => {
   });
 
   it('ignores disabled profiles', () => {
-    expect(auditDiagnostics(
-      [p('a', 'A', ['x.com'], false)],
-      [{ domain: 'x.com', granted: false }],
-    )).toEqual([]);
+    expect(
+      auditDiagnostics([p('a', 'A', ['x.com'], false)], [{ domain: 'x.com', granted: false }]),
+    ).toEqual([]);
   });
 
   it('carries the host so the Grant button need not parse the message', () => {
-    const d = auditDiagnostics(
-      [p('a', 'A', ['x.com'])],
-      [{ domain: 'x.com', granted: false }],
-    );
+    const d = auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: false }]);
     expect(d[0]?.host).toBe('x.com');
   });
 
@@ -106,9 +99,11 @@ describe('auditDiagnostics', () => {
     // a lie here: no rule was registered, and granting the permission changes
     // nothing. The unusable entry is what the user has to fix, and
     // validateFilter is what says so.
-    expect(auditDiagnostics(
-      [p('a', 'A', ['api.example.com', 'a b.com'])],
-      [{ domain: 'api.example.com', granted: false }],
-    )).toEqual([]);
+    expect(
+      auditDiagnostics(
+        [p('a', 'A', ['api.example.com', 'a b.com'])],
+        [{ domain: 'api.example.com', granted: false }],
+      ),
+    ).toEqual([]);
   });
 });

@@ -155,28 +155,42 @@ const SHOTS = [
  */
 function assertBuildFresh() {
   if (!existsSync(BUILD)) {
-    throw new Error(`no build at ${path.relative(ROOT, BUILD)} — run \`npm run screenshots\`, which builds first.`);
+    throw new Error(
+      `no build at ${path.relative(ROOT, BUILD)} — run \`npm run screenshots\`, which builds first.`,
+    );
   }
-  const newestSource = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
-    cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-  })
+  const newestSource = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  )
     .split('\0')
     .filter((f) => f !== '' && !f.startsWith('tests/') && !f.startsWith('docs/screenshots/'))
-    .reduce((newest, f) => {
-      const s = statSync(path.join(ROOT, f), { throwIfNoEntry: false });
-      return s?.isFile() && s.mtimeMs > newest.mtimeMs ? { file: f, mtimeMs: s.mtimeMs } : newest;
-    }, { file: '', mtimeMs: 0 });
+    .reduce(
+      (newest, f) => {
+        const s = statSync(path.join(ROOT, f), { throwIfNoEntry: false });
+        return s?.isFile() && s.mtimeMs > newest.mtimeMs ? { file: f, mtimeMs: s.mtimeMs } : newest;
+      },
+      { file: '', mtimeMs: 0 },
+    );
 
   let oldestOutput = Infinity;
   for (const entry of readdirSync(BUILD, { withFileTypes: true, recursive: true })) {
     if (!entry.isFile()) continue;
-    oldestOutput = Math.min(oldestOutput, statSync(path.join(entry.parentPath, entry.name)).mtimeMs);
+    oldestOutput = Math.min(
+      oldestOutput,
+      statSync(path.join(entry.parentPath, entry.name)).mtimeMs,
+    );
   }
 
   if (newestSource.mtimeMs > oldestOutput) {
     throw new Error(
       `${path.relative(ROOT, BUILD)} is stale: ${newestSource.file} was modified after it was built. ` +
-      'These screenshots would show the previous UI — run `npm run screenshots`, which builds first.',
+        'These screenshots would show the previous UI — run `npm run screenshots`, which builds first.',
     );
   }
 }
@@ -277,11 +291,13 @@ try {
       const stillMatches = await page.evaluate(matches, shot.expect);
       if (!stillMatches) {
         const actual = await page.evaluate(() =>
-          [...document.querySelectorAll('[data-testid="site"]')].map((r) => r.getAttribute('data-state')),
+          [...document.querySelectorAll('[data-testid="site"]')].map((r) =>
+            r.getAttribute('data-state'),
+          ),
         );
         throw new Error(
           `${shot.file}: the popup changed between the wait and the shot — ` +
-          `expected ${JSON.stringify(shot.expect)}, captured ${JSON.stringify(actual)}.`,
+            `expected ${JSON.stringify(shot.expect)}, captured ${JSON.stringify(actual)}.`,
         );
       }
     }

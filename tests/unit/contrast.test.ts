@@ -54,11 +54,27 @@ const NON_COLOR = ['--hl-sans', '--hl-mono', '--hl-card-sh'];
 
 /** Every colour token both palettes must define, so a rename cannot go unnoticed. */
 const COLOR_TOKENS = [
-  '--hl-panel', '--hl-rail', '--hl-rail-edge', '--hl-card', '--hl-card-edge',
-  '--hl-ink', '--hl-ink-2', '--hl-ink-3',
-  '--hl-req-bg', '--hl-req-fg', '--hl-res-bg', '--hl-res-fg',
-  '--hl-live', '--hl-live-bg', '--hl-pend', '--hl-pend-bg', '--hl-pend-edge',
-  '--hl-err', '--hl-err-bg', '--hl-act', '--hl-off-track',
+  '--hl-panel',
+  '--hl-rail',
+  '--hl-rail-edge',
+  '--hl-card',
+  '--hl-card-edge',
+  '--hl-ink',
+  '--hl-ink-2',
+  '--hl-ink-3',
+  '--hl-req-bg',
+  '--hl-req-fg',
+  '--hl-res-bg',
+  '--hl-res-fg',
+  '--hl-live',
+  '--hl-live-bg',
+  '--hl-pend',
+  '--hl-pend-bg',
+  '--hl-pend-edge',
+  '--hl-err',
+  '--hl-err-bg',
+  '--hl-act',
+  '--hl-off-track',
 ] as const;
 
 describe('palette parsing', () => {
@@ -68,7 +84,9 @@ describe('palette parsing', () => {
   // wrong reason — identically to a typo'd token name *in this file*. Naming
   // the expected set is what makes the two distinguishable.
   it.each(['light', 'dark'] as const)('%s defines exactly the known colour tokens', (theme) => {
-    const found = Object.keys(PALETTES[theme]).filter((k) => !NON_COLOR.includes(k)).sort();
+    const found = Object.keys(PALETTES[theme])
+      .filter((k) => !NON_COLOR.includes(k))
+      .sort();
     expect(found).toEqual([...COLOR_TOKENS].sort());
   });
 
@@ -113,7 +131,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the panel: fields, buttons and the surfaces they sit on ---
   ['header name and value text — .hl-hname / .hl-hval', '--hl-ink', '--hl-panel'],
   ['operation button label — .hl-op', '--hl-ink-2', '--hl-panel'],
-  ['field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule', '--hl-ink-3', '--hl-panel'],
+  [
+    'field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule',
+    '--hl-ink-3',
+    '--hl-panel',
+  ],
   ['header name over the card behind it — .hl-hname on .hl-rule', '--hl-ink', '--hl-card'],
   ['New rule button — .hl-newbtn', '--hl-panel', '--hl-ink'],
   ['remove operation marker — .hl-op[data-op=remove]', '--hl-err', '--hl-panel'],
@@ -122,7 +144,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['warning inside a rule card — .hl-rprob', '--hl-ink', '--hl-pend-bg'],
   ['error inside a rule card — .hl-rprob[data-severity=error]', '--hl-ink', '--hl-err-bg'],
   ['the "!" in a warning badge — .hl-rprob-ic', '--hl-pend-bg', '--hl-pend'],
-  ['the "!" in an error badge — .hl-rprob[data-severity=error] .hl-rprob-ic', '--hl-err-bg', '--hl-err'],
+  [
+    'the "!" in an error badge — .hl-rprob[data-severity=error] .hl-rprob-ic',
+    '--hl-err-bg',
+    '--hl-err',
+  ],
 
   // --- the rail, whose surface is the darker material in light and the
   //     lighter one in dark; both directions are asserted by running every
@@ -137,7 +163,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['site host, unusable row — .hl-dom[data-state=unusable]', '--hl-ink', '--hl-err-bg'],
   ['site remove ×, pending row — .hl-domx', '--hl-ink-3', '--hl-pend-bg'],
   ['site remove ×, unusable row — .hl-domx', '--hl-ink-3', '--hl-err-bg'],
-  ['readout subcount and section headings — .hl-subcount / .hl-railhead', '--hl-ink-2', '--hl-rail'],
+  [
+    'readout subcount and section headings — .hl-subcount / .hl-railhead',
+    '--hl-ink-2',
+    '--hl-rail',
+  ],
   ['section counts and unchecked type labels — .hl-n / .hl-ty', '--hl-ink-3', '--hl-rail'],
   ['"Active" — .hl-pauselab', '--hl-live', '--hl-live-bg'],
   ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--hl-ink-2', '--hl-panel'],
@@ -146,8 +176,16 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // every other amber element is `--hl-ink` on the amber fill, and this is the
   // amber ink on it.
   ['"All sites", off — .hl-allsiteslab', '--hl-ink-2', '--hl-panel'],
-  ['"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab', '--hl-live', '--hl-live-bg'],
-  ['"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab', '--hl-pend', '--hl-pend-bg'],
+  [
+    '"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab',
+    '--hl-live',
+    '--hl-live-bg',
+  ],
+  [
+    '"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab',
+    '--hl-pend',
+    '--hl-pend-bg',
+  ],
   // Every site row now carries a second line naming its state, and that line is
   // painted on whichever fill the row is wearing — so it needs the pair its
   // hostname needs, once per surface. The idle one replaces the pair that was
@@ -155,8 +193,16 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // above the list onto the row itself, so the guard moved with them rather
   // than being deleted.
   ['row state line, granted — .hl-needsay', '--hl-ink-3', '--hl-panel'],
-  ['row state line, pending — .hl-dom[data-state=pending] .hl-needsay', '--hl-ink-3', '--hl-pend-bg'],
-  ['row state line, unusable — .hl-dom[data-state=unusable] .hl-needsay', '--hl-ink-3', '--hl-err-bg'],
+  [
+    'row state line, pending — .hl-dom[data-state=pending] .hl-needsay',
+    '--hl-ink-3',
+    '--hl-pend-bg',
+  ],
+  [
+    'row state line, unusable — .hl-dom[data-state=unusable] .hl-needsay',
+    '--hl-ink-3',
+    '--hl-err-bg',
+  ],
   // The site list while all-sites is on: the row drops its own fill, so both
   // its text and its state line are painted straight onto the rail.
   ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--hl-ink-3', '--hl-rail'],
@@ -171,8 +217,16 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
-  ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--hl-off-track', '--hl-card'],
-  ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--hl-off-track', '--hl-rail'],
+  [
+    'switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule',
+    '--hl-off-track',
+    '--hl-card',
+  ],
+  [
+    'paused master switch track — .hl-sw[aria-checked=false] on the rail',
+    '--hl-off-track',
+    '--hl-rail',
+  ],
   ['unchecked type box — .hl-tybox on the rail', '--hl-off-track', '--hl-rail'],
   // The idle row's dot is a hollow ring rather than a fill — there is no access
   // state to report on a host nothing is scoped to — so what has to stay

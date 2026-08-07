@@ -13,13 +13,9 @@ import type { CompileResult, DnrRule } from '@/lib/model/types';
  * fully transactional, so a failure leaves the previous rules intact rather
  * than a half-applied set.
  */
-async function replace(
-  scope: 'dynamic' | 'session',
-  rules: DnrRule[],
-): Promise<void> {
+async function replace(scope: 'dynamic' | 'session', rules: DnrRule[]): Promise<void> {
   const dnr = browser.declarativeNetRequest;
-  const existing =
-    scope === 'dynamic' ? await dnr.getDynamicRules() : await dnr.getSessionRules();
+  const existing = scope === 'dynamic' ? await dnr.getDynamicRules() : await dnr.getSessionRules();
 
   // Our DnrRule is structurally identical to the wxt/browser namespace's Rule
   // but nominally separate, so lib/compile/ can stay free of browser types
@@ -37,9 +33,7 @@ async function replace(
   }
 }
 
-export async function syncRules(
-  result: Pick<CompileResult, 'dynamic' | 'session'>,
-): Promise<void> {
+export async function syncRules(result: Pick<CompileResult, 'dynamic' | 'session'>): Promise<void> {
   await replace('dynamic', result.dynamic);
   await replace('session', result.session);
 }

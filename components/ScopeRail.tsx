@@ -67,9 +67,24 @@ export interface ScopeRailProps {
  * costs the rules nothing instead of shoving them down the screen.
  */
 export function ScopeRail({
-  tally, paused, onTogglePause, domains, byHost, notes, blockedBy, lastError, iconError,
-  allSites, allSitesGranted, onToggleAllSites, onGrantAllSites,
-  resourceTypes, onAddDomain, onRemoveDomain, onToggleType, onGrant,
+  tally,
+  paused,
+  onTogglePause,
+  domains,
+  byHost,
+  notes,
+  blockedBy,
+  lastError,
+  iconError,
+  allSites,
+  allSitesGranted,
+  onToggleAllSites,
+  onGrantAllSites,
+  resourceTypes,
+  onAddDomain,
+  onRemoveDomain,
+  onToggleType,
+  onGrant,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
 
@@ -115,7 +130,9 @@ export function ScopeRail({
             />
           </svg>
         </span>
-        <span className="hl-name">Header<i>lab</i></span>
+        <span className="hl-name">
+          Header<i>lab</i>
+        </span>
       </div>
 
       <div className="hl-readout" data-testid="readout">
@@ -169,7 +186,8 @@ export function ScopeRail({
 
       <div className="hl-railsec">
         <div className="hl-railhead">
-          Sites <span className="hl-n" data-testid="site-count">
+          Sites{' '}
+          <span className="hl-n" data-testid="site-count">
             {/* Reads the mode, not the list length. `all` used to mean "the
                 list is empty", which was true of a filter applying everywhere
                 and equally true of one that had not been scoped yet — the same
@@ -248,7 +266,9 @@ export function ScopeRail({
               asked — therefore arrives at the same button, which is the same
               shape a pending site row offers for the same reason. */}
           {allSites && allSitesGranted === false && (
-            <button className="hl-grant" onClick={onGrantAllSites}>Grant</button>
+            <button className="hl-grant" onClick={onGrantAllSites}>
+              Grant
+            </button>
           )}
           <button
             role="switch"
@@ -326,7 +346,10 @@ export function ScopeRail({
 
       <div className="hl-railsec hl-railsec-types">
         <div className="hl-railhead">
-          Request types <span className="hl-n">{typeCount} of {OFFERED_TYPES.length}</span>
+          Request types{' '}
+          <span className="hl-n">
+            {typeCount} of {OFFERED_TYPES.length}
+          </span>
         </div>
         <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
       </div>

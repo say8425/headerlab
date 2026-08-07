@@ -1,9 +1,5 @@
 import { HEADER_TOKEN } from '@/lib/compile/headers';
-import type {
-  Diagnostic,
-  HeaderTarget,
-  Profile,
-} from '@/lib/model/types';
+import type { Diagnostic, HeaderTarget, Profile } from '@/lib/model/types';
 
 /**
  * Chromium's `kDNRRequestHeaderAppendAllowList`. Exactly these 21 request
@@ -98,8 +94,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message:
-          `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
+        message: `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.

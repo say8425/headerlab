@@ -2,13 +2,33 @@ import { z } from 'zod';
 import type { AppState } from '@/lib/model/types';
 
 const resourceType = z.enum([
-  'main_frame', 'sub_frame', 'stylesheet', 'script', 'image',
-  'font', 'object', 'xmlhttprequest', 'ping', 'csp_report',
-  'media', 'websocket', 'webtransport', 'webbundle', 'other',
+  'main_frame',
+  'sub_frame',
+  'stylesheet',
+  'script',
+  'image',
+  'font',
+  'object',
+  'xmlhttprequest',
+  'ping',
+  'csp_report',
+  'media',
+  'websocket',
+  'webtransport',
+  'webbundle',
+  'other',
 ]);
 
 const requestMethod = z.enum([
-  'connect', 'delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'other',
+  'connect',
+  'delete',
+  'get',
+  'head',
+  'options',
+  'patch',
+  'post',
+  'put',
+  'other',
 ]);
 
 const headerRuleSchema = z.object({
