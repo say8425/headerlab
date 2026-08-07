@@ -27,6 +27,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # `package-lock.json` was generated behind a corporate Nexus proxy, so ~400 of
+  # its `resolved` URLs name a host this runner cannot reach. npm's default
+  # (`npmjs`) only rewrites URLs that already point at registry.npmjs.org;
+  # `always` rewrites every one of them to the configured registry. The
+  # `integrity` hashes are untouched, so the bytes are still verified — this
+  # changes where a tarball is fetched from, never what is accepted.
+  NPM_CONFIG_REPLACE_REGISTRY_HOST: always
+
 jobs:
   check:
     name: typecheck · lint · format · unit
@@ -41,13 +50,51 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      # `npm install`, not `npm ci`, and this is a workaround rather than a
+      # preference — see CLAUDE.md, "The lockfile is not portable yet".
+      #
+      # In short: the same Nexus proxy serves stale package metadata for
+      # oxlint's and oxfmt's per-platform native bindings. It carries
+      # darwin-arm64 at the current version and nothing newer than oxlint
+      # 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s rather
+      # than refreshing. npm therefore writes 18 entries with no version at all,
+      # and `npm ci` dies on them with `Invalid Version:` before it reaches the
+      # network. Deleting the entries does not help: `npm ci` then rejects the
+      # lockfile as out of sync with package.json. Measured both ways.
+      #
+      # `npm install` resolves against this runner's registry, which has every
+      # platform, so CI installs correctly — at the cost of not verifying the
+      # committed lockfile. The step below makes that cost visible instead of
+      # silent, and hands back the lockfile that *would* work.
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Lockfile drift
+        id: lockdrift
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+            echo "package-lock.json resolved unchanged — it is portable, and this workflow can go back to \`npm ci\`."
+          else
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- package-lock.json
+            echo "::warning::package-lock.json is not portable. Download the package-lock-resolved artifact from this run, commit it, and switch the install step back to npm ci."
+          fi
+
+      - name: Upload the resolved lockfile
+        if: ${{ !cancelled() && steps.lockdrift.outputs.drifted == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-lock-resolved
+          path: package-lock.json
+          retention-days: 7
 
       # Every check runs even after one fails, so a single push reports every
       # problem instead of one per round trip. `!cancelled()` rather than
       # `always()`: a cancelled run should stop, not grind through the rest.
       # The job still fails if any step does.
       - name: Typecheck
+        if: ${{ !cancelled() }}
         run: npm run typecheck
 
       - name: Lint
@@ -77,13 +124,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Install
+        run: npm install --no-audit --no-fund
 
       # Keyed on the lockfile, which is what pins the Playwright version that
       # decides which browser build is wanted. A cache keyed on anything looser
       # would hand a new Playwright an old binary.
       - name: Cache Playwright browsers
-        id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright

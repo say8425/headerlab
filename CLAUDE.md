@@ -118,6 +118,25 @@ job. A category that needs a page of suppressions to go green is a category nobo
 reads. CI adds `--deny-warnings` so a rule that arrives at warning level in a future
 release still stops the build.
 
+**`lint` chains `wxt prepare`, and that is a correctness fix rather than a convenience.**
+`tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
+through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
+not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
+`correctness` enables (`import/default`, `import/namespace`), across 126 `@/…` imports.
+Reproduced both ways with a one-line probe importing a non-existent default: an error with
+`.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
+because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
+deliberately *not* chained — oxfmt reads no tsconfig and resolves nothing.
+
+**`coverage/` is gitignored on purpose.** `@vitest/coverage-v8` is installed, so
+`--coverage` is one flag away, and its output is untracked — which puts it in
+`tests/support/build.ts`'s source set and reports **both** builds stale. Every
+build-reading test then fails with a message about staleness rather than about coverage.
+Never cache or pass `.output/` between CI jobs for the mirror-image reason: a restore
+writes fresh mtimes *after* checkout, so `isStale()` returns false against sources the
+artifact was not built from — a silent false green, which is the exact thing the guard
+exists to prevent. Both builds are under a second; rebuild in each job.
+
 **Setting `plugins` replaces oxlint's base set; it does not extend it.** The three that
 are on by default (typescript, unicorn, oxc) have to be re-listed or they silently stop
 running. And an override's `plugins` key does **not** enable a plugin — measured: with
@@ -140,6 +159,25 @@ machine's opinion. `printWidth: 100` was chosen by sweeping 80/90/96/100/110/120
 the minimum churn (40 files at 100, against 50 at 80 and 45 at 120). `singleQuote: true`
 matches what the repo already wrote. **oxfmt also sorts `package.json` keys** by default —
 that is why `dependencies` now precedes `devDependencies`.
+
+**The lockfile is not portable yet, so CI runs `npm install` rather than `npm ci`.**
+Two separate faults, both measured. First, `package-lock.json` was generated behind the
+Nexus proxy, so ~400 of its `resolved` URLs name a host GitHub's runners cannot reach —
+handled by `NPM_CONFIG_REPLACE_REGISTRY_HOST: always` in the workflow, which rewrites the
+host and leaves the `integrity` hashes verifying the bytes. Second, and not fixable from
+here: the proxy serves **stale metadata for oxlint's and oxfmt's per-platform native
+bindings**. It carries `binding-darwin-arm64` at the current version and nothing newer
+than oxlint 1.43.0 / oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of
+refreshing the packument. npm therefore records 18 entries with no version at all, and
+`npm ci` dies on them with `Invalid Version:` before it touches the network. Deleting
+those entries does not help — `npm ci` then rejects the lockfile as out of sync. Both
+measured. `registry.npmjs.org` is unreachable from here (503), so a portable lockfile
+cannot be produced on this machine at all.
+
+The workaround is visible rather than silent: the `check` job diffs `package-lock.json`
+after installing, warns when it drifted, and uploads the resolved lockfile as an artifact.
+**Commit that artifact and switch the install step back to `npm ci`** — that is the fix,
+and the workflow is written to hand it to you rather than to hide the gap.
 
 **CI pins every action to a commit SHA**, with the tag it resolved from in a comment
 beside it. A tag is mutable by the account that owns it, and this repository's premise is
