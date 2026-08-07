@@ -152,6 +152,23 @@ know *why* a profile is suppressed ask `suppressionReason` rather than re-readin
 fields: the rail and the diagnostics both word themselves from it. `HEADER_TOKEN`,
 `scopingHosts` and the profile colour list are the same lesson.
 
+## Interface
+
+**A control appearing must not resize what holds it.** Reserve the space instead:
+size the container to its largest state and let the element occupy or vacate it. A
+Grant button that pushes the rows below it down, a note that grows its panel, a
+badge that widens a header — each moves everything downstream by a few pixels at the
+moment the user is reading it, and in a popup this size that is most of the screen.
+Hide-and-show reflow is the single thing that most makes an interface feel unfinished.
+
+This applies to any element whose presence is state-dependent, which in the rail is
+most of them: Grant, the pending and unusable notes, the tooltip, the mode switch's
+own sub-line. When adding one, ask what its absence looks like — if the answer is
+"everything else sits higher", the layout is wrong, not the element.
+
+**State changes appearance, not geometry.** Colour, weight, opacity and content may
+follow state freely; box dimensions and positions should not.
+
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
