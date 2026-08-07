@@ -222,8 +222,8 @@ is that all four actions are published by GitHub itself, the workflow holds only
 source — which is public. A third-party action would not clear that bar; pin one to a SHA
 if it ever arrives.
 
-`.github/dependabot.yml` exists for the **major** bumps, since patches and minors now
-arrive on their own. To go back to SHAs:
+Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
+there is no dependabot here yet. To go back to SHAs:
 `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`, with the tag in a
 comment beside each hash — commit `a1f8122` has the last version that did this.
 
