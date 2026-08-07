@@ -1,5 +1,6 @@
 import { storage } from '#imports';
 import { DEFAULT_STATE, STATE_VERSION } from '@/lib/model/defaults';
+import { migrateToV2 } from '@/lib/model/migrate';
 import { parseAppState } from '@/lib/model/schema';
 import type { AppState } from '@/lib/model/types';
 
@@ -10,10 +11,23 @@ import type { AppState } from '@/lib/model/types';
  *
  * Add a `migrations` entry keyed by the new version number when bumping
  * STATE_VERSION; WXT runs them automatically.
+ *
+ * **They run once, at module evaluation, not per read.** WXT builds the
+ * migration promise here in `defineItem` and every `getValue()` awaits it, so
+ * a value written to `local:state` *after* this module loaded is never
+ * migrated. Nothing in the extension does that — storage is written through
+ * `setState` in this build's own shape — but a test or an e2e fixture that
+ * plants an older shape directly has to plant the matching `state$` version
+ * too, or it will be read as-is and fail validation.
  */
 export const stateItem = storage.defineItem<AppState>('local:state', {
   fallback: DEFAULT_STATE,
   version: STATE_VERSION,
+  migrations: {
+    // v1 stored no `allSites`, and an empty domain list was how "everywhere"
+    // was spelled. lib/model/migrate.ts holds the transform and the reasoning.
+    2: migrateToV2,
+  },
 });
 
 export interface LoadedState {

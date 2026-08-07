@@ -56,3 +56,45 @@ export async function requestHost(host: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The one origin all-sites mode needs.
+ *
+ * `<all_urls>` is not a host and cannot go through the two functions above:
+ * `originCandidates` would build `https://<all_urls>/*`, and the ladder it
+ * exists to climb has no rungs here — there is no narrower grant that could
+ * satisfy this and no broader one to fall back to. One pattern, asked
+ * directly.
+ *
+ * Declared in `optional_host_permissions` in wxt.config.ts, which is what
+ * makes it requestable at runtime. Deliberately **not** in `permissions` — the
+ * manifest still asks for no host access at install, and
+ * tests/unit/manifest.test.ts holds that line.
+ */
+export const ALL_URLS = '<all_urls>';
+
+/** Whether every site has already been granted. */
+export async function probeAllSites(): Promise<boolean> {
+  return covers(ALL_URLS);
+}
+
+/**
+ * Asks for every site. Must be called from a user gesture — the all-sites Grant
+ * button click is that gesture, and it is the only caller.
+ *
+ * Deliberately **not** called by the switch that turns the mode on. `<all_urls>`
+ * is the largest grant this extension can ask for, and prompting for it because
+ * a switch moved is helping yourself rather than asking. Adding a site does not
+ * prompt either; it produces a pending row whose Grant button does. All-sites
+ * reaches the same state, so it offers the same button.
+ *
+ * The mode is not silently inert while the grant is outstanding — that state is
+ * named on screen and carries this button as its remedy.
+ */
+export async function requestAllSites(): Promise<boolean> {
+  try {
+    return await browser.permissions.request({ origins: [ALL_URLS] });
+  } catch {
+    return false;
+  }
+}

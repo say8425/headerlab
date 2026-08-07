@@ -14,7 +14,7 @@ function profile(over: Partial<Profile> = {}): Profile {
   return {
     id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
     filter: {
-      mode: 'structured', domains: ['api.example.com'],
+      mode: 'structured', allSites: false, domains: ['api.example.com'],
       excludedDomains: [], resourceTypes: ['xmlhttprequest'],
     },
     tabLock: { enabled: false, tabId: null, tabTitle: null },
@@ -84,7 +84,7 @@ describe('compile', () => {
   it('suppresses a profile whose only domain is non-ASCII, rather than matching every site', () => {
     const p = profile({
       filter: {
-        mode: 'structured', domains: ['한국.com'],
+        mode: 'structured', allSites: false, domains: ['한국.com'],
         excludedDomains: [], resourceTypes: ['xmlhttprequest'],
       },
     });
@@ -96,7 +96,7 @@ describe('compile', () => {
   it('suppresses a profile when any one of several domains is invalid', () => {
     const p = profile({
       filter: {
-        mode: 'structured', domains: ['api.example.com', '한국.com'],
+        mode: 'structured', allSites: false, domains: ['api.example.com', '한국.com'],
         excludedDomains: [], resourceTypes: ['xmlhttprequest'],
       },
     });
@@ -108,7 +108,7 @@ describe('compile', () => {
     const bad = profile({
       id: 'bad', order: 0,
       filter: {
-        mode: 'structured', domains: ['한국.com'],
+        mode: 'structured', allSites: false, domains: ['한국.com'],
         excludedDomains: [], resourceTypes: ['xmlhttprequest'],
       },
     });
@@ -118,19 +118,52 @@ describe('compile', () => {
     expect(out.dynamic[0]!.condition.requestDomains).toEqual(['api.example.com']);
   });
 
-  it('still compiles a domainless profile into a rule that matches every site', () => {
-    // The boundary isSuppressed turns on. An empty list is deliberately NOT
-    // suppressed: it compiles to a rule with no domain condition, and
-    // `empty-filter` is what tells the user how far that reaches. Suppressing
-    // it instead would silently disable every profile not yet scoped to a host
-    // — the same silence, entered from the other side.
+  it('compiles a rule that matches every site when all-sites is on', () => {
+    // The boundary isSuppressed turns on, and the half that survived the
+    // change. A rule with no domain condition is still exactly what
+    // "everywhere" compiles to — it is now reached by asking for it rather
+    // than by leaving the list empty.
     const base = profile();
     const result = compile(state({
-      profiles: [profile({ filter: { ...base.filter, domains: [] } })],
+      profiles: [profile({ filter: { ...base.filter, allSites: true, domains: [] } })],
     }));
     expect(result.dynamic).toHaveLength(1);
     expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
-    expect(result.diagnostics.map((d) => d.kind)).toEqual(['empty-filter']);
+    // Nothing to report: applying everywhere is what was asked for.
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('ignores the stored site list while all-sites is on, rather than narrowing to it', () => {
+    // The list is kept so the switch is reversible, and compiled by nothing.
+    // Without this a profile could read "all sites" on screen and register a
+    // rule scoped to one host — the screen and the wire disagreeing, which is
+    // the defect class this project is organized around.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({
+        filter: { ...base.filter, allSites: true, domains: ['api.example.com'] },
+      })],
+    }));
+    expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
+    expect(result.requiredOrigins).toEqual(['<all_urls>']);
+  });
+
+  it('compiles nothing at all when all-sites is off and no site is named', () => {
+    // The other half, and the behaviour change. v1 read this as "everywhere";
+    // it now means what it looks like. Emitting a rule here would apply the
+    // user's headers to every site on the strength of a list they never
+    // filled in.
+    const base = profile();
+    const result = compile(state({
+      profiles: [profile({ filter: { ...base.filter, allSites: false, domains: [] } })],
+    }));
+    expect(result.dynamic).toEqual([]);
+    // Said out loud, and calmly: nothing is wrong, nothing is at risk, and
+    // there is nothing being applied to be quiet about.
+    expect(result.diagnostics.map((d) => d.kind)).toEqual(['no-scope']);
+    expect(result.diagnostics[0]?.severity).toBe('incomplete');
+    // And it asks for no grant, because it registers no rule.
+    expect(result.requiredOrigins).toEqual([]);
   });
 
   it('emits no rules at all when globalPause is on', () => {
@@ -199,13 +232,18 @@ describe('compile emits diagnostics', () => {
     expect(result.dynamic).toHaveLength(1);
   });
 
-  it('reports an empty filter on the profile it suppresses', () => {
+  it('reports an unusable site as an error on the profile it suppresses', () => {
+    // Was filed as `empty-filter`/`warning`, which put a profile applying to
+    // *nothing* under the same kind and severity as one applying to
+    // everything. Nothing is being modified here and the cause is a value the
+    // user can fix, so it is an error and it names the entry.
     const base = profile();
     const result = compile(state({
       profiles: [profile({ filter: { ...base.filter, domains: ['a b.com'] } })],
     }));
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.kind).toBe('empty-filter');
+    expect(result.diagnostics[0]?.kind).toBe('invalid-domain');
+    expect(result.diagnostics[0]?.severity).toBe('error');
     expect(result.dynamic).toHaveLength(0);
   });
 
@@ -283,14 +321,17 @@ describe('compile emits diagnostics', () => {
     expect(result.dynamic).toHaveLength(1);
   });
 
-  it('falls back to <all_urls> when no domain is usable at all', () => {
+  it('asks for no origin at all when no domain is usable, because it registers no rule', () => {
+    // This used to demand `<all_urls>` — the broadest grant the browser can
+    // give — on behalf of a profile the compiler suppresses and never emits.
+    // The grant would have bought nothing and cost everything.
     const base = profile();
     const result = compile(state({
       profiles: [profile({
         filter: { ...base.filter, domains: ['a b.com'] },
       })],
     }));
-    expect(result.requiredOrigins).toEqual(['<all_urls>']);
+    expect(result.requiredOrigins).toEqual([]);
   });
 
   it('does not say a profile both lost a conflict and was never applied', () => {
@@ -316,13 +357,12 @@ describe('compile emits diagnostics', () => {
       ],
     }));
     expect(result.diagnostics).toEqual([{
-      kind: 'empty-filter',
-      severity: 'warning',
+      kind: 'invalid-domain',
+      severity: 'error',
       profileId: 'p0',
       message:
-        'No usable site here, so nothing is applied — with no site to match, ' +
-        'these rules would apply to every site instead of none. ' +
-        'Use a bare hostname like example.com.',
+        'No usable site: "a b.com". Use a bare hostname like example.com. ' +
+        'Nothing is applied while every site is unusable.',
     }]);
     // And the half the diagnostics were lying about: P1 compiles and survives.
     expect(result.dynamic).toHaveLength(1);

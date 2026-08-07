@@ -31,9 +31,9 @@ test('a configured set rule reaches the wire', async ({ context, serviceWorker }
     // item's version alongside it at `state$`; seed both so the versioned item
     // is not read as un-versioned. See the troubleshooting note below if the
     // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   }, {
-    version: 1,
+    version: 2,
     globalPause: false,
     theme: 'system',
     profiles: [{
@@ -44,6 +44,7 @@ test('a configured set rule reaches the wire', async ({ context, serviceWorker }
       order: 0,
       filter: {
         mode: 'structured',
+        allSites: false,
         domains: ['127.0.0.1'],
         excludedDomains: [],
         // Explicit: the DNR default excludes main_frame, which page.goto() is.
@@ -88,15 +89,15 @@ test('a remove rule strips a header the page would otherwise send', async ({
     // item's version alongside it at `state$`; seed both so the versioned item
     // is not read as un-versioned. See the troubleshooting note below if the
     // rule count never reaches 1.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   }, {
-    version: 1,
+    version: 2,
     globalPause: false,
     theme: 'system',
     profiles: [{
       id: 'p1', name: 'E2E', color: 'green', enabled: true, order: 0,
       filter: {
-        mode: 'structured', domains: ['127.0.0.1'], excludedDomains: [],
+        mode: 'structured', allSites: false, domains: ['127.0.0.1'], excludedDomains: [],
         resourceTypes: ['xmlhttprequest'],
       },
       tabLock: { enabled: false, tabId: null, tabTitle: null },
@@ -139,13 +140,13 @@ test('a remove rule strips a header the page would otherwise send', async ({
 test('the popup renders its rules from stored state', async ({ context, extensionId, serviceWorker }) => {
   await serviceWorker.evaluate(async () => {
     const state = {
-      version: 1,
+      version: 2,
       globalPause: false,
       theme: 'system',
       profiles: [{
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
-          mode: 'structured', domains: ['api.example.com'],
+          mode: 'structured', allSites: false, domains: ['api.example.com'],
           excludedDomains: [], resourceTypes: ['xmlhttprequest'],
         },
         tabLock: { enabled: false, tabId: null, tabTitle: null },
@@ -156,7 +157,7 @@ test('the popup renders its rules from stored state', async ({ context, extensio
     };
     // `local:state` maps to the chrome.storage.local key `state`. WXT keeps the
     // version in a companion key.
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
 
   const page = await context.newPage();
@@ -197,13 +198,14 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
   // either; a real engine can.
   await serviceWorker.evaluate(async () => {
     const state = {
-      version: 1,
+      version: 2,
       globalPause: false,
       theme: 'system',
       profiles: [{
         id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
         filter: {
           mode: 'structured',
+          allSites: false,
           // A long host with a port, so the rail's site row and its
           // permission message both have to wrap — the rail is 224px and its
           // rows are the narrowest thing on screen. **No hyphens**: browsers
@@ -227,7 +229,7 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
         ],
       }],
     };
-    await chrome.storage.local.set({ state, state$: { v: 1 } });
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
   });
 
   const page = await context.newPage();
@@ -264,6 +266,135 @@ test('nothing in the popup is wider than what holds it, at the popup\'s own widt
   expect(measured.overflowing, 'every element must fit inside its parent').toEqual([]);
   expect(measured.scrollWidth, 'the popup must not scroll horizontally at its own width')
     .toBe(measured.clientWidth);
+
+  await page.close();
+});
+
+/**
+ * Boxes for the rail elements that sit *below* something state-dependent, keyed
+ * so the same name means the same box across two renders.
+ *
+ * `.hl-dom` is in here as well as the anchors under it: the Grant button lands
+ * inside the row, so the row's own height is the first thing that must not
+ * change, and an assertion that only watched what came after it would pass a
+ * row that grew while everything below happened to be pushed off-screen.
+ *
+ * `.hl-allsitesstate` is the one probe here for a *sideways* move. That dot used
+ * to render only once its state was known, so "All sites" slid 14px right the
+ * moment the mode came on — nothing below it moved, and every vertical anchor
+ * in this list would have agreed that nothing happened. It is probed rather
+ * than the label beside it because the label is a `flex: 1` spacer: its width
+ * follows whatever shares the bar with it while its text stays put at the same
+ * x, so pinning all four of its numbers would fail on a change that moves
+ * nothing on screen.
+ */
+const RAIL_BOXES = [
+  '.hl-readout', '.hl-pausebar', '.hl-allsites', '.hl-allsitesstate', '.hl-dom',
+  '.hl-addfield', '.hl-railsec-types', '.hl-types',
+] as const;
+
+test('a control appearing in the rail does not move anything', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  // The owner found this by using the build: the Grant button appeared, the row
+  // it sits in got taller, and everything below shifted down. jsdom performs no
+  // layout, so no unit test can see it — this is the level where a box has a
+  // height at all.
+  //
+  // What is asserted is that a box's geometry is *unchanged* across a state
+  // transition, measured with the control absent and again with it present.
+  // Asserting that Grant exists, or that some height is non-zero, would pass
+  // against the build that had the defect.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [{
+        id: 'p1', name: 'Local', color: 'green', enabled: true, order: 0,
+        filter: {
+          mode: 'structured', allSites: false,
+          // Never granted in a fresh profile, and the e2e build's only host
+          // permission is the loopback echo server — so this row opens pending,
+          // with the Grant button that started all this.
+          domains: ['api.example.com'],
+          excludedDomains: [], resourceTypes: ['xmlhttprequest'],
+        },
+        tabLock: { enabled: false, tabId: null, tabTitle: null },
+        headers: [
+          { id: 'h1', enabled: true, target: 'request', operation: 'set',
+            name: 'X-Reflow', value: 'yes' },
+        ],
+      }],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 748, height: 600 });
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.getByTestId('site-pending').waitFor();
+
+  const boxes = () => page.evaluate((selectors) => {
+    const out: Record<string, number[]> = {};
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      // Recorded as a miss rather than skipped. A selector that stopped
+      // matching would otherwise drop out of both sides of the comparison and
+      // take its guarantee with it, silently.
+      if (!el) { out[selector] = []; continue; }
+      const r = el.getBoundingClientRect();
+      out[selector] = [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
+    }
+    return out;
+  }, RAIL_BOXES as unknown as string[]);
+
+  const allSites = page.getByRole('switch', { name: 'Apply to every site' });
+  const grant = page.getByTestId('site-pending');
+  const subcount = page.locator('.hl-subcount');
+
+  // Every probe must resolve to a real box before any of them can mean
+  // anything: `toEqual` between two records of empty arrays is a comparison
+  // that cannot fail.
+  const withGrant = await boxes();
+  expect(Object.values(withGrant).filter((b) => b.length !== 4), 'every probe must match an element')
+    .toEqual([]);
+
+  // --- the Grant button vacating its row ---
+  // All-sites mode makes this row idle, and an idle row offers no Grant — one
+  // click, and the button is genuinely gone rather than merely faded.
+  await allSites.click();
+  await expect(grant).toHaveCount(0);
+  expect(await page.getByTestId('site').getAttribute('data-state')).toBe('idle');
+  expect(await boxes(), 'the Grant button leaving must move nothing').toEqual(withGrant);
+
+  // …and back, so a layout that had simply frozen at the first measurement
+  // cannot pass. This direction is the one the owner saw.
+  await allSites.click();
+  await expect(grant).toHaveCount(1);
+  expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
+
+  // --- the readout's second line arriving ---
+  // Switching the only rule off puts "1 off" under the big number. That line
+  // sits above the whole rail, so before this guard it moved the pause bar, the
+  // all-sites switch, the site row and the request types 22.1px at once — from
+  // a click on the other side of the popup.
+  await expect(subcount).toHaveText('');
+  await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
+  await expect(subcount).toHaveText('1 off');
+  expect(await boxes(), 'the subcount arriving must move nothing').toEqual(withGrant);
+
+  // --- the help bubble opening ---
+  // It is absolutely positioned and so already took no space; asserted because
+  // "already correct" is not the same as "guarded", and a later change to its
+  // positioning would put 82.9px into the flow of the sites section.
+  const bubble = page.getByTestId('help-bubble');
+  await expect(bubble).toHaveCount(0);
+  await page.getByRole('button', { name: 'About matching sites' }).hover();
+  await expect(bubble).toHaveCount(1);
+  expect(await boxes(), 'the help bubble opening must move nothing').toEqual(withGrant);
 
   await page.close();
 });

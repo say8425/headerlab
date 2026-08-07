@@ -101,7 +101,16 @@ looping would reduce `example.com:80:90` to a plausible-looking host.
 **WXT specifics.** Storage via `#imports`, not `wxt/storage`. Keys carry an area prefix
 (`local:`, `session:`). `public/` is copied to the output root. Output directories are
 mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding storage
-must also seed the companion version key: `{ state, state$: { v: 1 } }`.
+must also seed the companion version key at the **current** `STATE_VERSION`:
+`{ state, state$: { v: 2 } }`.
+
+**Migrations run once, at module evaluation — not per read.** WXT builds the migration
+promise inside `defineItem`, and every `getValue()` awaits that one promise. A value
+written to `local:state` *after* `lib/storage/state.ts` was imported is therefore never
+migrated, which is why a fixture planting an old shape has to plant the matching version
+too rather than relying on the migration to fix it. Testing the migration itself needs
+`vi.resetModules()` before importing both fake-browser and `state.ts`, so the seed lands
+in front of the read — `tests/unit/migrate.test.ts` does this.
 
 ## No silent failures
 
@@ -112,6 +121,25 @@ because a filter with no domain condition matches *every site* — and that supp
 must reach the screen. Fail-open is asymmetric here: headers skip per row, domains
 suppress the whole profile.
 
+**Applying everywhere is a mode, not an empty list.** `filter.domains: []` used to mean
+both "not scoped yet" and "deliberately everywhere", and the standing warning about it
+existed only because the code could not tell those apart. `filter.allSites` names the
+second one, so the first can mean what it looks like: nothing applies, stated calmly
+(`no-scope`, severity `incomplete`) rather than warned about. All-sites keeps the stored
+site list and compiles none of it, so the switch is reversible — which means **what the
+list holds and what scopes the rule are no longer the same thing.** Ask `scopingHosts`,
+never `filter.domains`; the conflict detector read the list directly and would have
+judged an all-sites profile narrow.
+
+**The mode costs `<all_urls>`, and the switch does not ask for it.** The toggle sets the
+mode; `permissions.request()` is called only from the Grant button. Flipping a switch is
+not consent to the largest grant this extension can request, and adding a site does not
+prompt either — it produces a pending row with a Grant button. All-sites reaches the same
+state, so it must offer the same remedy rather than a second vocabulary. The gap between
+"mode on" and "access held" is legible instead: `data-granted="no"`, amber (the pending
+palette, never the error one — the mode is incomplete, not wrong), and a dot named
+"Awaiting permission" in the same words a pending site row uses.
+
 **Never show something the user cannot reach.** Storage holding state the UI cannot
 display must not go on modifying headers. Equally, do not write over a user's stored
 bytes to make the UI simpler: a store that fails validation is never compiled, so
@@ -119,8 +147,27 @@ there is nothing to neutralise and nothing to justify an unprompted overwrite.
 
 **One predicate, one definition.** The most expensive defect in this repo's history was
 "is this profile alive" implemented four times and then diverging. `isSuppressed` lives
-once in `lib/compile/suppression.ts` — call it, never restate it. `HEADER_TOKEN` and the
-profile colour list are the same lesson.
+once in `lib/compile/suppression.ts` — call it, never restate it, and when you need to
+know *why* a profile is suppressed ask `suppressionReason` rather than re-reading the
+fields: the rail and the diagnostics both word themselves from it. `HEADER_TOKEN`,
+`scopingHosts` and the profile colour list are the same lesson.
+
+## Interface
+
+**A control appearing must not resize what holds it.** Reserve the space instead:
+size the container to its largest state and let the element occupy or vacate it. A
+Grant button that pushes the rows below it down, a note that grows its panel, a
+badge that widens a header — each moves everything downstream by a few pixels at the
+moment the user is reading it, and in a popup this size that is most of the screen.
+Hide-and-show reflow is the single thing that most makes an interface feel unfinished.
+
+This applies to any element whose presence is state-dependent, which in the rail is
+most of them: Grant, the pending and unusable notes, the tooltip, the mode switch's
+own sub-line. When adding one, ask what its absence looks like — if the answer is
+"everything else sits higher", the layout is wrong, not the element.
+
+**State changes appearance, not geometry.** Colour, weight, opacity and content may
+follow state freely; box dimensions and positions should not.
 
 ## Testing
 

@@ -21,7 +21,21 @@ export interface ScopeRailProps {
    * `null` means the blocked rules are individually broken and the count can
    * speak for itself.
    */
-  blockedBy: 'sites' | 'pause' | null;
+  blockedBy: 'sites' | 'scope' | 'pause' | null;
+  /** Applying to every site by explicit choice. */
+  allSites: boolean;
+  /**
+   * Whether `<all_urls>` is actually granted.
+   *
+   * `null` while the probe is still out — the switch must not accuse the
+   * browser of withholding a permission nobody has asked about yet, and a
+   * popup that opens showing "needs permission" for a tenth of a second and
+   * then withdraws it is the flicker that teaches people to distrust the
+   * badge.
+   */
+  allSitesGranted: boolean | null;
+  onToggleAllSites: (allSites: boolean) => void;
+  onGrantAllSites: () => void;
   /** The real text of the last failed reconcile, from session storage. */
   lastError: string | null;
   /**
@@ -54,6 +68,7 @@ export interface ScopeRailProps {
  */
 export function ScopeRail({
   tally, paused, onTogglePause, domains, byHost, notes, blockedBy, lastError, iconError,
+  allSites, allSitesGranted, onToggleAllSites, onGrantAllSites,
   resourceTypes, onAddDomain, onRemoveDomain, onToggleType, onGrant,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
@@ -70,8 +85,14 @@ export function ScopeRail({
   // "Blocked" on its own points at the rule, and the rule is often not what is
   // wrong: an unusable site stops every rule while each one is perfectly good.
   // Naming the cause is what keeps the count from blaming the wrong object.
+  // "until a site is set" rather than "by an unusable site": nothing is
+  // unusable in that state and nothing is wrong, so blaming a site would send
+  // the reader looking for a broken entry that does not exist. It is also the
+  // only one of the three that is not a complaint — the sentence finishes the
+  // thought the count starts rather than reporting a fault.
   const BLAMED = {
     sites: ' by an unusable site',
+    scope: ' until a site is set',
     pause: ' while paused',
   } as const;
   const blame = blockedBy === null ? '' : BLAMED[blockedBy];
@@ -149,7 +170,13 @@ export function ScopeRail({
       <div className="hl-railsec">
         <div className="hl-railhead">
           Sites <span className="hl-n" data-testid="site-count">
-            {domains.length > 0 ? domains.length : 'all'}
+            {/* Reads the mode, not the list length. `all` used to mean "the
+                list is empty", which was true of a filter applying everywhere
+                and equally true of one that had not been scoped yet — the same
+                two states the warning above the list was trying to describe.
+                Now `all` is said only when all-sites is on, and an empty list
+                counts as the 0 it is. */}
+            {allSites ? 'all' : domains.length}
           </span>
           {/* The one fact the chip cannot convey: a port or a path could never
               have narrowed anything, because `requestDomains` is host-only.
@@ -167,6 +194,86 @@ export function ScopeRail({
             text="Matched by host — a port or path is dropped."
           />
         </div>
+        {/* Above the list, because it decides what the list means.
+            Underneath it the rows would read as one more site among the
+            others rather than as the switch that turns all of them off.
+
+            Its own control rather than a row in the list: "everywhere" is not
+            a site, and giving it a chip beside `api.example.com` would put the
+            thing that overrides the list inside the list. That shape is what
+            made the empty list mean two things in the first place. */}
+        <div
+          className="hl-allsites"
+          data-testid="all-sites"
+          data-on={allSites || undefined}
+          data-granted={allSites && allSitesGranted === false ? 'no' : undefined}
+        >
+          {/* The mode is on and the access is not: said, not merely coloured.
+              The switch beside it reports on/off and nothing about permission,
+              which left these two states — working everywhere, and applying
+              nowhere pending a grant — telling apart by an amber tint alone.
+              That is the defect the site rows were already fixed for: a dot
+              that was `aria-hidden` gave a granted row and an unusable one
+              identical accessible names. Same words as those rows, because it
+              is the same state. */}
+          {/* The dot's *slot* is unconditional; only its meaning is not. It
+              used to render solely once the state was known, so "All sites"
+              slid 14px sideways the moment a probe answered — and the same
+              14px back when the mode went off. State changes appearance, not
+              geometry (CLAUDE.md, Interface).
+
+              With nothing to report it is a blank 7px, carrying no `role` and
+              no label: reserving the space must not put a phantom image into
+              the accessibility tree, and a dot that named a state before the
+              browser had been asked is the flicker `allSitesGranted: null`
+              exists to prevent. It also lands the label on the same x as the
+              hostnames below, which the conditional version only managed in
+              one of its two states. */}
+          {allSites && allSitesGranted !== null ? (
+            <span
+              className="hl-allsitesstate"
+              role="img"
+              aria-label={allSitesGranted ? 'Access granted' : 'Awaiting permission'}
+            />
+          ) : (
+            <span className="hl-allsitesstate" data-unknown="" />
+          )}
+          <span className="hl-allsiteslab">All sites</span>
+          {/* The only control here that asks the browser for anything. The
+              switch sets the mode and stops (App.tsx): `<all_urls>` is the
+              largest grant this extension can request, so it is spent when a
+              button labelled Grant is pressed, never as a side effect of a
+              switch moving. Every way of reaching this state — turning the mode
+              on, declining once, or a store migrated from a build that never
+              asked — therefore arrives at the same button, which is the same
+              shape a pending site row offers for the same reason. */}
+          {allSites && allSitesGranted === false && (
+            <button className="hl-grant" onClick={onGrantAllSites}>Grant</button>
+          )}
+          <button
+            role="switch"
+            aria-checked={allSites}
+            aria-label="Apply to every site"
+            className="hl-sw"
+            onClick={() => onToggleAllSites(!allSites)}
+          />
+        </div>
+
+        {/* The list is kept on screen, not hidden, while all-sites is on:
+            hiding it would make turning the mode off look like it had thrown
+            the user's scope away, and there would be no way to see what
+            turning it back off returns to. It is shown as what it is — still
+            there, not in use — and each row now says so on its own second
+            line.
+
+            That sentence used to be a paragraph here, above the list. It said
+            the same words about the same rows, and it appeared and vanished
+            with the mode, adding 23.7px above every site the instant the
+            switch moved. Its subject survives on the object it describes,
+            which is where this rail puts a site's state anyway: "a domain and
+            whether HeaderLab may act on it are the same fact" (SiteRow). The
+            row's line is reserved in every state, so saying it there costs no
+            movement at all. */}
         {domains.map((stored) => {
           // `analyzeDomain` is asked, never restated — it is the one definition
           // of what a usable host is, and the same call already supplies the
@@ -184,6 +291,7 @@ export function ScopeRail({
               key={stored}
               domain={effectiveDomain(stored)}
               usable={analysis.valid}
+              inert={allSites}
               diagnostics={byHost.get(analysis.host) ?? []}
               onGrant={onGrant}
               onRemove={() => onRemoveDomain(stored)}

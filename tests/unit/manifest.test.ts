@@ -32,6 +32,16 @@ describe('production manifest', () => {
     expect(Object.prototype.hasOwnProperty.call(manifest, 'optional_host_permissions')).toBe(true);
   });
 
+  it('lists <all_urls> among them, which is what all-sites mode requests at runtime', () => {
+    // `permissions.request()` rejects any origin the manifest did not declare
+    // as optional. The key merely existing is not enough — it was asserted
+    // that way while the only runtime request was a per-host pattern, and
+    // all-sites now asks for this exact string (lib/permissions/probe.ts).
+    // Dropping it would leave the switch flipping into a mode whose grant can
+    // never be obtained, with nothing failing until someone clicked it.
+    expect(readManifest().optional_host_permissions).toEqual(['<all_urls>']);
+  });
+
   it('declares exactly the two permissions actually used — nothing extra to explain away', () => {
     const manifest = readManifest();
     expect(manifest.permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);

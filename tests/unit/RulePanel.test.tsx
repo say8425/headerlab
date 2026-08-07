@@ -14,7 +14,7 @@ function rule(over: Partial<HeaderRule> = {}): HeaderRule {
 }
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
-  return { kind: 'empty-filter', severity: 'warning', profileId: 'p1', message: 'm', ...over };
+  return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
 }
 
 function props(over: Partial<RulePanelProps> = {}): RulePanelProps {

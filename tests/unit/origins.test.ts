@@ -39,6 +39,7 @@ describe('requestPattern', () => {
 describe('originsForFilter', () => {
   const base: Filter = {
     mode: 'structured',
+    allSites: false,
     domains: ['api.example.com'],
     excludedDomains: [],
     resourceTypes: ['xmlhttprequest'],
@@ -53,8 +54,24 @@ describe('originsForFilter', () => {
     expect(originsForFilter(f)).toEqual(['*://*.api.example.com/*']);
   });
 
-  it('returns <all_urls> when no domain narrows the filter', () => {
-    expect(originsForFilter({ ...base, domains: [] })).toEqual(['<all_urls>']);
+  it('returns <all_urls> for an all-sites filter — that is what the mode costs', () => {
+    expect(originsForFilter({ ...base, allSites: true, domains: [] }))
+      .toEqual(['<all_urls>']);
+  });
+
+  it('still returns <all_urls> for an all-sites filter that has sites listed', () => {
+    // The list is kept but not compiled, so the rule matches every site and
+    // needs access to every site. Narrowing the grant to the stored entries
+    // would leave the rule registered and quietly inert everywhere else.
+    expect(originsForFilter({ ...base, allSites: true, domains: ['api.example.com'] }))
+      .toEqual(['<all_urls>']);
+  });
+
+  it('asks for nothing when no domain narrows the filter and all-sites is off', () => {
+    // Suppressed: it compiles to no rule, so there is no access to ask for.
+    // Returning `<all_urls>` here — which it used to — requested the broadest
+    // grant the browser has on behalf of a rule that does not exist.
+    expect(originsForFilter({ ...base, allSites: false, domains: [] })).toEqual([]);
   });
 
   it('returns <all_urls> for regex mode — a regex cannot be reduced to origins', () => {
@@ -93,11 +110,12 @@ describe('originsForFilter', () => {
       .toEqual(['*://*.api.example.com/*']);
   });
 
-  it('falls back to <all_urls> when no entry is usable', () => {
+  it('asks for nothing when no entry is usable, because nothing is registered', () => {
     // Internal whitespace, which normalization cannot rescue — there is no
-    // reading of `a b.com` that names one host.
-    expect(originsForFilter({ ...base, domains: ['a b.com'] }))
-      .toEqual(['<all_urls>']);
+    // reading of `a b.com` that names one host. The profile is suppressed, so
+    // the honest answer is that it needs no access at all; `<all_urls>`, which
+    // this used to return, is the broadest grant there is.
+    expect(originsForFilter({ ...base, domains: ['a b.com'] })).toEqual([]);
   });
 });
 

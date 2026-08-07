@@ -13,17 +13,54 @@ describe('validateFilter', () => {
     expect(validateFilter(profileWith({ domains: ['api.example.com'] }))).toEqual([]);
   });
 
-  it('warns when no domain survives — the rule would match every site', () => {
+  it('states plainly, and without warning, that no site has been set yet', () => {
+    // The standing warning this replaces read "No site set, so these rules
+    // apply everywhere" — accurate then, because an empty list was the only
+    // spelling of "everywhere". With the mode named, an empty list means
+    // nowhere: nothing is applied, nothing is at risk, and there is nothing to
+    // warn about. It is still *said*, because a suppression nobody can see is
+    // the silence this project exists to remove.
     const d = validateFilter(profileWith({ domains: [] }));
-    expect(d).toHaveLength(1);
-    expect(d[0]?.kind).toBe('empty-filter');
-    expect(d[0]?.severity).toBe('warning');
+    expect(d).toEqual([{
+      kind: 'no-scope',
+      severity: 'incomplete',
+      profileId: 'p1',
+      message:
+        'No site set yet, so nothing is being applied. ' +
+        'Add a site above, or turn on All sites.',
+    }]);
   });
 
-  it('warns when every domain is unusable, for the same reason', () => {
+  it('says nothing at all when all-sites is on — that is the answer to "where"', () => {
+    // The state the old warning could not distinguish from the one above.
+    expect(validateFilter(profileWith({ allSites: true, domains: [] }))).toEqual([]);
+  });
+
+  it('calls every domain being unusable an error, not a warning', () => {
+    // Nothing is being modified, and the cause is a value on screen the user
+    // can fix. It used to share `empty-filter`/`warning` with the empty case,
+    // which meant one kind and one severity covering "applies to everything"
+    // and "applies to nothing" at once.
     const d = validateFilter(profileWith({ domains: ['a b.com'] }));
-    expect(d).toHaveLength(1);
-    expect(d[0]?.kind).toBe('empty-filter');
+    expect(d).toEqual([{
+      kind: 'invalid-domain',
+      severity: 'error',
+      profileId: 'p1',
+      message:
+        'No usable site: "a b.com". Use a bare hostname like example.com. ' +
+        'Nothing is applied while every site is unusable.',
+    }]);
+  });
+
+  it('leaves an unusable entry unreported while all-sites is on', () => {
+    // Both messages promise something about whether rules are applied, and
+    // here both would be false: the list is not compiled, so the entry stops
+    // nothing. The row still shows itself as broken in the rail, which is
+    // where a value the user can edit belongs — an error card reading
+    // "nothing is applied" over an extension applying to every site would be
+    // the screen contradicting itself.
+    expect(validateFilter(profileWith({ allSites: true, domains: ['a b.com'] })))
+      .toEqual([]);
   });
 
   it('says nothing at all about a domain that merely carried a port', () => {
@@ -42,7 +79,7 @@ describe('validateFilter', () => {
   it('still calls a port-bearing host unusable when the host itself is broken', () => {
     // Stripping the port must not rescue what is wrong with the rest of it.
     const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }));
-    expect(d.map((x) => x.kind)).toEqual(['empty-filter']);
+    expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
 
   it('flags a non-ASCII regex — regexFilter is ASCII-only', () => {
@@ -121,21 +158,32 @@ describe('validateFilter', () => {
     }))).toEqual([]);
   });
 
-  it('never raises invalid-domain and empty-filter together', () => {
-    // All six cases of the two branches, so neither can drift into the other.
-    // structured: empty and all-invalid go to `empty-filter`, mixed to
-    // `invalid-domain`. regex: `empty-filter` never fires at all, so
-    // `invalid-domain` covers both mixed and all-invalid, and an empty list
-    // stays quiet because the regex is the condition.
+  it('gives every combination of mode, list and all-sites exactly one reading', () => {
+    // The whole state space of the two branches, so neither can drift into the
+    // other and no combination can fall through unreported. This is the test
+    // the change is really about: `empty-filter` used to appear twice in this
+    // table, once for a filter applying to every site and once for one
+    // applying to none.
+    //
+    // Off + empty is the only `no-scope`; off + anything unusable is
+    // `invalid-domain` in both modes; regex + empty is scoped by its pattern;
+    // and all-sites reports nothing about the list at all, because it compiles
+    // none of it.
     const kinds = (f: Partial<Filter>) => validateFilter(profileWith(f)).map((x) => x.kind);
     const rx = { mode: 'regex', regex: '^https://' } as const;
+    const all = { allSites: true } as const;
 
-    expect(kinds({ domains: [] })).toEqual(['empty-filter']);
-    expect(kinds({ domains: ['a b.com'] })).toEqual(['empty-filter']);
+    expect(kinds({ domains: [] })).toEqual(['no-scope']);
+    expect(kinds({ domains: ['ok.com'] })).toEqual([]);
+    expect(kinds({ domains: ['a b.com'] })).toEqual(['invalid-domain']);
     expect(kinds({ domains: ['ok.com', 'a b.com'] })).toEqual(['invalid-domain']);
     expect(kinds({ ...rx, domains: [] })).toEqual([]);
     expect(kinds({ ...rx, domains: ['a b.com'] })).toEqual(['invalid-domain']);
     expect(kinds({ ...rx, domains: ['ok.com', 'a b.com'] })).toEqual(['invalid-domain']);
+    expect(kinds({ ...all, domains: [] })).toEqual([]);
+    expect(kinds({ ...all, domains: ['ok.com'] })).toEqual([]);
+    expect(kinds({ ...all, domains: ['a b.com'] })).toEqual([]);
+    expect(kinds({ ...all, ...rx, domains: ['a b.com'] })).toEqual([]);
   });
 
   it('raises invalid-domain in regex mode too — the compiler suppresses it the same way', () => {

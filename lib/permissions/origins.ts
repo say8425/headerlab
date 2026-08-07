@@ -179,14 +179,34 @@ export function requestPattern(domain: string): string {
 }
 
 /**
- * Match patterns this filter needs granted, or `['<all_urls>']` when it cannot
- * be narrowed.
+ * The hosts that actually narrow this filter's compiled rule, normalized and
+ * validity-filtered. **Empty means nothing narrows it** — the rule carries no
+ * domain condition and DNR matches it against every site.
  *
- * Filters on **validity**, not merely on non-emptiness. A bare length check let
- * `https://staging.example.com` through and built
- * `*://*.https://staging.example.com/*` — measured as **THREW — Invalid port**
- * in docs/research/2026-08-01-permission-audit-spike.md §3. That matters more
- * than a wrong answer would: one bad entry poisons the entire
+ * One definition, because two consumers ask this same question and have to
+ * agree: `originsForFilter` below turns the answer into the grant the filter
+ * needs, and `lib/compile/conflicts.ts` turns it into whether two profiles can
+ * collide. They used to each read `filter.domains` directly, which was
+ * harmless only for as long as the stored list *was* the compiled scope.
+ * All-sites broke that: it keeps the user's entries in state and compiles none
+ * of them (conditions.ts), so a profile listing one host while applying to
+ * every site would have looked narrow to the conflict detector and gone on
+ * silently discarding its neighbours' headers unwarned.
+ */
+export function scopingHosts(filter: Filter): string[] {
+  if (filter.allSites) return [];
+  return filter.domains.filter(isValidDomain).map(normalizeDomain);
+}
+
+/**
+ * Match patterns this filter needs granted, `['<all_urls>']` when it cannot be
+ * narrowed, and **nothing at all** when it compiles to no rule.
+ *
+ * Filters on **validity**, not merely on non-emptiness — `scopingHosts` above
+ * does it. A bare length check let `https://staging.example.com` through and
+ * built `*://*.https://staging.example.com/*` — measured as **THREW — Invalid
+ * port** in docs/research/2026-08-01-permission-audit-spike.md §3. That matters
+ * more than a wrong answer would: one bad entry poisons the entire
  * `contains()`/`request()` call it is passed to, so a single pasted URL would
  * kill the whole grant flow. (Internal whitespace, `a b.com`, returns false
  * without throwing — a different failure, but a pattern that can never match is
@@ -197,9 +217,21 @@ export function requestPattern(domain: string): string {
  * patterns it emits have to be sound at the source.
  */
 export function originsForFilter(filter: Filter): string[] {
-  const domains = filter.domains.filter(isValidDomain).map(normalizeDomain);
+  const domains = scopingHosts(filter);
 
-  if (domains.length === 0) return ['<all_urls>'];
+  if (domains.length === 0) {
+    // The price of all-sites, and the reason the switch asks for it at the
+    // moment it is turned on: a rule with no domain condition can rewrite
+    // headers on every site, so it needs access to every site.
+    if (filter.allSites) return ['<all_urls>'];
+
+    // A regex rule still compiles with no domain condition, so it genuinely
+    // needs everything. A structured filter with nothing usable in it compiles
+    // to no rule at all (see lib/compile/suppression.ts) — asking for
+    // `<all_urls>` on its behalf would demand the broadest grant there is for
+    // a rule that does not exist.
+    return filter.mode === 'regex' ? ['<all_urls>'] : [];
+  }
 
   return [...new Set(domains)].map((d) => `*://*.${d}/*`);
 }

@@ -18,6 +18,12 @@ const AUTO_DISCOVERED = ['lib/compile', 'lib/view'].flatMap((dir) =>
 const EXPLICIT = [
   'lib/permissions/origins.ts',
   'lib/permissions/audit.ts',
+  // The v1→v2 transform. Guarded because it is *deliberately* not in
+  // lib/storage/ beside the module that calls it: it has to be assertable
+  // against a hand-written old-shape literal with no browser at all, and a
+  // migration is the code that gets one attempt — by the time it runs, the
+  // bytes it was supposed to preserve are already gone.
+  'lib/model/migrate.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -71,6 +77,7 @@ describe('the pure layer stays pure', () => {
     expect(EXPLICIT).toEqual([
       'lib/permissions/origins.ts',
       'lib/permissions/audit.ts',
+      'lib/model/migrate.ts',
     ]);
   });
 

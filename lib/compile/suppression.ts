@@ -14,14 +14,18 @@ import type { Profile } from '@/lib/model/types';
  * transactional failure it would "fix". Failing the whole profile closed is the
  * only safe option; other profiles are unaffected.
  *
- * An **empty** list is therefore not suppressed: it compiles to a rule with no
- * domain condition on purpose, and `empty-filter` warns about exactly that.
- * `every` is vacuously true on an empty array, so the length test below is
- * redundant for behaviour — it is there to state the boundary, because reading
- * `!every(...)` alone gives no hint that the empty case was considered at all.
+ * An **empty** list is suppressed too, and that is the newer half. It used to
+ * compile to a rule with no domain condition — matching every site — because
+ * an empty list was the only way a user could ask for that. `Filter.allSites`
+ * says it directly now, so the two states are no longer spelled the same and
+ * the empty one can mean what it looks like: nowhere, not everywhere. Failing
+ * closed here is the same asymmetry as above, applied to the case that used to
+ * be the exception.
  *
- * Mode-agnostic on purpose. conditions.ts sets requestDomains for a regex rule
- * too, so a regex profile that also lists a broken domain dies the same way.
+ * Mode-agnostic where it can be. conditions.ts sets requestDomains for a regex
+ * rule too, so a regex profile that also lists a broken domain dies the same
+ * way; the one thing the mode does decide is whether an *empty* list is scoped,
+ * because a regex is a condition in its own right and a bare host list is not.
  *
  * **One definition, four callers.** compile.ts decides the rule, and
  * filterDiagnostics.ts, conflicts.ts and audit.ts all have to agree with it —
@@ -36,7 +40,46 @@ import type { Profile } from '@/lib/model/types';
  * while every diagnostic stayed silent. Add a fifth caller by calling this,
  * never by restating it.
  */
+export type SuppressionReason =
+  /** Nothing says where to apply: no site listed, and all-sites is off. */
+  | 'no-scope'
+  /** A listed site cannot be used, so the whole profile fails closed. */
+  | 'unusable-site';
+
+/**
+ * *Why* the compiler will not emit a rule, or `null` when it will.
+ *
+ * The reason has to come from here rather than from each caller, for exactly
+ * the argument this module's comment already makes about the yes/no answer.
+ * The rail names the cause next to its rule count ("blocked until a site is
+ * set" versus "blocked by an unusable site") and filterDiagnostics picks the
+ * message; both of those are a second reading of the same decision, and a
+ * second reading is how the four-way divergence started. One function decides,
+ * `isSuppressed` is derived from it, and nothing else re-tests the fields.
+ */
+export function suppressionReason(profile: Profile): SuppressionReason | null {
+  const { allSites, domains, mode } = profile.filter;
+
+  // All-sites carries no domain condition **on purpose**, which is the one
+  // thing the fail-open argument above could not previously distinguish. The
+  // list is not compiled at all in this mode (conditions.ts), so an unusable
+  // entry sitting in it cannot reach `updateDynamicRules` and cannot break the
+  // batch — it is kept so switching back off restores the user's scope.
+  if (allSites) return null;
+
+  // Checked before emptiness: `every` is vacuously true on an empty array, so
+  // the order is what keeps the two states apart rather than collapsing them.
+  if (!domains.every(isValidDomain)) return 'unusable-site';
+
+  // An empty list is now suppressed, where v1 compiled it to a rule matching
+  // every site. That change is the point of `allSites`: "everywhere" has a
+  // name now, so an empty list can finally mean what it looks like. A regex is
+  // its own condition, so an empty list there is scoped and stays alive.
+  if (domains.length === 0 && mode !== 'regex') return 'no-scope';
+
+  return null;
+}
+
 export function isSuppressed(profile: Profile): boolean {
-  const { domains } = profile.filter;
-  return domains.length > 0 && !domains.every(isValidDomain);
+  return suppressionReason(profile) !== null;
 }

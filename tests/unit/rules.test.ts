@@ -12,7 +12,7 @@ function row(over: Partial<HeaderRule> = {}): HeaderRule {
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
   return {
-    kind: 'empty-filter', severity: 'warning', profileId: 'p1',
+    kind: 'no-scope', severity: 'warning', profileId: 'p1',
     message: 'm',
     ...over,
   };
@@ -26,7 +26,7 @@ describe('routeDiagnostics', () => {
     // diagnostic into every bucket.
     const onRule = diag({ kind: 'invalid-header-name', severity: 'error', headerRuleId: 'h1' });
     const onHost = diag({ kind: 'permission-missing', host: 'api.example.com' });
-    const onScreen = diag({ kind: 'empty-filter' });
+    const onScreen = diag({ kind: 'no-scope' });
     const routed = routeDiagnostics([onRule, onHost, onScreen]);
 
     expect([...routed.byRow.entries()]).toEqual([['h1', [onRule]]]);

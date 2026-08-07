@@ -25,9 +25,11 @@ export interface AddSiteFieldProps {
  * adds nothing. Escape clears without adding, which is the same promise the
  * editable fields make with their draft restore.
  *
- * Blank input is dropped rather than appended. An empty domain list means "every
- * site" (`empty-filter` says so), and an empty *entry* in a non-empty list is a
- * domain that can never match — silently narrowing the scope to nothing.
+ * Blank input is dropped rather than appended. An empty *entry* in a non-empty
+ * list is a domain that can never match, silently narrowing the scope to
+ * nothing — and an empty list is now its own stated state (`no-scope`) rather
+ * than a spelling of "every site", so there is nothing to be gained by letting
+ * a blank one in either.
  */
 export function AddSiteField({ onAdd }: AddSiteFieldProps) {
   const [draft, setDraft] = useState('');

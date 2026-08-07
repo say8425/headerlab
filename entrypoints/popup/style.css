@@ -240,14 +240,23 @@ body {
     color: var(--hl-ink-2);
 }
 
+/* One line is always reserved, empty or not.
+   `:empty { display: none }` here was the widest-reaching reflow in the popup:
+   the healthy state has nothing to add to the count, so switching one rule off
+   made this line appear and pushed the pause bar, the all-sites switch, every
+   site row and the request types down 22.1px — the whole rail below the number,
+   from a click in the panel on the other side of the screen.
+
+   One line, not two. The longest message this can hold ("3 off · 2 unfinished ·
+   1 blocked by an unusable site") wraps to two at 195px, and reserving for that
+   would spend 38px of rail on a sentence most sessions never see. A message
+   growing a line because it has more to say is content changing; an empty line
+   appearing because a control did is the defect. */
 .hl-subcount {
     margin-top: 6px;
+    min-height: 1.4em;
     font: 400 11.5px/1.4 var(--hl-sans);
     color: var(--hl-ink-2);
-}
-
-.hl-subcount:empty {
-    display: none;
 }
 
 .hl-pip {
@@ -359,14 +368,118 @@ body {
 
 /* ---- sites: the row IS the permission control ---- */
 
+/* The all-sites switch. Shaped like the pause bar above it rather than like a
+   site row below it, because that is what it is: a mode switch that decides
+   what the rows underneath mean. Giving it a chip in the list would put the
+   control that overrides the list inside the list — the same conflation that
+   let an empty list stand for "everywhere" in the first place.
+
+   Off is the resting state and stays quiet: a neutral surface, no colour, no
+   claim. Colour arrives only once the mode is on, because that is when there
+   is something to report. */
+/* `min-height` is the bar's tallest state, measured: 22.5px of Grant button
+   between 7px of padding, inside a 1px border. Without it the bar grew 4.5px
+   the moment Grant appeared and shrank back when the grant landed, taking the
+   site list and everything under it with it both times.
+
+   The height is reserved rather than a whole second line: the largest thing
+   this bar holds is one button, 4.5px taller than the switch already in it, so
+   sizing to it costs 4.5px in every state. A reserved sub-line would cost 30px
+   on a control that is off by default and whose ungranted state most people
+   never reach. */
+.hl-allsites {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 38.5px;
+    background: var(--hl-panel);
+    border: 1px solid var(--hl-rail-edge);
+    border-radius: 6px;
+    padding: 7px 7px 7px 9px;
+    margin-bottom: 1px;
+}
+
+.hl-allsiteslab {
+    flex: 1;
+    min-width: 0;
+    font: 600 11.5px/1.25 var(--hl-sans);
+    color: var(--hl-ink-2);
+}
+
+/* The same dot a site row wears, in the same place on the row, because it
+   reports the same fact. Granted is the default; the ungranted rule below
+   overrides it, so the two states cannot drift to different shapes. */
+.hl-allsitesstate {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--hl-live);
+    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
+}
+
+.hl-allsites[data-granted="no"] .hl-allsitesstate {
+    background: var(--hl-pend);
+    box-shadow: 0 0 0 2.5px var(--hl-pend-bg);
+}
+
+/* The slot with nothing to report: the mode is off, or the probe has not
+   answered yet. It holds its 7px and paints nothing, so the label does not
+   slide sideways when a state arrives. */
+.hl-allsitesstate[data-unknown] {
+    background: none;
+    box-shadow: none;
+}
+
+/* On and granted: live, and coloured like everything else that is working. */
+.hl-allsites[data-on] {
+    background: var(--hl-live-bg);
+    border-color: color-mix(in srgb, var(--hl-live) 32%, transparent);
+}
+
+.hl-allsites[data-on] .hl-allsiteslab {
+    color: var(--hl-live);
+}
+
+/* On but ungranted — the migrated store, and the declined prompt. It borrows
+   the pending site row's amber rather than an error red: nothing is broken,
+   the mode is on and waiting for an access the user can still give, and the
+   remedy is the same Grant button on the same surface. Two controls in the
+   same state should not need two vocabularies. */
+.hl-allsites[data-granted="no"] {
+    background: var(--hl-pend-bg);
+    border-color: var(--hl-pend-edge);
+}
+
+.hl-allsites[data-granted="no"] .hl-allsiteslab {
+    color: var(--hl-pend);
+}
+
+/* Two lines in every state, not only when there is a Grant button to show.
+   `flex-wrap`, `row-gap` and the extra bottom padding used to live on
+   `[data-state="pending"]`, so a row grew from 28.4px to 58.9px the moment its
+   permission came back missing — and the sites below it, the add field and the
+   whole rail under them moved 30.5px each time. Two pending sites moved the
+   request types 61px. That is the defect this file's shape is now against.
+
+   Reserving the line costs 30.5px on every row, and that is the deliberate
+   trade rather than an oversight. The alternative was to put Grant on line 1:
+   the button is 51.4px wide and a plain `api.example.com` needs 103.9px of the
+   146.9px the host has, so an inline slot pushes ordinary hostnames into a
+   mid-label wrap — the row stops moving between states and starts looking
+   broken in all of them. The reserved line is also not wasted: every state has
+   a word for it (see SiteRow). */
 .hl-dom {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    /* Both axes, one declaration — `gap` sets `row-gap` too, so a separate
+       `row-gap` after it is the shorthand overwriting itself. */
     gap: 7px;
     background: var(--hl-panel);
     border: 1px solid var(--hl-rail-edge);
     border-radius: 6px;
-    padding: 6px 7px 6px 8px;
+    padding: 6px 7px 7px 8px;
 }
 
 .hl-domhost {
@@ -403,12 +516,12 @@ body {
 /* A site awaiting permission keeps its identity and gains a step. It is not
    moved into a separate error region — the thing to act on is the thing just
    typed. */
+/* Colour only. The wrap and the padding that used to sit here are on `.hl-dom`
+   now — they were the row's geometry following its state, which is the one
+   thing state is not allowed to do. */
 .hl-dom[data-state="pending"] {
     background: var(--hl-pend-bg);
     border-color: var(--hl-pend-edge);
-    flex-wrap: wrap;
-    row-gap: 7px;
-    padding-bottom: 7px;
 }
 
 .hl-dom[data-state="pending"] .hl-domstate {
@@ -430,17 +543,55 @@ body {
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
 }
 
+/* Stored, still editable, and not in use — the list while all-sites is on. It
+   recedes rather than disappearing: hiding it would make turning the mode off
+   look like it had discarded the user's scope, and leave no way to see what
+   turning it back off returns to. The dot goes hollow because there is no
+   access state to report on a host nothing is scoped to; a green one here
+   would be claiming a grant no probe has asked for. */
+.hl-dom[data-state="idle"] {
+    background: none;
+    border-style: dashed;
+}
+
+.hl-dom[data-state="idle"] .hl-domhost {
+    color: var(--hl-ink-3);
+}
+
+.hl-dom[data-state="idle"] .hl-domstate {
+    background: none;
+    border: 1.5px solid var(--hl-ink-3);
+    box-shadow: none;
+}
+
 /* `min-width: 0` is defence in depth rather than the thing doing the work: the
    child below wraps, so this block's min-content already fits. It is kept
    because the Grant button beside that text is `flex: none`, and any future
    change that stops the text wrapping puts this row back over the rail's
-   width. Mutation-checked — removing it alone does not fail the layout guard. */
+   width. Mutation-checked — removing it alone does not fail the layout guard.
+
+   `min-height` is the Grant button's own height — 10.5px of line between 6px
+   of padding, twice. It is what makes the line the same size whether the
+   button is in it or a word is, which is the whole point of the line existing
+   in every state. The e2e guard is what keeps the two numbers equal: if this
+   ever falls short of the button, the pending row grows again and the
+   geometry assertion goes red naming it. */
 .hl-need {
     flex: 0 0 100%;
     min-width: 0;
+    min-height: 22.5px;
     display: flex;
     align-items: center;
     gap: 7px;
+}
+
+/* What the reserved line holds when it is not holding the button. Quiet, and
+   the same tone the row's other secondary marks use — it restates the dot, so
+   it must not compete with the hostname above it. */
+.hl-needsay {
+    font: 400 10.5px/1.4 var(--hl-sans);
+    color: var(--hl-ink-3);
+    overflow-wrap: anywhere;
 }
 
 .hl-grant {
@@ -574,6 +725,15 @@ body {
     font: 600 10.5px/1.4 var(--hl-mono);
 }
 
+/* `.hl-fieldnote-calm` used to sit here, for the "Not in use while All sites is
+   on" paragraph above the site list. That sentence is on each idle row's own
+   reserved line now (`.hl-needsay`), where saying it costs no movement — the
+   paragraph appeared and vanished with the mode and pushed the list 23.7px each
+   way. The rule is gone because its only subject is; the reasoning it carried
+   is not: a state that is behaving exactly as asked must not borrow the amber
+   that means "something needs you", which is why `.hl-needsay` is `--hl-ink-3`
+   and `.hl-fieldnote` is still `--hl-pend`. */
+
 /* ---- request types: all eight, no disclosure. The rail has vertical room the
    grid never had, so a rarely-touched control can be visible and small instead
    of hidden behind a chevron. ---- */
@@ -640,6 +800,17 @@ body {
 
 .hl-note[data-severity="error"] {
     border-left-color: var(--hl-err);
+}
+
+/* `incomplete` is not a complaint. Nothing is wrong and nothing is at risk —
+   the configuration simply is not finished yet, which is the state a fresh
+   install opens in. Amber is this palette's "something needs you", and the
+   default edge would spend it on the one note that is asking for nothing:
+   the standing warning this state replaces, rebuilt in a different colour.
+   A neutral edge still separates the card from the rail, which is the only
+   job the border actually has here. */
+.hl-note[data-severity="incomplete"] {
+    border-left-color: var(--hl-ink-3);
 }
 
 .hl-note-err {
