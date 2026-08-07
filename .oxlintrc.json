@@ -2,9 +2,14 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
 
   // Setting `plugins` REPLACES oxlint's base set rather than adding to it, so
-  // this list has to name the three that are on by default (typescript,
-  // unicorn, oxc) as well as the ones being switched on. Dropping one here is
-  // silent — the rules simply stop running.
+  // this list has to name the ones that are on by default (typescript, unicorn,
+  // oxc) as well as the ones being switched on. Dropping one here is silent —
+  // the rules simply stop running.
+  //
+  // `eslint` is listed for honesty rather than effect: its core rules run
+  // whether or not it appears here. Measured — the same tree linted with and
+  // without it produced byte-identical output. It is written down because a
+  // reader counting the plugins should not have to know about the exception.
   //
   // `vitest` is listed here rather than under the tests override because an
   // override's `plugins` key does not switch a plugin on — measured: with
@@ -13,7 +18,7 @@
   // four. Overrides can retune a rule; they cannot enable the plugin that owns
   // it. The vitest rules only match vitest's own API, so carrying the plugin
   // repo-wide costs nothing.
-  "plugins": ["typescript", "unicorn", "oxc", "react", "import", "promise", "vitest"],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "import", "promise", "vitest"],
 
   // `correctness` only, and as an error rather than a warning.
   //
