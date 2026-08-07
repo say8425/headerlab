@@ -1,0 +1,68 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  // Setting `plugins` REPLACES oxlint's base set rather than adding to it, so
+  // this list has to name the three that are on by default (typescript,
+  // unicorn, oxc) as well as the ones being switched on. Dropping one here is
+  // silent — the rules simply stop running.
+  //
+  // `vitest` is listed here rather than under the tests override because an
+  // override's `plugins` key does not switch a plugin on — measured: with
+  // vitest declared only in the override, `oxlint tests/unit/schema.test.ts`
+  // reported nothing and `oxlint --vitest-plugin` on the same file reported
+  // four. Overrides can retune a rule; they cannot enable the plugin that owns
+  // it. The vitest rules only match vitest's own API, so carrying the plugin
+  // repo-wide costs nothing.
+  "plugins": ["typescript", "unicorn", "oxc", "react", "import", "promise", "vitest"],
+
+  // `correctness` only, and as an error rather than a warning.
+  //
+  // Measured before choosing, on this tree: correctness = 6 findings, perf = 16,
+  // suspicious = 187, pedantic = 220, restriction = 1208, style = 3990. The big
+  // ones are not 3990 defects — 162 of `suspicious` are react(react-in-jsx-scope),
+  // a rule for the *old* JSX transform that React 19 does not use, and most of
+  // `style` is the formatter's job and now belongs to oxfmt. A category that
+  // needs a page of suppressions to go green is a category nobody reads.
+  //
+  // `error`, because a warning that does not fail CI is a diagnostic nobody acts
+  // on, which is the thing this repo exists not to ship. CI also passes
+  // `--deny-warnings`, so a rule that arrives at warning level in a future
+  // oxlint release still stops the build rather than scrolling past.
+  "categories": { "correctness": "error" },
+
+  "rules": {
+    // The one project rule worth encoding here: no debug logging in shipped
+    // code. `warn` and `error` are allowed because this codebase uses them
+    // deliberately and they are not debug output — App.tsx reports a
+    // destructive storage truncation, background.ts reports a failed
+    // reconcile. `log`, `debug` and `info` have no such caller and are what
+    // gets left behind.
+    "no-console": ["error", { "allow": ["warn", "error"] }]
+  },
+
+  "overrides": [
+    {
+      // Generators, not shipped code. Their `console.log` is the program's
+      // output — the list of files written — so the rule above is inverted
+      // here rather than suppressed line by line.
+      "files": ["scripts/**"],
+      "rules": { "no-console": "off" }
+    },
+    {
+      "files": ["tests/**"],
+      "rules": {
+        // `vitest/require-to-throw-message` is deliberately left ON: a bare
+        // `.toThrow()` passes on *any* error, including a TypeError from a typo
+        // in the test itself, which is exactly the "assertion that cannot fail"
+        // this repo keeps catching in review.
+        //
+        // This one is off. It asks for `vi.fn<() => void>()` at 59 call sites
+        // whose types the component's own props interface already fixes. The
+        // sharper version — typing the mock so `toHaveBeenCalledWith` is
+        // checked — is worth doing, but it is 59 mechanical edits and does not
+        // belong in the change that turns CI on.
+        "vitest/require-mock-type-parameters": "off"
+      }
+    }
+  ]
+}

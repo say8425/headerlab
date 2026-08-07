@@ -11,13 +11,20 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
+npm run check        # typecheck · lint · format:check · test — what CI runs, in one command
 npm test             # wxt build && vitest run  — the build is not optional, see below
 npm run test:e2e     # wxt build --mode e2e && playwright test
-npm run compile      # tsc --noEmit
+npm run typecheck    # wxt prepare && tsc --noEmit
+npm run lint         # oxlint --deny-warnings   (npm run lint:fix to apply fixes)
+npm run format:check # oxfmt --check            (npm run format to write)
 npm run build        # production build → .output/chrome-mv3
 npm run dev          # WXT dev server
 npm run screenshots  # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 ```
+
+**`typecheck`, not `compile`.** The script was renamed when CI arrived; the dated plans
+under `docs/superpowers/plans/` still say `npm run compile` because they are records of
+what was run at the time, not instructions for now.
 
 **Run `npm test`, not `npx vitest run`.** Several tests assert against *built* output,
 and the bare tools do not build. Running them directly reports on a stale artifact —
@@ -95,9 +102,50 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   actually answers it: the quarantine shows up as a resolved `before` date (npm reads
   `min-release-age` in days and turns 3 into a timestamp 72 hours back), and
   `ignore-scripts` shows up verbatim. `package.json` still declares
-  `postinstall: wxt prepare`, and here it has never once fired — `.wxt/` gets generated
-  by `wxt build` instead, which is why `npm run compile` fails on a fresh clone until
-  something has built (`tsconfig.json` extends `./.wxt/tsconfig.json`).
+  `postinstall: wxt prepare`, and here it has never once fired — which is why
+  `typecheck` is `wxt prepare && tsc --noEmit` rather than `tsc --noEmit` alone.
+  `tsconfig.json` extends `./.wxt/tsconfig.json`, so without that chained prepare a
+  fresh clone type-checks against a file that does not exist yet. `wxt prepare` is
+  177ms and idempotent; running it every time costs less than the trap does.
+
+## Toolchain
+
+**oxlint runs `correctness` only, as an error.** Measured on this tree before choosing:
+correctness 6, perf 16, suspicious 187, pedantic 220, restriction 1208, style 3990. The
+big numbers are not defects — 162 of `suspicious` are `react-in-jsx-scope`, a rule for
+the *old* JSX transform that React 19 does not use, and most of `style` is now oxfmt's
+job. A category that needs a page of suppressions to go green is a category nobody
+reads. CI adds `--deny-warnings` so a rule that arrives at warning level in a future
+release still stops the build.
+
+**Setting `plugins` replaces oxlint's base set; it does not extend it.** The three that
+are on by default (typescript, unicorn, oxc) have to be re-listed or they silently stop
+running. And an override's `plugins` key does **not** enable a plugin — measured: with
+`vitest` declared only in the `tests/**` override, `oxlint tests/unit/schema.test.ts`
+reported nothing while `oxlint --vitest-plugin` on the same file reported four. Overrides
+retune rules; only the top-level list turns a plugin on.
+
+**Suppressions are per-site and carry a reason.** Four exist, and each is a rule that
+cannot see the intent rather than a rule this repo disagrees with: two `no-control-regex`
+on `/^[\x00-\x7F]/` ASCII range checks, one `no-empty-pattern` on Playwright's
+`async ({}, use)` fixture idiom, one `react-hooks/exhaustive-deps` on the truncating
+effect in App.tsx. The disable comment must be the line *immediately* before its subject —
+a two-line comment ending in the directive suppresses the second comment line and nothing
+else, which reads as working and is not.
+
+**oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
+`**/*.html` are in `ignorePatterns`: the stylesheet is hand-tuned at 4-space indent with a
+comment explaining why, and reformatting it to 2-space is 1124 lines of churn for a
+machine's opinion. `printWidth: 100` was chosen by sweeping 80/90/96/100/110/120 and taking
+the minimum churn (40 files at 100, against 50 at 80 and 45 at 120). `singleQuote: true`
+matches what the repo already wrote. **oxfmt also sorts `package.json` keys** by default —
+that is why `dependencies` now precedes `devDependencies`.
+
+**CI pins every action to a commit SHA**, with the tag it resolved from in a comment
+beside it. A tag is mutable by the account that owns it, and this repository's premise is
+that its supply chain is checkable. Re-resolve with
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha` when bumping; update the
+SHA and the comment together.
 
 ## Platform traps that have already cost time
 

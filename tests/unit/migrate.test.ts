@@ -94,8 +94,7 @@ describe('upgrading a v1 store', () => {
     // turned all-sites on for everybody would also pass the case above, and
     // would silently widen every scoped user to every site — the same silent
     // change in the more dangerous direction.
-    expect(rulesAfterUpgrade(v1State({ domains: ['api.example.com'] })))
-      .toEqual([V1_SCOPED_RULE]);
+    expect(rulesAfterUpgrade(v1State({ domains: ['api.example.com'] }))).toEqual([V1_SCOPED_RULE]);
   });
 
   it('turns all-sites on only for the store that had no domains', () => {
@@ -120,18 +119,20 @@ describe('upgrading a v1 store', () => {
     // migrated here.
     const stored = v1State({ mode: 'regex', regex: '^https://api\\.example\\.com/', domains: [] });
     expect(parseAppState(migrateToV2(stored)).profiles[0]?.filter.allSites).toBe(false);
-    expect(rulesAfterUpgrade(stored)).toEqual([{
-      id: 1,
-      priority: 1,
-      condition: {
-        resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
-        regexFilter: '^https://api\\.example\\.com/',
+    expect(rulesAfterUpgrade(stored)).toEqual([
+      {
+        id: 1,
+        priority: 1,
+        condition: {
+          resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
+          regexFilter: '^https://api\\.example\\.com/',
+        },
+        action: {
+          type: 'modifyHeaders',
+          requestHeaders: [{ header: 'X-Debug', operation: 'set', value: '1' }],
+        },
       },
-      action: {
-        type: 'modifyHeaders',
-        requestHeaders: [{ header: 'X-Debug', operation: 'set', value: '1' }],
-      },
-    }]);
+    ]);
   });
 
   it('migrates every profile, not just the first', () => {
@@ -143,8 +144,10 @@ describe('upgrading a v1 store', () => {
         { ...v1Profile({ domains: [] }), id: 'p2', order: 1 },
       ],
     };
-    expect(parseAppState(migrateToV2(stored)).profiles.map((p) => p.filter.allSites))
-      .toEqual([false, true]);
+    expect(parseAppState(migrateToV2(stored)).profiles.map((p) => p.filter.allSites)).toEqual([
+      false,
+      true,
+    ]);
   });
 
   it('records the new version on the state it hands back', () => {
@@ -180,7 +183,11 @@ describe('upgrading a v1 store', () => {
     // The migration's real job: `allSites` is required, so a v1 value that
     // skipped this transform would fail validation and the popup would show
     // "Saved rules could not be read" over rules that are perfectly fine.
-    expect(() => parseAppState(v1State({ domains: [] }))).toThrow();
+    // Matched on `allSites` specifically. A bare `.toThrow()` would be
+    // satisfied by a v1 fixture that was malformed for some unrelated reason,
+    // and the test would then claim the migration was necessary without
+    // showing that it was.
+    expect(() => parseAppState(v1State({ domains: [] }))).toThrow(/"allSites"/);
     expect(() => parseAppState(migrateToV2(v1State({ domains: [] })))).not.toThrow();
   });
 });
@@ -237,8 +244,10 @@ describe('the migration WXT actually runs', () => {
 
     const after = await fakeBrowser.storage.local.get(['state', 'state$']);
     expect((after.state$ as { v: number }).v).toBe(2);
-    expect((after.state as { profiles: Array<{ filter: { allSites: boolean } }> })
-      .profiles[0]?.filter.allSites).toBe(true);
+    expect(
+      (after.state as { profiles: Array<{ filter: { allSites: boolean } }> }).profiles[0]?.filter
+        .allSites,
+    ).toBe(true);
   });
 
   it('leaves a store already at the current version alone', async () => {

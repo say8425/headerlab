@@ -6,6 +6,11 @@ export const test = base.extend<{
   serviceWorker: Worker;
   extensionId: string;
 }>({
+  // Playwright reads a fixture's dependencies off its destructuring pattern, so
+  // an empty one is how a fixture declares that it depends on nothing. Omitting
+  // the parameter entirely is not the same statement, and `_` would be read as
+  // a fixture named `_`.
+  // oxlint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
     // This suite is the only assertion in the project that runs at the resolved
     // layout level, and it loads a *build*, not the sources. Checking presence
@@ -19,10 +24,7 @@ export const test = base.extend<{
 
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
-      args: [
-        `--disable-extensions-except=${EXTENSION_PATH}`,
-        `--load-extension=${EXTENSION_PATH}`,
-      ],
+      args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
     });
     await use(context);
     await context.close();

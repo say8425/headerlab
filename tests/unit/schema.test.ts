@@ -14,22 +14,35 @@ describe('parseAppState', () => {
 
   it('rejects an unknown operation', () => {
     const p = createProfile('Local', 0);
-    p.headers = [{
-      id: 'h', enabled: true, target: 'request',
-      operation: 'mutate' as never, name: 'X', value: '1',
-    }];
-    expect(() => parseAppState({ ...DEFAULT_STATE, profiles: [p] })).toThrow();
+    p.headers = [
+      {
+        id: 'h',
+        enabled: true,
+        target: 'request',
+        operation: 'mutate' as never,
+        name: 'X',
+        value: '1',
+      },
+    ];
+    // Matched on the rejected field, not merely on "it threw". A bare
+    // `.toThrow()` here passes on any error at all — including a TypeError
+    // from a typo in this fixture, which would report the schema as strict
+    // while testing nothing about it.
+    expect(() => parseAppState({ ...DEFAULT_STATE, profiles: [p] })).toThrow(/"operation"/);
   });
 
   it('rejects an empty resourceTypes array — DNR rejects it too', () => {
     const p = createProfile('Local', 0);
     p.filter.resourceTypes = [];
-    expect(() => parseAppState({ ...DEFAULT_STATE, profiles: [p] })).toThrow();
+    expect(() => parseAppState({ ...DEFAULT_STATE, profiles: [p] })).toThrow(/"resourceTypes"/);
   });
 
   it('rejects a non-object', () => {
-    expect(() => parseAppState(null)).toThrow();
-    expect(() => parseAppState('{}')).toThrow();
+    // The two are asserted apart rather than as "both throw": a string is the
+    // case that would slip through a schema which only checked for null, and
+    // matching the received type is what tells them apart.
+    expect(() => parseAppState(null)).toThrow(/expected object, received null/);
+    expect(() => parseAppState('{}')).toThrow(/expected object, received string/);
   });
 
   it('strips unknown keys rather than failing — forward compatibility', () => {
@@ -54,8 +67,16 @@ describe('createProfile', () => {
     // whatever it said.
     const rotation = Array.from({ length: 10 }, (_, order) => createProfile('a', order).color);
     expect(rotation).toEqual([
-      'green', 'amber', 'red', 'blue', 'violet',
-      'green', 'amber', 'red', 'blue', 'violet',
+      'green',
+      'amber',
+      'red',
+      'blue',
+      'violet',
+      'green',
+      'amber',
+      'red',
+      'blue',
+      'violet',
     ]);
   });
 
@@ -69,7 +90,10 @@ describe('createProfile', () => {
   });
 
   it('defaults resourceTypes to the three types a debugger actually uses', () => {
-    expect(createProfile('a', 0).filter.resourceTypes)
-      .toEqual(['xmlhttprequest', 'main_frame', 'sub_frame']);
+    expect(createProfile('a', 0).filter.resourceTypes).toEqual([
+      'xmlhttprequest',
+      'main_frame',
+      'sub_frame',
+    ]);
   });
 });

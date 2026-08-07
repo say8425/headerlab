@@ -96,9 +96,12 @@ one has run the suite against it.
 
 ```bash
 npm run dev          # WXT dev server → load .output/chrome-mv3-dev unpacked
+npm run check        # everything CI runs: typecheck · lint · format · unit tests
 npm test             # wxt build && vitest run — unit tests, no browser
 npm run test:e2e     # wxt build --mode e2e && playwright test — real Chrome
-npm run compile      # tsc --noEmit
+npm run typecheck    # wxt prepare && tsc --noEmit
+npm run lint         # oxlint          (npm run lint:fix to apply fixes)
+npm run format       # oxfmt           (npm run format:check to only report)
 npm run build        # production build → .output/chrome-mv3
 npm run screenshots  # rebuild the images in this README from the real popup
 ```
@@ -111,9 +114,14 @@ command to run.
 
 **`npm install` may not run `postinstall`.** `npm config get ignore-scripts` is
 `true` on some setups (it is a common hardening default), which skips the
-`wxt prepare` that generates `.wxt/`. `tsconfig.json` extends
-`./.wxt/tsconfig.json`, so `npm run compile` fails on a fresh clone until either
-`npm run build` or `npx wxt prepare` has run once.
+`wxt prepare` that generates `.wxt/` — and `tsconfig.json` extends
+`./.wxt/tsconfig.json`. `npm run typecheck` chains the prepare itself for that
+reason, so it works on a fresh clone either way.
+
+**Linting and formatting** are [oxlint](https://oxc.rs) and oxfmt. `npm run lint`
+fails on any warning; `npm run format:check` reports files that would change.
+oxfmt is scoped to code — the hand-tuned `entrypoints/popup/style.css`, the
+design mocks under `docs/` and the Markdown are left alone.
 
 **`npm run test:e2e` and `npm run screenshots` both need a browser Playwright
 does not install by default:**
