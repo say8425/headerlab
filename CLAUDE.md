@@ -1,8 +1,8 @@
 # HeaderLab
 
 Chrome MV3 extension that modifies HTTP request and response headers. It replaces
-ModHeader, which was pulled from the Chrome Web Store after a hidden tracker was found
-in it.
+ModHeader, which was pulled from the Chrome Web Store in July 2026 after a hidden
+tracker was found in it.
 
 **That history is the reason the project exists, and it decides arguments.** The trust
 posture below and the "no silent failures" rule are not preferences — they are the
@@ -11,11 +11,12 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
-npm test           # wxt build && vitest run  — the build is not optional, see below
-npm run test:e2e   # wxt build --mode e2e && playwright test
-npm run compile    # tsc --noEmit
-npm run build      # production build → .output/chrome-mv3
-npm run dev        # WXT dev server
+npm test             # wxt build && vitest run  — the build is not optional, see below
+npm run test:e2e     # wxt build --mode e2e && playwright test
+npm run compile      # tsc --noEmit
+npm run build        # production build → .output/chrome-mv3
+npm run dev          # WXT dev server
+npm run screenshots  # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 ```
 
 **Run `npm test`, not `npx vitest run`.** Several tests assert against *built* output,
@@ -27,14 +28,16 @@ the right command, so a bare run tells you rather than lying; do not work around
 ## Architecture
 
 ```
-lib/model/       types, zod schema, defaults          pure
-lib/compile/     AppState → DNR rules + diagnostics   pure
-lib/permissions/ origins.ts, audit.ts pure · probe.ts is the only browser caller
-lib/view/        popup view models                    pure
+lib/model/       types, zod schema, defaults, migrate.ts   pure
+lib/compile/     AppState → DNR rules + diagnostics        pure
+lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
+lib/view/        popup view models                         pure
 lib/storage/     state.ts, session.ts, useAppState.ts
-lib/sync/        ruleSync.ts — the single reconcile loop
+lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
 components/      popup UI
 entrypoints/     background.ts, popup/
+public/          copied to the output root — theme.js, icon/
+scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
 ```
 
 **Decision logic lives in a pure layer; browser calls live in one thin adapter each.**
@@ -43,9 +46,14 @@ This is not taste. `@webext-core/fake-browser` defines `declarativeNetRequest`,
 must be isolated and tested with a hand-planted spy. The architecture is what that
 constraint produced.
 
-`tests/unit/purity.test.ts` enforces it. It auto-discovers `lib/compile/*.ts` but covers
-`lib/permissions/` and `lib/model/` by an **explicit list** — a new pure file elsewhere
-is unguarded unless you add it.
+`tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
+above calls pure.** Two directories are auto-discovered, so a new file in either is
+guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
+of exactly three files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts` and
+`lib/model/migrate.ts` — because `lib/permissions/` also holds the adapter (`probe.ts`)
+that must *not* be guarded, so there is no directory-shaped rule to apply. `schema.ts`,
+`defaults.ts` and `types.ts` are pure by convention and unguarded in fact. A new pure
+file outside those two directories is unguarded until someone adds it by name.
 
 **One reconcile loop.** Every trigger — storage change, worker startup, permission
 grant or revoke — funnels into `reconcile()` in `lib/sync/ruleSync.ts`. It recompiles
@@ -58,14 +66,38 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   `["storage", "declarativeNetRequestWithHostAccess"]` and `host_permissions` must be
   absent. `tests/unit/manifest.test.ts` asserts the exact list. Access is requested at
   runtime, per host, through the Grant flow.
+  **`optional_host_permissions` is the other half of that and is not optional.** It is
+  exactly `["<all_urls>"]`, and `permissions.request()` rejects any origin the manifest
+  did not declare as optional — so dropping it leaves the all-sites switch flipping into
+  a mode whose grant can never be obtained, with nothing failing until somebody clicks
+  Grant. The same test pins the value, not merely the key.
 - **No network primitives in the shipped bundle** — no `fetch`, `XMLHttpRequest`,
   `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` with no
-  exception list. (Vite's modulepreload polyfill once left a dead `fetch(` literal in
+  exception list, which is the point: the claim is verifiable by a stranger who trusts
+  none of this file. (Vite's modulepreload polyfill once left a dead `fetch(` literal in
   the bundle; `build.modulePreload: false` removes it.)
-- **No new dependencies.** The npm registry has a rolling 72-hour publish quarantine —
-  recently published packages fail with `ETARGET`. Do not bypass it, and do not run
-  `npm audit fix`. `.npmrc` also sets `ignore-scripts=true`, so `postinstall`,
-  `pretest` and `prepare` **never fire**; chain setup into the script body instead.
+  **Nothing automates that check.** It is the only non-negotiable here with no test
+  behind it — `grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3`
+  is currently a thing a person has to remember to run, and it currently returns
+  nothing. The other two are pinned by `tests/unit/manifest.test.ts`; this one is a
+  standing offer to regress silently, and a suite that reads the build already exists to
+  put it in.
+- **No new dependencies.** npm here runs under a rolling 72-hour publish quarantine, so
+  a recently published package fails with `ETARGET`. Do not bypass it, and do not run
+  `npm audit fix`.
+  **Assume lifecycle scripts do not run.** `ignore-scripts=true` silently skips
+  `postinstall`, `pretest` and `prepare`. **Chain setup into the script body**, never
+  into a lifecycle hook — `npm test` runs `wxt build && vitest run` for exactly this
+  reason.
+  Both settings come from the developer's `~/.npmrc`, **not from this repo** — there is
+  no `.npmrc` here, so neither is reproducible from a clone and a contributor on npm's
+  defaults sees the opposite behaviour on both counts. `npm config list` is what
+  actually answers it: the quarantine shows up as a resolved `before` date (npm reads
+  `min-release-age` in days and turns 3 into a timestamp 72 hours back), and
+  `ignore-scripts` shows up verbatim. `package.json` still declares
+  `postinstall: wxt prepare`, and here it has never once fired — `.wxt/` gets generated
+  by `wxt build` instead, which is why `npm run compile` fails on a fresh clone until
+  something has built (`tsconfig.json` extends `./.wxt/tsconfig.json`).
 
 ## Platform traps that have already cost time
 
@@ -172,8 +204,11 @@ follow state freely; box dimensions and positions should not.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. The two e2e tests proving headers change on the wire are the
-strongest evidence in the repo — do not weaken them.
+against a loaded extension. Two of the five e2e tests drive a real request through the
+loopback echo server and read the headers back off it; those two are the strongest
+evidence in the repo — do not weaken them. The other three cover the popup rendering
+from stored state and the two layout guards (nothing wider than what holds it; a control
+appearing moves nothing).
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
@@ -208,16 +243,35 @@ that no longer renders, passing while describing nothing.
 - Design docs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`,
   measured spikes in `docs/research/`. A spike that contradicts a design is a success —
   fix the design.
+- **The README screenshots are generated, never cropped by hand.** `npm run screenshots`
+  builds, loads the production bundle in real Chrome and photographs the popup, so a UI
+  change is a re-run rather than an excavation — the same bargain `scripts/make-icons.mjs`
+  makes. Its one edit to the loaded copy is `host_permissions` for the example hosts,
+  because `permissions.request()` opens a dialog Playwright cannot click and a *granted*
+  row cannot otherwise be photographed; the README states that under the images rather
+  than letting them imply a grant flow that did not happen. Its waits are written as the
+  row states each shot expects, since the popup renders every row optimistically green
+  in the frame before the permission probe answers — a duration would photograph
+  whichever frame the machine landed on.
 
 ## Known gaps
 
 - `stateItem.watch` puts values into state without validation. Pre-existing; reachable
   only by an external writer.
 - The Tailwind, shadcn, Radix and Lucide packages are **dead code**. Nothing imports
-  `components/ui/`, no shell file uses a Tailwind class, and none of them reach the
-  bundle. The UI is React plus one hand-written stylesheet. They stay in
-  `package.json` only because touching the lockfile under the publish quarantine is a
-  risk with no upside.
-- Not built, deliberately: JSON export/import, tab lock, regex/`pathPattern` UI and
-  their RE2 validation, theme toggle. If import is ever built, its validation must come
-  first — import is what makes the regex surface reachable.
+  `components/ui/`, whose three files are the only importers of `lib/utils.ts` (`cn`),
+  no shell file uses a Tailwind class, and none of them reach the bundle. The UI is
+  React plus one hand-written stylesheet. They stay in `package.json` only because
+  touching the lockfile under the publish quarantine is a risk with no upside.
+- **The popup shows one rule set.** `AppState.profiles` is an array and `compile()`
+  handles the whole array, but `resolveSingleProfile` picks one and App.tsx *truncates
+  storage* to it — an extra profile the screen cannot show would otherwise go on
+  modifying headers invisibly. So the multi-profile machinery is live code with no UI,
+  not a dormant feature.
+- **Tab lock is half-built, not absent.** `allocate` already routes a locked profile to
+  the session ruleset and `filterToCondition` already takes the `tabId`, both under
+  test; what does not exist is any way to set `tabLock.enabled`. Do not delete that path
+  as dead — delete the guard only when its subject is gone.
+- Not built at all, deliberately: JSON export/import, the regex/`pathPattern` UI and its
+  RE2 validation, the theme toggle (the theme follows the OS). If import is ever built,
+  its validation must come first — import is what makes the regex surface reachable.
