@@ -24,13 +24,30 @@ photographed without a native permission dialog.</sub>
 
 ## Trust posture
 
-- **No host permissions at install.** The manifest asks for exactly `storage`
-  and `declarativeNetRequestWithHostAccess`. Site access is granted by you, per
-  host, at runtime, and can be revoked from Chrome at any time.
+- **No host permissions at install.** The manifest's `permissions` is exactly
+  `storage` and `declarativeNetRequestWithHostAccess`. It also declares
+  `optional_host_permissions: ["<all_urls>"]`, which grants nothing on its own —
+  Chrome refuses to let an extension request an origin it never declared, so
+  that line is what makes the runtime Grant button legal, not what makes it
+  unnecessary. Site access is granted by you, per host, at runtime, and can be
+  revoked from Chrome at any time.
 - **No network calls.** No analytics, telemetry, remote config or update pings.
-  The shipped bundle contains no `fetch`, `XMLHttpRequest`, `WebSocket` or
-  `sendBeacon` at all — checkable by reading `.output/chrome-mv3`, with no
-  exception list to trust.
+  The shipped bundle never *calls* a network primitive, and you can check that
+  yourself rather than believe it:
+
+  ```bash
+  npm run build
+  grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3
+  ```
+
+  That returns nothing. The pattern matches call and constructor forms on
+  purpose: a bare case-insensitive search for those words does hit the bundle
+  about fourteen times, and every one of them is a string or an identifier
+  rather than a call — React DOM's `prefetchDNS`, `fetchPriority` and
+  `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`, which
+  are two of Chrome's declarativeNetRequest resource-type names and appear
+  because you can filter on them in the popup. Said here so that finding them
+  reads as expected rather than as a caught lie.
 - **No content scripts.** Nothing is injected into any page. Headers are changed
   by Chrome's `declarativeNetRequest` engine, which never hands request contents
   to the extension.
@@ -42,9 +59,11 @@ photographed without a native permission dialog.</sub>
 ## What it does
 
 - **Set, append or remove** any header, on the **request** or the **response**
-  side. `append` is limited by Chrome to a 21-header allowlist on requests;
-  HeaderLab tells you when a rule falls outside it instead of silently dropping
-  the whole batch.
+  side. `append` is limited by Chrome to a 21-header allowlist on requests, and
+  HeaderLab names the rule that falls outside it — which matters more than it
+  sounds, because Chrome rejects a ruleset as a whole rather than per rule, so
+  one such rule stops every other one too. That is reported, not silent: the
+  popup shows the registration failure.
 - **Scope by site.** Sites are matched by host: a port or a path is dropped when
   you add one, and the stored value is the value that operates, so what the rail
   shows is what goes on the wire.
@@ -96,16 +115,21 @@ command to run.
 `./.wxt/tsconfig.json`, so `npm run compile` fails on a fresh clone until either
 `npm run build` or `npx wxt prepare` has run once.
 
-**E2E needs a browser Playwright does not install by default:**
+**`npm run test:e2e` and `npm run screenshots` both need a browser Playwright
+does not install by default:**
 
 ```bash
 npx playwright install --with-deps --no-shell chromium
 ```
 
 `--no-shell` matters. Playwright's default headless download is
-`chromium-headless-shell`, a stripped build that cannot load extensions, and
-without the full binary `npm run test:e2e` fails in a way that looks like a code
-problem rather than a missing dependency.
+`chromium-headless-shell`, a stripped build that cannot load extensions — and
+both of those commands exist to load one. Without the full binary they fail in a
+way that looks like a code problem rather than a missing dependency.
+
+`npm run screenshots` overwrites the tracked PNGs under `docs/screenshots/`.
+That is its job, but it means a run leaves changes in `git status`; commit them
+only when the UI actually changed.
 
 `npm run test:e2e` builds into `.output/chrome-mv3-e2e`, a second output
 directory beside the production one. That build carries a loopback host

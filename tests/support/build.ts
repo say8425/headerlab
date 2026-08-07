@@ -34,9 +34,11 @@ import { fileURLToPath } from 'node:url';
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /**
- * WXT suffixes the output directory with the mode unless it is `development` or
- * `production` (see `resolve-config.mjs`'s `modeSuffix` table), so `wxt build
- * --mode e2e` lands in `chrome-mv3-e2e`, not `chrome-mv3`.
+ * WXT suffixes the output directory with the mode, so `wxt build --mode e2e`
+ * lands in `chrome-mv3-e2e`, not `chrome-mv3`. Two modes are special-cased in
+ * `resolve-config.mjs`'s `modeSuffix` table: `production` gets no suffix at all
+ * and `development` gets `-dev` rather than `-development`. Only the first of
+ * those is unsuffixed — `npm run dev` really does write to `chrome-mv3-dev`.
  */
 const BUILDS = {
   production: {
