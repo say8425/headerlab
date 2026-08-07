@@ -1,14 +1,3 @@
-# Pull-request CI.
-#
-# Two jobs, split on cost rather than on subject: `check` needs nothing but
-# node_modules and finishes in seconds, `e2e` downloads a full Chromium and
-# takes minutes. Putting the fast checks behind the browser download would mean
-# waiting on a 150MB install to be told about a missing semicolon.
-#
-# Actions are pinned to a commit SHA, not a tag. A tag is mutable — the account
-# that owns it can move it — and this repository's whole premise is that its
-# supply chain is checkable. The comment beside each SHA is the human-readable
-# version it was resolved from; update both together.
 name: CI
 
 on:
@@ -16,13 +5,9 @@ on:
   push:
     branches: [main]
 
-# Read-only by default. Nothing here needs to write to the repository, and a
-# token that cannot write is one that cannot be turned against it.
 permissions:
   contents: read
 
-# A force-push supersedes the run it interrupted. `github.workflow` is in the
-# key so a future second workflow on the same ref does not cancel this one.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -33,29 +18,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # `persist-credentials: false` because nothing here uses git after the
-      # checkout, so there is no reason to leave a token in `.git/config`.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@v7.0.0
         with:
-          # One definition of the Node version, shared with local `nvm use`.
           node-version-file: .nvmrc
           cache: npm
 
-      # `npm ci`, not `npm install`: it installs exactly what the lockfile says
-      # and fails loudly if the lockfile and package.json disagree. That is the
-      # guard, not a preference — this repository's lockfile was unusable off
-      # this author's machine until CI said so, and `npm install` would have
-      # gone on quietly papering over it.
       - run: npm ci
 
-      # Every check runs even after one fails, so a single push reports every
-      # problem instead of one per round trip. `!cancelled()` rather than
-      # `always()`: a cancelled run should stop, not grind through the rest.
-      # The job still fails if any step does.
+      # `!cancelled()` so one push reports every failure, not one per round trip.
       - name: Typecheck
         if: ${{ !cancelled() }}
         run: npm run typecheck
@@ -68,9 +42,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run format:check
 
-      # Builds first — several suites assert against built output, and
-      # tests/support/build.ts fails loudly rather than reporting on a stale
-      # artifact. `npm test` is `wxt build && vitest run` for that reason.
       - name: Unit tests
         if: ${{ !cancelled() }}
         run: npm test
@@ -80,58 +51,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # `persist-credentials: false` because nothing here uses git after the
-      # checkout, so there is no reason to leave a token in `.git/config`.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      # `npm ci`, not `npm install`: it installs exactly what the lockfile says
-      # and fails loudly if the lockfile and package.json disagree. That is the
-      # guard, not a preference — this repository's lockfile was unusable off
-      # this author's machine until CI said so, and `npm install` would have
-      # gone on quietly papering over it.
       - run: npm ci
 
-      # Keyed on the lockfile, which is what pins the Playwright version that
-      # decides which browser build is wanted. A cache keyed on anything looser
-      # would hand a new Playwright an old binary.
       - name: Cache Playwright browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # `--no-shell` saves a download; it is not what makes the suite work.
-      # Measured with `--dry-run`: plain `playwright install chromium` fetches
-      # full Chromium *and* `chromium-headless-shell`, and `--no-shell` fetches
-      # only the first. The shell genuinely cannot load extensions, but the
-      # thing that keeps this suite off it is `channel: 'chromium'` in
-      # tests/e2e/fixtures.ts, which selects the full build regardless of what
-      # else is on disk. So this flag skips ~80MB nothing here uses. Said
-      # precisely because the earlier comment called it load-bearing, which
-      # would send someone debugging a future extension-loading failure to the
-      # wrong place.
-      #
-      # `--with-deps` is still run on a cache hit: it installs the system
-      # libraries Chromium links against, which live outside the cached
-      # directory.
+      # `--with-deps` also on a cache hit: the system libs live outside the cache.
       - name: Install Chromium
         run: npx playwright install --with-deps --no-shell chromium
 
-      # Under xvfb rather than bare headless. The suite drives a real extension
-      # through `--load-extension`, which is the one Chromium feature most often
-      # unavailable without a display server; a virtual one costs a second and
-      # removes the question. `--with-deps` above installs xvfb.
       - name: E2E tests
         run: xvfb-run -a npm run test:e2e
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@v7.0.1
         if: failure()
         with:
           name: playwright-report

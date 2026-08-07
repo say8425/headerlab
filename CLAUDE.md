@@ -212,11 +212,19 @@ with no version changes and nothing removed — is what is committed. The workfl
 `npm ci` again and those steps are gone. If the lockfile ever needs regenerating from a
 machine that can see the whole registry, that is the loop to re-run.
 
-**CI pins every action to a commit SHA**, with the tag it resolved from in a comment
-beside it. A tag is mutable by the account that owns it, and this repository's premise is
-that its supply chain is checkable. Re-resolve with
-`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha` when bumping; update the
-SHA and the comment together.
+**CI pins actions to exact version tags**, not to commit SHAs and not to floating majors.
+A SHA is the stronger guarantee — a tag can be moved by the account that owns it — and
+that is what was written first; it was traded away deliberately, because a wall of
+40-character hashes made the workflow unreadable and an unreadable pin is one nobody
+audits either. `.github/dependabot.yml` keeps the versions current, which is the half a
+SHA never gave. If the supply-chain guarantee is ever wanted back, re-resolve with
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha` and put the tag in a
+comment beside each hash.
+
+**The workflow carries almost no comments, and that is deliberate.** It had many, and they
+restated what this file already says at more length. The reasoning lives here; the YAML
+should be readable as YAML. What stayed is the two lines that are surprising *at the point
+of use* — why later steps run after a failure, and why `--with-deps` runs on a cache hit.
 
 ## Platform traps that have already cost time
 
