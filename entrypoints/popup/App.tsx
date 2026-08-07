@@ -144,10 +144,15 @@ export default function App() {
    * patterns built from a host, and `<all_urls>` is not a host — there is no
    * narrower grant that could satisfy it and no broader one to fall back to.
    *
-   * Probed even when the mode is off, and deliberately: the answer is what a
-   * later toggle-on needs in order to know whether to prompt, and asking for
-   * it costs one `permissions.contains()` call against a value the browser
-   * already holds.
+   * Probed even when the mode is off, and deliberately. Nothing renders from
+   * the answer while the switch is off, but the instant it goes on the rail has
+   * to state the access correctly — and `null` renders as silence, on the rule
+   * that the popup must not accuse the browser of withholding a permission
+   * nobody has asked about. Probing only once the mode was on would make every
+   * toggle-on pass through that silence before landing on the truth, which is
+   * the flicker this state was written to avoid. Holding the previous answer
+   * means the switch and the dot change together. One `permissions.contains()`
+   * call against a value the browser already holds.
    */
   useEffect(() => {
     let cancelled = false;
