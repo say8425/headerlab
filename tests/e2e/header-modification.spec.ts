@@ -610,28 +610,57 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.locator('[data-testid="site"]').first().waitFor();
 
-  // 1. 목록 밖 어떤 노드도 자기 박스를 넘지 않는다.
+  // 1. 목록 밖 어떤 노드도 — 스크롤 컨테이너 자신을 뺀 나머지 — 자기 박스를
+  //    넘지 않는다. `auto` 만 스크롤 컨테이너로 인정하면 `overflow-y: scroll`
+  //    로 지은 올바른 구현이 "클리핑"으로 오판된다 — 둘 다 인정한다.
   const clipped = await page.evaluate(() => {
+    // 실패했을 때 무엇을 가리키는지 알 수 있는 이름. testid 가 없는 노드는
+    // 태그 + 클래스 + 가장 가까운 testid 조상으로 대신한다 — 어느 분기도 빈
+    // 문자열을 낳지 않는다. className 은 SVG 에서 문자열이 아니라
+    // SVGAnimatedString 이라 그 경우만 `.baseVal` 을 읽는다.
+    const identify = (el: Element): string => {
+      const tag = el.tagName.toLowerCase();
+      const raw = (el as { className: unknown }).className;
+      const cls = typeof raw === 'string' ? raw : ((raw as { baseVal?: string })?.baseVal ?? '');
+      const ancestor = el.closest('[data-testid]')?.getAttribute('data-testid') ?? '(none)';
+      return `${tag}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''} in [data-testid=${ancestor}]`;
+    };
     const scrollers = new Set(
-      [...document.querySelectorAll<HTMLElement>('*')].filter(
-        (el) => getComputedStyle(el).overflowY === 'auto',
+      [...document.querySelectorAll<HTMLElement>('*')].filter((el) =>
+        ['auto', 'scroll'].includes(getComputedStyle(el).overflowY),
       ),
     );
     return [...document.querySelectorAll<HTMLElement>('[data-testid="popup-root"] *')]
       .filter((el) => !scrollers.has(el))
       .filter((el) => el.scrollHeight > el.clientHeight + 1)
-      .map((el) => el.getAttribute('data-testid') ?? el.className);
+      .map(identify);
   });
   expect(clipped).toEqual([]);
 
-  // 2. 목록은 실제로 스크롤 컨테이너다.
-  const scrollable = await page.evaluate(
-    () =>
-      [...document.querySelectorAll<HTMLElement>('*')].filter(
-        (el) => getComputedStyle(el).overflowY === 'auto' && el.scrollHeight > el.clientHeight,
-      ).length,
-  );
-  expect(scrollable).toBe(2);
+  // 2. 스크롤되는 것은 정확히 두 목록 컨테이너 — site-list, rule-list —
+  //    뿐이다. "몇 개가 스크롤되는가"는 오늘의 UI(레일 전체를 감싸는
+  //    `.hl-rail`, 카드 전체를 감싸는 `.hl-stack`)에서도 우연히 2가 나와
+  //    실패할 수 없는 단언이었다. "무엇이 스크롤되는가"로 물으면 두 testid가
+  //    아직 없다는 사실 자체가 진단 가능한 이유로 실패한다.
+  const scrollers = await page.evaluate(() => {
+    const identify = (el: Element): string => {
+      const testid = el.getAttribute('data-testid');
+      if (testid) return testid;
+      const tag = el.tagName.toLowerCase();
+      const raw = (el as { className: unknown }).className;
+      const cls = typeof raw === 'string' ? raw : ((raw as { baseVal?: string })?.baseVal ?? '');
+      return `${tag}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''}`;
+    };
+    return [...document.querySelectorAll<HTMLElement>('*')]
+      .filter(
+        (el) =>
+          ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) &&
+          el.scrollHeight > el.clientHeight,
+      )
+      .map(identify)
+      .sort();
+  });
+  expect(scrollers).toEqual(['rule-list', 'site-list']);
 
   // 3. 목록 위아래는 평상 상태와 같은 좌표에 있다.
   expect(await boxes(page)).toEqual(before);

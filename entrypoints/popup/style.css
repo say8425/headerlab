@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* tooltip.tsx(shadcn)의 data-open:animate-in/fade-in-0/zoom-in-95, data-closed:
+   animate-out/fade-out-0/zoom-out-95, data-[side=*]:slide-in-from-* 는 이 패키지가
+   정의하는 유틸리티다 — import 없이는 전부 존재하지 않는 클래스라 아무 CSS도
+   나오지 않고 열림·닫힘 자체가 무모션이 된다. package.json 에 이미 있는
+   dependency 를 실제로 쓰는 것일 뿐 새 의존성이 아니다. */
+@import "tw-animate-css";
 
 /* Tailwind 의 자동 소스 탐지가 이 파일 밖의 .tsx/.html 도 훑어서 클래스를 찾는다.
    docs/ 는 마크업이 아니라 산문(설계 문서·시안)이라 계속 뺀다. components/ui/ 는
@@ -10,6 +16,69 @@
    MV3 는 인라인 스크립트를 막으므로 그 부트스트랩은 classic script 로 남고,
    Tailwind 는 미디어 쿼리가 아니라 그 클래스를 봐야 한다. */
 @custom-variant dark (&:is(.dark *));
+
+/* shadcn 컴포넌트가 쓰는 data-checked/data-open 같은 축약 variant를 Tailwind 기본
+   동작에 맡기면 속성이 "존재하는지"만 본다 — [data-checked]. 그런데 설치된
+   radix-ui(@radix-ui/react-{checkbox,switch,tooltip,separator}/dist/index.mjs 로
+   확인)는 값을 담아 data-state="checked"/"unchecked"/"open"/"closed",
+   data-orientation="horizontal"/"vertical" 로 내보낸다 — 이름은 같고 모양이 다른
+   두 표기다. 그 결과 셋 다 조용히 매칭에 실패한다: separator 는 높이도 너비도
+   없는 0×0, checkbox 는 체크돼도 --primary 가 안 칠해지고, tooltip 은
+   열림·닫힘 애니메이션이 안 붙는다. data-disabled 만 radix 도 존재-only(빈
+   문자열)로 찍어서 원래도 맞았지만, 다른 radix 컴포넌트는 "true"/"false" 문자열로
+   찍기도 해 아래 정의로 통일한다.
+
+   `npx shadcn add` 가 받아 오는 소스는 이 variant들이 shadcn 자신의 프리셋
+   패키지(`shadcn/tailwind.css`)에 정의돼 있다고 가정하고 나온다 — 그 패키지는
+   여기 설치하지 않는다(새 의존성 금지, CLAUDE.md), 그래서 그 정의를 그대로
+   옮겨 심는다. 여기 한 번 정의해 두면 이후 `shadcn add` 로 받는 컴포넌트도
+   같은 축약을 그대로 쓸 수 있다. */
+@custom-variant data-open {
+    &:where([data-state="open"]),
+    &:where([data-open]:not([data-open="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-closed {
+    &:where([data-state="closed"]),
+    &:where([data-closed]:not([data-closed="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-checked {
+    &:where([data-state="checked"]),
+    &:where([data-checked]:not([data-checked="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-unchecked {
+    &:where([data-state="unchecked"]),
+    &:where([data-unchecked]:not([data-unchecked="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-horizontal {
+    &:where([data-orientation="horizontal"]) {
+        @slot;
+    }
+}
+
+@custom-variant data-vertical {
+    &:where([data-orientation="vertical"]) {
+        @slot;
+    }
+}
+
+@custom-variant data-disabled {
+    &:where([data-disabled="true"]),
+    &:where([data-disabled]:not([data-disabled="false"])) {
+        @slot;
+    }
+}
 
 /*
  * HeaderLab popup — "Console".
@@ -282,7 +351,18 @@ body {
 }
 
 .hl-bignum b {
-    font: 650 30px/1 var(--font-sans);
+    /* line-height: 1 at this weight/size clips its own box — macOS's system-ui
+       650 glyphs have more ascent+descent than the nominal em square, so
+       scrollHeight (32px) ran past clientHeight (30px) even in the resting
+       state, unrelated to whatever the rail lists hold. A fixed multiplier
+       tuned against one font is exactly wrong here: CI renders this same
+       stack under Linux Chromium's fallback fonts (no -apple-system/Segoe UI
+       there), with different metrics again. `normal` asks each engine for
+       *its own* font's ascent+descent instead of asserting a number good for
+       only the font measured on this machine — no /line-height component
+       here, so the `font` shorthand below defaults it to `normal` on its
+       own. */
+    font: 650 30px var(--font-sans);
     letter-spacing: -0.02em;
     color: var(--foreground);
 }
