@@ -196,19 +196,34 @@ export default function App() {
   // further away.
   if (state !== null && !valid) {
     return (
-      <div className="hl-broken" data-testid="unreadable-store">
-        <b>Saved rules could not be read</b>
-        <p>
+      // Deliberately not the normal two-column shell: there is no scope and
+      // there are no rules to show, and dressing the failure up as the working
+      // screen is how it gets missed.
+      <div
+        className="flex h-full flex-col justify-center gap-2 bg-rail px-10 text-foreground"
+        data-testid="unreadable-store"
+      >
+        <b className="text-[13px] leading-[1.4] font-bold text-destructive">
+          Saved rules could not be read
+        </b>
+        <p className="max-w-[420px] text-[12px] leading-[1.55] text-foreground-2">
           The stored settings do not match the format this version expects, so no rule is being
           applied.
         </p>
-        <p>Nothing has been changed or overwritten — your data is still on disk.</p>
+        <p className="max-w-[420px] text-[12px] leading-[1.55] text-foreground-2">
+          Nothing has been changed or overwritten — your data is still on disk.
+        </p>
       </div>
     );
   }
 
   const active = resolved?.profile;
-  if (!state || !compiled || !active) return <div className="hl-loading">Loading…</div>;
+  if (!state || !compiled || !active)
+    return (
+      <div className="grid h-full place-items-center text-[12px] leading-none text-foreground-2">
+        Loading…
+      </div>
+    );
 
   /**
    * Every write goes through the patch draft rather than the `active` snapshot
@@ -261,7 +276,10 @@ export default function App() {
   const autoFocusFirstRule = only !== undefined && only.name === '';
 
   return (
-    <div className="hl-pop" data-testid="popup-root">
+    // The rail is a fixed 224px column and the panel takes the rest — a flex
+    // row rather than a grid, so the panel's `min-w-0` is what stops a long
+    // header value widening the track instead of wrapping inside it.
+    <div className="flex h-full" data-testid="popup-root">
       <ScopeRail
         tally={tally}
         paused={state.globalPause}

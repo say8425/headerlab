@@ -686,9 +686,22 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     return out;
   };
 
+  // A value long enough to hit RuleCard's `max-h-24` cap, which turns that
+  // textarea into a scroll container of its own — see the second assertion
+  // below, which this fixture exists to make honest. A real Content-Security-
+  // Policy, because that is the shape of value this actually happens with; the
+  // fixture used to seed `value-${i}` throughout, so the assertion passed by
+  // accident of the data rather than by design.
+  const LONG_VALUE =
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com " +
+    "https://analytics.example.com; style-src 'self' 'unsafe-inline' " +
+    "https://fonts.example.com; img-src 'self' data: https://images.example.com; " +
+    "connect-src 'self' https://api.example.com wss://live.example.com; " +
+    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
   const seed = async (sites: string[], rules: number) => {
     await serviceWorker.evaluate(
-      async ({ sites, rules }) => {
+      async ({ sites, rules, longValue }) => {
         await chrome.storage.local.set({
           state: {
             version: 2,
@@ -715,7 +728,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
                   target: 'request',
                   operation: 'set',
                   name: `X-Header-${i}`,
-                  value: `value-${i}`,
+                  value: i === 1 ? longValue : `value-${i}`,
                 })),
               },
             ],
@@ -723,7 +736,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
           state$: { v: 2 },
         });
       },
-      { sites, rules },
+      { sites, rules, longValue: LONG_VALUE },
     );
   };
 
@@ -850,39 +863,100 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   });
   expect(grantFits).toBe(true);
 
-  // 1. 목록 밖 어떤 노드도 — 스크롤 컨테이너 자신을 뺀 나머지 — 자기 박스를
-  //    넘지 않는다. `auto` 만 스크롤 컨테이너로 인정하면 `overflow-y: scroll`
-  //    로 지은 올바른 구현이 "클리핑"으로 오판된다 — 둘 다 인정한다.
+  // 1a. 목록 밖 어디에서도 글자가 자기 줄상자에 잘리지 않는다.
+  //
+  //     이 단언은 원래 "스크롤 컨테이너가 아닌 모든 노드에 대해
+  //     scrollHeight > clientHeight" 였고, **그 지표는 고장나 있었다.** 평상
+  //     22개 / 과밀 28개를 세면서 구성이 똑같았다 — 과밀을 잰 적이 없었다는
+  //     뜻이다. 전부 같은 원인이었다: shadcn 의 탭 타깃
+  //     (`after:absolute after:-inset-x-3 after:-inset-y-2`). 절대 위치 의사요소는
+  //     자기 containing block 의 scrollable overflow 에 기여하고 그것이 조상
+  //     사슬을 타고 전파되므로, 스위치나 체크박스를 품은 **모든** 조상이 잡힌다.
+  //     예외 목록 없이는 살릴 수 없는 지표였다.
+  //
+  //     그래서 자손이 없는 텍스트 노드만 본다. 의사요소 전파는 자손에서 오므로
+  //     자손이 없으면 오지 않고, 남는 것은 "이 글자가 자기 상자를 넘는가"라는
+  //     원래 물음뿐이다. 이것이 잡는 실제 결함: 30px 글리프에 line-height:1 을
+  //     줘 32/30 으로 넘쳤던 readout 의 큰 숫자 — macOS 시스템 폰트의
+  //     ascent+descent 는 em 사각형보다 크고, CI 의 Linux 폰트는 또 다르다.
+  //     스크롤 컨테이너는 여전히 뺀다: 자기 내용을 스크롤하는 것은 잘리는 것이
+  //     아니고, 값 필드(textarea)가 정확히 그 경우다.
   const clipped = await page.evaluate(() => {
-    // 실패했을 때 무엇을 가리키는지 알 수 있는 이름. testid 가 없는 노드는
-    // 태그 + 클래스 + 가장 가까운 testid 조상으로 대신한다 — 어느 분기도 빈
-    // 문자열을 낳지 않는다. className 은 SVG 에서 문자열이 아니라
-    // SVGAnimatedString 이라 그 경우만 `.baseVal` 을 읽는다.
-    const identify = (el: Element): string => {
-      const tag = el.tagName.toLowerCase();
-      const raw = (el as { className: unknown }).className;
-      const cls = typeof raw === 'string' ? raw : ((raw as { baseVal?: string })?.baseVal ?? '');
-      const ancestor = el.closest('[data-testid]')?.getAttribute('data-testid') ?? '(none)';
-      return `${tag}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''} in [data-testid=${ancestor}]`;
-    };
+    // 실패했을 때 무엇을 가리키는지 알 수 있는 이름 — 태그, 실제 글자, 그리고
+    // 넘친 정도.
     const scrollers = new Set(
       [...document.querySelectorAll<HTMLElement>('*')].filter((el) =>
         ['auto', 'scroll'].includes(getComputedStyle(el).overflowY),
       ),
     );
-    return [...document.querySelectorAll<HTMLElement>('[data-testid="popup-root"] *')]
-      .filter((el) => !scrollers.has(el))
-      .filter((el) => el.scrollHeight > el.clientHeight + 1)
-      .map(identify);
+    const leaves = [...document.querySelectorAll<HTMLElement>('[data-testid="popup-root"] *')]
+      .filter((el) => el.childElementCount === 0)
+      .filter((el) => (el.textContent ?? '').trim() !== '')
+      .filter((el) => !scrollers.has(el));
+    return {
+      // 셌다는 증거. 0개를 검사하고 통과하는 것과 46개를 검사하고 통과하는 것은
+      // 다른 사실이고, 이 지표는 바로 그 구분을 못 해서 한 번 고장났다.
+      inspected: leaves.length,
+      clipped: leaves
+        .filter((el) => el.scrollHeight > el.clientHeight + 1)
+        .map(
+          (el) =>
+            `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 24)}" ` +
+            `${el.scrollHeight}/${el.clientHeight}`,
+        ),
+    };
   });
-  expect(clipped).toEqual([]);
+  expect(clipped.clipped).toEqual([]);
+  expect(clipped.inspected, 'the clipping check must have had text to look at').toBeGreaterThan(20);
 
-  // 2. 스크롤되는 것은 정확히 두 목록 컨테이너 — site-list, rule-list —
-  //    뿐이다. "몇 개가 스크롤되는가"는 오늘의 UI(레일 전체를 감싸는
-  //    `.hl-rail`, 카드 전체를 감싸는 `.hl-stack`)에서도 우연히 2가 나와
-  //    실패할 수 없는 단언이었다. "무엇이 스크롤되는가"로 물으면 두 testid가
-  //    아직 없다는 사실 자체가 진단 가능한 이유로 실패한다.
-  const scrollers = await page.evaluate(() => {
+  // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
+  //
+  //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
+  //     피치(48 + 6 = 54)의 정수배가 **아니게** 잡혀 있고, 이것이 그 선택을
+  //     직접 재는 단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
+  //
+  //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
+  //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
+  //     (style.css 의 scroll-list 에 측정표가 있다). 스타일을 줘서 실제 막대를
+  //     띄우긴 했지만, 넘친다는 사실을 말하는 것은 여전히 잘린 행이다.
+  const partial = await page.evaluate(() => {
+    const list = document.querySelector('[data-testid="site-list"]');
+    // 없으면 없다고 말한다. 빈 배열을 돌려주면 "잘린 행이 없다"와 구별되지
+    // 않고, 그 둘은 정반대의 사실이다.
+    if (!list) return { found: false };
+    const box = list.getBoundingClientRect();
+    const rows = [...list.querySelectorAll('[data-testid="site"]')].map((r) =>
+      r.getBoundingClientRect(),
+    );
+    return {
+      found: true,
+      rows: rows.length,
+      overflowing: list.scrollHeight > list.clientHeight,
+      // 아래 경계를 가로지르는 행: 윗변은 보이고 아랫변은 잘린다.
+      cutAtBottom: rows.filter((r) => r.top < box.bottom - 1 && r.bottom > box.bottom + 1).length,
+    };
+  });
+  expect(partial).toEqual({ found: true, rows: 8, overflowing: true, cutAtBottom: 1 });
+
+  // 2. 스크롤되는 레이아웃 컨테이너는 정확히 두 목록 — site-list, rule-list —
+  //    뿐이다. "몇 개가 스크롤되는가"는 이 UI 이전에도 우연히 2가 나와
+  //    실패할 수 없는 단언이었다(레일 전체를 감싸던 aside, 카드 전체를 감싸던
+  //    스택). "무엇이 스크롤되는가"로 물으면 레일이 통째로 스크롤하던 상태가
+  //    이름으로 잡힌다 — 실제로 그렇게 잡혔다: 이 태스크 직전의 측정은
+  //    `['aside.hl-rail', 'rule-list']` 였다.
+  //
+  //    **폼 컨트롤은 세지 않는다, 의도적으로.** RuleCard 의 값 필드는
+  //    `max-h-24` + `overflow-y: auto` 라서, 값이 96px 를 넘으면 자기 내용을
+  //    스크롤하는 노드가 된다 — 그리고 그건 결함이 아니라 오너가 고른 동작이다
+  //    (감싸되 무한히 자라지는 않는다). textarea 는 자기 내용을 스크롤하는
+  //    컨트롤이지 무엇을 담는 레이아웃 컨테이너가 아니므로, 이 단언이 묻는
+  //    질문("팝업의 어느 영역이 스크롤로 넘어가는가")의 대상이 아니다.
+  //
+  //    다만 그것을 조용히 빼지는 않는다. 위 픽스처는 실제로 긴 CSP 값을 하나
+  //    심고, 아래 첫 단언이 그 필드가 **정말로** 스크롤 중임을 요구한다. 그게
+  //    없으면 이 분리는 검사되지 않은 채로 남고, 이 파일은 짧은 값만 심던
+  //    시절처럼 "픽스처 우연으로 통과하는" 상태로 돌아간다.
+  const scrolling = await page.evaluate(() => {
     const identify = (el: Element): string => {
       const testid = el.getAttribute('data-testid');
       if (testid) return testid;
@@ -891,16 +965,28 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       const cls = typeof raw === 'string' ? raw : ((raw as { baseVal?: string })?.baseVal ?? '');
       return `${tag}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''}`;
     };
-    return [...document.querySelectorAll<HTMLElement>('*')]
-      .filter(
-        (el) =>
-          ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) &&
-          el.scrollHeight > el.clientHeight,
-      )
-      .map(identify)
-      .sort();
+    const scrolling = [...document.querySelectorAll<HTMLElement>('*')].filter(
+      (el) =>
+        ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) &&
+        el.scrollHeight > el.clientHeight,
+    );
+    const isFormControl = (el: HTMLElement) =>
+      el instanceof HTMLTextAreaElement ||
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement;
+    return {
+      controls: scrolling.filter(isFormControl).map(identify).sort(),
+      containers: scrolling
+        .filter((el) => !isFormControl(el))
+        .map(identify)
+        .sort(),
+    };
   });
-  expect(scrollers).toEqual(['rule-list', 'site-list']);
+  expect(
+    scrolling.controls,
+    'the long-value field must really be scrolling, or the exclusion below is untested',
+  ).toEqual(['rule-value']);
+  expect(scrolling.containers).toEqual(['rule-list', 'site-list']);
 
   // 3. 목록 위아래는 평상 상태와 같은 좌표에 있다.
   expect(await boxes(page)).toEqual(before);

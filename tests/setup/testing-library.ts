@@ -13,3 +13,21 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * jsdom implements no `ResizeObserver`, and Radix's popper layer (the tooltip's
+ * positioning) constructs one as soon as content mounts — so opening a tooltip
+ * in a jsdom test throws `ResizeObserver is not defined` before any assertion
+ * runs. A stub that observes nothing is the right shape here rather than a
+ * polyfill: jsdom performs no layout, so there is no resize to report and
+ * nothing downstream of a callback that would never fire anyway. Positioning is
+ * not what these tests are about; what they check is which element is in the
+ * document and what it says.
+ */
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

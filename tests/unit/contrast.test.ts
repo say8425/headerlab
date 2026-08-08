@@ -118,24 +118,25 @@ describe('palette parsing', () => {
  *
  * The floor is 4.5:1 for anything a user reads and 3:1 for a shape that carries
  * state without words. **Every piece of text in this design clears 4.5 in both
- * themes**; the lowest asserted here is the remove `×` on an unusable site row
- * — `--muted-foreground` on `--destructive-bg` — at **4.51** light. (It reads
- * 4.56 on the rail, which this sentence used to name as the floor; the site
- * rows paint their own background and were added to the guard later.) Nothing
- * is parked in the 3:1 allowance except the off-switch track, which is a
- * shape. That is deliberate and it is the direct answer to the original
+ * themes**, with real headroom: the lowest text pair asserted here is a
+ * switched-off rule's value — `--muted-foreground` on `--tray` — at **5.10**
+ * light. Nothing is parked in the 3:1 allowance except the off-switch track,
+ * which is the lowest shape pair at **3.13** dark and is a shape rather than a
+ * word. That is deliberate and it is the direct answer to the original
  * complaint: the palette this replaces expressed "de-emphasised" by fading
  * text toward the background, and a switched-off rule here keeps
- * full-contrast text and is marked by its switch and a dashed card instead.
+ * full-contrast text and is marked by its switch and a recessed row instead.
  */
 const READ_TEXT = 4.5;
 const SHAPE = 3;
 
 const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the panel: fields, buttons and the surfaces they sit on ---
-  // RuleCard.tsx (Task 7) composes these from shadcn's Switch/Badge/Input/
-  // Button now, so nothing below names an `.hl-*` selector for the row
-  // itself — see style.css's own note where `.hl-rule` used to live.
+  // Nothing below names a stylesheet selector any more, because there are none
+  // left to name: every element in this popup is composed from Tailwind
+  // utilities and shadcn primitives in its own file, and style.css holds the
+  // two palettes and little else. Each entry names the element instead, which
+  // is what a reader has to find in order to check the claim.
   ['header name text — the name Input, line 1 of a rule row', '--foreground', '--background'],
   ['header value text — the value Input, line 2 of a rule row', '--foreground-2', '--background'],
   [
@@ -176,11 +177,10 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--destructive',
   ],
 
-  // --- the tray (the rules well `--card` sits inside — see style.css). The
-  //     well itself is still unpainted (Task 8), but a switched-off rule row
-  //     (RuleCard.tsx's `data-off`) already sits on `--tray` today, so these
-  //     are no longer merely reserved ahead of time. ---
-  ['text on the tray, reserved for Task 8 painting the well itself', '--foreground', '--tray'],
+  // --- the tray: the well the rule rows sit in (`rule-list` in RulePanel.tsx)
+  //     and, at the same tone, a switched-off row and the ghost row at the end
+  //     of the list. Reserved ahead of time in Task 1, painted now. ---
+  ['text on the well itself — the tray behind the rule rows', '--foreground', '--tray'],
   [
     'header name text on a switched-off row — .te-name/[data-on=false] in the mockup',
     '--foreground-2',
@@ -216,37 +216,41 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // does not out-shout the header name it sits beside — the one-button-
   // language fix landing on its last element too.
   ['rule delete control — the ghost icon button on its row', '--muted-foreground', '--card'],
+  // The rail's own chrome. The section headings sit directly on the rail;
+  // everything in the readout sits on the raised card inside it, which is a
+  // different surface and so a different pair — the two used to be one entry
+  // naming `--rail` for both, which stopped being true when the readout moved
+  // onto a card of its own.
+  ['section headings — "Sites" / "Request types" on the rail', '--foreground-2', '--rail'],
   [
-    'readout subcount and section headings — .hl-subcount / .hl-railhead',
-    '--foreground-2',
-    '--rail',
-  ],
-  [
-    'section counts and unchecked type labels — .hl-n / TypeChecklist label',
+    'section counts and unchecked type labels — the count beside a heading, TypeChecklist label',
     '--muted-foreground',
     '--rail',
   ],
-  ['"Active" — .hl-pauselab', '--live', '--live-bg'],
-  ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--foreground-2', '--background'],
-  // The all-sites switch wears three surfaces, one per state, and each paints
-  // its own label. The ungranted one is the pair nothing else on screen used:
-  // every other amber element is `--foreground` on the amber fill, and this is
-  // the amber ink on it.
-  ['"All sites", off — .hl-allsiteslab', '--foreground-2', '--background'],
-  ['"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab', '--live', '--live-bg'],
-  [
-    '"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab',
-    '--pending',
-    '--pending-bg',
-  ],
+  ['the live count — the big number on the readout card', '--foreground', '--card'],
+  ['"of N rules live" — beside the big number', '--foreground-2', '--card'],
+  ['the readout subcount — "1 off · 2 blocked", under the big number', '--foreground-2', '--card'],
+  // The run state is a word and a dot on the same card, in both directions —
+  // it no longer repaints a bar around itself, so neither state pairs against
+  // a tinted fill. The dot carries the colour (see SHAPE_PAIRS).
+  ['"Active" / "Paused" — the run state on the readout card', '--foreground', '--card'],
+  // The all-sites row is a site row in every respect but its glyph: one
+  // `--card` fill in all four states, with the state said by the globe, the
+  // second line and the Grant button rather than by repainting the row. It
+  // used to wear three tinted surfaces, one per state, each painting its own
+  // label — those three pairs are these three, moved onto the surface that
+  // actually paints them now.
+  ['"All sites" — the label on its row, any state', '--foreground', '--card'],
+  ['all-sites state line, granted — "Access granted"', '--live', '--card'],
+  ['all-sites state line, off — "The list below applies"', '--muted-foreground', '--card'],
   // Every site row now carries a second line naming its state, coloured to
   // match — mirroring the mockup's `.te-l2--live` / `.te-l2--err`, which
   // colours the line itself rather than leaving severity to the icon alone.
   // All three pair against `--card`, since the row no longer changes fill by
-  // state (see above). The idle one replaces the pair that was written for
-  // `.hl-fieldnote-calm`: those exact words moved from a paragraph above the
-  // list onto the row itself, so the guard moved with them rather than being
-  // deleted.
+  // state (see above). The idle one replaces the pair that was written for the
+  // "not in use while All sites is on" paragraph: those exact words moved from
+  // above the list onto the row itself, so the guard moved with them rather
+  // than being deleted.
   ['row state line, granted', '--live', '--card'],
   ['row state line, unusable', '--destructive', '--card'],
   ['row state line, not in use — All sites is on', '--muted-foreground', '--card'],
@@ -259,9 +263,12 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--pending',
     '--pending-bg',
   ],
-  ['the ? mark — .hl-helpmark', '--muted-foreground', '--rail'],
+  ['the ? mark — the CircleHelp beside the SITES heading', '--muted-foreground', '--rail'],
+  // Two elements, one pairing: the tooltip's own surface (shadcn's
+  // TooltipContent is `bg-foreground text-background`) and the brand mark,
+  // which is the same inversion at 24px.
   [
-    'help bubble — .hl-helpbubble, an inverted surface in both themes',
+    'help bubble and brand mark — an inverted surface in both themes',
     '--background',
     '--foreground',
   ],
@@ -270,8 +277,12 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--pending',
     '--rail',
   ],
-  ['scope note body — .hl-note', '--foreground', '--background'],
-  ['reconcile failure heading — .hl-note-err b', '--destructive', '--background'],
+  ['scope note body — a note card in the rail', '--foreground', '--background'],
+  [
+    'reconcile failure heading — the bold line of the sync-error note',
+    '--destructive',
+    '--background',
+  ],
   // Parked in Task 1: both tokens were in COLOR_TOKENS but nothing painted
   // with them yet. shadcn's Button (components/ui/button.tsx, `default`
   // variant) is the first thing that does — `bg-primary text-primary-foreground`.
@@ -291,7 +302,19 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--input',
     '--tray',
   ],
-  ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--input', '--rail'],
+  // Both rail switches live on the readout card and the all-sites row now, not
+  // on the rail itself — the surface under an OFF track changed with them.
+  ['paused master switch track — the Switch unchecked, on the readout card', '--input', '--card'],
+  // The readout's own dot: green while running, neutral while paused. It is
+  // the colour half of a claim whose word ("Active"/"Paused") is asserted
+  // above, so both states are pinned rather than only the live one.
+  ['run state dot, active', '--live', '--card'],
+  ['run state dot, paused', '--muted-foreground', '--card'],
+  // The all-sites globe, which is that row's one unconditional state carrier
+  // in the two states where the answer is known. Same floor and same reasoning
+  // as the site rows' icons directly below.
+  ['all-sites globe, granted', '--live', '--card'],
+  ['all-sites globe, awaiting permission', '--pending', '--card'],
   // The site row's lucide icon (CircleCheck/CircleMinus/Ban) is the state's one
   // unconditional carrier now — every state renders it, on line 1, on the
   // row's one fill (`--card`). A graphical indicator rather than a paragraph,
@@ -305,7 +328,7 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // is the edge most at risk of being toned down until it stops dividing
   // anything.
   [
-    'incomplete note edge — .hl-note[data-severity=incomplete]',
+    'incomplete note edge — a scope note of severity `incomplete`',
     '--muted-foreground',
     '--background',
   ],
@@ -389,8 +412,7 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
    * merely close in dark) — a rule card's fill alone no longer separates it
    * from the panel at all (1.000 in light, not merely weak). `--tray` is the
    * third surface between them: the recessed well the rows sit in, per the
-   * reference mockup. Not painted by any `.hl-*` rule yet (Task 8 does that),
-   * but it must not rot unguarded in the meantime. The floor reuses the rail
+   * reference mockup, and painted by `rule-list` itself. The floor reuses the rail
    * check's own 1.09 above rather than the edge checks' 1.2 below: this is the
    * same category of pair (fill vs fill, not a line), and 1.2 is not reachable
    * here in either theme — light measures 1.184 with the mockup's own value,

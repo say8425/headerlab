@@ -640,7 +640,12 @@ describe('adding a site', () => {
     renderRail();
     expect(screen.queryByTestId('help-bubble')).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'About matching sites' }));
+    // Hover, not click. The `?` is a shadcn Tooltip trigger now, and a Radix
+    // tooltip treats a click as "I am busy, get out of the way" — it closes on
+    // pointerdown. Hovering and focusing are the two ways it opens, and both
+    // are pinned in tooltip.test.tsx; what this test is about is which fact
+    // the rail's own mark carries.
+    await userEvent.hover(screen.getByRole('button', { name: 'About matching sites' }));
     // Worked pairs first, then the rule they demonstrate — a developer
     // pattern-matches the transformation faster than a sentence describing it.
     expect(screen.getByTestId('help-bubble').textContent).toBe(
