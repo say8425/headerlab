@@ -282,7 +282,21 @@ test("nothing in the popup is wider than what holds it, at the popup's own width
             // make an unbreakable run wrap.
             domains: ['averylongsubdomainlabelwithnobreaks.staging.example.com:8443'],
             excludedDomains: [],
-            resourceTypes: ['xmlhttprequest'],
+            // All eight offered types checked, not just one: TypeChecklist renders a
+            // checked label semibold, and the worst case for the two-column grid's
+            // width is every label at that weight at once — not merely the one this
+            // fixture happened to pick before. `stylesheet` (10 characters) is the
+            // longest label offered and only renders semibold when it is checked.
+            resourceTypes: [
+              'main_frame',
+              'sub_frame',
+              'xmlhttprequest',
+              'script',
+              'stylesheet',
+              'image',
+              'font',
+              'media',
+            ],
           },
           tabLock: { enabled: false, tabId: null, tabTitle: null },
           headers: [
