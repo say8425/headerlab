@@ -179,13 +179,25 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                 aria-label="Header value"
                 data-testid="rule-value"
                 rows={1}
-                /* min/max restored from the pre-mockup field (69bf230) — the
-                   owner's ruling was "값이 감싸지게(예전 방식)", the previous
-                   way, which capped growth and let a very long value scroll
-                   inside itself rather than growing without bound. Dropping
-                   the cap was found in review: a realistic 536-character
-                   value made one row 232.5px tall, 42% of the popup's own
-                   height. `max-h-24` (96px) is `.hl-hval`'s old value.
+                /* `max-h-24` restored from the pre-mockup field (69bf230) —
+                   the owner's ruling was "값이 감싸지게(예전 방식)", the
+                   previous way, which capped growth and let a very long
+                   value scroll inside itself rather than growing without
+                   bound. Dropping the cap was found in review: a realistic
+                   536-character value made one row 232.5px tall, 42% of the
+                   popup's own height. `max-h-24` (96px) is `.hl-hval`'s old
+                   value.
+
+                   The old field's `min-height: 30px` did NOT come back with
+                   it. That number served the old field's padded, bordered,
+                   12px box — this one has neither, so a floor buys nothing
+                   an empty single line doesn't already have (still a real,
+                   ~250px-wide click target via `min-w-0 flex-1`) and costs
+                   real, visible space on every short row: measured 51.5px
+                   → 66.5px with it, on rows that are most of the list, in
+                   the direction opposite the density the owner chose this
+                   whole redesign for. Found in review, corrected the same
+                   round.
 
                    Once a value is long enough to hit the cap, the textarea
                    becomes a genuine scroll container of its own —
@@ -197,7 +209,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                    never fires there, but Task 8/9 — which owns that
                    assertion — should know the reason going in rather than
                    find the symptom. */
-                className="min-w-0 max-h-24 min-h-[30px] flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
+                className="min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
                 placeholder="value"
                 value={value.draft}
                 onChange={(e) => value.setDraft(e.target.value)}
