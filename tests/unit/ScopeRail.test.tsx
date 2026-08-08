@@ -621,6 +621,14 @@ describe('adding a site', () => {
     await userEvent.type(field(), '   {Enter}');
     expect(onAddDomain).not.toHaveBeenCalled();
   });
+
+  it('추가 슬롯의 경계는 대비가 보장된 토큰을 쓴다', () => {
+    // The dashed edge is the only thing telling this control apart from
+    // plain text — Task 1's 3:1 guard is on `--boundary` itself, so this only
+    // has to confirm the slot actually reaches for that token.
+    renderRail();
+    expect(screen.getByTestId('add-field').className).toContain('border-boundary');
+  });
 });
 
 describe('request types', () => {

@@ -589,29 +589,9 @@ body {
 
 /* The site row itself (`.te-row`/`.te-l1`/`.te-l2` in the mockup) is a shadcn
    Button + lucide icons composed straight in SiteRow.tsx now — no `.hl-*`
-   class of its own left to hold. */
-
-.hl-addfield {
-    display: block;
-    width: 100%;
-    background: var(--background);
-    border: 1px dashed var(--rail-border);
-    border-radius: 6px;
-    padding: 7px 8px;
-    font: 400 11.5px/1.25 var(--font-mono);
-    color: var(--foreground);
-}
-
-.hl-addfield::placeholder {
-    color: var(--muted-foreground);
-}
-
-.hl-addfield:focus {
-    border-style: solid;
-    border-color: var(--ring);
-    outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
-}
+   class of its own left to hold. The dashed slot below it (`.te-slot--site`)
+   is the same story: a shadcn Input, a lucide `Plus`, and `border-boundary`
+   composed straight in AddSiteField.tsx. */
 
 /* ---- the `?` and its bubble ---- */
 
@@ -695,25 +675,15 @@ body {
     display: block;
 }
 
-.hl-fieldnote {
-    margin: 3px 1px 0;
-    font: 400 10.5px/1.4 var(--font-sans);
-    color: var(--pending);
-    overflow-wrap: anywhere;
-}
-
-.hl-fieldnote b {
-    font: 600 10.5px/1.4 var(--font-mono);
-}
-
 /* `.hl-fieldnote-calm` used to sit here, for the "Not in use while All sites is
    on" paragraph above the site list. That sentence is on each idle row's own
-   reserved line now (`.hl-needsay`), where saying it costs no movement — the
-   paragraph appeared and vanished with the mode and pushed the list 23.7px each
-   way. The rule is gone because its only subject is; the reasoning it carried
-   is not: a state that is behaving exactly as asked must not borrow the amber
-   that means "something needs you", which is why `.hl-needsay` is
-   `--muted-foreground` and `.hl-fieldnote` is still `--pending`. */
+   reserved line now (SiteRow's `text-muted-foreground` second line), where
+   saying it costs no movement — the paragraph appeared and vanished with the
+   mode and pushed the list 23.7px each way. The rule is gone because its only
+   subject is; the reasoning it carried is not: a state that is behaving
+   exactly as asked must not borrow the amber that means "something needs
+   you", which is why that idle line is `text-muted-foreground` and the
+   duplicate-site note in AddSiteField.tsx is still `text-pending`. */
 
 /* ---- a whole-screen note, parked against its cause ---- */
 /* A neutral card with a coloured edge, never a coloured block. A pending site
