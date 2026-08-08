@@ -37,7 +37,7 @@ function readPalette(selector: string): Record<string, string> {
   const block = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`, 'g');
   const vars: Record<string, string> = {};
   for (const match of CSS.matchAll(block)) {
-    for (const [, name, value] of match[1]!.matchAll(/(--hl-[\w-]+)\s*:\s*([^;]+);/g)) {
+    for (const [, name, value] of match[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
       vars[name!] = value!.trim();
     }
   }
@@ -49,32 +49,35 @@ const PALETTES = {
   dark: readPalette('.dark'),
 };
 
-/** Tokens that are not colours, and so are excluded from the shape checks. */
-const NON_COLOR = ['--hl-sans', '--hl-mono', '--hl-card-sh'];
+/** 색이 아닌 토큰. 형태 검사에서 제외된다. */
+const NON_COLOR = ['--radius', '--font-sans', '--font-mono'];
 
-/** Every colour token both palettes must define, so a rename cannot go unnoticed. */
+/** 두 팔레트가 모두 정의해야 하는 색 토큰. 이름이 바뀌면 조용히 지나가지 않는다. */
 const COLOR_TOKENS = [
-  '--hl-panel',
-  '--hl-rail',
-  '--hl-rail-edge',
-  '--hl-card',
-  '--hl-card-edge',
-  '--hl-ink',
-  '--hl-ink-2',
-  '--hl-ink-3',
-  '--hl-req-bg',
-  '--hl-req-fg',
-  '--hl-res-bg',
-  '--hl-res-fg',
-  '--hl-live',
-  '--hl-live-bg',
-  '--hl-pend',
-  '--hl-pend-bg',
-  '--hl-pend-edge',
-  '--hl-err',
-  '--hl-err-bg',
-  '--hl-act',
-  '--hl-off-track',
+  '--background',
+  '--foreground',
+  '--foreground-2',
+  '--muted-foreground',
+  '--card',
+  '--border',
+  '--rail',
+  '--rail-border',
+  '--input',
+  '--primary',
+  '--primary-foreground',
+  '--ring',
+  '--boundary',
+  '--live',
+  '--live-bg',
+  '--pending',
+  '--pending-bg',
+  '--pending-border',
+  '--destructive',
+  '--destructive-bg',
+  '--req',
+  '--req-bg',
+  '--res',
+  '--res-bg',
 ] as const;
 
 describe('palette parsing', () => {
@@ -115,39 +118,39 @@ describe('palette parsing', () => {
  * The floor is 4.5:1 for anything a user reads and 3:1 for a shape that carries
  * state without words. **Every piece of text in this design clears 4.5 in both
  * themes**; the lowest asserted here is the remove `×` on an unusable site row
- * — `--hl-ink-3` on `--hl-err-bg` — at **4.51** light. (It reads 4.56 on the
- * rail, which this sentence used to name as the floor; the site rows paint
- * their own background and were added to the guard later.) Nothing is
- * parked in the 3:1 allowance except the off-switch track, which is a shape.
- * That is deliberate and it is the direct answer to the original complaint: the
- * palette this replaces expressed "de-emphasised" by fading text toward the
- * background, and a switched-off rule here keeps full-contrast text and is
- * marked by its switch and a dashed card instead.
+ * — `--muted-foreground` on `--destructive-bg` — at **4.51** light. (It reads
+ * 4.56 on the rail, which this sentence used to name as the floor; the site
+ * rows paint their own background and were added to the guard later.) Nothing
+ * is parked in the 3:1 allowance except the off-switch track, which is a
+ * shape. That is deliberate and it is the direct answer to the original
+ * complaint: the palette this replaces expressed "de-emphasised" by fading
+ * text toward the background, and a switched-off rule here keeps
+ * full-contrast text and is marked by its switch and a dashed card instead.
  */
 const READ_TEXT = 4.5;
 const SHAPE = 3;
 
 const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the panel: fields, buttons and the surfaces they sit on ---
-  ['header name and value text — .hl-hname / .hl-hval', '--hl-ink', '--hl-panel'],
-  ['operation button label — .hl-op', '--hl-ink-2', '--hl-panel'],
+  ['header name and value text — .hl-hname / .hl-hval', '--foreground', '--background'],
+  ['operation button label — .hl-op', '--foreground-2', '--background'],
   [
     'field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule',
-    '--hl-ink-3',
-    '--hl-panel',
+    '--muted-foreground',
+    '--background',
   ],
-  ['header name over the card behind it — .hl-hname on .hl-rule', '--hl-ink', '--hl-card'],
-  ['New rule button — .hl-newbtn', '--hl-panel', '--hl-ink'],
-  ['remove operation marker — .hl-op[data-op=remove]', '--hl-err', '--hl-panel'],
-  ['REQ direction pill — .hl-pill[data-target=request]', '--hl-req-fg', '--hl-req-bg'],
-  ['RES direction pill — .hl-pill[data-target=response]', '--hl-res-fg', '--hl-res-bg'],
-  ['warning inside a rule card — .hl-rprob', '--hl-ink', '--hl-pend-bg'],
-  ['error inside a rule card — .hl-rprob[data-severity=error]', '--hl-ink', '--hl-err-bg'],
-  ['the "!" in a warning badge — .hl-rprob-ic', '--hl-pend-bg', '--hl-pend'],
+  ['header name over the card behind it — .hl-hname on .hl-rule', '--foreground', '--card'],
+  ['New rule button — .hl-newbtn', '--background', '--foreground'],
+  ['remove operation marker — .hl-op[data-op=remove]', '--destructive', '--background'],
+  ['REQ direction pill — .hl-pill[data-target=request]', '--req', '--req-bg'],
+  ['RES direction pill — .hl-pill[data-target=response]', '--res', '--res-bg'],
+  ['warning inside a rule card — .hl-rprob', '--foreground', '--pending-bg'],
+  ['error inside a rule card — .hl-rprob[data-severity=error]', '--foreground', '--destructive-bg'],
+  ['the "!" in a warning badge — .hl-rprob-ic', '--pending-bg', '--pending'],
   [
     'the "!" in an error badge — .hl-rprob[data-severity=error] .hl-rprob-ic',
-    '--hl-err-bg',
-    '--hl-err',
+    '--destructive-bg',
+    '--destructive',
   ],
 
   // --- the rail, whose surface is the darker material in light and the
@@ -155,36 +158,32 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   //     pair against both palettes ---
   // `.hl-dom` paints its own background and swaps it by `data-state`, so every
   // text node on a site row is measured against the row, not the rail. The
-  // guard used to write these against `--hl-panel` alone and so never saw the
-  // pending and unusable rows at all — where the popup's true lowest text ratio
-  // turned out to live.
-  ['site host, granted row — .hl-domhost', '--hl-ink', '--hl-panel'],
-  ['site host, pending row — .hl-dom[data-state=pending]', '--hl-ink', '--hl-pend-bg'],
-  ['site host, unusable row — .hl-dom[data-state=unusable]', '--hl-ink', '--hl-err-bg'],
-  ['site remove ×, pending row — .hl-domx', '--hl-ink-3', '--hl-pend-bg'],
-  ['site remove ×, unusable row — .hl-domx', '--hl-ink-3', '--hl-err-bg'],
+  // guard used to write these against `--background` alone and so never saw
+  // the pending and unusable rows at all — where the popup's true lowest text
+  // ratio turned out to live.
+  ['site host, granted row — .hl-domhost', '--foreground', '--background'],
+  ['site host, pending row — .hl-dom[data-state=pending]', '--foreground', '--pending-bg'],
+  ['site host, unusable row — .hl-dom[data-state=unusable]', '--foreground', '--destructive-bg'],
+  ['site remove ×, pending row — .hl-domx', '--muted-foreground', '--pending-bg'],
+  ['site remove ×, unusable row — .hl-domx', '--muted-foreground', '--destructive-bg'],
   [
     'readout subcount and section headings — .hl-subcount / .hl-railhead',
-    '--hl-ink-2',
-    '--hl-rail',
+    '--foreground-2',
+    '--rail',
   ],
-  ['section counts and unchecked type labels — .hl-n / .hl-ty', '--hl-ink-3', '--hl-rail'],
-  ['"Active" — .hl-pauselab', '--hl-live', '--hl-live-bg'],
-  ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--hl-ink-2', '--hl-panel'],
+  ['section counts and unchecked type labels — .hl-n / .hl-ty', '--muted-foreground', '--rail'],
+  ['"Active" — .hl-pauselab', '--live', '--live-bg'],
+  ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--foreground-2', '--background'],
   // The all-sites switch wears three surfaces, one per state, and each paints
   // its own label. The ungranted one is the pair nothing else on screen used:
-  // every other amber element is `--hl-ink` on the amber fill, and this is the
-  // amber ink on it.
-  ['"All sites", off — .hl-allsiteslab', '--hl-ink-2', '--hl-panel'],
-  [
-    '"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab',
-    '--hl-live',
-    '--hl-live-bg',
-  ],
+  // every other amber element is `--foreground` on the amber fill, and this is
+  // the amber ink on it.
+  ['"All sites", off — .hl-allsiteslab', '--foreground-2', '--background'],
+  ['"All sites", on and granted — .hl-allsites[data-on] .hl-allsiteslab', '--live', '--live-bg'],
   [
     '"All sites", awaiting access — .hl-allsites[data-granted=no] .hl-allsiteslab',
-    '--hl-pend',
-    '--hl-pend-bg',
+    '--pending',
+    '--pending-bg',
   ],
   // Every site row now carries a second line naming its state, and that line is
   // painted on whichever fill the row is wearing — so it needs the pair its
@@ -192,51 +191,59 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // written for `.hl-fieldnote-calm`: those exact words moved from a paragraph
   // above the list onto the row itself, so the guard moved with them rather
   // than being deleted.
-  ['row state line, granted — .hl-needsay', '--hl-ink-3', '--hl-panel'],
+  ['row state line, granted — .hl-needsay', '--muted-foreground', '--background'],
   [
     'row state line, pending — .hl-dom[data-state=pending] .hl-needsay',
-    '--hl-ink-3',
-    '--hl-pend-bg',
+    '--muted-foreground',
+    '--pending-bg',
   ],
   [
     'row state line, unusable — .hl-dom[data-state=unusable] .hl-needsay',
-    '--hl-ink-3',
-    '--hl-err-bg',
+    '--muted-foreground',
+    '--destructive-bg',
   ],
   // The site list while all-sites is on: the row drops its own fill, so both
   // its text and its state line are painted straight onto the rail.
-  ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--hl-ink-3', '--hl-rail'],
-  ['row state line, not in use — .hl-dom[data-state=idle] .hl-needsay', '--hl-ink-3', '--hl-rail'],
-  ['Grant button — .hl-grant', '--hl-panel', '--hl-act'],
-  ['site remove × — .hl-domx', '--hl-ink-3', '--hl-panel'],
-  ['the ? mark — .hl-helpmark', '--hl-ink-3', '--hl-rail'],
-  ['help bubble — .hl-helpbubble, an inverted surface in both themes', '--hl-panel', '--hl-ink'],
-  ['"already in the list" note — .hl-fieldnote', '--hl-pend', '--hl-rail'],
-  ['scope note body — .hl-note', '--hl-ink', '--hl-panel'],
-  ['reconcile failure heading — .hl-note-err b', '--hl-err', '--hl-panel'],
+  ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--muted-foreground', '--rail'],
+  [
+    'row state line, not in use — .hl-dom[data-state=idle] .hl-needsay',
+    '--muted-foreground',
+    '--rail',
+  ],
+  ['Grant button — .hl-grant', '--background', '--ring'],
+  ['site remove × — .hl-domx', '--muted-foreground', '--background'],
+  ['the ? mark — .hl-helpmark', '--muted-foreground', '--rail'],
+  [
+    'help bubble — .hl-helpbubble, an inverted surface in both themes',
+    '--background',
+    '--foreground',
+  ],
+  ['"already in the list" note — .hl-fieldnote', '--pending', '--rail'],
+  ['scope note body — .hl-note', '--foreground', '--background'],
+  ['reconcile failure heading — .hl-note-err b', '--destructive', '--background'],
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
-  [
-    'switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule',
-    '--hl-off-track',
-    '--hl-card',
-  ],
-  [
-    'paused master switch track — .hl-sw[aria-checked=false] on the rail',
-    '--hl-off-track',
-    '--hl-rail',
-  ],
-  ['unchecked type box — .hl-tybox on the rail', '--hl-off-track', '--hl-rail'],
+  ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--input', '--card'],
+  ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--input', '--rail'],
+  ['unchecked type box — .hl-tybox on the rail', '--input', '--rail'],
   // The idle row's dot is a hollow ring rather than a fill — there is no access
   // state to report on a host nothing is scoped to — so what has to stay
   // visible is its outline.
-  ['not-in-use site dot ring — .hl-dom[data-state=idle] .hl-domstate', '--hl-ink-3', '--hl-rail'],
+  [
+    'not-in-use site dot ring — .hl-dom[data-state=idle] .hl-domstate',
+    '--muted-foreground',
+    '--rail',
+  ],
   // The scope note's left edge is what separates the card from the rail. The
   // `incomplete` one is neutral rather than amber — see the stylesheet — so it
   // is the edge most at risk of being toned down until it stops dividing
   // anything.
-  ['incomplete note edge — .hl-note[data-severity=incomplete]', '--hl-ink-3', '--hl-panel'],
+  [
+    'incomplete note edge — .hl-note[data-severity=incomplete]',
+    '--muted-foreground',
+    '--background',
+  ],
 ];
 
 describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
@@ -260,15 +267,15 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
    * Both surfaces, because the rail and the panel are different materials and
    * the three inks are used on both.
    */
-  it.each(['--hl-panel', '--hl-rail'] as const)('keeps the ink ramp stepped on %s', (surface) => {
+  it.each(['--background', '--rail'] as const)('keeps the ink ramp stepped on %s', (surface) => {
     const against = palette[surface]!;
-    const ramp = ['--hl-ink', '--hl-ink-2', '--hl-ink-3'].map((t) =>
+    const ramp = ['--foreground', '--foreground-2', '--muted-foreground'].map((t) =>
       contrast(palette[t]!, against),
     );
     // Every consecutive step, not just the ends. Comparing only the ends lets
     // the middle tone collapse onto either neighbour while the assertion still
-    // passes — mutation-checked: setting `--hl-ink-2` to `--hl-ink` left an
-    // ends-only check green, and a three-tone hierarchy with two identical
+    // passes — mutation-checked: setting `--foreground-2` to `--foreground` left
+    // an ends-only check green, and a three-tone hierarchy with two identical
     // tones is a two-tone hierarchy.
     //
     // A ratio rather than a difference, because these are ratios: the gap
@@ -309,12 +316,12 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
   const distinct = (a: string, b: string) => contrast(palette[a]!, palette[b]!);
 
   it('makes the rail a different material from the panel, not the same one with a line on it', () => {
-    expect(distinct('--hl-rail', '--hl-panel')).toBeGreaterThanOrEqual(1.09);
+    expect(distinct('--rail', '--background')).toBeGreaterThanOrEqual(1.09);
   });
 
   it('gives the rail an edge that is visible against both surfaces it divides', () => {
-    expect(distinct('--hl-rail-edge', '--hl-rail')).toBeGreaterThanOrEqual(1.2);
-    expect(distinct('--hl-rail-edge', '--hl-panel')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--rail-border', '--rail')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--rail-border', '--background')).toBeGreaterThanOrEqual(1.2);
   });
 
   /**
@@ -324,14 +331,34 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
    * alone is 1.065 in light, which would not carry it.
    */
   it('gives a rule card a border visible against both the card and the panel', () => {
-    expect(distinct('--hl-card-edge', '--hl-card')).toBeGreaterThanOrEqual(1.2);
-    expect(distinct('--hl-card-edge', '--hl-panel')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--border', '--card')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--border', '--background')).toBeGreaterThanOrEqual(1.2);
   });
 
   it('gives a pending site an edge visible against its own amber fill', () => {
     // The one row on screen that changes surface to signal state. If the edge
     // vanished into the fill the row would read as a coloured block, which is
     // the wall of yellow this layout exists to avoid.
-    expect(distinct('--hl-pend-edge', '--hl-pend-bg')).toBeGreaterThanOrEqual(1.2);
+    expect(distinct('--pending-border', '--pending-bg')).toBeGreaterThanOrEqual(1.2);
+  });
+});
+
+/**
+ * WCAG 1.4.11. 경계선이 그것을 컨트롤로 식별시키는 유일한 단서인 자리들 —
+ * 점선 "add" 슬롯과 체크박스 테두리. 시안 다섯 개가 전부 여기서 걸렸고,
+ * 그때까지 이 저장소에는 이 검사가 없었다.
+ *
+ * 스위치의 OFF 트랙은 유일하게 허용되는 예외다: 단어가 아니라 형태이고,
+ * 그 안의 흰 노브가 상태를 말한다.
+ */
+describe.each(['light', 'dark'] as const)('%s control boundaries', (theme) => {
+  const palette = PALETTES[theme];
+
+  it.each([
+    ['--boundary', '--rail'],
+    ['--boundary', '--background'],
+    ['--boundary', '--card'],
+  ] as const)('%s on %s reaches 3:1', (fg, bg) => {
+    expect(contrast(palette[fg]!, palette[bg]!)).toBeGreaterThanOrEqual(SHAPE);
   });
 });

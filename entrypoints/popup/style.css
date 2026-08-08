@@ -1,3 +1,10 @@
+@import "tailwindcss";
+
+/* public/theme.js 가 파싱 시점에 documentElement 에 .dark 를 붙인다.
+   MV3 는 인라인 스크립트를 막으므로 그 부트스트랩은 classic script 로 남고,
+   Tailwind 는 미디어 쿼리가 아니라 그 클래스를 봐야 한다. */
+@custom-variant dark (&:is(.dark *));
+
 /*
  * HeaderLab popup — "Console".
  *
@@ -23,78 +30,104 @@
  */
 
 :root {
-    --hl-panel: #ffffff;
-    --hl-rail: #e9ecf1;
-    --hl-rail-edge: #cdd4de;
-    --hl-card: #f6f8fa;
-    --hl-card-edge: #dae0e8;
-    --hl-ink: #101720;
-    --hl-ink-2: #4c5563;
-    --hl-ink-3: #616b79;
+    --radius: 8px;
 
-    --hl-req-bg: #d7e7fa;
-    --hl-req-fg: #0e4b87;
-    --hl-res-bg: #e9e1f9;
-    --hl-res-fg: #59299f;
+    --background: #ffffff;
+    --foreground: #14161c;
+    --foreground-2: #454b57;
+    --muted-foreground: #5c6371;
+    --card: #ffffff;
+    --border: #d5d9e1;
 
-    --hl-live: #136b3e;
-    --hl-live-bg: #dcf0e4;
-    --hl-pend: #8a4b00;
-    --hl-pend-bg: #fbeeda;
-    --hl-pend-edge: #e8c88e;
-    --hl-err: #a32718;
-    --hl-err-bg: #fbe6e3;
-    --hl-act: #12569f;
+    /* 레일은 패널과 다른 재료다. 다크에서 순서가 뒤집힌다 — 라이트에선 레일이
+       더 어둡고 패널이 밝은 작업면, 다크에선 레일이 떠 있고 패널이 물러난다.
+       shadcn 기본 어휘에는 이 개념이 없어서 따로 둔다. */
+    --rail: #f0f1f4;
+    --rail-border: #d5d9e1;
 
-    --hl-off-track: #7a8593;
+    --input: #7a8593;
+    --primary: #14161c;
+    --primary-foreground: #ffffff;
+    --ring: #1a56c4;
+
+    /* 경계선이 컨트롤 식별의 유일한 단서인 자리. 3:1 을 넘어야 한다. */
+    --boundary: #767d8c;
+
+    --live: #0d6b41;
+    --live-bg: #dcf0e4;
+    --pending: #8a5200;
+    --pending-bg: #fbefdb;
+    --pending-border: #e8c88e;
+    --destructive: #b3261e;
+    --destructive-bg: #fbe6e3;
+    --req: #1a56c4;
+    --req-bg: #e4ecfb;
+    --res: #6a2fbd;
+    --res-bg: #efe7fb;
 }
 
-/*
- * Deliberate, not inverted. In light the rail is the *darker* material and the
- * panel is the bright working surface; carrying that straight over would put a
- * near-black rail against a lifted panel, which reads as a hole punched in the
- * window. So dark flips the material order — the rail becomes the lighter,
- * raised surface and the panel recedes to true near-black — and "panel = where
- * the work is" survives the flip.
- *
- * The class is set by public/theme.js at parse time, before first paint. MV3's
- * CSP forbids inline scripts, so that logic cannot move into the HTML.
- */
+/* 라이트에서 파생하지 않는다. 손으로 맞춘 두 번째 팔레트이고, 그래서
+   contrast.test.ts 가 양쪽을 각각 검사한다. */
 .dark {
-    --hl-panel: #0b0f14;
-    --hl-rail: #141a21;
-    --hl-rail-edge: #232b36;
-    --hl-card: #161d25;
-    --hl-card-edge: #242d38;
-    --hl-ink: #e7eef6;
-    --hl-ink-2: #a6b3c1;
-    --hl-ink-3: #8b98a6;
+    --background: #0b0f14;
+    --foreground: #e7eef6;
+    --foreground-2: #a6b3c1;
+    --muted-foreground: #8b98a6;
+    --card: #161d25;
+    --border: #242d38;
+    --rail: #141a21;
+    --rail-border: #232b36;
+    --input: #5f6b79;
+    --primary: #e7eef6;
+    --primary-foreground: #0b0f14;
+    --ring: #7fb8f0;
+    --boundary: #7b8694;
+    --live: #4cde84;
+    --live-bg: #10301e;
+    --pending: #f0b45c;
+    --pending-bg: #2c2113;
+    --pending-border: #4e3a1b;
+    --destructive: #f08c7c;
+    --destructive-bg: #331916;
+    --req: #8dc5f7;
+    --req-bg: #0f3050;
+    --res: #c6abf7;
+    --res-bg: #2b1f49;
+}
 
-    --hl-req-bg: #0f3050;
-    --hl-req-fg: #8dc5f7;
-    --hl-res-bg: #2b1f49;
-    --hl-res-fg: #c6abf7;
-
-    --hl-live: #4cde84;
-    --hl-live-bg: #10301e;
-    --hl-pend: #f0b45c;
-    --hl-pend-bg: #2c2113;
-    --hl-pend-edge: #4e3a1b;
-    --hl-err: #f08c7c;
-    --hl-err-bg: #331916;
-    --hl-act: #7fb8f0;
-
-    --hl-off-track: #5f6b79;
+/* 위 토큰을 Tailwind 유틸리티로 노출한다 — bg-rail, text-live, border-boundary 등. */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-foreground-2: var(--foreground-2);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-card: var(--card);
+    --color-border: var(--border);
+    --color-rail: var(--rail);
+    --color-rail-border: var(--rail-border);
+    --color-input: var(--input);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-ring: var(--ring);
+    --color-boundary: var(--boundary);
+    --color-live: var(--live);
+    --color-live-bg: var(--live-bg);
+    --color-pending: var(--pending);
+    --color-pending-bg: var(--pending-bg);
+    --color-pending-border: var(--pending-border);
+    --color-destructive: var(--destructive);
+    --color-destructive-bg: var(--destructive-bg);
+    --color-req: var(--req);
+    --color-req-bg: var(--req-bg);
+    --color-res: var(--res);
+    --color-res-bg: var(--res-bg);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
 }
 
 :root {
-    --hl-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    --hl-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --hl-card-sh: 0 1px 1px rgba(16, 23, 32, 0.04);
-}
-
-.dark {
-    --hl-card-sh: none;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -110,9 +143,9 @@ body {
 }
 
 body {
-    font-family: var(--hl-sans);
-    background: var(--hl-panel);
-    color: var(--hl-ink);
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -124,8 +157,8 @@ body {
     display: grid;
     place-items: center;
     height: 100%;
-    font: 400 12px/1 var(--hl-sans);
-    color: var(--hl-ink-2);
+    font: 400 12px/1 var(--font-sans);
+    color: var(--foreground-2);
 }
 
 /* The store could not be read. Deliberately not the normal two-column shell:
@@ -138,19 +171,19 @@ body {
     gap: 8px;
     height: 100%;
     padding: 0 40px;
-    background: var(--hl-rail);
-    color: var(--hl-ink);
+    background: var(--rail);
+    color: var(--foreground);
 }
 
 .hl-broken b {
-    font: 700 13px/1.4 var(--hl-sans);
-    color: var(--hl-err);
+    font: 700 13px/1.4 var(--font-sans);
+    color: var(--destructive);
 }
 
 .hl-broken p {
     margin: 0;
-    font: 400 12px/1.55 var(--hl-sans);
-    color: var(--hl-ink-2);
+    font: 400 12px/1.55 var(--font-sans);
+    color: var(--foreground-2);
     max-width: 420px;
 }
 
@@ -163,7 +196,7 @@ body {
 /* Focus is never removed, only restyled — a popup driven from the keyboard is
    the fast path this product is for. */
 :focus-visible {
-    outline: 2px solid var(--hl-act);
+    outline: 2px solid var(--ring);
     outline-offset: 1px;
     border-radius: 4px;
 }
@@ -171,8 +204,8 @@ body {
 /* ============================= LEFT RAIL ============================= */
 
 .hl-rail {
-    background: var(--hl-rail);
-    border-right: 1px solid var(--hl-rail-edge);
+    background: var(--rail);
+    border-right: 1px solid var(--rail-border);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -191,8 +224,8 @@ body {
     width: 17px;
     height: 17px;
     border-radius: 5px;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
+    background: var(--foreground);
+    color: var(--background);
     flex: none;
     display: grid;
     place-items: center;
@@ -203,16 +236,16 @@ body {
 }
 
 .hl-name {
-    font: 700 11px/1 var(--hl-sans);
+    font: 700 11px/1 var(--font-sans);
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: var(--hl-ink);
+    color: var(--foreground);
 }
 
 .hl-name i {
     font-style: normal;
     font-weight: 500;
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
 }
 
 /* A number big enough to read from the far side of the desk, because "is it
@@ -230,14 +263,14 @@ body {
 }
 
 .hl-bignum b {
-    font: 650 30px/1 var(--hl-sans);
+    font: 650 30px/1 var(--font-sans);
     letter-spacing: -0.02em;
-    color: var(--hl-ink);
+    color: var(--foreground);
 }
 
 .hl-bignum span {
-    font: 500 12.5px/1 var(--hl-sans);
-    color: var(--hl-ink-2);
+    font: 500 12.5px/1 var(--font-sans);
+    color: var(--foreground-2);
 }
 
 /* One line is always reserved, empty or not.
@@ -255,8 +288,8 @@ body {
 .hl-subcount {
     margin-top: 6px;
     min-height: 1.4em;
-    font: 400 11.5px/1.4 var(--hl-sans);
-    color: var(--hl-ink-2);
+    font: 400 11.5px/1.4 var(--font-sans);
+    color: var(--foreground-2);
 }
 
 .hl-pip {
@@ -264,7 +297,7 @@ body {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--hl-off-track);
+    background: var(--input);
     margin-right: 5px;
     vertical-align: 1px;
 }
@@ -276,26 +309,26 @@ body {
     gap: 8px;
     margin: 0 14px 14px;
     padding: 8px 9px;
-    background: var(--hl-live-bg);
-    border: 1px solid color-mix(in srgb, var(--hl-live) 32%, transparent);
+    background: var(--live-bg);
+    border: 1px solid color-mix(in srgb, var(--live) 32%, transparent);
     border-radius: 7px;
 }
 
 .hl-pauselab {
     flex: 1;
-    font: 600 11.5px/1 var(--hl-sans);
-    color: var(--hl-live);
+    font: 600 11.5px/1 var(--font-sans);
+    color: var(--live);
 }
 
 /* Paused is deliberate, not broken, so it recedes to a neutral surface rather
    than borrowing the amber that means "something needs you". */
 .hl-pausebar[data-paused] {
-    background: var(--hl-panel);
-    border-color: var(--hl-rail-edge);
+    background: var(--background);
+    border-color: var(--rail-border);
 }
 
 .hl-pausebar[data-paused] .hl-pauselab {
-    color: var(--hl-ink-2);
+    color: var(--foreground-2);
 }
 
 .hl-sw {
@@ -304,7 +337,7 @@ body {
     border-radius: 999px;
     border: 0;
     padding: 0;
-    background: var(--hl-live);
+    background: var(--live);
     position: relative;
     cursor: pointer;
     flex: none;
@@ -318,11 +351,11 @@ body {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--hl-panel);
+    background: var(--background);
 }
 
 .hl-sw[aria-checked="false"] {
-    background: var(--hl-off-track);
+    background: var(--input);
 }
 
 .hl-sw[aria-checked="false"]::after {
@@ -353,17 +386,17 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    font: 700 9.5px/1 var(--hl-sans);
+    font: 700 9.5px/1 var(--font-sans);
     letter-spacing: 0.11em;
     text-transform: uppercase;
-    color: var(--hl-ink-2);
+    color: var(--foreground-2);
     margin-bottom: 1px;
 }
 
 .hl-n {
-    font: 600 9.5px/1 var(--hl-sans);
+    font: 600 9.5px/1 var(--font-sans);
     letter-spacing: 0;
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
 }
 
 /* ---- sites: the row IS the permission control ---- */
@@ -392,8 +425,8 @@ body {
     align-items: center;
     gap: 7px;
     min-height: 38.5px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
+    background: var(--background);
+    border: 1px solid var(--rail-border);
     border-radius: 6px;
     padding: 7px 7px 7px 9px;
     margin-bottom: 1px;
@@ -402,8 +435,8 @@ body {
 .hl-allsiteslab {
     flex: 1;
     min-width: 0;
-    font: 600 11.5px/1.25 var(--hl-sans);
-    color: var(--hl-ink-2);
+    font: 600 11.5px/1.25 var(--font-sans);
+    color: var(--foreground-2);
 }
 
 /* The same dot a site row wears, in the same place on the row, because it
@@ -414,13 +447,13 @@ body {
     height: 7px;
     border-radius: 50%;
     flex: none;
-    background: var(--hl-live);
-    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
+    background: var(--live);
+    box-shadow: 0 0 0 2.5px var(--live-bg);
 }
 
 .hl-allsites[data-granted="no"] .hl-allsitesstate {
-    background: var(--hl-pend);
-    box-shadow: 0 0 0 2.5px var(--hl-pend-bg);
+    background: var(--pending);
+    box-shadow: 0 0 0 2.5px var(--pending-bg);
 }
 
 /* The slot with nothing to report: the mode is off, or the probe has not
@@ -433,12 +466,12 @@ body {
 
 /* On and granted: live, and coloured like everything else that is working. */
 .hl-allsites[data-on] {
-    background: var(--hl-live-bg);
-    border-color: color-mix(in srgb, var(--hl-live) 32%, transparent);
+    background: var(--live-bg);
+    border-color: color-mix(in srgb, var(--live) 32%, transparent);
 }
 
 .hl-allsites[data-on] .hl-allsiteslab {
-    color: var(--hl-live);
+    color: var(--live);
 }
 
 /* On but ungranted — the migrated store, and the declined prompt. It borrows
@@ -447,12 +480,12 @@ body {
    remedy is the same Grant button on the same surface. Two controls in the
    same state should not need two vocabularies. */
 .hl-allsites[data-granted="no"] {
-    background: var(--hl-pend-bg);
-    border-color: var(--hl-pend-edge);
+    background: var(--pending-bg);
+    border-color: var(--pending-border);
 }
 
 .hl-allsites[data-granted="no"] .hl-allsiteslab {
-    color: var(--hl-pend);
+    color: var(--pending);
 }
 
 /* Two lines in every state, not only when there is a Grant button to show.
@@ -476,8 +509,8 @@ body {
     /* Both axes, one declaration — `gap` sets `row-gap` too, so a separate
        `row-gap` after it is the shorthand overwriting itself. */
     gap: 7px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
+    background: var(--background);
+    border: 1px solid var(--rail-border);
     border-radius: 6px;
     padding: 6px 7px 7px 8px;
 }
@@ -485,8 +518,8 @@ body {
 .hl-domhost {
     flex: 1;
     min-width: 0;
-    font: 500 11.5px/1.25 var(--hl-mono);
-    color: var(--hl-ink);
+    font: 500 11.5px/1.25 var(--font-mono);
+    color: var(--foreground);
     overflow-wrap: anywhere;
 }
 
@@ -495,8 +528,8 @@ body {
     height: 7px;
     border-radius: 50%;
     flex: none;
-    background: var(--hl-live);
-    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
+    background: var(--live);
+    box-shadow: 0 0 0 2.5px var(--live-bg);
 }
 
 .hl-domx {
@@ -504,13 +537,13 @@ body {
     border: 0;
     background: none;
     cursor: pointer;
-    color: var(--hl-ink-3);
-    font: 400 13px/1 var(--hl-sans);
+    color: var(--muted-foreground);
+    font: 400 13px/1 var(--font-sans);
     padding: 0 1px;
 }
 
 .hl-domx:hover {
-    color: var(--hl-err);
+    color: var(--destructive);
 }
 
 /* A site awaiting permission keeps its identity and gains a step. It is not
@@ -520,13 +553,13 @@ body {
    now — they were the row's geometry following its state, which is the one
    thing state is not allowed to do. */
 .hl-dom[data-state="pending"] {
-    background: var(--hl-pend-bg);
-    border-color: var(--hl-pend-edge);
+    background: var(--pending-bg);
+    border-color: var(--pending-border);
 }
 
 .hl-dom[data-state="pending"] .hl-domstate {
-    background: var(--hl-pend);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-pend) 22%, transparent);
+    background: var(--pending);
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--pending) 22%, transparent);
 }
 
 /* A site that cannot be used at all. It used to render the same green dot as a
@@ -534,13 +567,13 @@ body {
    one symbol meaning two opposite things, and the broken object the only one
    on screen not admitting it. */
 .hl-dom[data-state="unusable"] {
-    background: var(--hl-err-bg);
-    border-color: color-mix(in srgb, var(--hl-err) 45%, transparent);
+    background: var(--destructive-bg);
+    border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
 }
 
 .hl-dom[data-state="unusable"] .hl-domstate {
-    background: var(--hl-err);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
+    background: var(--destructive);
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--destructive) 22%, transparent);
 }
 
 /* Stored, still editable, and not in use — the list while all-sites is on. It
@@ -555,12 +588,12 @@ body {
 }
 
 .hl-dom[data-state="idle"] .hl-domhost {
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
 }
 
 .hl-dom[data-state="idle"] .hl-domstate {
     background: none;
-    border: 1.5px solid var(--hl-ink-3);
+    border: 1.5px solid var(--muted-foreground);
     box-shadow: none;
 }
 
@@ -589,8 +622,8 @@ body {
    the same tone the row's other secondary marks use — it restates the dot, so
    it must not compete with the hostname above it. */
 .hl-needsay {
-    font: 400 10.5px/1.4 var(--hl-sans);
-    color: var(--hl-ink-3);
+    font: 400 10.5px/1.4 var(--font-sans);
+    color: var(--muted-foreground);
     overflow-wrap: anywhere;
 }
 
@@ -599,9 +632,9 @@ body {
     border: 0;
     border-radius: 5px;
     cursor: pointer;
-    background: var(--hl-act);
-    color: var(--hl-panel);
-    font: 600 10.5px/1 var(--hl-sans);
+    background: var(--ring);
+    color: var(--background);
+    font: 600 10.5px/1 var(--font-sans);
     padding: 6px 11px;
     align-self: flex-start;
 }
@@ -613,23 +646,23 @@ body {
 .hl-addfield {
     display: block;
     width: 100%;
-    background: var(--hl-panel);
-    border: 1px dashed var(--hl-rail-edge);
+    background: var(--background);
+    border: 1px dashed var(--rail-border);
     border-radius: 6px;
     padding: 7px 8px;
-    font: 400 11.5px/1.25 var(--hl-mono);
-    color: var(--hl-ink);
+    font: 400 11.5px/1.25 var(--font-mono);
+    color: var(--foreground);
 }
 
 .hl-addfield::placeholder {
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
 }
 
 .hl-addfield:focus {
     border-style: solid;
-    border-color: var(--hl-act);
+    border-color: var(--ring);
     outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
 }
 
 /* ---- the `?` and its bubble ---- */
@@ -642,10 +675,10 @@ body {
     width: 13px;
     height: 13px;
     border-radius: 50%;
-    border: 1px solid var(--hl-ink-3);
+    border: 1px solid var(--muted-foreground);
     background: none;
-    color: var(--hl-ink-3);
-    font: 700 8.5px/1 var(--hl-sans);
+    color: var(--muted-foreground);
+    font: 700 8.5px/1 var(--font-sans);
     letter-spacing: 0;
     cursor: help;
     padding: 0;
@@ -655,8 +688,8 @@ body {
 
 .hl-helpmark:hover,
 .hl-helpmark[aria-expanded="true"] {
-    border-color: var(--hl-ink);
-    color: var(--hl-ink);
+    border-color: var(--foreground);
+    color: var(--foreground);
 }
 
 /* Spans the heading rather than hugging the mark — see .hl-railhead for why a
@@ -668,11 +701,11 @@ body {
     left: 0;
     right: 0;
     z-index: 2;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
+    background: var(--foreground);
+    color: var(--background);
     border-radius: 7px;
     padding: 7px 9px;
-    font: 400 10.5px/1.45 var(--hl-sans);
+    font: 400 10.5px/1.45 var(--font-sans);
     letter-spacing: 0;
     text-transform: none;
     overflow-wrap: anywhere;
@@ -688,7 +721,7 @@ body {
     bottom: 100%;
     left: 54px;
     border: 5px solid transparent;
-    border-bottom-color: var(--hl-ink);
+    border-bottom-color: var(--foreground);
 }
 
 .hl-helpex {
@@ -702,11 +735,11 @@ body {
     display: flex;
     align-items: baseline;
     gap: 5px;
-    color: var(--hl-panel);
+    color: var(--background);
 }
 
 .hl-helprow code {
-    font: 500 9.5px/1.35 var(--hl-mono);
+    font: 500 9.5px/1.35 var(--font-mono);
     overflow-wrap: anywhere;
 }
 
@@ -716,13 +749,13 @@ body {
 
 .hl-fieldnote {
     margin: 3px 1px 0;
-    font: 400 10.5px/1.4 var(--hl-sans);
-    color: var(--hl-pend);
+    font: 400 10.5px/1.4 var(--font-sans);
+    color: var(--pending);
     overflow-wrap: anywhere;
 }
 
 .hl-fieldnote b {
-    font: 600 10.5px/1.4 var(--hl-mono);
+    font: 600 10.5px/1.4 var(--font-mono);
 }
 
 /* `.hl-fieldnote-calm` used to sit here, for the "Not in use while All sites is
@@ -731,8 +764,8 @@ body {
    paragraph appeared and vanished with the mode and pushed the list 23.7px each
    way. The rule is gone because its only subject is; the reasoning it carried
    is not: a state that is behaving exactly as asked must not borrow the amber
-   that means "something needs you", which is why `.hl-needsay` is `--hl-ink-3`
-   and `.hl-fieldnote` is still `--hl-pend`. */
+   that means "something needs you", which is why `.hl-needsay` is
+   `--muted-foreground` and `.hl-fieldnote` is still `--pending`. */
 
 /* ---- request types: all eight, no disclosure. The rail has vertical room the
    grid never had, so a rarely-touched control can be visible and small instead
@@ -748,8 +781,8 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
-    font: 400 10.5px/1.3 var(--hl-mono);
-    color: var(--hl-ink-3);
+    font: 400 10.5px/1.3 var(--font-mono);
+    color: var(--muted-foreground);
     background: none;
     border: 0;
     padding: 1px 0;
@@ -762,18 +795,18 @@ body {
     height: 12px;
     border-radius: 3px;
     flex: none;
-    border: 1.5px solid var(--hl-off-track);
-    background: var(--hl-panel);
+    border: 1.5px solid var(--input);
+    background: var(--background);
 }
 
 .hl-ty[aria-pressed="true"] {
-    color: var(--hl-ink);
+    color: var(--foreground);
     font-weight: 500;
 }
 
 .hl-ty[aria-pressed="true"] .hl-tybox {
-    background: var(--hl-act);
-    border-color: var(--hl-act);
+    background: var(--ring);
+    border-color: var(--ring);
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
     background-size: 12px 12px;
 }
@@ -787,19 +820,19 @@ body {
 .hl-note {
     margin: 15px 14px 0;
     padding: 8px 9px 8px 10px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
-    border-left: 3px solid var(--hl-pend);
+    background: var(--background);
+    border: 1px solid var(--rail-border);
+    border-left: 3px solid var(--pending);
     border-radius: 6px;
-    font: 400 10.5px/1.45 var(--hl-sans);
-    color: var(--hl-ink);
+    font: 400 10.5px/1.45 var(--font-sans);
+    color: var(--foreground);
     /* These name hosts, and a host is one word — without this a domain longer
        than the rail pushes the note out of the 224px column. */
     overflow-wrap: anywhere;
 }
 
 .hl-note[data-severity="error"] {
-    border-left-color: var(--hl-err);
+    border-left-color: var(--destructive);
 }
 
 /* `incomplete` is not a complaint. Nothing is wrong and nothing is at risk —
@@ -810,18 +843,18 @@ body {
    A neutral edge still separates the card from the rail, which is the only
    job the border actually has here. */
 .hl-note[data-severity="incomplete"] {
-    border-left-color: var(--hl-ink-3);
+    border-left-color: var(--muted-foreground);
 }
 
 .hl-note-err {
-    border-left-color: var(--hl-err);
+    border-left-color: var(--destructive);
 }
 
 .hl-note b {
     display: block;
     margin-bottom: 2px;
     font-weight: 700;
-    color: var(--hl-err);
+    color: var(--destructive);
 }
 
 .hl-railfill {
@@ -844,25 +877,25 @@ body {
     align-items: center;
     gap: 10px;
     padding: 13px 16px 11px;
-    border-bottom: 1px solid var(--hl-card-edge);
+    border-bottom: 1px solid var(--border);
 }
 
 .hl-panelhead h2 {
     margin: 0;
     flex: 1;
-    font: 700 9.5px/1 var(--hl-sans);
+    font: 700 9.5px/1 var(--font-sans);
     letter-spacing: 0.11em;
     text-transform: uppercase;
-    color: var(--hl-ink-2);
+    color: var(--foreground-2);
 }
 
 .hl-newbtn {
     border: 0;
     border-radius: 6px;
     cursor: pointer;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
-    font: 600 11.5px/1 var(--hl-sans);
+    background: var(--foreground);
+    color: var(--background);
+    font: 600 11.5px/1 var(--font-sans);
     padding: 7px 12px;
 }
 
@@ -881,11 +914,10 @@ body {
 
 .hl-rule {
     position: relative;
-    background: var(--hl-card);
-    border: 1px solid var(--hl-card-edge);
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 9px 9px;
-    box-shadow: var(--hl-card-sh);
 }
 
 .hl-rule + .hl-rule,
@@ -918,7 +950,7 @@ body {
     border-radius: 999px;
     border: 0;
     padding: 0;
-    background: var(--hl-live);
+    background: var(--live);
     position: relative;
     cursor: pointer;
     flex: none;
@@ -937,7 +969,7 @@ body {
 }
 
 .hl-tog[aria-checked="false"] {
-    background: var(--hl-off-track);
+    background: var(--input);
 }
 
 .hl-tog[aria-checked="false"]::after {
@@ -949,43 +981,43 @@ body {
     flex: none;
     border: 0;
     cursor: pointer;
-    font: 700 9.5px/1 var(--hl-sans);
+    font: 700 9.5px/1 var(--font-sans);
     letter-spacing: 0.07em;
     padding: 5px 7px;
     border-radius: 5px;
 }
 
 .hl-pill[data-target="request"] {
-    background: var(--hl-req-bg);
-    color: var(--hl-req-fg);
+    background: var(--req-bg);
+    color: var(--req);
 }
 
 .hl-pill[data-target="response"] {
-    background: var(--hl-res-bg);
-    color: var(--hl-res-fg);
+    background: var(--res-bg);
+    color: var(--res);
 }
 
 .hl-op {
     flex: none;
     cursor: pointer;
-    font: 600 10.5px/1 var(--hl-mono);
-    color: var(--hl-ink-2);
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-card-edge);
+    font: 600 10.5px/1 var(--font-mono);
+    color: var(--foreground-2);
+    background: var(--background);
+    border: 1px solid var(--border);
     border-radius: 5px;
     padding: 5px 7px;
 }
 
 .hl-op[data-op="remove"] {
-    color: var(--hl-err);
-    border-color: color-mix(in srgb, var(--hl-err) 35%, transparent);
+    color: var(--destructive);
+    border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
 }
 
 .hl-hname {
     flex: 1;
     min-width: 0;
-    font: 600 12.5px/1.3 var(--hl-mono);
-    color: var(--hl-ink);
+    font: 600 12.5px/1.3 var(--font-mono);
+    color: var(--foreground);
     letter-spacing: -0.1px;
     background: none;
     border: 0;
@@ -994,17 +1026,17 @@ body {
 }
 
 .hl-hname::placeholder {
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
     font-weight: 500;
 }
 
 .hl-hname:hover {
-    border-bottom-color: var(--hl-card-edge);
+    border-bottom-color: var(--border);
 }
 
 .hl-hname:focus {
     outline: none;
-    border-bottom-color: var(--hl-act);
+    border-bottom-color: var(--ring);
 }
 
 .hl-del {
@@ -1016,8 +1048,8 @@ body {
     border-radius: 5px;
     border: 0;
     background: none;
-    color: var(--hl-ink-3);
-    font: 400 15px/1 var(--hl-sans);
+    color: var(--muted-foreground);
+    font: 400 15px/1 var(--font-sans);
     cursor: pointer;
     opacity: 0;
 }
@@ -1030,7 +1062,7 @@ body {
 }
 
 .hl-del:hover {
-    background: var(--hl-err);
+    background: var(--destructive);
     color: #fff;
     opacity: 1;
 }
@@ -1043,10 +1075,10 @@ body {
 .hl-hval {
     display: block;
     width: 100%;
-    font: 400 12px/1.4 var(--hl-mono);
-    color: var(--hl-ink);
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-card-edge);
+    font: 400 12px/1.4 var(--font-mono);
+    color: var(--foreground);
+    background: var(--background);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 8px;
     /* The value wraps and grows instead of truncating — a 246px cell with an
@@ -1063,24 +1095,24 @@ body {
 }
 
 .hl-hval::placeholder {
-    color: var(--hl-ink-3);
+    color: var(--muted-foreground);
 }
 
 .hl-hval:hover {
-    border-color: var(--hl-ink-3);
+    border-color: var(--muted-foreground);
 }
 
 .hl-hval:focus {
     outline: none;
-    border-color: var(--hl-act);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
 }
 
 .hl-hval-none {
     background: none;
     border-style: dashed;
-    color: var(--hl-ink-3);
-    font: italic 400 11.5px/1.4 var(--hl-sans);
+    color: var(--muted-foreground);
+    font: italic 400 11.5px/1.4 var(--font-sans);
     min-height: 0;
 }
 
@@ -1091,18 +1123,18 @@ body {
     display: flex;
     gap: 7px;
     align-items: flex-start;
-    background: var(--hl-pend-bg);
+    background: var(--pending-bg);
     border-radius: 6px;
     padding: 6px 8px;
-    font: 400 11px/1.4 var(--hl-sans);
-    color: var(--hl-ink);
+    font: 400 11px/1.4 var(--font-sans);
+    color: var(--foreground);
     /* These quote header names and hostnames back at the user verbatim. */
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
 .hl-rprob[data-severity="error"] {
-    background: var(--hl-err-bg);
+    background: var(--destructive-bg);
 }
 
 .hl-rprob-ic {
@@ -1110,16 +1142,16 @@ body {
     width: 13px;
     height: 13px;
     border-radius: 50%;
-    background: var(--hl-pend);
-    color: var(--hl-pend-bg);
-    font: 700 9px/13px var(--hl-sans);
+    background: var(--pending);
+    color: var(--pending-bg);
+    font: 700 9px/13px var(--font-sans);
     text-align: center;
     margin-top: 1px;
 }
 
 .hl-rprob[data-severity="error"] .hl-rprob-ic {
-    background: var(--hl-err);
-    color: var(--hl-err-bg);
+    background: var(--destructive);
+    color: var(--destructive-bg);
 }
 
 .hl-ghostrule {
@@ -1130,14 +1162,14 @@ body {
     text-align: left;
     cursor: pointer;
     background: none;
-    border: 1px dashed var(--hl-card-edge);
+    border: 1px dashed var(--border);
     border-radius: 8px;
     padding: 11px 9px;
-    font: 400 11.5px/1 var(--hl-sans);
-    color: var(--hl-ink-3);
+    font: 400 11.5px/1 var(--font-sans);
+    color: var(--muted-foreground);
 }
 
 .hl-ghostrule:hover {
-    border-color: var(--hl-ink-3);
-    color: var(--hl-ink-2);
+    border-color: var(--muted-foreground);
+    color: var(--foreground-2);
 }
