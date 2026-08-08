@@ -70,7 +70,7 @@ for (const [, name, value] of match[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) 
 
 ```ts
 /** 색이 아닌 토큰. 형태 검사에서 제외된다. */
-const NON_COLOR = ['--radius'];
+const NON_COLOR = ['--radius', '--font-sans', '--font-mono'];
 
 /** 두 팔레트가 모두 정의해야 하는 색 토큰. 이름이 바뀌면 조용히 지나가지 않는다. */
 const COLOR_TOKENS = [
@@ -628,44 +628,47 @@ git commit -m "refactor: 리소스 타입 체크리스트를 shadcn Checkbox 로
 
 이 컴포넌트가 이 작업 전체에서 가장 중요하다. "컨트롤이 나타나도 레이아웃이 움직이지 않는다"가 여기서 지켜지거나 깨진다.
 
-- [ ] **Step 1: 두 번째 줄이 Grant 버튼 높이로 예약되는지 보는 테스트를 쓴다**
+- [ ] **Step 1: 두 번째 줄이 네 상태에서 같은 높이인지 보는 e2e 를 쓴다**
 
-`tests/unit/ScopeRail.test.tsx` 에 추가한다.
+**jsdom 에 쓰지 않는다.** 초안은 `getComputedStyle(line).height` 를 네 상태에서 비교하게 되어 있었는데, jsdom 은 레이아웃을 계산하지 않아 네 값이 전부 빈 문자열로 나온다 — `new Set(...).size === 1` 이 구현과 무관하게 통과하는, 이 저장소가 리뷰마다 잡아내는 바로 그 "실패할 수 없는 단언"이다. 높이는 진짜 브라우저만 잴 수 있으므로 e2e 에 둔다.
 
-```tsx
-// @vitest-environment jsdom
-it('두 번째 줄은 네 상태 모두에서 같은 높이다', () => {
-  // 시안 하나가 Grant 버튼을 그것을 위해 마련한 띠에 7px 잘랐다. 띠는 텍스트가
-  // 아니라 버튼에 맞춰 잡혀야 한다.
-  const heights = (['granted', 'pending', 'unusable', 'idle'] as const).map((state) => {
-    const { container, unmount } = render(
-      <SiteRow
-        domain="api.example.com"
-        usable={state !== 'unusable'}
-        inert={state === 'idle'}
-        diagnostics={state === 'pending'
-          ? [{ kind: 'permission-missing', severity: 'warning', profileId: 'p',
-               host: 'api.example.com', message: 'needs permission' }]
-          : []}
-        onGrant={() => {}}
-        onRemove={() => {}}
-      />,
-    );
-    const line = container.querySelector('[data-testid="site-line"]')!;
-    const h = getComputedStyle(line).height;
-    unmount();
-    return h;
+`tests/e2e/header-modification.spec.ts` 의 과밀 테스트(Task 3) 안, `boxes(page)` 비교 **앞**에 추가한다. 과밀 상태에는 granted · pending · unusable 이 이미 다 들어 있다.
+
+```ts
+  // 4. 사이트 행의 두 번째 줄은 상태와 무관하게 같은 높이다.
+  //    시안 하나가 Grant 버튼(22px)을 그것을 위해 마련한 15px 띠에 7px 잘랐다.
+  //    띠는 텍스트가 아니라 그 안에 들어갈 수 있는 가장 큰 것 — 버튼 — 에
+  //    맞춰 잡혀야 한다.
+  const lineHeights = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="site"]')].map((row) => ({
+      state: row.getAttribute('data-state'),
+      line: Math.round(row.querySelector('[data-testid="site-line"]')!.getBoundingClientRect().height),
+      row: Math.round(row.getBoundingClientRect().height),
+    })),
+  );
+  // 세 상태가 실제로 렌더됐는지 먼저 확인한다 — 없는 상태를 비교하면
+  // "전부 같다"가 공허하게 통과한다.
+  expect(new Set(lineHeights.map((l) => l.state))).toEqual(
+    new Set(['granted', 'pending', 'unusable']),
+  );
+  expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
+
+  // Grant 버튼이 그 띠 안에 온전히 들어간다.
+  const grantFits = await page.evaluate(() => {
+    const btn = document.querySelector('[data-testid="site-pending"]')!;
+    const band = btn.closest('[data-testid="site-line"]')!;
+    return btn.getBoundingClientRect().height <= band.getBoundingClientRect().height;
   });
-  expect(new Set(heights).size).toBe(1);
-});
+  expect(grantFits).toBe(true);
 ```
 
-jsdom 은 레이아웃을 계산하지 않으므로 이 테스트는 **명시된 클래스**를 본다. `site-line` 이 네 상태 모두에서 같은 높이 클래스를 갖는지 확인하는 것이 목적이고, 실제 픽셀은 Task 3 의 e2e 가 본다.
+`idle`(all-sites 켜짐) 상태는 과밀 픽스처에 없다. 그 상태의 높이는 Task 9 이후 `npm run screenshots` 로 눈으로 확인하고, 별도 가드는 만들지 않는다 — 없는 상태를 억지로 심으면 픽스처가 실제 사용을 설명하지 않게 된다.
 
 - [ ] **Step 2: 실패 확인**
 
-Run: `npm test -- ScopeRail`
-Expected: FAIL — 현재 마크업은 상태마다 다른 클래스를 준다.
+Run: `npm run test:e2e`
+Expected: 과밀 테스트가 FAIL. 현재 마크업의 두 번째 줄은 상태마다 높이가 다르고, 행도 48px 가 아니다. 나머지 5개는 PASS.
 
 - [ ] **Step 3: SiteRow 를 교체한다**
 
@@ -732,8 +735,9 @@ const STATE_TONE = {
 
 - [ ] **Step 4: 통과 확인**
 
-Run: `npm test -- ScopeRail`
-Expected: PASS
+Run: `npm run test:e2e`
+Expected: 과밀 테스트의 두 번째 줄 단언이 PASS. `scrollable` 단언은 아직 FAIL —
+스크롤 컨테이너는 Task 8·9 가 만든다. 이 태스크가 고치는 것은 행의 높이다.
 
 - [ ] **Step 5: 옛 CSS 삭제 후 전체 검사**
 
