@@ -417,7 +417,17 @@ test('a control appearing in the rail does not move anything', async ({
   // transition, measured with the control absent and again with it present.
   // Asserting that Grant exists, or that some height is non-zero, would pass
   // against the build that had the defect.
-  await serviceWorker.evaluate(async () => {
+  // Also the domain this test types into the add-field to provoke a
+  // duplicate-site note later — the exact host the Task 6 review used, long
+  // enough to have wrapped over one line before that note's height was
+  // bounded. Reusing the single seeded domain (rather than adding a second
+  // one) keeps every other assertion in this test — `grant`, `site`,
+  // `all-sites` — resolving to exactly the one row they were written
+  // against; a second row would put two matches behind those locators and
+  // break them on an unrelated axis.
+  const long = 'internal-api-gateway.staging.eu-west-1.example.com';
+
+  await serviceWorker.evaluate(async (domain) => {
     const state = {
       version: 2,
       globalPause: false,
@@ -435,7 +445,7 @@ test('a control appearing in the rail does not move anything', async ({
             // Never granted in a fresh profile, and the e2e build's only host
             // permission is the loopback echo server — so this row opens pending,
             // with the Grant button that started all this.
-            domains: ['api.example.com'],
+            domains: [domain],
             excludedDomains: [],
             resourceTypes: ['xmlhttprequest'],
           },
@@ -454,7 +464,7 @@ test('a control appearing in the rail does not move anything', async ({
       ],
     };
     await chrome.storage.local.set({ state, state$: { v: 2 } });
-  });
+  }, long);
 
   const page = await context.newPage();
   await page.setViewportSize({ width: 748, height: 600 });
@@ -528,6 +538,28 @@ test('a control appearing in the rail does not move anything', async ({
   await page.getByRole('button', { name: 'About matching sites' }).hover();
   await expect(bubble).toHaveCount(1);
   expect(await boxes(), 'the help bubble opening must move nothing').toEqual(withGrant);
+
+  // --- the duplicate-site note arriving ---
+  // Task 6 review, round 2: this note's reservation was a `min-h`, a floor a
+  // long note could grow past and push "Request types" down — reachable with
+  // an ordinary corporate subdomain, not a pathological one. `RAIL_BOXES`
+  // already anchors `rail-section-types` and `type-grid`, so re-typing the
+  // seeded domain — `long` above, the one the review used — into the add
+  // field is what actually exercises the fixed-height, truncated fix,
+  // instead of only a report and a since-deleted script asserting it.
+  const addField = page.getByTestId('add-field');
+  const note = page.getByTestId('add-site-note');
+  await expect(note).toHaveCount(0);
+  await addField.fill(long);
+  await addField.press('Enter');
+  await expect(note).toHaveCount(1);
+  expect(await boxes(), 'the duplicate note arriving must move nothing').toEqual(withGrant);
+
+  // …and leaving, same reasoning as the Grant button above: an assertion
+  // only on arrival would also pass a layout frozen at the wrong moment.
+  await addField.press('Escape');
+  await expect(note).toHaveCount(0);
+  expect(await boxes(), 'the duplicate note leaving must move nothing').toEqual(withGrant);
 
   await page.close();
 });

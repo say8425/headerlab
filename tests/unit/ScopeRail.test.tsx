@@ -581,7 +581,13 @@ describe('adding a site', () => {
     const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: 'x.com' }));
     renderRail({ domains: ['x.com'], onAddDomain });
     await userEvent.type(field(), 'https://x.com/{Enter}');
-    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    // No space between the host and "is": the two live in separate flex
+    // items now (for the truncation in the test below), separated on screen
+    // by `gap-1` rather than by a text character. `textContent` sees only
+    // the text nodes, never the gap, so this is what it actually reads —
+    // a text-character space here would be the same bug round 2 caught
+    // (see the test below), just missed the other way.
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.comis already in the list.');
     expect(field()).toHaveProperty('value', 'https://x.com/');
   });
 
@@ -601,7 +607,11 @@ describe('adding a site', () => {
     await userEvent.type(field(), `${long}{Enter}`);
 
     const note = screen.getByTestId('add-site-note');
-    expect(note.textContent).toBe(`${long} is already in the list.`);
+    // No space here either — see the comment on the sibling test above.
+    // `gap-1` on the flex row (not a text-node space) is what separates the
+    // two on screen; jsdom cannot see that gap, only the text nodes either
+    // side of it.
+    expect(note.textContent).toBe(`${long}is already in the list.`);
 
     const host = note.querySelector('b')!;
     expect(host.className).toContain('truncate');

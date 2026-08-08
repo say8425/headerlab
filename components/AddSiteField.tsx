@@ -121,14 +121,25 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           in what is stored; only this one rendering of it is bounded. */}
       <div className="h-[15px] px-px">
         {alreadyThere !== null && (
+          // `gap-1`, not a leading space in the `<span>`'s own text. `flex`
+          // blockifies both children (CSS Display's flex-item blockification),
+          // and a blockified box's own leading/trailing white space collapses
+          // away at render — verified in real Chromium: the space character
+          // that used to sit at the front of the suffix span measured zero
+          // width and was absent from `innerText`, even though jsdom's
+          // `textContent` (which does no layout or collapsing) still showed
+          // it, so the tests stayed green while the screen was wrong. `gap`
+          // is box-model spacing, not text, so it is not subject to that
+          // collapse — the trade is that the separating space no longer
+          // appears in `textContent` either, on purpose (see the tests).
           <p
-            className="flex items-baseline overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
+            className="flex items-baseline gap-1 overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
             data-testid="add-site-note"
           >
             <b className="min-w-0 truncate font-mono font-semibold" title={alreadyThere}>
               {alreadyThere}
             </b>
-            <span className="shrink-0 whitespace-nowrap"> is already in the list.</span>
+            <span className="shrink-0 whitespace-nowrap">is already in the list.</span>
           </p>
         )}
       </div>

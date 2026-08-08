@@ -592,7 +592,13 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, 'https://x.com/{Enter}');
 
-    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    // No space between the host and "is": AddSiteField separates the two
+    // with a flex `gap`, not a text character — a leading space in the text
+    // node collapses away in a real browser (verified in Chromium; jsdom
+    // does no such collapsing, which is why this had to be caught by eye,
+    // not by this suite, the first time). `textContent` sees only the text
+    // nodes either side of the gap.
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.comis already in the list.');
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['x.com']);
   });
 
@@ -655,8 +661,9 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, '*.*.example.com{Enter}');
 
+    // No space — see the comment on the same assertion above.
     expect(screen.getByTestId('add-site-note').textContent).toBe(
-      'example.com is already in the list.',
+      'example.comis already in the list.',
     );
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['example.com']);
     expect(screen.getAllByTestId('site')).toHaveLength(1);
