@@ -29,7 +29,7 @@ export interface RuleCardProps {
 }
 
 /**
- * One rule, one row, 52px regardless of its state.
+ * One rule, one row.
  *
  * This is where "one line, four button languages" lived: direction was a
  * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
@@ -44,10 +44,24 @@ export interface RuleCardProps {
  * no value, and says so in the place a value would be rather than rendering
  * an empty field.
  *
- * The row itself never changes height. A diagnostic renders as a sibling
- * below it, not inside it — the fixed 52px is what Task 8's scroll
- * container measures against, and a card that grew per-problem would make
- * that measurement a lie.
+ * The row's height follows its value: the value wraps and grows rather than
+ * truncating, the same bargain the pre-mockup design struck — a value with
+ * an ellipsis in a 246px cell was the first thing the owner named about the
+ * layout before that one, and a single-line, truncating field (this task's
+ * first attempt, reverted) walks straight back into the same complaint with
+ * `title` standing in for the ellipsis. A static mockup image never has to
+ * hold a real JWT or a long CSP value, so it cannot settle this; the owner
+ * did, choosing readability over the mockup's fixed-row density.
+ *
+ * What must still hold, and does by construction rather than by convention:
+ * a *given* rule's row must not change height when it is toggled on or off,
+ * or when a problem appears on it — that is state changing geometry, which
+ * this repo cares about most. Toggling only ever changes colour/weight on
+ * fixed-metric elements (never the text content, never what wraps where),
+ * and a diagnostic renders as a sibling below the row, never inside it — so
+ * neither can touch the row's own box. Different *rules* can be different
+ * heights; a single rule's height is never a function of its own on/off/
+ * problem state.
  */
 export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: RuleCardProps) {
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
@@ -78,7 +92,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   return (
     <>
       <div
-        className="group/rule mb-px flex h-13 items-center gap-2.5 bg-card pr-2 pl-3 data-[off]:bg-tray"
+        className="group/rule mb-px flex items-start gap-2.5 bg-card py-2 pr-2 pl-3 data-[off]:bg-tray"
         data-testid="rule"
         data-off={!rule.enabled || undefined}
         data-unfinished={unfinished || undefined}
@@ -128,10 +142,10 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             }}
           />
 
-          <div className="mt-0.5 flex h-4 min-w-0 items-center">
+          <div className="mt-0.5 flex min-w-0 items-start">
             <button
               type="button"
-              className="w-11 shrink-0 text-left text-[11px] leading-[14px] font-medium text-muted-foreground"
+              className="mt-px w-11 shrink-0 text-left text-[11px] leading-[14px] font-medium text-muted-foreground"
               aria-label={`Operation: ${rule.operation}`}
               onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
             >
@@ -140,22 +154,26 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
 
             {removes ? (
               <span
-                className="min-w-0 flex-1 truncate text-[11px] leading-[14px] font-medium text-muted-foreground"
+                className="mt-px min-w-0 flex-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
                 data-testid="rule-value"
               >
                 remove takes no value
               </span>
             ) : (
-              <Input
+              <textarea
                 aria-label="Header value"
                 data-testid="rule-value"
-                className="h-4 min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
+                rows={1}
+                className="min-w-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
                 placeholder="value"
                 value={value.draft}
                 onChange={(e) => value.setDraft(e.target.value)}
                 onBlur={value.commit}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  // Shift+Enter keeps the newline; a bare Enter is a commit —
+                  // the same bargain the pre-mockup value editor struck, and
+                  // the reason it is a textarea rather than an input again.
+                  if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     value.commit();
                   } else if (e.key === 'Escape') {

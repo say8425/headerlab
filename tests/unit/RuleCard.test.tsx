@@ -369,41 +369,75 @@ describe('RuleCard value slot', () => {
 });
 
 describe('RuleCard geometry', () => {
-  it('renders the same row height whether the rule is on, off, or has a problem', () => {
-    // Four button languages in one row was the original complaint about this
-    // card; the fix this task makes is one row shape regardless of state, so
-    // a switched-off rule and one carrying a diagnostic must not grow or
-    // shrink the row Task 8's scroll container measures against.
+  // The row is no longer a fixed height — the owner ruled that a rule's
+  // value must wrap and grow rather than truncate, so different *rules* can
+  // be different heights (see the docblock on RuleCard). What must still
+  // hold is narrower: a *given* rule's own row must not change height when
+  // it is toggled on/off or gains a diagnostic. jsdom performs no layout
+  // (this codebase's own e2e suite says so outright), so a unit test cannot
+  // honestly measure pixels — that claim is verified in a real browser
+  // instead (see the task report). What a unit test *can* honestly check is
+  // the structural half of the same claim: toggling never changes which
+  // elements render, their order, or the value text they carry — only
+  // colour/weight classes may differ. A future edit that swapped the value
+  // field for something else in one state, or truncated/altered its text
+  // only when off, would change what this asserts even though jsdom cannot
+  // see the pixel consequence.
+  it("changes only colour and weight when toggled off, never the row's own structure or its value text", () => {
     const base = {
       id: 'h',
       target: 'request',
       operation: 'set',
       name: 'X-Test',
-      value: 'v',
+      value:
+        'a value long enough that it would wrap across several lines in the real popup, well past one row',
     } as const;
-    const cases: Array<{ rule: Partial<HeaderRule>; diagnostics: Diagnostic[] }> = [
-      { rule: { ...base, enabled: true }, diagnostics: [] },
-      { rule: { ...base, enabled: false }, diagnostics: [] },
-      {
-        rule: { ...base, enabled: true },
-        diagnostics: [diag({ severity: 'error', message: 'a real problem' })],
-      },
-    ];
-    const heights = cases.map(({ rule: over, diagnostics }) => {
+    const shapes = [true, false].map((enabled) => {
       const { container, unmount } = render(
         <RuleCard
-          rule={rule(over)}
-          diagnostics={diagnostics}
+          rule={rule({ ...base, enabled })}
+          diagnostics={[]}
           onPatch={() => {}}
           onDelete={() => {}}
         />,
       );
-      const h = container.querySelector('[data-testid="rule"]')!.className.match(/h-\[?\d+/)?.[0];
+      const row = container.querySelector('[data-testid="rule"]')!;
+      const structure = Array.from(row.querySelectorAll('*'))
+        .map((el) => el.tagName)
+        .join(',');
+      const valueField = screen.getByTestId('rule-value') as HTMLTextAreaElement;
+      const shape = { structure, valueText: valueField.value };
       unmount();
-      return h;
+      return shape;
     });
-    expect(heights.every((h) => h !== undefined)).toBe(true);
-    expect(new Set(heights).size).toBe(1);
+    expect(shapes[0]!.structure).toBe(shapes[1]!.structure);
+    expect(shapes[0]!.valueText).toBe(shapes[1]!.valueText);
+    expect(shapes[0]!.valueText).toBe(base.value);
+  });
+
+  it("changes only colour and weight when a diagnostic appears, never the row's own structure", () => {
+    // The diagnostic renders as a sibling of the row, not inside it — this
+    // pins that half of the claim: adding one must not alter the row
+    // element's own children at all, not merely "not by much."
+    const props = {
+      rule: rule({ value: 'a value long enough to wrap onto more than one line' }),
+      onPatch: () => {},
+      onDelete: () => {},
+    };
+    const clean = render(<RuleCard {...props} diagnostics={[]} />);
+    const cleanStructure = clean.container.querySelector('[data-testid="rule"]')!.outerHTML;
+    clean.unmount();
+
+    const broken = render(
+      <RuleCard
+        {...props}
+        diagnostics={[diag({ severity: 'error', message: 'a real problem' })]}
+      />,
+    );
+    const brokenStructure = broken.container.querySelector('[data-testid="rule"]')!.outerHTML;
+    broken.unmount();
+
+    expect(brokenStructure).toBe(cleanStructure);
   });
 });
 
