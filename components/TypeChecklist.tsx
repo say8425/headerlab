@@ -46,7 +46,7 @@ export interface TypeChecklistProps {
  */
 export function TypeChecklist({ selected, onToggle }: TypeChecklistProps) {
   return (
-    <div className="hl-types">
+    <div className="hl-types" data-testid="type-grid">
       {OFFERED.map(([type, label]) => (
         <button
           key={type}

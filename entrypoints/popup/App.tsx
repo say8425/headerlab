@@ -261,7 +261,7 @@ export default function App() {
   const autoFocusFirstRule = only !== undefined && only.name === '';
 
   return (
-    <div className="hl-pop">
+    <div className="hl-pop" data-testid="popup-root">
       <ScopeRail
         tally={tally}
         paused={state.globalPause}

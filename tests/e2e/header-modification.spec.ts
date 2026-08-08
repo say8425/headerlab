@@ -324,7 +324,7 @@ test("nothing in the popup is wider than what holds it, at the popup's own width
   await page.locator('[data-testid="rule-problem"]').first().waitFor();
 
   const measured = await page.evaluate(() => {
-    const elements = Array.from(document.querySelectorAll('.hl-pop *'));
+    const elements = Array.from(document.querySelectorAll('[data-testid="popup-root"] *'));
     return {
       count: elements.length,
       // Half a pixel of slack: sub-pixel layout rounding is not an overflow.
@@ -359,29 +359,34 @@ test("nothing in the popup is wider than what holds it, at the popup's own width
  * Boxes for the rail elements that sit *below* something state-dependent, keyed
  * so the same name means the same box across two renders.
  *
- * `.hl-dom` is in here as well as the anchors under it: the Grant button lands
- * inside the row, so the row's own height is the first thing that must not
- * change, and an assertion that only watched what came after it would pass a
- * row that grew while everything below happened to be pushed off-screen.
+ * `[data-testid="site"]` is in here as well as the anchors under it: the Grant
+ * button lands inside the row, so the row's own height is the first thing that
+ * must not change, and an assertion that only watched what came after it would
+ * pass a row that grew while everything below happened to be pushed off-screen.
  *
- * `.hl-allsitesstate` is the one probe here for a *sideways* move. That dot used
- * to render only once its state was known, so "All sites" slid 14px right the
- * moment the mode came on — nothing below it moved, and every vertical anchor
- * in this list would have agreed that nothing happened. It is probed rather
- * than the label beside it because the label is a `flex: 1` spacer: its width
- * follows whatever shares the bar with it while its text stays put at the same
- * x, so pinning all four of its numbers would fail on a change that moves
- * nothing on screen.
+ * `[data-testid="all-sites-state"]` is the one probe here for a *sideways*
+ * move. That dot used to render only once its state was known, so "All sites"
+ * slid 14px right the moment the mode came on — nothing below it moved, and
+ * every vertical anchor in this list would have agreed that nothing happened.
+ * It is probed rather than the label beside it because the label is a
+ * `flex: 1` spacer: its width follows whatever shares the bar with it while
+ * its text stays put at the same x, so pinning all four of its numbers would
+ * fail on a change that moves nothing on screen.
+ *
+ * Every anchor here is a `data-testid`, not a `.hl-*` class: the class names
+ * these boxes used to key on are the styling this popup's design-system
+ * migration is about to rewrite, and a testid is a contract this suite owns
+ * rather than a side effect of how the box happens to be styled today.
  */
 const RAIL_BOXES = [
-  '.hl-readout',
-  '.hl-pausebar',
-  '.hl-allsites',
-  '.hl-allsitesstate',
-  '.hl-dom',
-  '.hl-addfield',
-  '.hl-railsec-types',
-  '.hl-types',
+  '[data-testid="readout"]',
+  '[data-testid="runstate"]',
+  '[data-testid="all-sites"]',
+  '[data-testid="all-sites-state"]',
+  '[data-testid="site"]',
+  '[data-testid="add-field"]',
+  '[data-testid="rail-section-types"]',
+  '[data-testid="type-grid"]',
 ] as const;
 
 test('a control appearing in the rail does not move anything', async ({
@@ -465,7 +470,7 @@ test('a control appearing in the rail does not move anything', async ({
 
   const allSites = page.getByRole('switch', { name: 'Apply to every site' });
   const grant = page.getByTestId('site-pending');
-  const subcount = page.locator('.hl-subcount');
+  const subcount = page.locator('[data-testid="subcount"]');
 
   // Every probe must resolve to a real box before any of them can mean
   // anything: `toEqual` between two records of empty arrays is a comparison

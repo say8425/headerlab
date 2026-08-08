@@ -140,7 +140,7 @@ export function ScopeRail({
           <b>{tally.live}</b>
           <span>of {tally.total} rules live</span>
         </div>
-        <div className="hl-subcount">
+        <div className="hl-subcount" data-testid="subcount">
           {tally.total === 0 ? (
             'nothing configured yet'
           ) : subcount.length > 0 ? (
@@ -250,11 +250,12 @@ export function ScopeRail({
           {allSites && allSitesGranted !== null ? (
             <span
               className="hl-allsitesstate"
+              data-testid="all-sites-state"
               role="img"
               aria-label={allSitesGranted ? 'Access granted' : 'Awaiting permission'}
             />
           ) : (
-            <span className="hl-allsitesstate" data-unknown="" />
+            <span className="hl-allsitesstate" data-testid="all-sites-state" data-unknown="" />
           )}
           <span className="hl-allsiteslab">All sites</span>
           {/* The only control here that asks the browser for anything. The
@@ -344,7 +345,7 @@ export function ScopeRail({
         </div>
       ))}
 
-      <div className="hl-railsec hl-railsec-types">
+      <div className="hl-railsec hl-railsec-types" data-testid="rail-section-types">
         <div className="hl-railhead">
           Request types{' '}
           <span className="hl-n">

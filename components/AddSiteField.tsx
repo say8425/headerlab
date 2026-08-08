@@ -58,6 +58,7 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
       <input
         aria-label="Add a site"
         className="hl-addfield"
+        data-testid="add-field"
         placeholder="+ add a site"
         value={draft}
         onChange={(e) => {
