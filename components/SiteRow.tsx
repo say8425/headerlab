@@ -100,6 +100,26 @@ const STATE_LINE_TONE: Record<RowState, string> = {
   idle: 'font-medium text-muted-foreground',
 } as const;
 
+/**
+ * The Grant button's classes, exported so `ScopeRail`'s all-sites bar can use
+ * the exact same ones for its own Grant button.
+ *
+ * "All-sites reaches the same state, so it must offer the same remedy rather
+ * than a second vocabulary" (CLAUDE.md, No silent failures) — a pending site
+ * and an on-but-ungranted all-sites mode are the same fact (waiting on the
+ * same kind of permission), so one class string shared by both call sites is
+ * what makes that promise hold by construction instead of by two people
+ * remembering to keep two copies in sync.
+ *
+ * `hover:bg-pending-bg` is not decorative: shadcn's `secondary` variant ships
+ * `hover:bg-tray/80`, and `bg-pending-bg` above only overrides the base
+ * (unprefixed) utility — `twMerge` treats a `hover:`-prefixed class as a
+ * different group, so without this the button's fill would flash grey on
+ * hover. Verified in the built CSS.
+ */
+export const GRANT_BUTTON_CLASS =
+  'h-5 rounded-[4px] bg-pending-bg text-pending hover:bg-pending-bg';
+
 export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
    * One symbol, one meaning.
@@ -211,7 +231,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
               size="xs"
               variant="secondary"
               data-testid="site-pending"
-              className="h-5 rounded-[4px] bg-pending-bg text-pending"
+              className={GRANT_BUTTON_CLASS}
               onClick={() => onGrant(awaitingGrant.host!)}
             >
               Grant

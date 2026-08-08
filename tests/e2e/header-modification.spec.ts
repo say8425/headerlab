@@ -695,6 +695,30 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     { timeout: 10_000 },
   );
 
+  // 4. 사이트 행의 두 번째 줄은 상태와 무관하게 같은 높이다.
+  //    시안 하나가 Grant 버튼(22px)을 그것을 위해 마련한 15px 띠에 7px 잘랐다.
+  //    띠는 텍스트가 아니라 그 안에 들어갈 수 있는 가장 큰 것 — 버튼 — 에
+  //    맞춰 잡혀야 한다.
+  //    1·2번(클리핑·스크롤러) 보다 먼저 둔다: 그 둘은 Task 8·9 전까지 실패가
+  //    예정돼 있고, Playwright 는 첫 실패에서 테스트를 멈춘다 — 뒤에 있으면
+  //    이 블록은 커밋된 채로 단 한 번도 실행되지 않는다.
+  const lineHeights = [...(await measureLines(page)), ...unusableLines];
+  // 세 상태가 실제로 렌더됐는지 먼저 확인한다 — 없는 상태를 비교하면
+  // "전부 같다"가 공허하게 통과한다.
+  expect(new Set(lineHeights.map((l) => l.state))).toEqual(
+    new Set(['granted', 'pending', 'unusable']),
+  );
+  expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
+
+  // Grant 버튼이 그 띠 안에 온전히 들어간다.
+  const grantFits = await page.evaluate(() => {
+    const btn = document.querySelector('[data-testid="site-pending"]')!;
+    const band = btn.closest('[data-testid="site-line"]')!;
+    return btn.getBoundingClientRect().height <= band.getBoundingClientRect().height;
+  });
+  expect(grantFits).toBe(true);
+
   // 1. 목록 밖 어떤 노드도 — 스크롤 컨테이너 자신을 뺀 나머지 — 자기 박스를
   //    넘지 않는다. `auto` 만 스크롤 컨테이너로 인정하면 `overflow-y: scroll`
   //    로 지은 올바른 구현이 "클리핑"으로 오판된다 — 둘 다 인정한다.
@@ -746,27 +770,6 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       .sort();
   });
   expect(scrollers).toEqual(['rule-list', 'site-list']);
-
-  // 4. 사이트 행의 두 번째 줄은 상태와 무관하게 같은 높이다.
-  //    시안 하나가 Grant 버튼(22px)을 그것을 위해 마련한 15px 띠에 7px 잘랐다.
-  //    띠는 텍스트가 아니라 그 안에 들어갈 수 있는 가장 큰 것 — 버튼 — 에
-  //    맞춰 잡혀야 한다.
-  const lineHeights = [...(await measureLines(page)), ...unusableLines];
-  // 세 상태가 실제로 렌더됐는지 먼저 확인한다 — 없는 상태를 비교하면
-  // "전부 같다"가 공허하게 통과한다.
-  expect(new Set(lineHeights.map((l) => l.state))).toEqual(
-    new Set(['granted', 'pending', 'unusable']),
-  );
-  expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
-  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
-
-  // Grant 버튼이 그 띠 안에 온전히 들어간다.
-  const grantFits = await page.evaluate(() => {
-    const btn = document.querySelector('[data-testid="site-pending"]')!;
-    const band = btn.closest('[data-testid="site-line"]')!;
-    return btn.getBoundingClientRect().height <= band.getBoundingClientRect().height;
-  });
-  expect(grantFits).toBe(true);
 
   // 3. 목록 위아래는 평상 상태와 같은 좌표에 있다.
   expect(await boxes(page)).toEqual(before);

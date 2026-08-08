@@ -1,7 +1,8 @@
 import { AddSiteField, type AddSiteResult } from './AddSiteField';
 import { HelpTip } from './HelpTip';
-import { SiteRow } from './SiteRow';
+import { GRANT_BUTTON_CLASS, SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
+import { Button } from '@/components/ui/button';
 import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
 import type { RuleTally } from '@/lib/view/rules';
 import type { Diagnostic, ResourceType } from '@/lib/model/types';
@@ -267,9 +268,14 @@ export function ScopeRail({
               asked — therefore arrives at the same button, which is the same
               shape a pending site row offers for the same reason. */}
           {allSites && allSitesGranted === false && (
-            <button className="hl-grant" onClick={onGrantAllSites}>
+            <Button
+              size="xs"
+              variant="secondary"
+              className={GRANT_BUTTON_CLASS}
+              onClick={onGrantAllSites}
+            >
               Grant
-            </button>
+            </Button>
           )}
           <button
             role="switch"

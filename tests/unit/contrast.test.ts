@@ -209,7 +209,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // same pale fill/ink pair as the mockup's `.te-btn--subtle` and as the
   // all-sites bar's own ungranted label two rows up — the same state gets the
   // same vocabulary everywhere it appears.
-  ['Grant button label — Button secondary on the site row', '--pending', '--pending-bg'],
+  [
+    'Grant button label — Button secondary, shared by the site row and the all-sites bar (SiteRow.GRANT_BUTTON_CLASS)',
+    '--pending',
+    '--pending-bg',
+  ],
   ['the ? mark — .hl-helpmark', '--muted-foreground', '--rail'],
   [
     'help bubble — .hl-helpbubble, an inverted surface in both themes',
