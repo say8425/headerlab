@@ -684,7 +684,7 @@ describe('editing scope', () => {
     await seed(s);
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'script' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'script' }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual(['script']);
   });
@@ -695,7 +695,7 @@ describe('editing scope', () => {
     await seed(stateWith());
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'image' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'image' }));
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
         'xmlhttprequest',
@@ -704,7 +704,7 @@ describe('editing scope', () => {
         'image',
       ]),
     );
-    await userEvent.click(screen.getByRole('button', { name: 'image' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'image' }));
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
         'xmlhttprequest',

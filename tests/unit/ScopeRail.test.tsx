@@ -643,15 +643,17 @@ describe('request types', () => {
 
   it('shows xmlhttprequest as xhr, because the rail column is not 14 characters wide', () => {
     renderRail();
-    expect(screen.getByRole('button', { name: 'xmlhttprequest' }).textContent).toBe('xhr');
+    expect(
+      screen.getByRole('checkbox', { name: 'xmlhttprequest' }).closest('label')?.textContent,
+    ).toBe('xhr');
   });
 
   it('marks the selected types and leaves the rest unmarked', () => {
     renderRail({ resourceTypes: ['script'] });
-    expect(screen.getByRole('button', { name: 'script' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('checkbox', { name: 'script' }).getAttribute('aria-checked')).toBe(
       'true',
     );
-    expect(screen.getByRole('button', { name: 'image' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('checkbox', { name: 'image' }).getAttribute('aria-checked')).toBe(
       'false',
     );
   });
@@ -667,9 +669,9 @@ describe('request types', () => {
   it('toggles the type that was clicked — a different row toggles a different type', async () => {
     const onToggleType = vi.fn();
     renderRail({ resourceTypes: ['script'], onToggleType });
-    await userEvent.click(screen.getByRole('button', { name: 'image' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'image' }));
     expect(onToggleType).toHaveBeenNthCalledWith(1, 'image');
-    await userEvent.click(screen.getByRole('button', { name: 'font' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'font' }));
     expect(onToggleType).toHaveBeenNthCalledWith(2, 'font');
   });
 });

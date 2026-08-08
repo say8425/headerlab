@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/ui/checkbox';
 import type { ResourceType } from '@/lib/model/types';
 
 /**
@@ -46,19 +47,22 @@ export interface TypeChecklistProps {
  */
 export function TypeChecklist({ selected, onToggle }: TypeChecklistProps) {
   return (
-    <div className="hl-types" data-testid="type-grid">
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5" data-testid="type-grid">
       {OFFERED.map(([type, label]) => (
-        <button
+        <label
           key={type}
-          data-testid="type-check"
-          aria-label={type}
-          aria-pressed={selected.includes(type)}
-          className="hl-ty"
-          onClick={() => onToggle(type)}
+          className="flex h-5 cursor-pointer items-center gap-2 text-[12px] leading-4
+                     text-foreground-2 select-none has-data-[state=unchecked]:text-muted-foreground"
         >
-          <span className="hl-tybox" aria-hidden="true" />
+          <Checkbox
+            data-testid="type-check"
+            aria-label={type}
+            checked={selected.includes(type)}
+            onCheckedChange={() => onToggle(type)}
+            className="size-4 rounded-[4px] border-boundary"
+          />
           {label}
-        </button>
+        </label>
       ))}
     </div>
   );
