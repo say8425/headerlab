@@ -144,13 +144,19 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--background',
   ],
   [
-    'field placeholders and the ghost row — Input::placeholder / .hl-ghostrule',
+    'field placeholders — the name and value Inputs, on the row they sit in',
     '--muted-foreground',
-    '--background',
+    '--card',
   ],
   ['header name over the card behind it — the name Input on the row', '--foreground', '--card'],
   ['header value over the card behind it — the value Input on the row', '--foreground-2', '--card'],
-  ['New rule button — .hl-newbtn', '--background', '--foreground'],
+  // The ghost row that ends the rule list is toned as what it is — the first
+  // empty slot in the well — so its label and its dashed plus are read against
+  // `--tray`, not against the panel. The outline is load-bearing (it is the
+  // only thing saying "control" about a row with no fill of its own), so it is
+  // also in the boundary block at the bottom of this file.
+  ['"New rule" ghost row label — the last row in the well', '--foreground-2', '--tray'],
+  ["the ghost row's plus glyph — inside its dashed chip", '--muted-foreground', '--tray'],
   ['REQ direction badge — the Badge wearing an ArrowUp, data-dir=request', '--req', '--req-bg'],
   ['RES direction badge — the Badge wearing an ArrowDown, data-dir=response', '--res', '--res-bg'],
   [
@@ -269,7 +275,14 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // Parked in Task 1: both tokens were in COLOR_TOKENS but nothing painted
   // with them yet. shadcn's Button (components/ui/button.tsx, `default`
   // variant) is the first thing that does — `bg-primary text-primary-foreground`.
-  ['primary button — shadcn Button', '--primary-foreground', '--primary'],
+  // The panel head's "New rule" is that button, and the only call site of the
+  // `default` variant in the popup; it used to be `.hl-newbtn`, which painted
+  // the identical white-on-ink through `--background`/`--foreground` instead.
+  [
+    'primary button — shadcn Button, i.e. the panel head\'s "New rule"',
+    '--primary-foreground',
+    '--primary',
+  ],
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
@@ -427,6 +440,8 @@ describe.each(['light', 'dark'] as const)('%s control boundaries', (theme) => {
     ['--boundary', '--rail'],
     ['--boundary', '--background'],
     ['--boundary', '--card'],
+    // 규칙 목록 끝의 ghost 행 — 점선 플러스 칩이 well(--tray) 위에 놓인다.
+    ['--boundary', '--tray'],
   ] as const)('%s on %s reaches 3:1', (fg, bg) => {
     expect(contrast(palette[fg]!, palette[bg]!)).toBeGreaterThanOrEqual(SHAPE);
   });

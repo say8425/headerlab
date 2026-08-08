@@ -218,6 +218,50 @@
     --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* 이 팝업에서 스크롤하는 것은 두 목록뿐이고, 둘 다 이 유틸리티를 쓴다.
+   컴포넌트가 아니라 여기 있는 이유는 ::-webkit-scrollbar 가 의사요소라서
+   두 곳에 같은 여섯 줄을 복사하게 되기 때문이다 — @utility 는 Tailwind v4 의
+   지시문이고, 되살아난 .hl-* 규칙이 아니다.
+
+   두 선언은 한 쌍이다. 측정(Chromium 141, macOS, headless/headed 양쪽):
+
+     기본                          gutter 0   — 오버레이 스크롤바
+     scrollbar-gutter: stable      gutter 0   — 오버레이는 자리를 안 차지하므로
+                                                예약할 것이 없다
+     ::-webkit-scrollbar 스타일    gutter 8   — 넘칠 때만 (headed), 0 (headless)
+     둘 다                         gutter 8   — 넘치든 아니든, 양쪽 모드에서
+
+   즉 gutter 만으로는 macOS 에서 아무것도 예약되지 않고, 스크롤바 스타일만으로는
+   목록이 넘치기 시작하는 순간 행이 8px 밀린다. 둘 다 있어야 "행이 안 밀린다"가
+   플랫폼과 상관없이 참이 된다. (기존 e2e 주석은 스타일을 줘도 오버레이가 꺼지지
+   않는다고 적고 있었다 — 위 대조표가 그것을 반증한다.)
+
+   그렇다고 스크롤바가 "더 있다"는 유일한 신호는 아니다 — 두 목록 모두 행 피치의
+   정수배가 아닌 높이로 잘라, 가장자리에서 잘린 행 자체가 신호다. */
+@utility scroll-list {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    scrollbar-gutter: stable;
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    /* 8px 트랙 안의 4px 손잡이 — 투명 테두리를 padding-box 로 잘라 만든다.
+       시안(.te-scroll)의 방식 그대로다. */
+    &::-webkit-scrollbar-thumb {
+        background: var(--input);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+    }
+}
+
 * {
     box-sizing: border-box;
 }
@@ -736,81 +780,9 @@ body {
     min-height: 14px;
 }
 
-/* ============================= RIGHT PANEL ============================= */
-
-.hl-panel {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: 0;
-}
-
-.hl-panelhead {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 13px 16px 11px;
-    border-bottom: 1px solid var(--border);
-}
-
-.hl-panelhead h2 {
-    margin: 0;
-    flex: 1;
-    font: 700 9.5px/1 var(--font-sans);
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--foreground-2);
-}
-
-.hl-newbtn {
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    background: var(--foreground);
-    color: var(--background);
-    font: 600 11.5px/1 var(--font-sans);
-    padding: 7px 12px;
-}
-
-.hl-newbtn:hover {
-    filter: brightness(1.25);
-}
-
-.hl-stack {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 9px 12px 12px;
-}
-
-/* ---- a rule (RuleCard.tsx) is composed straight from shadcn's Switch, Badge,
-   Input and Button plus lucide icons now — no `.hl-*` class of its own left
-   to hold. The one rule that survives is the "New rule at end" ghost row
-   below, which used to get its top margin from `.hl-rule + .hl-ghostrule`;
-   with `.hl-rule` gone that combinator can never match, so the declaration
-   moved onto `.hl-ghostrule` itself. RuleCard's own row now carries its
-   mockup-specified `mb-px` for the gap between rule rows
-   (docs/design/2026-08-07-popup-tight-instrument.html's `.te-rule`); the
-   real well/tray surface between rows is Task 8's. */
-
-.hl-ghostrule {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    margin-top: 7px;
-    text-align: left;
-    cursor: pointer;
-    background: none;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    padding: 11px 9px;
-    font: 400 11.5px/1 var(--font-sans);
-    color: var(--muted-foreground);
-}
-
-.hl-ghostrule:hover {
-    border-color: var(--muted-foreground);
-    color: var(--foreground-2);
-}
+/* ---- The right-hand panel (RulePanel.tsx) is composed straight from Tailwind
+   utilities now, and so is the rule row inside it (RuleCard.tsx: shadcn's
+   Switch, Badge, Input and Button plus lucide icons). The well the rows sit
+   in — `--tray`, reserved in Task 1 and unpainted until now — is the
+   `rule-list` scroll container itself, which is why no `.hl-*` rule is left
+   here to hold either one. */

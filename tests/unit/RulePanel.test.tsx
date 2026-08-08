@@ -56,13 +56,15 @@ describe('RulePanel', () => {
   });
 
   it('places each diagnostic right after the rule it names, and not after the others', () => {
-    // Not a descendant of its rule any more. RuleCard.tsx's row is a fixed
-    // 52px regardless of state (CLAUDE.md, Interface — a control appearing
-    // must not resize what holds it, and that includes a diagnostic), so a
-    // problem block cannot live inside it without either being clipped or
-    // stretching the row Task 8's scroll container measures against. It
-    // renders as the next sibling instead — still visibly attached to its
-    // rule, just not nested in it.
+    // Not a descendant of its rule any more. A rule row is no longer a fixed
+    // 52px — the owner ruled that a value must wrap and grow (c6c9bdb), so
+    // different rules are different heights — but what still holds, and is
+    // what this shape buys, is that a *given* rule's row does not change
+    // height when a problem appears on it (CLAUDE.md, Interface — a control
+    // appearing must not resize what holds it, and that includes a
+    // diagnostic). A problem block nested in the row would make the row's own
+    // height a function of its diagnostic state; as the next sibling it is
+    // still visibly attached to its rule and cannot touch that box.
     renderPanel({
       rules: [rule({ id: 'a', name: 'Clean' }), rule({ id: 'b', name: 'Broken' })],
       byRow: new Map([['b', [diag({ severity: 'error', message: 'Header name is empty.' })]]]),
@@ -82,9 +84,13 @@ describe('RulePanel', () => {
   });
 
   it('adds a rule from the head button, which never scrolls away', async () => {
+    // "New rule", not "+ New rule": the plus is a lucide icon carrying no
+    // accessible name of its own now, where it used to be a literal `+`
+    // character in the label. Exact-matching the two names apart is what keeps
+    // this from also matching the ghost row below.
     const onAddRule = vi.fn();
     renderPanel({ onAddRule });
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     expect(onAddRule).toHaveBeenCalledTimes(1);
   });
 

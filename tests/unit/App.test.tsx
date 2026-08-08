@@ -732,7 +732,7 @@ describe('a rule that has not been named yet', () => {
     await screen.findByDisplayValue('X-A');
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(screen.getAllByTestId('rule')).toHaveLength(3));
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
@@ -746,7 +746,7 @@ describe('a rule that has not been named yet', () => {
     await screen.findByDisplayValue('X-A');
     await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
@@ -817,7 +817,7 @@ describe('editing rules', () => {
     render(<App />);
     await screen.findByDisplayValue('X-A');
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(async () => expect((await stored()).profiles[0]!.headers).toHaveLength(3));
     expect((await stored()).profiles[0]!.headers.map((h) => h.name)).toEqual(['X-A', 'X-B', '']);
   });
