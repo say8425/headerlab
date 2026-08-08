@@ -220,7 +220,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--background',
     '--foreground',
   ],
-  ['"already in the list" note — .hl-fieldnote', '--pending', '--rail'],
+  [
+    '"already in the list" note — AddSiteField.tsx\'s [data-testid=add-site-note]',
+    '--pending',
+    '--rail',
+  ],
   ['scope note body — .hl-note', '--foreground', '--background'],
   ['reconcile failure heading — .hl-note-err b', '--destructive', '--background'],
   // Parked in Task 1: both tokens were in COLOR_TOKENS but nothing painted

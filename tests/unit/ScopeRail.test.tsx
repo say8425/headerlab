@@ -585,6 +585,32 @@ describe('adding a site', () => {
     expect(field()).toHaveProperty('value', 'https://x.com/');
   });
 
+  it('bounds the duplicate note to one line, whatever the hostname length', async () => {
+    // `schema.ts` caps nothing about domain length, and the rail is ~194px
+    // wide at a 10.5px note — an ordinary corporate subdomain already
+    // exceeds one line before "is already in the list." is even appended.
+    // jsdom computes no layout, so it cannot see a box actually stay one
+    // line tall; what it can check is that the reservation is a fixed
+    // height (not a `min-h`, which is only a floor a long note could still
+    // push past) and that bounding the *rendering* does not lose the value
+    // — the full host survives in `title` and in `textContent` alike, only
+    // its on-screen width is clipped by CSS.
+    const long = 'internal-api-gateway.staging.eu-west-1.example.com';
+    const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: long }));
+    renderRail({ domains: [long], onAddDomain });
+    await userEvent.type(field(), `${long}{Enter}`);
+
+    const note = screen.getByTestId('add-site-note');
+    expect(note.textContent).toBe(`${long} is already in the list.`);
+
+    const host = note.querySelector('b')!;
+    expect(host.className).toContain('truncate');
+    expect(host.getAttribute('title')).toBe(long);
+
+    expect(note.parentElement!.className).toContain('h-[15px]');
+    expect(note.parentElement!.className).not.toContain('min-h');
+  });
+
   it('drops the complaint as soon as the entry is edited', async () => {
     // The note is about the text as it stands; leaving it up while the user
     // types something else would be complaining about a value that is gone.

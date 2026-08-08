@@ -98,18 +98,37 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           className="rounded-md border-dashed border-boundary bg-transparent pr-2.5 pl-7 font-mono text-[12px] placeholder:font-sans placeholder:text-[11px] placeholder:font-semibold placeholder:text-foreground-2 dark:bg-transparent"
         />
       </div>
-      {/* Reserved, not created: the wrapper is always here at its one-line
-          height, and only the paragraph inside it — the thing the tests key
-          on — comes and goes. A duplicate complaint appearing must not push
-          "Request types" down the rail any more than a Grant button may push
-          the row under it (CLAUDE.md, Interface). */}
-      <div className="min-h-[15px] px-px">
+      {/* Reserved, not created: the wrapper is always here, and only the
+          paragraph inside it — the thing the tests key on — comes and goes.
+          A duplicate complaint appearing must not push "Request types" down
+          the rail any more than a Grant button may push the row under it
+          (CLAUDE.md, Interface).
+
+          The reservation is `h-[15px]`, a fixed height rather than a
+          `min-h`, because `schema.ts` puts no length cap on a domain and the
+          rail's usable width is ~194px — an ordinary corporate subdomain
+          (`internal-api-gateway.staging.eu-west-1.example.com`) already
+          exceeds one line before "is already in the list." is even
+          appended, so a `min-h` alone is a floor, not a ceiling: the note
+          can still grow past it and push. The domain is the part that can
+          be arbitrarily long, so it is the part that gives way — `<b>`
+          truncates to an ellipsis inside a `min-w-0` flex slot, `title`
+          keeps the full value one hover away, and the fixed suffix
+          (`shrink-0 whitespace-nowrap`) never itself wraps or is cut. That
+          makes every state of this paragraph — absent, short, or long —
+          exactly one line, so `h-[15px]` is a real ceiling rather than a
+          usual-case guess. Nothing is truncated in `alreadyThere` itself or
+          in what is stored; only this one rendering of it is bounded. */}
+      <div className="h-[15px] px-px">
         {alreadyThere !== null && (
           <p
-            className="font-sans text-[10.5px] leading-[1.4] font-normal text-pending [overflow-wrap:anywhere]"
+            className="flex items-baseline overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
             data-testid="add-site-note"
           >
-            <b className="font-mono font-semibold">{alreadyThere}</b> is already in the list.
+            <b className="min-w-0 truncate font-mono font-semibold" title={alreadyThere}>
+              {alreadyThere}
+            </b>
+            <span className="shrink-0 whitespace-nowrap"> is already in the list.</span>
           </p>
         )}
       </div>
