@@ -247,7 +247,19 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
         </span>
       </div>
 
-      <Button variant="ghost" size="icon-xs" aria-label={`Remove ${domain}`} onClick={onRemove}>
+      {/* `variant="ghost"` sets no text colour of its own, so without this the
+          Trash2 inherits the row's full-strength ink — the loudest colour in
+          the row, on its destructive control, while the identical button on a
+          rule row already wears `--muted-foreground`. The mockup's `.te-icb`
+          is `--ink-3`; this is that, and it is what makes the two delete
+          buttons one control rather than two. */}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={`Remove ${domain}`}
+        onClick={onRemove}
+        className="text-muted-foreground"
+      >
         <Trash2 />
       </Button>
     </div>

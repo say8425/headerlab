@@ -196,15 +196,15 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // rather than one per state.
   ['site host — the hostname on its row', '--foreground', '--card'],
   // `Button variant="ghost"` sets no text colour of its own, so an unstyled
-  // ghost icon button inherits the row's ink (`--foreground`), not
-  // `--muted-foreground` — measured in SiteRow.tsx's remove control, which
-  // carries no colour override. This pair used to claim `--muted-foreground`,
-  // which is not the colour either that button or RuleCard's (below) render;
-  // fixed to the colour that actually paints today rather than left
-  // describing nothing (CLAUDE.md, "no silent failures" / this file's own
-  // header on rot). Fixing SiteRow's own icon colour is a Task 5 concern, out
-  // of this task's file list.
-  ['site remove control — the ghost icon button on its row', '--foreground', '--card'],
+  // ghost icon button inherits the row's ink (`--foreground`). Both delete
+  // buttons — this one and RuleCard's below — now override that with an
+  // explicit `text-muted-foreground`, which is what the mockup's `.te-icb`
+  // wears and what keeps a destructive control from being the loudest thing
+  // on its row. This pair spent one task naming `--foreground` instead,
+  // because that was the colour that actually painted while the site row was
+  // out of the fixing task's file list; the defect is fixed now and the guard
+  // moves with it.
+  ['site remove control — the ghost icon button on its row', '--muted-foreground', '--card'],
   // RuleCard's delete button overrides the same shadcn ghost default with an
   // explicit `text-muted-foreground` (this task, in response to review) so it
   // does not out-shout the header name it sits beside — the one-button-
