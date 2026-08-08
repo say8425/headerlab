@@ -240,6 +240,105 @@ test('the popup renders its rules from stored state', async ({
   await page.close();
 });
 
+test('a rule row keeps its own height when toggled off, and does not move its neighbours', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  // RuleCard.tsx's row is no longer a fixed 52px — the owner ruled that a
+  // rule's value must wrap and grow rather than truncate, so different
+  // *rules* can be different heights. What must still hold, narrower and
+  // unchanged by that ruling: a *given* rule's own row must not change
+  // height from being toggled on/off. jsdom cannot see this (it performs no
+  // layout), so it is asserted here, against real `getBoundingClientRect()`
+  // boxes, and not merely inferred from the classes that are supposed to
+  // produce it.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: true,
+            domains: [],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'long',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'Authorization',
+              // Long enough to wrap across several lines at the panel's real
+              // width, and unbroken enough (no spaces) to exercise
+              // `overflow-wrap: anywhere` rather than wrapping at word
+              // boundaries alone — the shape of a real bearer token.
+              value:
+                'Bearer dev-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJhZG1pbiIsInFhIiwic3RhZ2luZy1kZWJ1ZyJdfQ.dummysignature-not-real-do-not-use',
+            },
+            {
+              id: 'short',
+              enabled: true,
+              target: 'response',
+              operation: 'set',
+              name: 'X-Short',
+              value: 'ok',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="rule"]').first().waitFor();
+
+  const rows = page.locator('[data-testid="rule"]');
+  const longRow = rows.first();
+  const shortRow = rows.nth(1);
+
+  const before = {
+    long: await longRow.boundingBox(),
+    short: await shortRow.boundingBox(),
+  };
+
+  // The long value really did wrap onto more than one line — otherwise the
+  // equality assertions below would pass trivially for an ordinary
+  // single-line row, and this test would not be testing what it claims to.
+  expect(before.long!.height).toBeGreaterThan(before.short!.height * 1.5);
+
+  await longRow.getByRole('switch').click();
+  // `data-off` becoming "true" is the popup's own claim that the click
+  // landed and this is the row it landed on, before trusting a box
+  // measurement taken immediately after.
+  await expect(longRow).toHaveAttribute('data-off', 'true');
+
+  const after = {
+    long: await longRow.boundingBox(),
+    short: await shortRow.boundingBox(),
+  };
+
+  // Whole-box equality, not just height: toggling must not move the row
+  // either, and must not move its untouched sibling below it.
+  expect(after.long).toEqual(before.long);
+  expect(after.short).toEqual(before.short);
+
+  await page.close();
+});
+
 test("nothing in the popup is wider than what holds it, at the popup's own width", async ({
   context,
   extensionId,

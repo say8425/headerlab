@@ -306,7 +306,8 @@ describe('RuleCard tab order', () => {
   });
 
   it('keeps that order on a rule whose value is still empty', async () => {
-    // An empty `set` rule still renders a real input, so it is in the
+    // An empty `set` rule still renders a real field (a textarea, restored
+    // in a later round — see the value slot tests below), so it is in the
     // sequence like any other. (Only `remove` swaps the value for a span —
     // see below.) Without this case the order could hold for filled rules and
     // break for the one a user meets first.
@@ -373,16 +374,25 @@ describe('RuleCard geometry', () => {
   // value must wrap and grow rather than truncate, so different *rules* can
   // be different heights (see the docblock on RuleCard). What must still
   // hold is narrower: a *given* rule's own row must not change height when
-  // it is toggled on/off or gains a diagnostic. jsdom performs no layout
-  // (this codebase's own e2e suite says so outright), so a unit test cannot
-  // honestly measure pixels — that claim is verified in a real browser
-  // instead (see the task report). What a unit test *can* honestly check is
-  // the structural half of the same claim: toggling never changes which
-  // elements render, their order, or the value text they carry — only
-  // colour/weight classes may differ. A future edit that swapped the value
-  // field for something else in one state, or truncated/altered its text
-  // only when off, would change what this asserts even though jsdom cannot
-  // see the pixel consequence.
+  // it is toggled on/off or gains a diagnostic.
+  //
+  // What this describe block does NOT and cannot guard: the actual pixel
+  // claim. jsdom performs no layout (this codebase's own e2e suite says so
+  // outright), so nothing here can see a regression like `data-[off]:py-4`
+  // or `group-data-off/rule:leading-[20px]` on the row — every Tailwind
+  // class is invisible to a test that only reads tag names and text. That
+  // claim is a real e2e test instead:
+  // `tests/e2e/header-modification.spec.ts`, "a rule row keeps its own
+  // height when toggled off, and does not move its neighbours" — seeded
+  // with a value long enough to wrap onto multiple lines, measuring
+  // `getBoundingClientRect()` before and after toggling.
+  //
+  // What these two tests *do* honestly check is narrower and complementary:
+  // that toggling, or a diagnostic appearing, never changes which elements
+  // render, their order, or the value text they carry — a class of
+  // regression (the value field swapped for something else, or its text
+  // altered or truncated only in one state) that would very likely also
+  // change the rendered height, but isn't itself a height claim.
   it("changes only colour and weight when toggled off, never the row's own structure or its value text", () => {
     const base = {
       id: 'h',

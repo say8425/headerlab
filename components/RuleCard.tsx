@@ -106,8 +106,23 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
              indicator in the popup does (the rail's own switch, the
              readout's live dot), not the neutral ink token. Unchecked is
              left alone: shadcn's own `bg-input` already is the mockup's
-             `--off` mapping. */
-          className="data-checked:bg-live"
+             `--off` mapping.
+
+             The thumb has the same defect one level down: `switch.tsx`
+             hardcodes `dark:data-checked:bg-primary-foreground` on its own
+             child, which is near-black in the dark palette — a dark knob on
+             a green track, next to the rail's own switch (still-deleted
+             `.hl-sw`, always a plain white knob). `Switch` forwards no prop
+             for the thumb's own class, but an arbitrary descendant variant
+             on the root reaches it without touching the shared component:
+             `[data-slot=switch-thumb]` is more specific than the thumb's own
+             two-class rule (measured: an attribute selector plus `:is(.dark
+             *)` outweighs it), so it wins regardless of source order.
+             Hardcoded white, not a token — the old `.hl-tog`/`.hl-sw` knobs
+             were `#fff` outright too, and the mockup's `.te-sw i` never
+             varies by theme; a switch knob reads as a physical part, not
+             themed ink. */
+          className="data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white"
         />
 
         <Badge
@@ -164,7 +179,25 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                 aria-label="Header value"
                 data-testid="rule-value"
                 rows={1}
-                className="min-w-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
+                /* min/max restored from the pre-mockup field (69bf230) — the
+                   owner's ruling was "값이 감싸지게(예전 방식)", the previous
+                   way, which capped growth and let a very long value scroll
+                   inside itself rather than growing without bound. Dropping
+                   the cap was found in review: a realistic 536-character
+                   value made one row 232.5px tall, 42% of the popup's own
+                   height. `max-h-24` (96px) is `.hl-hval`'s old value.
+
+                   Once a value is long enough to hit the cap, the textarea
+                   becomes a genuine scroll container of its own —
+                   `scrollHeight > clientHeight` — which is exactly what the
+                   crowding e2e guard's second assertion
+                   (`header-modification.spec.ts`, `expect(scrollers)...`)
+                   enumerates by walking every `overflow-y: auto`/`scroll`
+                   node. Today's fixtures only seed short values, so this
+                   never fires there, but Task 8/9 — which owns that
+                   assertion — should know the reason going in rather than
+                   find the symptom. */
+                className="min-w-0 max-h-24 min-h-[30px] flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
                 placeholder="value"
                 value={value.draft}
                 onChange={(e) => value.setDraft(e.target.value)}
@@ -193,7 +226,17 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             interrupted by its destructive action. Being last in the flex row
             is now also where it visually belongs, so no positioning trick is
             needed to hold it there. */}
-        <Button variant="ghost" size="icon-xs" aria-label="Delete rule" onClick={onDelete}>
+        {/* `variant="ghost"` sets no text colour of its own — it inherits the
+            row's full-strength ink, the loudest colour in the row, on the
+            control that is destructive. The mockup's `.te-icb` and the old
+            `.hl-del` both wear `--muted-foreground`; this restores that. */}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Delete rule"
+          onClick={onDelete}
+          className="text-muted-foreground"
+        >
           <Trash2 />
         </Button>
       </div>
