@@ -164,16 +164,13 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the rail, whose surface is the darker material in light and the
   //     lighter one in dark; both directions are asserted by running every
   //     pair against both palettes ---
-  // `.hl-dom` paints its own background and swaps it by `data-state`, so every
-  // text node on a site row is measured against the row, not the rail. The
-  // guard used to write these against `--background` alone and so never saw
-  // the pending and unusable rows at all — where the popup's true lowest text
-  // ratio turned out to live.
-  ['site host, granted row — .hl-domhost', '--foreground', '--background'],
-  ['site host, pending row — .hl-dom[data-state=pending]', '--foreground', '--pending-bg'],
-  ['site host, unusable row — .hl-dom[data-state=unusable]', '--foreground', '--destructive-bg'],
-  ['site remove ×, pending row — .hl-domx', '--muted-foreground', '--pending-bg'],
-  ['site remove ×, unusable row — .hl-domx', '--muted-foreground', '--destructive-bg'],
+  // The site row (SiteRow.tsx) keeps one fill — `--card` — in all four
+  // states, matching the reference mockup: no `[data-state=…]` selector in it
+  // ever repaints `.te-row`. State is said by the icon and the second line,
+  // not by the row's own surface, so one pairing now covers every state
+  // rather than one per state.
+  ['site host — the hostname on its row', '--foreground', '--card'],
+  ['site remove control — the ghost icon button on its row', '--muted-foreground', '--card'],
   [
     'readout subcount and section headings — .hl-subcount / .hl-railhead',
     '--foreground-2',
@@ -197,33 +194,22 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--pending',
     '--pending-bg',
   ],
-  // Every site row now carries a second line naming its state, and that line is
-  // painted on whichever fill the row is wearing — so it needs the pair its
-  // hostname needs, once per surface. The idle one replaces the pair that was
-  // written for `.hl-fieldnote-calm`: those exact words moved from a paragraph
-  // above the list onto the row itself, so the guard moved with them rather
-  // than being deleted.
-  ['row state line, granted — .hl-needsay', '--muted-foreground', '--background'],
-  [
-    'row state line, pending — .hl-dom[data-state=pending] .hl-needsay',
-    '--muted-foreground',
-    '--pending-bg',
-  ],
-  [
-    'row state line, unusable — .hl-dom[data-state=unusable] .hl-needsay',
-    '--muted-foreground',
-    '--destructive-bg',
-  ],
-  // The site list while all-sites is on: the row drops its own fill, so both
-  // its text and its state line are painted straight onto the rail.
-  ['site host, not in use — .hl-dom[data-state=idle] .hl-domhost', '--muted-foreground', '--rail'],
-  [
-    'row state line, not in use — .hl-dom[data-state=idle] .hl-needsay',
-    '--muted-foreground',
-    '--rail',
-  ],
-  ['Grant button — .hl-grant', '--background', '--ring'],
-  ['site remove × — .hl-domx', '--muted-foreground', '--background'],
+  // Every site row now carries a second line naming its state, coloured to
+  // match — mirroring the mockup's `.te-l2--live` / `.te-l2--err`, which
+  // colours the line itself rather than leaving severity to the icon alone.
+  // All three pair against `--card`, since the row no longer changes fill by
+  // state (see above). The idle one replaces the pair that was written for
+  // `.hl-fieldnote-calm`: those exact words moved from a paragraph above the
+  // list onto the row itself, so the guard moved with them rather than being
+  // deleted.
+  ['row state line, granted', '--live', '--card'],
+  ['row state line, unusable', '--destructive', '--card'],
+  ['row state line, not in use — All sites is on', '--muted-foreground', '--card'],
+  // The Grant button (shadcn Button, `secondary` variant, size `xs`) wears the
+  // same pale fill/ink pair as the mockup's `.te-btn--subtle` and as the
+  // all-sites bar's own ungranted label two rows up — the same state gets the
+  // same vocabulary everywhere it appears.
+  ['Grant button label — Button secondary on the site row', '--pending', '--pending-bg'],
   ['the ? mark — .hl-helpmark', '--muted-foreground', '--rail'],
   [
     'help bubble — .hl-helpbubble, an inverted surface in both themes',
@@ -242,14 +228,14 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--input', '--card'],
   ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--input', '--rail'],
-  // The idle row's dot is a hollow ring rather than a fill — there is no access
-  // state to report on a host nothing is scoped to — so what has to stay
-  // visible is its outline.
-  [
-    'not-in-use site dot ring — .hl-dom[data-state=idle] .hl-domstate',
-    '--muted-foreground',
-    '--rail',
-  ],
+  // The site row's lucide icon (CircleCheck/CircleMinus/Ban) is the state's one
+  // unconditional carrier now — every state renders it, on line 1, on the
+  // row's one fill (`--card`). A graphical indicator rather than a paragraph,
+  // so it is held to the 3:1 shape floor rather than the 4.5:1 text one.
+  ['state icon, granted — CircleCheck on the site row', '--live', '--card'],
+  ['state icon, pending — CircleMinus on the site row', '--pending', '--card'],
+  ['state icon, unusable — Ban on the site row', '--destructive', '--card'],
+  ['state icon, not in use — CircleMinus on the site row', '--muted-foreground', '--card'],
   // The scope note's left edge is what separates the card from the rail. The
   // `incomplete` one is neutral rather than amber — see the stylesheet — so it
   // is the edge most at risk of being toned down until it stops dividing

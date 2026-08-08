@@ -203,8 +203,8 @@ describe('sites', () => {
     // the line would still fit the layout, and this is the assertion that
     // notices.
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.com×Access granted',
-      'staging.acme.dev×Access granted',
+      'api.example.comAccess granted',
+      'staging.acme.devAccess granted',
     ]);
     expect(screen.getByTestId('site-count').textContent).toBe('2');
   });
@@ -365,7 +365,7 @@ describe('sites', () => {
     expect(onGrant).not.toHaveBeenCalledWith('host-a.example.com');
   });
 
-  it('removes the domain whose × was clicked', async () => {
+  it('removes the domain whose remove control was clicked', async () => {
     const onRemoveDomain = vi.fn();
     renderRail({ domains: ['a.example.com', 'b.example.com'], onRemoveDomain });
     await userEvent.click(screen.getByRole('button', { name: 'Remove b.example.com' }));
@@ -470,8 +470,8 @@ describe('the site list while all-sites is on', () => {
     // naming what is overriding it, would leave the reader looking for why.
     renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.com×Not in use while All sites is on',
-      'x.com×Not in use while All sites is on',
+      'api.example.comNot in use while All sites is on',
+      'x.comNot in use while All sites is on',
     ]);
   });
 
@@ -489,7 +489,7 @@ describe('the site list while all-sites is on', () => {
     renderRail({ allSites: false, domains: ['api.example.com'] });
     expect(screen.getByTestId('site').textContent).not.toMatch(/Not in use/);
     // …and the row is not merely silent: it states the state it is actually in.
-    expect(screen.getByTestId('site').textContent).toBe('api.example.com×Access granted');
+    expect(screen.getByTestId('site').textContent).toBe('api.example.comAccess granted');
   });
 
   it('stops claiming access is granted for a host nothing is scoped to', () => {

@@ -605,7 +605,64 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const before = await boxes(nominal);
   await nominal.close();
 
-  // 과밀 상태.
+  const measureLines = (p: import('@playwright/test').Page) =>
+    p.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="site"]')].map((row) => ({
+        state: row.getAttribute('data-state'),
+        line: Math.round(
+          row.querySelector('[data-testid="site-line"]')!.getBoundingClientRect().height,
+        ),
+        row: Math.round(row.getBoundingClientRect().height),
+      })),
+    );
+
+  // unusable 한 행의 높이는 과밀 페이지가 아니라 여기서, 그것을 열기 전에
+  // 잰다. storage 는 확장 전체에 하나뿐이라 나중에 다시 심으면 그때 이미
+  // 열려 있는 다른 페이지도 watch 를 타고 같이 다시 그려지고, `boxes(page)`
+  // 비교(3번)가 재는 것이 바뀐다. 그리고 unusable 은 애초에 과밀 페이지 안에
+  // 함께 만들 수 없다: 도메인 목록에 무효한 항목이 하나라도 있으면
+  // `isSuppressed` 가 프로필 전체를 억제해 `domainsToAudit` 가 그 프로필을
+  // 건너뛰고, granted/pending 이어야 할 나머지 호스트까지 확률되지 않은 채
+  // 전부 granted 로 주저앉는다(lib/compile/suppression.ts).
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({
+      state: {
+        version: 2,
+        globalPause: false,
+        theme: 'system',
+        profiles: [
+          {
+            id: 'u',
+            name: 'Unusable',
+            color: 'green',
+            enabled: true,
+            order: 0,
+            filter: {
+              mode: 'structured',
+              allSites: false,
+              domains: ['a b.com'],
+              excludedDomains: [],
+              resourceTypes: ['xmlhttprequest'],
+            },
+            tabLock: { enabled: false, tabId: null, tabTitle: null },
+            headers: [],
+          },
+        ],
+      },
+      state$: { v: 2 },
+    });
+  });
+  const unusablePage = await context.newPage();
+  await unusablePage.setViewportSize({ width: 748, height: 600 });
+  await unusablePage.goto(`chrome-extension://${extensionId}/popup.html`);
+  await unusablePage.locator('[data-testid="site"][data-state="unusable"]').waitFor();
+  const unusableLines = await measureLines(unusablePage);
+  await unusablePage.close();
+
+  // 과밀 상태. `127.0.0.1` 은 e2e 빌드가 유일하게 미리 승인해 둔 호스트라
+  // granted 를 만들고, 나머지 일곱은 전부 승인되지 않은 example.com 호스트라
+  // pending 으로 정착한다 — 전부 유효한 호스트라서 이 프로필은 억제되지
+  // 않고 실제로 확률된다(probeGrants).
   await seed(
     [
       'api.example.com',
@@ -614,7 +671,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       'cdn.example.com',
       'auth.example.com',
       'metrics.example.com',
-      'a.example.com',
+      '127.0.0.1',
       'a-very-long-subdomain.staging.example.com',
     ],
     10,
@@ -623,6 +680,20 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   await page.setViewportSize({ width: 748, height: 600 });
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.locator('[data-testid="site"]').first().waitFor();
+  // The permission probe is async (`chrome.permissions.contains()` per host),
+  // so the first paint is optimistic — every row reads `granted` until its
+  // diagnostic lands (see ScopeRail.tsx). Settling here first is what makes
+  // every measurement below describe the real page rather than a transitional
+  // frame; `scripts/screenshots.mjs` hits the identical issue.
+  await page.waitForFunction(
+    () => {
+      const states = [...document.querySelectorAll('[data-testid="site"]')].map((r) =>
+        r.getAttribute('data-state'),
+      );
+      return states.length === 8 && states.includes('granted') && states.includes('pending');
+    },
+    { timeout: 10_000 },
+  );
 
   // 1. 목록 밖 어떤 노드도 — 스크롤 컨테이너 자신을 뺀 나머지 — 자기 박스를
   //    넘지 않는다. `auto` 만 스크롤 컨테이너로 인정하면 `overflow-y: scroll`
@@ -675,6 +746,27 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       .sort();
   });
   expect(scrollers).toEqual(['rule-list', 'site-list']);
+
+  // 4. 사이트 행의 두 번째 줄은 상태와 무관하게 같은 높이다.
+  //    시안 하나가 Grant 버튼(22px)을 그것을 위해 마련한 15px 띠에 7px 잘랐다.
+  //    띠는 텍스트가 아니라 그 안에 들어갈 수 있는 가장 큰 것 — 버튼 — 에
+  //    맞춰 잡혀야 한다.
+  const lineHeights = [...(await measureLines(page)), ...unusableLines];
+  // 세 상태가 실제로 렌더됐는지 먼저 확인한다 — 없는 상태를 비교하면
+  // "전부 같다"가 공허하게 통과한다.
+  expect(new Set(lineHeights.map((l) => l.state))).toEqual(
+    new Set(['granted', 'pending', 'unusable']),
+  );
+  expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
+
+  // Grant 버튼이 그 띠 안에 온전히 들어간다.
+  const grantFits = await page.evaluate(() => {
+    const btn = document.querySelector('[data-testid="site-pending"]')!;
+    const band = btn.closest('[data-testid="site-line"]')!;
+    return btn.getBoundingClientRect().height <= band.getBoundingClientRect().height;
+  });
+  expect(grantFits).toBe(true);
 
   // 3. 목록 위아래는 평상 상태와 같은 좌표에 있다.
   expect(await boxes(page)).toEqual(before);
