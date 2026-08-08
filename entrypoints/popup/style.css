@@ -1,12 +1,10 @@
 @import "tailwindcss";
 
 /* Tailwind 의 자동 소스 탐지가 이 파일 밖의 .tsx/.html 도 훑어서 클래스를 찾는다.
-   docs/ 는 마크업이 아니라 산문(설계 문서·시안)이고, components/ui/ 는 지금 아무 데도
-   import 되지 않는 죽은 코드(CLAUDE.md 참고)라 여기서 빼지 않으면 한 번도 쓰이지 않는
-   유틸리티가 번들에 실린다 — 측정: @layer utilities 18,535 바이트, 클래스 201개, 사용처 0개.
-   components/ui/ 제외는 Task 3 에서 그 디렉터리가 실제로 쓰이기 시작하면 반드시 빼야 한다. */
+   docs/ 는 마크업이 아니라 산문(설계 문서·시안)이라 계속 뺀다. components/ui/ 는
+   Task 3 부터 shadcn 프리미티브(checkbox/tooltip/badge/separator)가 실제로 이
+   디렉터리에 쓰여 더는 죽은 코드가 아니므로, 그 예외를 뺐다. */
 @source not "../../docs";
-@source not "../../components/ui";
 
 /* public/theme.js 가 파싱 시점에 documentElement 에 .dark 를 붙인다.
    MV3 는 인라인 스크립트를 막으므로 그 부트스트랩은 classic script 로 남고,

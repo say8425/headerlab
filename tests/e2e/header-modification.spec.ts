@@ -517,3 +517,124 @@ test('a control appearing in the rail does not move anything', async ({
 
   await page.close();
 });
+
+/**
+ * 시안 다섯 개 중 다섯 개가 정확히 이것에 실패했다. 전부 고정 높이 +
+ * overflow: hidden 이라 사이트나 규칙이 하나 늘면 스크롤바도 표시도 없이
+ * 사라졌다. 한 시안은 Grant 버튼이 그걸 위해 마련한 바로 그 띠에 7px 잘렸다.
+ *
+ * 그래서 목록만 스크롤되고, 그 위아래 모든 것은 평상 상태와 같은 좌표에
+ * 있어야 한다. 좌표를 재는 이유는 "보인다"는 약한 단언이기 때문이다 —
+ * 8px 밀린 것도 보이기는 한다.
+ */
+test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const boxes = async (page: import('@playwright/test').Page) => {
+    const out: Record<string, { x: number; y: number }> = {};
+    for (const id of ['readout', 'runstate', 'rail-section-types', 'type-grid']) {
+      const b = await page.locator(`[data-testid="${id}"]`).first().boundingBox();
+      out[id] = { x: Math.round(b!.x), y: Math.round(b!.y) };
+    }
+    return out;
+  };
+
+  const seed = async (sites: string[], rules: number) => {
+    await serviceWorker.evaluate(
+      async ({ sites, rules }) => {
+        await chrome.storage.local.set({
+          state: {
+            version: 2,
+            globalPause: false,
+            theme: 'system',
+            profiles: [
+              {
+                id: 'p',
+                name: 'Default',
+                color: 'green',
+                enabled: true,
+                order: 0,
+                filter: {
+                  mode: 'structured',
+                  allSites: false,
+                  domains: sites,
+                  excludedDomains: [],
+                  resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
+                },
+                tabLock: { enabled: false, tabId: null, tabTitle: null },
+                headers: Array.from({ length: rules }, (_, i) => ({
+                  id: `h${i}`,
+                  enabled: i % 5 !== 0,
+                  target: 'request',
+                  operation: 'set',
+                  name: `X-Header-${i}`,
+                  value: `value-${i}`,
+                })),
+              },
+            ],
+          },
+          state$: { v: 2 },
+        });
+      },
+      { sites, rules },
+    );
+  };
+
+  // 평상 상태의 좌표를 먼저 잡는다.
+  await seed(['api.example.com', 'staging.example.com'], 4);
+  const nominal = await context.newPage();
+  await nominal.setViewportSize({ width: 748, height: 600 });
+  await nominal.goto(`chrome-extension://${extensionId}/popup.html`);
+  await nominal.locator('[data-testid="readout"]').waitFor();
+  const before = await boxes(nominal);
+  await nominal.close();
+
+  // 과밀 상태.
+  await seed(
+    [
+      'api.example.com',
+      'staging.example.com',
+      'internal.example.com',
+      'cdn.example.com',
+      'auth.example.com',
+      'metrics.example.com',
+      'a.example.com',
+      'a-very-long-subdomain.staging.example.com',
+    ],
+    10,
+  );
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 748, height: 600 });
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="site"]').first().waitFor();
+
+  // 1. 목록 밖 어떤 노드도 자기 박스를 넘지 않는다.
+  const clipped = await page.evaluate(() => {
+    const scrollers = new Set(
+      [...document.querySelectorAll<HTMLElement>('*')].filter(
+        (el) => getComputedStyle(el).overflowY === 'auto',
+      ),
+    );
+    return [...document.querySelectorAll<HTMLElement>('[data-testid="popup-root"] *')]
+      .filter((el) => !scrollers.has(el))
+      .filter((el) => el.scrollHeight > el.clientHeight + 1)
+      .map((el) => el.getAttribute('data-testid') ?? el.className);
+  });
+  expect(clipped).toEqual([]);
+
+  // 2. 목록은 실제로 스크롤 컨테이너다.
+  const scrollable = await page.evaluate(
+    () =>
+      [...document.querySelectorAll<HTMLElement>('*')].filter(
+        (el) => getComputedStyle(el).overflowY === 'auto' && el.scrollHeight > el.clientHeight,
+      ).length,
+  );
+  expect(scrollable).toBe(2);
+
+  // 3. 목록 위아래는 평상 상태와 같은 좌표에 있다.
+  expect(await boxes(page)).toEqual(before);
+
+  await page.close();
+});

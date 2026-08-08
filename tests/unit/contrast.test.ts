@@ -229,6 +229,10 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['"already in the list" note — .hl-fieldnote', '--pending', '--rail'],
   ['scope note body — .hl-note', '--foreground', '--background'],
   ['reconcile failure heading — .hl-note-err b', '--destructive', '--background'],
+  // Parked in Task 1: both tokens were in COLOR_TOKENS but nothing painted
+  // with them yet. shadcn's Button (components/ui/button.tsx, `default`
+  // variant) is the first thing that does — `bg-primary text-primary-foreground`.
+  ['primary button — shadcn Button', '--primary-foreground', '--primary'],
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
