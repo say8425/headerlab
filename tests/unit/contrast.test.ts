@@ -60,6 +60,7 @@ const COLOR_TOKENS = [
   '--muted-foreground',
   '--card',
   '--border',
+  '--tray',
   '--rail',
   '--rail-border',
   '--input',
@@ -152,6 +153,13 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--destructive-bg',
     '--destructive',
   ],
+
+  // --- the tray (the rules well `--card` sits inside — see style.css). No
+  //     `.hl-*` rule paints it yet, Task 8 does that, but the token exists
+  //     now and a colour that will hold text later must not rot unguarded
+  //     until then. ---
+  ['text on the tray, granted ahead of Task 8 painting it', '--foreground', '--tray'],
+  ['muted text on the tray, granted ahead of Task 8 painting it', '--muted-foreground', '--tray'],
 
   // --- the rail, whose surface is the darker material in light and the
   //     lighter one in dark; both directions are asserted by running every
@@ -319,6 +327,22 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
     expect(distinct('--rail', '--background')).toBeGreaterThanOrEqual(1.09);
   });
 
+  /**
+   * `--card` and `--background` are the identical `#ffffff` in light (and
+   * merely close in dark) — a rule card's fill alone no longer separates it
+   * from the panel at all (1.000 in light, not merely weak). `--tray` is the
+   * third surface between them: the recessed well the rows sit in, per the
+   * reference mockup. Not painted by any `.hl-*` rule yet (Task 8 does that),
+   * but it must not rot unguarded in the meantime. The floor reuses the rail
+   * check's own 1.09 above rather than the edge checks' 1.2 below: this is the
+   * same category of pair (fill vs fill, not a line), and 1.2 is not reachable
+   * here in either theme — light measures 1.184 with the mockup's own value,
+   * dark 1.098, so 1.2 would fail on the authored palette itself.
+   */
+  it('gives the panel a third surface — the tray — distinguishable from the card', () => {
+    expect(distinct('--card', '--tray')).toBeGreaterThanOrEqual(1.09);
+  });
+
   it('gives the rail an edge that is visible against both surfaces it divides', () => {
     expect(distinct('--rail-border', '--rail')).toBeGreaterThanOrEqual(1.2);
     expect(distinct('--rail-border', '--background')).toBeGreaterThanOrEqual(1.2);
@@ -328,7 +352,8 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
    * A rule card is an object on the panel, not a region — it is small, it
    * repeats, and it is allowed to sit close to its background. What it may not
    * do is have no boundary at all, and its boundary is the border: the fill
-   * alone is 1.065 in light, which would not carry it.
+   * alone is 1.000 in light — `--card` and `--background` are the same
+   * `#ffffff` — which would not carry it at all.
    */
   it('gives a rule card a border visible against both the card and the panel', () => {
     expect(distinct('--border', '--card')).toBeGreaterThanOrEqual(1.2);
