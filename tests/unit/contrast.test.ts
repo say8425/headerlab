@@ -179,7 +179,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--foreground-2',
     '--rail',
   ],
-  ['section counts and unchecked type labels — .hl-n / .hl-ty', '--muted-foreground', '--rail'],
+  [
+    'section counts and unchecked type labels — .hl-n / TypeChecklist label',
+    '--muted-foreground',
+    '--rail',
+  ],
   ['"Active" — .hl-pauselab', '--live', '--live-bg'],
   ['"Paused" — .hl-pausebar[data-paused] .hl-pauselab', '--foreground-2', '--background'],
   // The all-sites switch wears three surfaces, one per state, and each paints
@@ -238,7 +242,6 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--input', '--card'],
   ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--input', '--rail'],
-  ['unchecked type box — .hl-tybox on the rail', '--input', '--rail'],
   // The idle row's dot is a hollow ring rather than a fill — there is no access
   // state to report on a host nothing is scoped to — so what has to stay
   // visible is its outline.

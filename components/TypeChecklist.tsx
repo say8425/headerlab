@@ -47,12 +47,13 @@ export interface TypeChecklistProps {
  */
 export function TypeChecklist({ selected, onToggle }: TypeChecklistProps) {
   return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5" data-testid="type-grid">
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1" data-testid="type-grid">
       {OFFERED.map(([type, label]) => (
         <label
           key={type}
-          className="flex h-5 cursor-pointer items-center gap-2 text-[12px] leading-4
-                     text-foreground-2 select-none has-data-[state=unchecked]:text-muted-foreground"
+          className="flex h-[22px] cursor-pointer items-center gap-[7px] text-[11px] leading-[14px]
+                     font-semibold text-foreground-2 select-none
+                     has-data-[state=unchecked]:font-medium has-data-[state=unchecked]:text-muted-foreground"
         >
           <Checkbox
             data-testid="type-check"
