@@ -768,6 +768,12 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // `isSuppressed` 가 프로필 전체를 억제해 `domainsToAudit` 가 그 프로필을
   // 건너뛰고, granted/pending 이어야 할 나머지 호스트까지 확률되지 않은 채
   // 전부 granted 로 주저앉는다(lib/compile/suppression.ts).
+  //
+  // 사이트를 여덟 개 심는 것은 그 억제가 **scope note 를 하나 띄우기** 때문이다.
+  // 노트 + 여덟 행이 레일이 실제로 압력을 받는 유일한 상태이고, 거기서
+  // 양보해야 하는 것은 사이트 목록 하나뿐이다 — 아래 두 단언이 그것을 잰다.
+  // 과밀 페이지에는 이 상태를 만들 수 없다(무효한 항목이 하나라도 있으면 위에
+  // 적은 대로 나머지 행의 상태가 전부 무너진다), 그래서 여기 있다.
   await serviceWorker.evaluate(async () => {
     await chrome.storage.local.set({
       state: {
@@ -784,7 +790,16 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
             filter: {
               mode: 'structured',
               allSites: false,
-              domains: ['a b.com'],
+              domains: [
+                'a b.com',
+                'api.example.com',
+                'staging.example.com',
+                'internal.example.com',
+                'cdn.example.com',
+                'auth.example.com',
+                'metrics.example.com',
+                '127.0.0.1',
+              ],
               excludedDomains: [],
               resourceTypes: ['xmlhttprequest'],
             },
@@ -801,6 +816,27 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   await unusablePage.goto(`chrome-extension://${extensionId}/popup.html`);
   await unusablePage.locator('[data-testid="site"][data-state="unusable"]').waitFor();
   const unusableLines = await measureLines(unusablePage);
+
+  // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
+  // 제자리에 있다. 목록의 max-height 는 132px 이므로, 그보다 작아졌다는 것이
+  // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
+  const underPressure = await unusablePage.evaluate(() => {
+    const rail = document.querySelector('aside')!;
+    const list = document.querySelector('[data-testid="site-list"]')!;
+    return {
+      notes: document.querySelectorAll('[data-testid="scope-note"]').length,
+      railScrolls: rail.scrollHeight > rail.clientHeight,
+      listHeight: list.clientHeight,
+      listScrolls: list.scrollHeight > list.clientHeight,
+    };
+  });
+  expect(underPressure).toEqual({
+    notes: 1,
+    railScrolls: false,
+    listHeight: 48,
+    listScrolls: true,
+  });
+  expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
   await unusablePage.close();
 
   // 과밀 상태. `127.0.0.1` 은 e2e 빌드가 유일하게 미리 승인해 둔 호스트라

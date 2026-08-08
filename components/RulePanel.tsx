@@ -35,11 +35,17 @@ export interface RulePanelProps {
  *
  * **The list is the only thing here that scrolls.** The head keeps its place,
  * so "New rule" is reachable from any scroll position, and the well below it
- * is sized to the panel rather than to its contents — `flex-1` plus `min-h-0`,
- * never a `max-height`. Without the `min-h-0` a flex child's automatic
- * `min-height: auto` refuses to shrink below its content, and the panel
- * overflows instead of the list scrolling: the same one-line omission that had
- * the whole rail scrolling as one block.
+ * is sized to the panel rather than to its contents — `flex-1`, never a
+ * `max-height`.
+ *
+ * The `min-h-0` on both boxes is belt and braces, and measured to be exactly
+ * that: removing either one changes nothing here, because a flex item whose
+ * `overflow` is not `visible` already has an automatic minimum size of zero,
+ * and the well is such an item. What needs it is an ancestor whose content is
+ * *not* a scroll container — the rail's sites column is one, where dropping it
+ * makes the rail overflow by 76px instead of the list giving way (measured;
+ * e2e guards that case). It stays here so the chain keeps working if anything
+ * is ever inserted between the panel and its list.
  */
 export function RulePanel({
   rules,
