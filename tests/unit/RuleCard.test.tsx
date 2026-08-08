@@ -268,11 +268,18 @@ describe('RuleCard tab order', () => {
     return seq;
   }
 
-  it('goes name → value, with delete last', async () => {
+  it('goes name → operation → value, with delete last', async () => {
     // Typing a name and pressing Tab used to land on Delete, because the
     // button sat beside the name input in the DOM and tab order follows the
     // document. Name then value is the one sequence this card exists to
     // support, and its destructive action belongs at the end.
+    //
+    // Operation now sits between them, not before the name — line 1 is the
+    // name alone and line 2 is operation-and-value together
+    // (docs/design/2026-08-07-popup-tight-instrument.html), and tab order
+    // follows that same top-to-bottom, left-to-right shape. "Name then
+    // value" still holds; only where the operation cycler falls in between
+    // changed, and that is a structural move, not a regression.
     //
     // The whole sequence is asserted, not merely that each control is
     // reachable: a test checking only that the value field and the delete
@@ -291,15 +298,15 @@ describe('RuleCard tab order', () => {
     expect(await walk(6)).toEqual([
       'X-Test enabled',
       'Direction: request',
-      'Operation: set',
       'Header name',
+      'Operation: set',
       'Header value',
       'Delete rule',
     ]);
   });
 
   it('keeps that order on a rule whose value is still empty', async () => {
-    // An empty `set` rule still renders a real textarea, so it is in the
+    // An empty `set` rule still renders a real input, so it is in the
     // sequence like any other. (Only `remove` swaps the value for a span —
     // see below.) Without this case the order could hold for filled rules and
     // break for the one a user meets first.
@@ -314,8 +321,8 @@ describe('RuleCard tab order', () => {
     expect(await walk(6)).toEqual([
       'Unnamed enabled',
       'Direction: request',
-      'Operation: set',
       'Header name',
+      'Operation: set',
       'Header value',
       'Delete rule',
     ]);
@@ -323,9 +330,9 @@ describe('RuleCard tab order', () => {
 
   it('skips the value on a remove rule, which has none to focus', async () => {
     // `remove` takes no value, so that slot is a span rather than a field and
-    // Tab goes straight from the name to delete. Asserted rather than left to
-    // chance, because it is the one row where "name then value" cannot hold
-    // and the reason must be visible here.
+    // Tab goes straight from the operation cycler to delete. Asserted rather
+    // than left to chance, because it is the one row where "name then value"
+    // cannot hold and the reason must be visible here.
     render(
       <RuleCard
         rule={rule({ operation: 'remove', value: '' })}
@@ -337,8 +344,8 @@ describe('RuleCard tab order', () => {
     expect(await walk(5)).toEqual([
       'X-Test enabled',
       'Direction: request',
-      'Operation: remove',
       'Header name',
+      'Operation: remove',
       'Delete rule',
     ]);
   });
@@ -358,6 +365,45 @@ describe('RuleCard value slot', () => {
   it('gives a set rule a real editable value carrying the stored text', () => {
     renderCard({ operation: 'set', value: 'Bearer abc' });
     expect(value()).toHaveProperty('value', 'Bearer abc');
+  });
+});
+
+describe('RuleCard geometry', () => {
+  it('renders the same row height whether the rule is on, off, or has a problem', () => {
+    // Four button languages in one row was the original complaint about this
+    // card; the fix this task makes is one row shape regardless of state, so
+    // a switched-off rule and one carrying a diagnostic must not grow or
+    // shrink the row Task 8's scroll container measures against.
+    const base = {
+      id: 'h',
+      target: 'request',
+      operation: 'set',
+      name: 'X-Test',
+      value: 'v',
+    } as const;
+    const cases: Array<{ rule: Partial<HeaderRule>; diagnostics: Diagnostic[] }> = [
+      { rule: { ...base, enabled: true }, diagnostics: [] },
+      { rule: { ...base, enabled: false }, diagnostics: [] },
+      {
+        rule: { ...base, enabled: true },
+        diagnostics: [diag({ severity: 'error', message: 'a real problem' })],
+      },
+    ];
+    const heights = cases.map(({ rule: over, diagnostics }) => {
+      const { container, unmount } = render(
+        <RuleCard
+          rule={rule(over)}
+          diagnostics={diagnostics}
+          onPatch={() => {}}
+          onDelete={() => {}}
+        />,
+      );
+      const h = container.querySelector('[data-testid="rule"]')!.className.match(/h-\[?\d+/)?.[0];
+      unmount();
+      return h;
+    });
+    expect(heights.every((h) => h !== undefined)).toBe(true);
+    expect(new Set(heights).size).toBe(1);
   });
 });
 

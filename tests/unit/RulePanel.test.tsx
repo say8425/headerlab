@@ -55,14 +55,24 @@ describe('RulePanel', () => {
     expect(names).toEqual(['First', 'Second', 'Third']);
   });
 
-  it('hangs each diagnostic under the rule it names, and not under the others', () => {
+  it('places each diagnostic right after the rule it names, and not after the others', () => {
+    // Not a descendant of its rule any more. RuleCard.tsx's row is a fixed
+    // 52px regardless of state (CLAUDE.md, Interface — a control appearing
+    // must not resize what holds it, and that includes a diagnostic), so a
+    // problem block cannot live inside it without either being clipped or
+    // stretching the row Task 8's scroll container measures against. It
+    // renders as the next sibling instead — still visibly attached to its
+    // rule, just not nested in it.
     renderPanel({
       rules: [rule({ id: 'a', name: 'Clean' }), rule({ id: 'b', name: 'Broken' })],
       byRow: new Map([['b', [diag({ severity: 'error', message: 'Header name is empty.' })]]]),
     });
     const [clean, broken] = screen.getAllByTestId('rule');
     expect(within(clean!).queryAllByTestId('rule-problem')).toEqual([]);
-    expect(within(broken!).getByTestId('rule-problem').textContent).toBe('!Header name is empty.');
+    expect(clean!.nextElementSibling?.getAttribute('data-testid')).not.toBe('rule-problem');
+    const problem = broken!.nextElementSibling;
+    expect(problem?.getAttribute('data-testid')).toBe('rule-problem');
+    expect(problem?.textContent).toBe('!Header name is empty.');
   });
 
   it('renders no cards and still offers a way to make one when there are no rules', () => {

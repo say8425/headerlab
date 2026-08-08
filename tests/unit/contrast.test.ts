@@ -133,33 +133,58 @@ const SHAPE = 3;
 
 const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // --- the panel: fields, buttons and the surfaces they sit on ---
-  ['header name and value text — .hl-hname / .hl-hval', '--foreground', '--background'],
-  ['operation button label — .hl-op', '--foreground-2', '--background'],
+  // RuleCard.tsx (Task 7) composes these from shadcn's Switch/Badge/Input/
+  // Button now, so nothing below names an `.hl-*` selector for the row
+  // itself — see style.css's own note where `.hl-rule` used to live.
+  ['header name text — the name Input, line 1 of a rule row', '--foreground', '--background'],
+  ['header value text — the value Input, line 2 of a rule row', '--foreground-2', '--background'],
   [
-    'field placeholders and the ghost row — .hl-hval::placeholder / .hl-ghostrule',
+    'operation label, e.g. "set"/"remove" — the borderless op cycler on line 2',
     '--muted-foreground',
     '--background',
   ],
-  ['header name over the card behind it — .hl-hname on .hl-rule', '--foreground', '--card'],
-  ['New rule button — .hl-newbtn', '--background', '--foreground'],
-  ['remove operation marker — .hl-op[data-op=remove]', '--destructive', '--background'],
-  ['REQ direction pill — .hl-pill[data-target=request]', '--req', '--req-bg'],
-  ['RES direction pill — .hl-pill[data-target=response]', '--res', '--res-bg'],
-  ['warning inside a rule card — .hl-rprob', '--foreground', '--pending-bg'],
-  ['error inside a rule card — .hl-rprob[data-severity=error]', '--foreground', '--destructive-bg'],
-  ['the "!" in a warning badge — .hl-rprob-ic', '--pending-bg', '--pending'],
   [
-    'the "!" in an error badge — .hl-rprob[data-severity=error] .hl-rprob-ic',
+    'field placeholders and the ghost row — Input::placeholder / .hl-ghostrule',
+    '--muted-foreground',
+    '--background',
+  ],
+  ['header name over the card behind it — the name Input on the row', '--foreground', '--card'],
+  ['header value over the card behind it — the value Input on the row', '--foreground-2', '--card'],
+  ['New rule button — .hl-newbtn', '--background', '--foreground'],
+  ['REQ direction badge — the Badge wearing an ArrowUp, data-dir=request', '--req', '--req-bg'],
+  ['RES direction badge — the Badge wearing an ArrowDown, data-dir=response', '--res', '--res-bg'],
+  [
+    'warning inside a rule card — the diagnostic line below the row',
+    '--foreground',
+    '--pending-bg',
+  ],
+  [
+    'error inside a rule card — the diagnostic line below the row, error severity',
+    '--foreground',
+    '--destructive-bg',
+  ],
+  ['the "!" in a warning badge — the diagnostic icon', '--pending-bg', '--pending'],
+  [
+    'the "!" in an error badge — the diagnostic icon, error severity',
     '--destructive-bg',
     '--destructive',
   ],
 
-  // --- the tray (the rules well `--card` sits inside — see style.css). No
-  //     `.hl-*` rule paints it yet, Task 8 does that, but the token exists
-  //     now and a colour that will hold text later must not rot unguarded
-  //     until then. ---
-  ['text on the tray, granted ahead of Task 8 painting it', '--foreground', '--tray'],
-  ['muted text on the tray, granted ahead of Task 8 painting it', '--muted-foreground', '--tray'],
+  // --- the tray (the rules well `--card` sits inside — see style.css). The
+  //     well itself is still unpainted (Task 8), but a switched-off rule row
+  //     (RuleCard.tsx's `data-off`) already sits on `--tray` today, so these
+  //     are no longer merely reserved ahead of time. ---
+  ['text on the tray, reserved for Task 8 painting the well itself', '--foreground', '--tray'],
+  [
+    'header name text on a switched-off row — .te-name/[data-on=false] in the mockup',
+    '--foreground-2',
+    '--tray',
+  ],
+  [
+    'header value text on a switched-off row — .te-val/[data-on=false] in the mockup',
+    '--muted-foreground',
+    '--tray',
+  ],
 
   // --- the rail, whose surface is the darker material in light and the
   //     lighter one in dark; both directions are asserted by running every
@@ -234,7 +259,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
-  ['switched-off rule track — .hl-tog[aria-checked=false] on .hl-rule', '--input', '--card'],
+  [
+    'switched-off rule track — the Switch unchecked, on the row it turns off (bg-tray)',
+    '--input',
+    '--tray',
+  ],
   ['paused master switch track — .hl-sw[aria-checked=false] on the rail', '--input', '--rail'],
   // The site row's lucide icon (CircleCheck/CircleMinus/Ban) is the state's one
   // unconditional carrier now — every state renders it, on line 1, on the

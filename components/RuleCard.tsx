@@ -1,3 +1,8 @@
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { useCommittedDraft } from '@/lib/view/useCommittedDraft';
 import type { Diagnostic, HeaderRule, HeaderTarget, Operation } from '@/lib/model/types';
 
@@ -8,6 +13,11 @@ const TARGET_NEXT: Record<HeaderTarget, HeaderTarget> = {
 };
 /** Short enough to be a pill, and the word every HTTP tool already uses. */
 const TARGET_LABEL: Record<HeaderTarget, string> = { request: 'REQ', response: 'RES' };
+const TARGET_ICON = { request: ArrowUp, response: ArrowDown } as const;
+const TARGET_TONE: Record<HeaderTarget, string> = {
+  request: 'bg-req-bg text-req',
+  response: 'bg-res-bg text-res',
+};
 
 export interface RuleCardProps {
   rule: HeaderRule;
@@ -19,22 +29,31 @@ export interface RuleCardProps {
 }
 
 /**
- * One rule, in two tiers.
+ * One rule, one row, 52px regardless of its state.
  *
- * Line 1 is identity — switch, direction, operation, name. Line 2 is the value
- * across the whole panel, wrapping instead of truncating: the five-column grid
- * this replaces gave a value 246px and an ellipsis, which was the first thing
- * the owner named. Direction is a coloured pill rather than a column, so it is
- * read from the row itself.
+ * This is where "one line, four button languages" lived: direction was a
+ * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
+ * switch was a fourth shape again. Now there is one family — a real Switch,
+ * a direction Badge carrying an arrow, an operation that is typography
+ * rather than a box, and a ghost icon Button for delete.
  *
- * A `remove` rule has no value, and says so in the place a value would be
- * rather than rendering an empty field. The old grid had to invent the copy
- * "— no value" to fill a cell that a column layout forced it to draw.
+ * Two lines, but not the split the grid before this used: line 1 is the
+ * header name alone, line 2 is the operation and its value together. Name
+ * is sans, value is monospace — provenance, not rank, decides the typeface
+ * (docs/design/2026-08-07-popup-tight-instrument.html). A `remove` rule has
+ * no value, and says so in the place a value would be rather than rendering
+ * an empty field.
+ *
+ * The row itself never changes height. A diagnostic renders as a sibling
+ * below it, not inside it — the fixed 52px is what Task 8's scroll
+ * container measures against, and a card that grew per-problem would make
+ * that measurement a lie.
  */
 export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: RuleCardProps) {
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
   const value = useCommittedDraft(rule.value, (next) => onPatch({ value: next }));
   const removes = rule.operation === 'remove';
+  const DirIcon = TARGET_ICON[rule.target];
 
   /**
    * An unfinished rule shows no problem block.
@@ -57,107 +76,126 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   const unfinished = diagnostics.length !== problems.length;
 
   return (
-    <div
-      className="hl-rule"
-      data-testid="rule"
-      data-off={!rule.enabled || undefined}
-      data-unfinished={unfinished || undefined}
-    >
-      <div className="hl-r1">
-        <button
-          role="switch"
-          aria-checked={rule.enabled}
+    <>
+      <div
+        className="group/rule mb-px flex h-13 items-center gap-2.5 bg-card pr-2 pl-3 data-[off]:bg-tray"
+        data-testid="rule"
+        data-off={!rule.enabled || undefined}
+        data-unfinished={unfinished || undefined}
+      >
+        <Switch
           aria-label={`${rule.name || 'Unnamed'} enabled`}
-          className="hl-tog"
-          onClick={() => onPatch({ enabled: !rule.enabled })}
+          checked={rule.enabled}
+          onCheckedChange={(checked) => onPatch({ enabled: checked })}
+          /* shadcn's default checked track is `--primary` (ink) — this is a
+             live/on state, so it wears the same green every other "on"
+             indicator in the popup does (the rail's own switch, the
+             readout's live dot), not the neutral ink token. Unchecked is
+             left alone: shadcn's own `bg-input` already is the mockup's
+             `--off` mapping. */
+          className="data-checked:bg-live"
         />
-        <button
-          className="hl-pill"
-          data-target={rule.target}
-          aria-label={`Direction: ${rule.target}`}
-          onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
-        >
-          {TARGET_LABEL[rule.target]}
-        </button>
-        <button
-          className="hl-op"
-          data-op={rule.operation}
-          aria-label={`Operation: ${rule.operation}`}
-          onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
-        >
-          {rule.operation}
-        </button>
-        <input
-          aria-label="Header name"
-          className="hl-hname"
-          placeholder="header-name"
-          autoFocus={autoFocus}
-          value={name.draft}
-          onChange={(e) => name.setDraft(e.target.value)}
-          onBlur={name.commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') name.commit();
-            if (e.key === 'Escape') name.cancel();
-          }}
-        />
-      </div>
 
-      <div className="hl-r2">
-        {removes ? (
-          <span className="hl-hval hl-hval-none" data-testid="rule-value">
-            remove takes no value
-          </span>
-        ) : (
-          <textarea
-            aria-label="Header value"
-            className="hl-hval"
-            data-testid="rule-value"
-            placeholder="value"
-            rows={1}
-            value={value.draft}
-            onChange={(e) => value.setDraft(e.target.value)}
-            onBlur={value.commit}
+        <Badge
+          asChild
+          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-[4px] border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] ${TARGET_TONE[rule.target]}`}
+        >
+          <button
+            type="button"
+            aria-label={`Direction: ${rule.target}`}
+            onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
+          >
+            <DirIcon aria-hidden="true" />
+            {TARGET_LABEL[rule.target]}
+          </button>
+        </Badge>
+
+        <div className="min-w-0 flex-1">
+          {/* display:block, not flex — a flex child truncates by hard-clipping
+              instead of marking the truncation with an ellipsis (see the
+              mockup's own comment on .te-name). */}
+          <Input
+            aria-label="Header name"
+            className="h-[18px] w-full min-w-0 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2"
+            placeholder="header-name"
+            autoFocus={autoFocus}
+            value={name.draft}
+            onChange={(e) => name.setDraft(e.target.value)}
+            onBlur={name.commit}
             onKeyDown={(e) => {
-              // Shift+Enter keeps the newline; a bare Enter is a commit, the
-              // same bargain the value editor struck before this redesign.
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                value.commit();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                value.cancel();
-              }
+              if (e.key === 'Enter') name.commit();
+              if (e.key === 'Escape') name.cancel();
             }}
           />
-        )}
-      </div>
 
-      {/* Last in the DOM, top-right on screen.
-          Tab order follows the document, so while this sat beside the name
-          input a Tab out of the name landed on Delete instead of the value —
-          the one sequence this card exists to support, name then value,
-          interrupted by its destructive action. Moving the markup is the fix;
-          a positive `tabindex` would pull it into a separate sequence that has
-          to be maintained against every future change. CSS puts it back where
-          it looks right, and `.hl-r1` reserves the width it used to occupy so
-          the card's appearance does not move. */}
-      <button className="hl-del" aria-label="Delete rule" onClick={onDelete}>
-        ×
-      </button>
+          <div className="mt-0.5 flex h-4 min-w-0 items-center">
+            <button
+              type="button"
+              className="w-11 shrink-0 text-left text-[11px] leading-[14px] font-medium text-muted-foreground"
+              aria-label={`Operation: ${rule.operation}`}
+              onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
+            >
+              {rule.operation}
+            </button>
+
+            {removes ? (
+              <span
+                className="min-w-0 flex-1 truncate text-[11px] leading-[14px] font-medium text-muted-foreground"
+                data-testid="rule-value"
+              >
+                remove takes no value
+              </span>
+            ) : (
+              <Input
+                aria-label="Header value"
+                data-testid="rule-value"
+                className="h-4 min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
+                placeholder="value"
+                value={value.draft}
+                onChange={(e) => value.setDraft(e.target.value)}
+                onBlur={value.commit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    value.commit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    value.cancel();
+                  }
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Last in the DOM, at the row's right edge.
+            Tab order follows the document, so while this sat beside the name
+            input a Tab out of the name landed on Delete instead of the value —
+            the one sequence this card exists to support, name then value,
+            interrupted by its destructive action. Being last in the flex row
+            is now also where it visually belongs, so no positioning trick is
+            needed to hold it there. */}
+        <Button variant="ghost" size="icon-xs" aria-label="Delete rule" onClick={onDelete}>
+          <Trash2 />
+        </Button>
+      </div>
 
       {problems.map((d, i) => (
         <div
           key={`${d.kind}-${i}`}
           data-testid="rule-problem"
           data-severity={d.severity}
-          className="hl-rprob"
+          className="group/prob mt-1.5 mr-2 ml-[110px] flex items-start gap-1.5 rounded-md bg-pending-bg px-2 py-1.5 text-[11px] leading-[1.4] text-foreground data-[severity=error]:bg-destructive-bg"
         >
-          <span className="hl-rprob-ic" aria-hidden="true">
+          <span
+            className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-pending text-[9px] font-bold text-pending-bg group-data-[severity=error]/prob:bg-destructive group-data-[severity=error]/prob:text-destructive-bg"
+            aria-hidden="true"
+          >
             !
           </span>
           <span>{d.message}</span>
         </div>
       ))}
-    </div>
+    </>
   );
 }
