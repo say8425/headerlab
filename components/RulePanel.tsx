@@ -38,14 +38,29 @@ export interface RulePanelProps {
  * is sized to the panel rather than to its contents — `flex-1`, never a
  * `max-height`.
  *
- * The `min-h-0` on both boxes is belt and braces, and measured to be exactly
- * that: removing either one changes nothing here, because a flex item whose
- * `overflow` is not `visible` already has an automatic minimum size of zero,
- * and the well is such an item. What needs it is an ancestor whose content is
- * *not* a scroll container — the rail's sites column is one, where dropping it
- * makes the rail overflow by 76px instead of the list giving way (measured;
- * e2e guards that case). It stays here so the chain keeps working if anything
- * is ever inserted between the panel and its list.
+ * Both `min-h-0`s below are belt and braces, measured to be exactly that —
+ * removing either changes nothing (e2e stays at 7 passed). They are inert for
+ * **two different reasons**, and neither one generalises, so each is stated
+ * where it applies rather than once for both:
+ *
+ * - On the `<section>`: `popup-root` is a **row** flex container
+ *   (`App.tsx`, `flex h-full`), so a child's automatic minimum size applies to
+ *   the *main* axis, which is horizontal. `min-height: auto` was never in play
+ *   here at all — the class does nothing because it is on the cross axis. What
+ *   is doing real work in that same class list is the `min-w-0` beside it.
+ * - On the well: `scroll-list` already declares `min-height: 0` (style.css), so
+ *   this is a duplicate of a declaration the utility carries. Independently of
+ *   that, the well's `overflow` is not `visible`, which by itself makes its
+ *   automatic minimum size zero.
+ *
+ * **Neither reason is a general rule, and the rail is the counterexample.**
+ * `ScopeRail`'s sites column is a child of a *column* flex container whose own
+ * `overflow` *is* `visible`, and the three siblings around its list are
+ * `shrink-0` — so its automatic minimum size is their full height, and its
+ * `min-h-0` is load-bearing. Dropping it puts 676px of rail in a 600px box
+ * (measured; e2e guards that case). Reading either bullet above as "a scroll
+ * container makes `min-h-0` unnecessary" and applying it there is exactly how
+ * that regression gets shipped.
  */
 export function RulePanel({
   rules,

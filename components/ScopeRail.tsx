@@ -279,14 +279,22 @@ export function ScopeRail({
           scrolls — see the component docblock.
 
           `min-h-0` here is load-bearing, and this is the one place in the popup
-          where it is: this column's content is a heading, the all-sites row and
-          the add field, none of which is a scroll container, so its automatic
-          minimum size is their full height and the column refuses to shrink
-          past it. Measured by removing it — with a scope note on screen the
-          rail went to 676px of content in a 600px box and pushed the request
-          types 37px down, instead of the site list shrinking from 132 to 48.
-          The e2e suite opens exactly that page (a note plus eight sites), so
-          the class cannot be dropped in silence. */}
+          where it is — all three conditions have to hold at once, which is why
+          the two in RulePanel are inert and this one is not:
+
+          the `aside` is a **column** flex container, so height is the main axis
+          and a child's automatic minimum size actually applies (in the panel's
+          row-direction parent it never does); this column's own `overflow` is
+          `visible`, so that minimum is not zeroed the way a scroll container's
+          is; and its minimum resolves to the full height of the heading, the
+          all-sites row and the add field, because those three are `shrink-0`
+          and only the list between them can collapse.
+
+          Measured by removing it: with a scope note on screen the rail went to
+          676px of content in a 600px box and pushed the request types 37px
+          down, instead of the site list shrinking from 132 to 48. The e2e
+          suite opens exactly that page (a note plus eight sites), so the class
+          cannot be dropped in silence. */}
       <div className="mt-4 flex min-h-0 flex-col gap-1.5">
         <div className={HEAD_CLASS}>
           Sites{' '}

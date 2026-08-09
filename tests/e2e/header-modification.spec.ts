@@ -912,11 +912,18 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   //
   //     그래서 자손이 없는 텍스트 노드만 본다. 의사요소 전파는 자손에서 오므로
   //     자손이 없으면 오지 않고, 남는 것은 "이 글자가 자기 상자를 넘는가"라는
-  //     원래 물음뿐이다. 이것이 잡는 실제 결함: 30px 글리프에 line-height:1 을
+  //     원래 물음이다. 이것이 잡는 실제 결함: 30px 글리프에 line-height:1 을
   //     줘 32/30 으로 넘쳤던 readout 의 큰 숫자 — macOS 시스템 폰트의
   //     ascent+descent 는 em 사각형보다 크고, CI 의 Linux 폰트는 또 다르다.
   //     스크롤 컨테이너는 여전히 뺀다: 자기 내용을 스크롤하는 것은 잘리는 것이
   //     아니고, 값 필드(textarea)가 정확히 그 경우다.
+  //
+  //     **이 필터가 못 보는 것**: 자식 요소와 자기 텍스트를 함께 가진 부모의 그
+  //     텍스트. 레일의 섹션 제목이 그 모양이라("Sites" 는 카운트 span 을 자식으로
+  //     가진 div 의 직접 텍스트) 제목 자체는 검사되지 않는다. 옆의 카운트 span 은
+  //     잎이라 검사되므로 같은 폰트 사고는 대개 그쪽에서 잡히지만, 그건 이웃이
+  //     대신 잡아 주는 것이지 이 지표가 보는 것이 아니다. 예외 목록 없는 지표를
+  //     되찾는 대가로 받아들인 사각지대다.
   const clipped = await page.evaluate(() => {
     // 실패했을 때 무엇을 가리키는지 알 수 있는 이름 — 태그, 실제 글자, 그리고
     // 넘친 정도.
@@ -930,9 +937,13 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       .filter((el) => (el.textContent ?? '').trim() !== '')
       .filter((el) => !scrollers.has(el));
     return {
-      // 셌다는 증거. 0개를 검사하고 통과하는 것과 46개를 검사하고 통과하는 것은
-      // 다른 사실이고, 이 지표는 바로 그 구분을 못 해서 한 번 고장났다.
-      inspected: leaves.length,
+      // 무엇을 셌는지, 레일과 패널로 나눠서. 0개를 보고 통과하는 것과 전부를 보고
+      // 통과하는 것은 다른 사실이고, 이 지표는 바로 그 구분을 못 해서 한 번
+      // 고장났다. 총합 하나로는 한쪽만 무너진 경우를 가리키지 못해서 둘로 나눈다.
+      inspected: {
+        rail: leaves.filter((el) => el.closest('aside') !== null).length,
+        panel: leaves.filter((el) => el.closest('aside') === null).length,
+      },
       clipped: leaves
         .filter((el) => el.scrollHeight > el.clientHeight + 1)
         .map(
@@ -943,7 +954,29 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     };
   });
   expect(clipped.clipped).toEqual([]);
-  expect(clipped.inspected, 'the clipping check must have had text to look at').toBeGreaterThan(20);
+  // 실측값에 정확히 붙인다. `toBeGreaterThan(20)` 이었을 때는 36 → 21 까지, 즉
+  // 모수의 42% 가 조용히 사라져도 통과했다 — 규칙 행이 하나도 렌더되지 않으면
+  // 패널 쪽이 12 → 1 이 되어 총 25 인데 그래도 초록이었다. 이 줄이 하는 일은
+  // "잘림 검사가 아무것도 안 보고 통과하지는 않았다" 하나뿐이므로, 여유를 두면
+  // 그 하나를 하지 않는다.
+  //
+  // 정확값이 과하지 않은 이유: 이 수는 픽스처(사이트 8 · 규칙 10)와 마크업의
+  // 함수이지 레이아웃의 함수가 아니다. 폰트도 플랫폼도 창 크기도 "텍스트를 가진
+  // 잎 노드가 몇 개인가"를 바꾸지 않는다(무엇이 잘리는지는 바꾼다). 바로 아래
+  // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
+  //
+  // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
+  //   레일 24 = 브랜드 1 · readout 2(큰 숫자, "of 10 rules live") · Sites 카운트 1
+  //             · run state 1("Active") · all-sites 2(라벨, 상태 줄)
+  //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
+  //             · Request types 카운트 1
+  //   패널 12 = 헤딩 1 · ghost 행 라벨 1 · 규칙 행의 operation 10
+  // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
+  // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
+  expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
+    rail: 24,
+    panel: 12,
+  });
 
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
