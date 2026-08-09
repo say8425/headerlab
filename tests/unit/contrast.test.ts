@@ -451,16 +451,31 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
    * merges downward, and the dark ladder is inverted (`--card` is the lighter
    * end there) so neither direction can be assumed.
    *
-   * The floor is 1.03, set just under the narrowest gap this palette actually
-   * uses. Dark is what sets it: `--card`→`--tray` spans only 1.098 in total
-   * there (1.184 in light), so a step placed midway is ~1.047 on each side and
-   * the 1.09 floor the checks above use is unreachable by construction. Light
-   * measures 1.111 / 1.066, dark 1.049 / 1.047; a collapse to either neighbour
-   * is 1.000 and fails loudly.
+   * The floor is 1.04, and where it sits is the whole question. Measured:
+   * light 1.1109 / 1.0660, dark 1.0494 / 1.0466.
+   *
+   * It cannot be the 1.09 the checks above use. Dark sets the ceiling here:
+   * `--card`→`--tray` spans only 1.0983 in total there (1.184 in light), so a
+   * step placed midway is at best √1.0983 ≈ 1.048 on each side — 1.09 would
+   * fail the authored palette itself, by construction rather than by regression.
+   *
+   * But "not 1.09" does not imply "as low as you like", which is the step this
+   * file's convention exists to stop. A floor's job is to bound how much of a
+   * measured separation a future edit may give away before something says so,
+   * and the sibling `--card`↔`--tray` check four lines up sits ~8.5% under what
+   * it measures. At 1.03 this one sat ~36% under the binding pair — four times
+   * looser than its own neighbour, so a third of the step could go quietly.
+   * 1.04 brings that to ~14% while keeping 0.0066 of margin on dark
+   * `--rowoff`↔`--tray`, the tightest of the four and therefore the one the
+   * floor actually tracks. (The light pairs are wider and so are guarded more
+   * loosely by the same number; one floor per assertion is this file's shape,
+   * and it follows the pair with the least room.)
+   *
+   * A collapse to either neighbour is exactly 1.000 and fails loudly.
    */
   it('gives a switched-off row its own tone, stepped from both the card and the well', () => {
-    expect(distinct('--card', '--rowoff')).toBeGreaterThanOrEqual(1.03);
-    expect(distinct('--rowoff', '--tray')).toBeGreaterThanOrEqual(1.03);
+    expect(distinct('--card', '--rowoff')).toBeGreaterThanOrEqual(1.04);
+    expect(distinct('--rowoff', '--tray')).toBeGreaterThanOrEqual(1.04);
   });
 
   it('gives the rail an edge that is visible against both surfaces it divides', () => {
