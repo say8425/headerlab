@@ -988,6 +988,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
   //     (style.css 의 scroll-list 에 측정표가 있다). 스타일을 줘서 실제 막대를
   //     띄우긴 했지만, 넘친다는 사실을 말하는 것은 여전히 잘린 행이다.
+  //
+  //     그 측정표에서 이 파일이 특히 새겨야 할 줄은 3행이다: ::-webkit-scrollbar
+  //     단독은 headless 에서 0px, headed 에서 8px 를 예약한다. 이 스위트는
+  //     headless 로 돌므로(fixtures.ts 가 headless 를 넘기지 않고 playwright 의
+  //     기본이 headless 다) **여기서 잰 레이아웃 값은 사용자 화면의 값이라는
+  //     보장이 없다.** scroll-list 가 gutter 와 스크롤바 스타일을 둘 다 켜는
+  //     이유가 그것이고, 그 조합은 양쪽 모드에서 8px 로 같다 — 즉 이 단언이
+  //     보는 폭은 headed 에서도 같은 폭이다. 여기에 새 레이아웃 단언을 더할
+  //     때는 그 등가가 성립하는지 먼저 물어라.
   const partial = await page.evaluate(() => {
     const list = document.querySelector('[data-testid="site-list"]');
     // 없으면 없다고 말한다. 빈 배열을 돌려주면 "잘린 행이 없다"와 구별되지

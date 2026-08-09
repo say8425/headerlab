@@ -235,18 +235,27 @@
    두 곳에 같은 여섯 줄을 복사하게 되기 때문이다 — @utility 는 Tailwind v4 의
    지시문이고, 이 파일이 방금 다 걷어낸 손수 쓴 컴포넌트 클래스가 아니다.
 
-   두 선언은 한 쌍이다. 측정(Chromium 141, macOS, headless/headed 양쪽):
+   두 선언은 한 쌍이다. offsetWidth − clientWidth 를 (넘침 / 안 넘침) 으로 잰
+   값이다 — 순수 Chromium 페이지, 이 저장소의 어떤 것도 걸치지 않았다
+   (Chromium 151.0.7922.34, playwright 1.62.0 동봉본, macOS):
 
-     기본                          gutter 0   — 오버레이 스크롤바
-     scrollbar-gutter: stable      gutter 0   — 오버레이는 자리를 안 차지하므로
-                                                예약할 것이 없다
-     ::-webkit-scrollbar 스타일    gutter 8   — 넘칠 때만 (headed), 0 (headless)
-     둘 다                         gutter 8   — 넘치든 아니든, 양쪽 모드에서
+                                headless      headed
+     기본                        0 / 0         0 / 0
+     scrollbar-gutter: stable    0 / 0         0 / 0
+     ::-webkit-scrollbar 스타일  0 / 0         8 / 0
+     둘 다                       8 / 8         8 / 8
 
    즉 gutter 만으로는 macOS 에서 아무것도 예약되지 않고, 스크롤바 스타일만으로는
-   목록이 넘치기 시작하는 순간 행이 8px 밀린다. 둘 다 있어야 "행이 안 밀린다"가
-   플랫폼과 상관없이 참이 된다. (기존 e2e 주석은 스타일을 줘도 오버레이가 꺼지지
-   않는다고 적고 있었다 — 위 대조표가 그것을 반증한다.)
+   headed 에서 목록이 넘치기 시작하는 순간 행이 8px 밀린다. 둘 다 있어야
+   "행이 안 밀린다"가 모드와 상관없이 참이 된다.
+
+   세로줄이 둘인 것이 요점이다. 3행 headless 0 / headed 8 — 같은 CSS, 같은
+   빌드, 다른 결과. 스타일을 줘도 오버레이가 안 꺼진다던 옛 결론은 headless
+   에서만 재서 나온 것이고, 그 조건 안에서는 지금도 참이다. 틀린 게 아니라
+   좁았다. 이 저장소의 e2e 는 전부 headless 이므로(tests/e2e/fixtures.ts 는
+   launchPersistentContext 에 headless 를 넘기지 않고, playwright 의 기본이
+   headless 다) e2e 로 잰 레이아웃 값은 사용자가 보는 화면의 값이 아닐 수 있다.
+   지금 쓰는 조합(둘 다)을 고른 이유가 그것이다 — 4행은 양쪽이 같다.
 
    그렇다고 스크롤바가 "더 있다"는 유일한 신호는 아니다 — 두 목록 모두 행 피치의
    정수배가 아닌 높이로 잘라, 가장자리에서 잘린 행 자체가 신호다. */
