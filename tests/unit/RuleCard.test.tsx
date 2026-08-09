@@ -268,18 +268,20 @@ describe('RuleCard tab order', () => {
     return seq;
   }
 
-  it('goes name → operation → value, with delete last', async () => {
+  it('goes op → name → value, with delete last', async () => {
     // Typing a name and pressing Tab used to land on Delete, because the
     // button sat beside the name input in the DOM and tab order follows the
     // document. Name then value is the one sequence this card exists to
-    // support, and its destructive action belongs at the end.
+    // support, and its destructive action belongs at the end — both still
+    // true here.
     //
-    // Operation now sits between them, not before the name — line 1 is the
-    // name alone and line 2 is operation-and-value together
-    // (docs/design/2026-08-07-popup-tight-instrument.html), and tab order
-    // follows that same top-to-bottom, left-to-right shape. "Name then
-    // value" still holds; only where the operation cycler falls in between
-    // changed, and that is a structural move, not a regression.
+    // Operation moved again (Task 11): it no longer sits between name and
+    // value on line 2 — it stacks under the direction Badge in the gutter,
+    // so it comes right after Direction and before Header name in the DOM.
+    // That is a deliberate reading order, not an incidental one: the
+    // gutter's controls (what this rule does) come first, then its content
+    // (what it's about) — the same order a person's eye takes across the
+    // row, left to right.
     //
     // The whole sequence is asserted, not merely that each control is
     // reachable: a test checking only that the value field and the delete
@@ -298,8 +300,8 @@ describe('RuleCard tab order', () => {
     expect(await walk(6)).toEqual([
       'X-Test enabled',
       'Direction: request',
-      'Header name',
       'Operation: set',
+      'Header name',
       'Header value',
       'Delete rule',
     ]);
@@ -322,8 +324,8 @@ describe('RuleCard tab order', () => {
     expect(await walk(6)).toEqual([
       'Unnamed enabled',
       'Direction: request',
-      'Header name',
       'Operation: set',
+      'Header name',
       'Header value',
       'Delete rule',
     ]);
@@ -331,9 +333,9 @@ describe('RuleCard tab order', () => {
 
   it('skips the value on a remove rule, which has none to focus', async () => {
     // `remove` takes no value, so that slot is a span rather than a field and
-    // Tab goes straight from the operation cycler to delete. Asserted rather
-    // than left to chance, because it is the one row where "name then value"
-    // cannot hold and the reason must be visible here.
+    // Tab goes straight from the name to delete. Asserted rather than left to
+    // chance, because it is the one row where "name then value" cannot hold
+    // and the reason must be visible here.
     render(
       <RuleCard
         rule={rule({ operation: 'remove', value: '' })}
@@ -345,8 +347,8 @@ describe('RuleCard tab order', () => {
     expect(await walk(5)).toEqual([
       'X-Test enabled',
       'Direction: request',
-      'Header name',
       'Operation: remove',
+      'Header name',
       'Delete rule',
     ]);
   });

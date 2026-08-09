@@ -34,12 +34,17 @@ export interface RuleCardProps {
  * This is where "one line, four button languages" lived: direction was a
  * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
  * switch was a fourth shape again. Now there is one family — a real Switch,
- * a direction Badge carrying an arrow, an operation that is typography
- * rather than a box, and a ghost icon Button for delete.
+ * a direction Badge carrying an arrow stacked above an operation chip cut
+ * from the exact same cloth (same size, same radius, same fill logic, the
+ * badge's sibling rather than a fourth shape of its own), and a ghost icon
+ * Button for delete.
  *
- * Two lines, but not the split the grid before this used: line 1 is the
- * header name alone, line 2 is the operation and its value together. Name
- * is sans, value is monospace — provenance, not rank, decides the typeface
+ * The gutter reads top-to-bottom as *what this rule does* — direction, then
+ * operation, two chips in one column — and the right-hand column reads as
+ * *what it is about* — name, then value, the value now alone on its own
+ * line and free to use the column's full width (owner decision: variant B
+ * of four 1:1 renders, chip height pinned to the badge's 18px). Name is
+ * sans, value is monospace — provenance, not rank, decides the typeface
  * (docs/design/2026-08-07-popup-tight-instrument.html). A `remove` rule has
  * no value, and says so in the place a value would be rather than rendering
  * an empty field.
@@ -125,19 +130,49 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           className="data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white"
         />
 
-        <Badge
-          asChild
-          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-[4px] border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] ${TARGET_TONE[rule.target]}`}
-        >
-          <button
-            type="button"
-            aria-label={`Direction: ${rule.target}`}
-            onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
+        {/* The gutter: direction over operation, one column, two chips cut
+            from the same cloth. Owner-picked variant B of four 1:1 renders,
+            with one addendum — the chip is pinned to the badge's own 18px
+            height rather than shaved down to save the 3px the taller gutter
+            costs. `gap-0.5` (2px) keeps them two controls, not one: flush
+            against each other would read as a single button that changes
+            both direction and operation on one click, and they change
+            different fields. */}
+        <div className="flex flex-col gap-0.5">
+          <Badge
+            asChild
+            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-[4px] border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] ${TARGET_TONE[rule.target]}`}
           >
-            <DirIcon aria-hidden="true" />
-            {TARGET_LABEL[rule.target]}
-          </button>
-        </Badge>
+            <button
+              type="button"
+              aria-label={`Direction: ${rule.target}`}
+              onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
+            >
+              <DirIcon aria-hidden="true" />
+              {TARGET_LABEL[rule.target]}
+            </button>
+          </Badge>
+
+          {/* No icon (unlike the direction badge above it), so this stays a
+              true leaf node — text only, no child element — which is what
+              keeps it counted by the crowding e2e guard's leaf-based
+              clipping check the same way it was counted as the old op
+              button. Never repainted by `rule.operation` or by `data-off`,
+              same as the direction badge: the fill identifies "this is an
+              operation control," not which one. */}
+          <Badge
+            asChild
+            className="h-[18px] w-12 shrink-0 justify-center rounded-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-medium text-muted-foreground"
+          >
+            <button
+              type="button"
+              aria-label={`Operation: ${rule.operation}`}
+              onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
+            >
+              {rule.operation}
+            </button>
+          </Badge>
+        </div>
 
         <div className="min-w-0 flex-1">
           {/* display:block, not flex — a flex child truncates by hard-clipping
@@ -157,16 +192,10 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             }}
           />
 
+          {/* Line 2 is the value alone now — operation moved into the
+              gutter above — so it takes the column's full width instead of
+              splitting it with a 44px op cycler. */}
           <div className="mt-0.5 flex min-w-0 items-start">
-            <button
-              type="button"
-              className="mt-px w-11 shrink-0 text-left text-[11px] leading-[14px] font-medium text-muted-foreground"
-              aria-label={`Operation: ${rule.operation}`}
-              onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
-            >
-              {rule.operation}
-            </button>
-
             {removes ? (
               <span
                 className="mt-px min-w-0 flex-1 text-[11px] leading-[14px] font-medium text-muted-foreground"

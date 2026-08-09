@@ -179,10 +179,15 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // is what a reader has to find in order to check the claim.
   ['header name text — the name Input, line 1 of a rule row', '--foreground', '--background'],
   ['header value text — the value Input, line 2 of a rule row', '--foreground-2', '--background'],
+  // Task 11: the operation control moved off line 2 into the gutter, as a
+  // filled chip stacked under the direction Badge rather than borderless
+  // typography beside the value. `--tray`, not `--card`/`--background` — the
+  // chip's own fill never changes with the row's surface, same as the badge
+  // above it never repaints for `data-off`.
   [
-    'operation label, e.g. "set"/"remove" — the borderless op cycler on line 2',
+    "operation chip — set/append/remove, the direction badge's sibling",
     '--muted-foreground',
-    '--background',
+    '--tray',
   ],
   [
     'field placeholders — the name and value Inputs, on the row they sit in',
