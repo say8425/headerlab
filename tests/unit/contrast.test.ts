@@ -37,8 +37,23 @@ import { describe, expect, it } from 'vitest';
  * question. It was caught by looking at a screenshot.
  *
  * So: green here means the PALETTE is sound. It does not mean the screen is.
- * A composited or merged colour needs a pixel, and the two places this repo
- * reads pixels are `npm run screenshots` and the e2e suite.
+ *
+ * And nothing else in this repo covers the gap automatically. **The e2e suite is
+ * not the backstop it looks like** — measured: it reads geometry and nothing else,
+ * `getBoundingClientRect` in eight places and `getComputedStyle(el).overflowY` in
+ * two, with no colour read anywhere and no snapshot comparison configured (zero
+ * `toHaveScreenshot`/`toMatchSnapshot` calls, no snapshot config in
+ * `playwright.config.ts`). The `color: 'green'` strings in that file are profile
+ * colours being seeded into a fixture, not a colour being read back.
+ *
+ * The only output with pixels in it is `npm run screenshots`, and **a human is what
+ * reads it.** That is not a figure of speech: it is how the grey box above was
+ * actually found. A colour born of alpha or of merge order is, today, caught by
+ * someone looking at the dark screenshot and noticing.
+ *
+ * If you want a test instead of a person, it does not exist yet and has to be
+ * built — a colour read or a snapshot comparison in e2e, where the popup is really
+ * rendered. Do not add one here; this file has no browser and never will.
  */
 
 const CSS = readFileSync('entrypoints/popup/style.css', 'utf8');

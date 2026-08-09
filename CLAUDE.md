@@ -15,7 +15,7 @@ npm run check        # typecheck · lint · format:check · test — what CI run
 npm test             # wxt build && vitest run  — the build is not optional, see below
 npm run test:e2e     # wxt build --mode e2e && playwright test
 npm run typecheck    # wxt prepare && tsc --noEmit
-npm run lint         # oxlint --deny-warnings   (npm run lint:fix to apply fixes)
+npm run lint         # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 npm run format:check # oxfmt --check            (npm run format to write)
 npm run build        # production build → .output/chrome-mv3
 npm run dev          # WXT dev server
@@ -137,7 +137,8 @@ release still stops the build.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 126 `@/…` imports.
+`correctness` enables (`import/default`, `import/namespace`), across 141 `@/…` imports
+(126 when this was written; the design-system branch added 15).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
@@ -169,16 +170,18 @@ else, which reads as working and is not.
 
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
 `**/*.html` are in `ignorePatterns`. The stylesheet is hand-tuned at 4-space indent, and
-taking it off the list rewrites **150 of its 316 lines** — re-measured in Task 10 by
-dropping the pattern, running `oxfmt`, and counting `git diff --numstat`. Two changes, both
-cosmetic: 4-space to 2-space throughout, and `"` to `'` inside the attribute selectors of
-the seven `@custom-variant` blocks. The old figure was 1124, taken when the file was 1143
-lines of hand-written component classes; the redesign deleted every one of them and the
-file is now a token bridge. **The ratio is what carried the decision and it barely moved
-— 98% of the file then, 47% now** — so the answer is still to keep it ignored, but on a
-number someone can reproduce rather than one three redesigns out of date. (An earlier
-version of this sentence also said the file carries "a comment explaining why" the indent
-is 4-space. It does not, and neither did the file on `main`.)
+taking it off the list rewrites **150 of its 325 lines** — re-measured by dropping the
+pattern, running `oxfmt`, and counting `git diff --numstat`. Two changes, both cosmetic:
+4-space to 2-space throughout, and `"` to `'` inside the attribute selectors of the seven
+`@custom-variant` blocks. The old figure was 1124, taken when the file was 1143 lines of
+hand-written component classes; the redesign deleted every one of them and the file is now
+a token bridge. **The ratio is what carried the decision and it barely moved — 98% of the
+file then, 46% now** — so the answer is still to keep it ignored, but on a number someone
+can reproduce rather than one three redesigns out of date. Re-derive both halves if you
+touch that file; the denominator went stale once inside the very task that fixed it, by
+nine lines added two commits earlier. (An earlier version of this sentence also said the
+file carries "a comment explaining why" the indent is 4-space. It does not, and neither
+did the file on `main`.)
 Measured, one pattern at a time: dropping the stylesheet exposes it,
 dropping `**/*.md` exposes CLAUDE.md and README.md, and `docs/**` and `**/*.html` **overlap**
 — each alone can go without exposing anything, but dropping both exposes the two design
@@ -191,6 +194,20 @@ actually formats. (An earlier note said 40/50/45; that was a narrower hand-writt
 set, and the *ordering* is what the choice rests on, which reproduces either way.)
 `singleQuote: true` matches what the repo already wrote. **oxfmt also sorts `package.json`
 keys** by default — that is why `dependencies` now precedes `devDependencies`.
+
+**Writing about a utility ships it.** Tailwind v4 auto-detects sources by scanning the
+tree as raw text, so a class name quoted in a *comment* is indistinguishable from one
+used on an element and its CSS is emitted. Measured: the 143 B this repo's popup CSS grew
+during the documentation task came entirely from prose — docblocks and test comments
+naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
+remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
+and `scripts/` 30 B, 0.8% of 43,790 B, which is not worth two more `@source not` lines;
+that is a re-measurable ruling, not a permanent one. Two things not to waste time on:
+`.superpowers/` contributes exactly **0 B** because auto-detection skips dot-directories,
+and **`.md` files are not scanned at all** — probed by planting a unique utility in
+CLAUDE.md and rebuilding, which changed nothing. That is why `@source not "../../docs"`
+exists for the `.html` mocks in that tree rather than for its prose, and why class names
+may be quoted freely *here* but cost bytes in a `.ts` comment.
 
 **`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
 A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
@@ -386,12 +403,19 @@ stored state and four layout guards: nothing wider than what holds it, a control
 appearing moves nothing, a rule row keeps its height when toggled off, and an overflowing
 list clips nothing while its neighbours stay put.
 
-**A contrast pair is not a pixel.** `tests/unit/contrast.test.ts` reads the two palettes
-out of the stylesheet and asserts token against token, so a colour produced by alpha
-compositing or by tailwind-merge picking a class the author did not expect is outside it
-by construction — the file now says so at its top. It went green through a grey box that
-was plainly visible on screen. Green there means the palette is sound, not that the screen
-is; that claim needs `npm run screenshots` or the e2e suite.
+**A contrast pair is not a pixel, and nothing here reads one automatically.**
+`tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
+token against token, so a colour produced by alpha compositing or by tailwind-merge
+picking a class the author did not expect is outside it by construction — the file now
+says so at its top. It went green through a grey box that was plainly visible on screen.
+
+**The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
+in eight places, `getComputedStyle(el).overflowY` in two — and no colour at all; there is
+no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
+the only output with pixels in it is `npm run screenshots`, and **a human is what reads
+it**; that is how the grey box was found. A colour defect born of alpha or merge order has
+no automated guard today. Building one means adding a colour read or a snapshot comparison
+to e2e — say so plainly rather than assuming a green run already covered it.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
