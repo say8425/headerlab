@@ -142,10 +142,8 @@
     --boundary: #767d8c;
 
     --live: #0d6b41;
-    --live-bg: #dcf0e4;
     --pending: #8a5200;
     --pending-bg: #fbefdb;
-    --pending-border: #e8c88e;
     --destructive: #b3261e;
     --destructive-bg: #fbe6e3;
     --req: #1a56c4;
@@ -181,10 +179,8 @@
     --ring: #7fb8f0;
     --boundary: #7b8694;
     --live: #4cde84;
-    --live-bg: #10301e;
     --pending: #f0b45c;
     --pending-bg: #2c2113;
-    --pending-border: #4e3a1b;
     --destructive: #f08c7c;
     --destructive-bg: #331916;
     --req: #8dc5f7;
@@ -211,10 +207,8 @@
     --color-ring: var(--ring);
     --color-boundary: var(--boundary);
     --color-live: var(--live);
-    --color-live-bg: var(--live-bg);
     --color-pending: var(--pending);
     --color-pending-bg: var(--pending-bg);
-    --color-pending-border: var(--pending-border);
     --color-destructive: var(--destructive);
     --color-destructive-bg: var(--destructive-bg);
     --color-req: var(--req);

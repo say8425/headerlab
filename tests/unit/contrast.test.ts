@@ -111,10 +111,8 @@ const COLOR_TOKENS = [
   '--ring',
   '--boundary',
   '--live',
-  '--live-bg',
   '--pending',
   '--pending-bg',
-  '--pending-border',
   '--destructive',
   '--destructive-bg',
   '--req',
@@ -540,12 +538,20 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
     expect(distinct('--border', '--background')).toBeGreaterThanOrEqual(1.2);
   });
 
-  it('gives a pending site an edge visible against its own amber fill', () => {
-    // The one row on screen that changes surface to signal state. If the edge
-    // vanished into the fill the row would read as a coloured block, which is
-    // the wall of yellow this layout exists to avoid.
-    expect(distinct('--pending-border', '--pending-bg')).toBeGreaterThanOrEqual(1.2);
-  });
+  // A "pending site edge" check used to sit here, pairing `--pending-border`
+  // against `--pending-bg`. Its subject is gone: the site row keeps one fill —
+  // `--card` — in all four states (see the pairs above, which say so), and the
+  // two elements that do wear `--pending-bg`, the Grant button and the rule
+  // problem block, are borderless. Measured before deleting: zero consumers in
+  // `components/` and `entrypoints/`, and zero `var(--pending-border)` in the
+  // built CSS, against one each for `--rowoff` and `--boundary`, which paint.
+  //
+  // Both tokens went with it — `--live-bg` was the same shape one step worse,
+  // orphaned with no guard at all while both palettes still declared it. A
+  // guard whose subject no longer renders passes while describing nothing,
+  // which is the failure CLAUDE.md names and the fourth time this file has
+  // done it. If an amber-edged or green-filled surface is wanted later, the
+  // token comes back with the element that needs it.
 });
 
 /**
