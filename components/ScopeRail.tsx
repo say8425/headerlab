@@ -152,6 +152,17 @@ export function ScopeRail({
   if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
 
   /**
+   * The whole second line as one string, or empty when there is nothing to add.
+   *
+   * Resolved here rather than branched in the markup so the line has exactly
+   * one value: it is both what is rendered and what `title` carries, and those
+   * two must not be able to disagree. The healthy state — rules configured and
+   * all of them going out — has nothing to say and renders no text, which is
+   * not the same fact as "nothing configured yet".
+   */
+  const subline = tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ');
+
+  /**
    * The all-sites row's state, in the same four-way shape a site row uses.
    *
    * `unknown` is not `pending`. `null` means the probe has not answered, and a
@@ -212,21 +223,38 @@ export function ScopeRail({
               in a 199px column, and reserving for that would spend 16px of rail
               on a sentence most sessions never see. A message growing a line
               because it has more to say is content changing; an empty line
-              appearing because a control did is the defect. */}
+              appearing because a control did is the defect.
+
+              That bound is a *ceiling*, so the text has to be told what to do
+              when it reaches it. It was not: the box was `h-4 overflow-hidden`
+              with the sentence as a bare anonymous flex item, so the longest
+              real message — "1 off · 1 unfinished · 2 blocked by an unusable
+              site" — wrapped to 22px inside a 16px box and `items-center` then
+              sliced *both* lines through the middle. Measured in the built
+              popup at 748×600. The clause it cut is the one this component
+              argues hardest for ten lines above: naming the cause is what keeps
+              the count from blaming the rule for an unusable site.
+
+              So it truncates rather than wraps, with an ellipsis saying so and
+              `title` carrying the whole sentence — the same bargain the
+              hostname on a site row and the duplicate note in AddSiteField
+              already make. `truncate` needs the text in its own `min-w-0` flex
+              child; as a bare text node it is an anonymous box that
+              `text-overflow` cannot address. */}
           <div
             className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
             data-testid="subcount"
           >
-            {tally.total === 0 ? (
-              'nothing configured yet'
-            ) : subcount.length > 0 ? (
+            {subline !== '' && (
               <>
                 {tally.off > 0 && (
                   <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
                 )}
-                {subcount.join(' · ')}
+                <span className="min-w-0 truncate" title={subline}>
+                  {subline}
+                </span>
               </>
-            ) : null}
+            )}
           </div>
         </div>
 

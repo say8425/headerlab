@@ -804,7 +804,40 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
               resourceTypes: ['xmlhttprequest'],
             },
             tabLock: { enabled: false, tabId: null, tabTitle: null },
-            headers: [],
+            // 규칙 넷: 꺼진 것 하나, 이름이 빈 것 하나(unfinished), 나머지 둘은
+            // 억제된 프로필이라 blocked. 그러면 readout 의 두 번째 줄이 이
+            // 팝업이 만들 수 있는 가장 긴 문장이 된다 —
+            // "1 off · 1 unfinished · 2 blocked by an unusable site".
+            // 그 줄은 한 줄로 예약돼 있으므로, 넘칠 때 무엇을 하는지가 아래에서
+            // 정해진다. 레일 기하에는 영향이 없다(그 줄은 내용과 무관하게
+            // h-4 로 고정이고, 규칙은 패널에만 그려진다).
+            headers: [
+              {
+                id: 'a',
+                enabled: true,
+                target: 'request',
+                operation: 'set',
+                name: 'X-One',
+                value: '1',
+              },
+              {
+                id: 'b',
+                enabled: true,
+                target: 'request',
+                operation: 'set',
+                name: 'X-Two',
+                value: '2',
+              },
+              {
+                id: 'c',
+                enabled: false,
+                target: 'request',
+                operation: 'set',
+                name: 'X-Off',
+                value: '3',
+              },
+              { id: 'd', enabled: true, target: 'request', operation: 'set', name: '', value: '' },
+            ],
           },
         ],
       },
@@ -837,6 +870,44 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
+
+  // readout 의 두 번째 줄은 넘칠 때 잘리는 대신 줄임표로 끊고, 문장 전체는
+  // title 로 남는다.
+  //
+  // 이 페이지가 그것을 재는 자리인 이유: 억제된 프로필이라 " by an unusable
+  // site" 가 붙어 이 팝업이 만들 수 있는 가장 긴 두 번째 줄이 여기서 나온다.
+  // 과밀 페이지의 그 줄은 "2 off" 라서 넘치지 않고, 그래서 거기서는 이 결함이
+  // 보이지 않았다.
+  //
+  // 이 줄은 h-4 로 예약된 한 줄이다(그 예약 자체는 옳다 — 없으면 줄이 생겼다
+  // 사라지며 레일 전체를 밀어낸다). 예약이 ceiling 인 이상 넘칠 때 무엇을 할지
+  // 말해 줘야 하는데, 그 지시가 없어서 문장이 두 줄로 감싸이고 items-center 가
+  // 16px 상자 안에서 위아래를 다 썰어 냈다(고치기 전 실측 22/16, title 없음).
+  // 잘려 나간 것이 하필 원인을 대는 절이었다 — ScopeRail 의 docblock 이 열 줄에
+  // 걸쳐 "원인을 이름 붙이는 것이 규칙을 엉뚱하게 탓하지 않게 한다"고 논증하는
+  // 바로 그 부분.
+  const subcount = await unusablePage.evaluate(() => {
+    const box = document.querySelector('[data-testid="subcount"]')!;
+    const text = box.querySelector('[title]');
+    if (!text) return { found: false };
+    return {
+      found: true,
+      // 문장 전체가 닿을 수 있는 곳에 남아 있는가.
+      title: text.getAttribute('title'),
+      // 세로로 감싸이지 않는가 — 이것이 고친 것이다.
+      wraps: box.scrollHeight > box.clientHeight,
+      // 가로로는 실제로 넘치는가. 넘치지 않으면 위 두 단언이 공허하다:
+      // 짧은 문장은 자르지 않아도 감싸이지 않고 title 도 필요 없다.
+      truncates: text.scrollWidth > text.clientWidth,
+    };
+  });
+  expect(subcount).toEqual({
+    found: true,
+    title: '1 off · 1 unfinished · 2 blocked by an unusable site',
+    wraps: false,
+    truncates: true,
+  });
+
   await unusablePage.close();
 
   // 과밀 상태. `127.0.0.1` 은 e2e 빌드가 유일하게 미리 승인해 둔 호스트라
@@ -966,15 +1037,22 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 24 = 브랜드 1 · readout 2(큰 숫자, "of 10 rules live") · Sites 카운트 1
-  //             · run state 1("Active") · all-sites 2(라벨, 상태 줄)
+  //   레일 25 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //             · Sites 카운트 1 · run state 1("Active") · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
   //   패널 12 = 헤딩 1 · ghost 행 라벨 1 · 규칙 행의 operation 10
+  //
+  // subcount 가 24 → 25 로 들어온 것이 이 지표의 사각지대가 좁아진 지점이다.
+  // 그 문장은 점 span 과 형제라서 부모가 잎이 아니었고, 그래서 위 필터가
+  // 구조적으로 볼 수 없었다 — 세로로 잘리고 있는데도. 잘림을 고치면서 문장을
+  // 자기 span 으로 감쌌더니 잎이 되어 저절로 검사 대상이 됐다. 지표를 넓힌 게
+  // 아니라 노드가 지표 안으로 들어온 것이다.
+  //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 24,
+    rail: 25,
     panel: 12,
   });
 
