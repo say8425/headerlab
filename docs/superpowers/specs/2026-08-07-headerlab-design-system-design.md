@@ -75,8 +75,8 @@ A가 좋다"** 고 판단했다. 그 둘을 두 가지 배합으로 합성해 �
 | 토큰 | 뜻 |
 |---|---|
 | `--rail --rail-foreground --rail-border` | 레일은 패널과 **다른 재료**다 |
-| `--live --live-bg` | 적용 중 |
-| `--pending --pending-bg --pending-border` | 권한 대기 |
+| `--live` | 적용 중 |
+| `--pending --pending-bg` | 권한 대기 |
 | `--destructive-bg` | 오류 배경 |
 | `--req --req-bg` / `--res --res-bg` | 요청 / 응답 |
 

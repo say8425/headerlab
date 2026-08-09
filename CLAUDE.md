@@ -479,3 +479,13 @@ that no longer renders, passing while describing nothing.
 - Not built at all, deliberately: JSON export/import, the regex/`pathPattern` UI and its
   RE2 validation, the theme toggle (the theme follows the OS). If import is ever built,
   its validation must come first — import is what makes the regex surface reachable.
+- **`COLOR_TOKENS` in `tests/unit/contrast.test.ts` catches declaration drift, not
+  orphaning.** It asserts both palettes declare exactly the same named set, so a renamed
+  or dropped token fails loudly. It does not ask whether a token either palette still
+  declares is actually painted by anything — a token can sit in both palettes, pass
+  every check in that file, and correspond to nothing on screen. `--pending-border` and
+  `--live-bg` were exactly this: zero consumers in `components/`/`entrypoints/` and zero
+  `var(--pending-border)`/`var(--live-bg)` in the built CSS, found by grepping for them
+  by hand and removed (`git log --oneline -- entrypoints/popup/style.css` around
+  "아무것도 칠하지 않는 토큰 둘과 그 가드를 걷어낸다"). Nothing runs that grep
+  automatically; finding the next one means doing it again.

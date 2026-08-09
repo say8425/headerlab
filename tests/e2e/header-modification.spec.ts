@@ -899,6 +899,18 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       // 가로로는 실제로 넘치는가. 넘치지 않으면 위 두 단언이 공허하다:
       // 짧은 문장은 자르지 않아도 감싸이지 않고 title 도 필요 없다.
       truncates: text.scrollWidth > text.clientWidth,
+      // 세 번째 약속 — 잘린 자리에 실제로 "…" 이 그려지는가. `truncates` 는
+      // 가로로 넘친다는 것만 재고, 넘친 텍스트가 말줄임표로 끊기는지 그냥
+      // 잘려 사라지는지는 구분하지 못한다(`overflow: hidden` 만으로도
+      // truncates 는 참이 된다). Tailwind 의 `truncate` 유틸리티가 실제로
+      // 셋(`overflow-hidden`, `text-overflow: ellipsis`, `white-space:
+      // nowrap`) 을 다 거는지 계산된 스타일로 직접 확인한다 — 클래스 이름을
+      // 읽는 게 아니라 브라우저가 실제로 적용한 값을 읽는다.
+      ellipsisStyle: {
+        overflow: getComputedStyle(text).overflowX,
+        textOverflow: getComputedStyle(text).textOverflow,
+        whiteSpace: getComputedStyle(text).whiteSpace,
+      },
     };
   });
   expect(subcount).toEqual({
@@ -906,6 +918,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     title: '1 off · 1 unfinished · 2 blocked by an unusable site',
     wraps: false,
     truncates: true,
+    ellipsisStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   });
 
   await unusablePage.close();
