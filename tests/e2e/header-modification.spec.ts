@@ -306,6 +306,24 @@ test('a rule row keeps its own height when toggled off, and does not move its ne
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.locator('[data-testid="rule"]').first().waitFor();
 
+  // The operation chip must be exactly the same size as the direction badge
+  // it stacks under (Task 11) — "칩 높이를 REQ/RES 배지와 같게(18px)" was the
+  // owner's explicit addendum to the gutter-stack decision, and the brief
+  // gave both dimensions as `h-[18px] w-12`, identical to the badge's own.
+  // Compared against the badge's own measured box, not literal 18/48
+  // pixels, so this survives a deliberate future resize of the badge and
+  // only fails when the two actually disagree with each other — which is
+  // the real requirement. A mutation dropping the chip's `h-[18px]` (found
+  // in review — nothing else in the suite caught it) fails this with
+  // `{ height: 2, width: 0 }`.
+  const chipMatch = await page.evaluate(() => {
+    const row = document.querySelector('[data-testid="rule"]')!;
+    const badge = row.querySelector('[aria-label^="Direction"]')!.getBoundingClientRect();
+    const chip = row.querySelector('[aria-label^="Operation"]')!.getBoundingClientRect();
+    return { height: chip.height - badge.height, width: chip.width - badge.width };
+  });
+  expect(chipMatch).toEqual({ height: 0, width: 0 });
+
   const rows = page.locator('[data-testid="rule"]');
   const longRow = rows.first();
   const shortRow = rows.nth(1);
