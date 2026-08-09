@@ -303,8 +303,13 @@ body {
 /* Focus is never removed, only restyled — a popup driven from the keyboard is
    the fast path this product is for. It is stated here, once, rather than per
    control: shadcn's own primitives bring a focus ring with them, but the popup
-   also holds hand-written buttons (a rule's direction badge and its operation
-   cycler, the ghost row) that would otherwise have none. */
+   also holds hand-written buttons (the ghost row, the rail's "About matching
+   sites" help trigger) that would otherwise have none. A rule's direction
+   badge and its operation chip look hand-written too — both are a raw
+   `<button>` in the markup — but they sit inside `Badge asChild`
+   (`components/ui/badge.tsx`), which already carries its own
+   `focus-visible:*` classes, so this rule is not what rings them; it is
+   still what rings the two named above, which have no such wrapper. */
 :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 1px;

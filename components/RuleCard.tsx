@@ -35,9 +35,9 @@ export interface RuleCardProps {
  * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
  * switch was a fourth shape again. Now there is one family — a real Switch,
  * a direction Badge carrying an arrow stacked above an operation chip cut
- * from the exact same cloth (same size, same radius, same fill logic, the
- * badge's sibling rather than a fourth shape of its own), and a ghost icon
- * Button for delete.
+ * from the exact same cloth (same size, same radius, the badge's sibling
+ * rather than a fourth shape of its own — their fills differ on purpose,
+ * see the chip's own comment below), and a ghost icon Button for delete.
  *
  * The gutter reads top-to-bottom as *what this rule does* — direction, then
  * operation, two chips in one column — and the right-hand column reads as
@@ -157,9 +157,19 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               true leaf node — text only, no child element — which is what
               keeps it counted by the crowding e2e guard's leaf-based
               clipping check the same way it was counted as the old op
-              button. Never repainted by `rule.operation` or by `data-off`,
-              same as the direction badge: the fill identifies "this is an
-              operation control," not which one. */}
+              button.
+
+              What it actually shares with the badge above it is narrower
+              than "same fill logic": both are opaque token pairs, never
+              repainted by the *row's* state (`data-off`), so the text stays
+              `--muted-foreground` on `--tray` whether the rule is on or
+              off — that is the parity, and it is the only one. The badge
+              *does* still repaint by its own value (`TARGET_TONE`, blue
+              REQ / purple RES); the chip deliberately does not, because
+              three operations is a cycler rather than a two-state
+              direction, and tinting each would spend colour marking a
+              distinction the word "set"/"append"/"remove" already makes on
+              its own. */}
           <Badge
             asChild
             className="h-[18px] w-12 shrink-0 justify-center rounded-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-medium text-muted-foreground"

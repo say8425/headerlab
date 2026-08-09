@@ -240,19 +240,24 @@ test('the popup renders its rules from stored state', async ({
   await page.close();
 });
 
-test('a rule row keeps its own height when toggled off, and does not move its neighbours', async ({
+test("a rule row's gutter chips match size, and the row keeps its own height when toggled off without moving its neighbours", async ({
   context,
   extensionId,
   serviceWorker,
 }) => {
-  // RuleCard.tsx's row is no longer a fixed 52px — the owner ruled that a
-  // rule's value must wrap and grow rather than truncate, so different
-  // *rules* can be different heights. What must still hold, narrower and
-  // unchanged by that ruling: a *given* rule's own row must not change
-  // height from being toggled on/off. jsdom cannot see this (it performs no
-  // layout), so it is asserted here, against real `getBoundingClientRect()`
-  // boxes, and not merely inferred from the classes that are supposed to
-  // produce it.
+  // Two unrelated real-box claims share this test and its one loaded popup
+  // rather than each paying for its own page load — both are things jsdom
+  // cannot see (it performs no layout) and both are asserted against real
+  // `getBoundingClientRect()` boxes rather than inferred from the classes
+  // that are supposed to produce them:
+  //
+  // 1. The gutter's badge and chip (Task 11) are the same size — checked
+  //    first, below, before anything else touches the page.
+  // 2. RuleCard.tsx's row is no longer a fixed 52px — the owner ruled that a
+  //    rule's value must wrap and grow rather than truncate, so different
+  //    *rules* can be different heights. What must still hold, narrower and
+  //    unchanged by that ruling: a *given* rule's own row must not change
+  //    height from being toggled on/off.
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 2,

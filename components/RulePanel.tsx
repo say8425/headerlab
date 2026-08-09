@@ -118,9 +118,23 @@ export function RulePanel({
             reasoning for toning it as a slot (`.te-ghost`) rather than
             outlining it as a button. `shrink-0` because a flex column will
             otherwise squeeze the last child to make room, which is what turns
-            a fixed row into a 20px sliver at the bottom of a full list. */}
+            a fixed row into a 20px sliver at the bottom of a full list.
+
+            `h-[54px]`, not the round `52px` this used to be: the minimum a
+            `RuleCard` row can be moved 51.5px → 54px when Task 11 stacked the
+            operation chip under the direction badge (`RuleCard.tsx`, the
+            gutter's `18 + gap-0.5(2) + 18 = 38px` now exceeds the text
+            column's own ~35px, and `items-start` follows the taller side).
+            This number is derived from that gutter, not independent of it —
+            if the gutter's own chips ever change size again, re-measure a
+            real short-value row (e2e, real Chromium; jsdom does no layout)
+            and update this literal to match, the same way this comment had
+            to be updated this time. Nothing currently guards the two
+            staying in sync; a 2px drift here is cosmetic, not a correctness
+            bug, which is why this is a comment rather than a shared
+            constant. */}
         <button
-          className="mb-px flex h-[52px] shrink-0 items-center gap-2.5 bg-tray pr-2 pl-3 text-left"
+          className="mb-px flex h-[54px] shrink-0 items-center gap-2.5 bg-tray pr-2 pl-3 text-left"
           aria-label="New rule at end"
           onClick={onAddRule}
         >
