@@ -92,7 +92,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   return (
     <>
       <div
-        className="group/rule mb-px flex items-start gap-2.5 bg-card py-2 pr-2 pl-3 data-[off]:bg-tray"
+        className="group/rule mb-px flex items-start gap-2.5 bg-card py-2 pr-2 pl-3 data-[off]:bg-rowoff"
         data-testid="rule"
         data-off={!rule.enabled || undefined}
         data-unfinished={unfinished || undefined}

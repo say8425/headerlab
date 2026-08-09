@@ -118,8 +118,14 @@
        카드 자체는 채움만으로는 패널과 구분되지 않는다(1.000) — 이 토큰이 그 사이의
        세 번째 표면이다. 시안(docs/design/2026-08-07-popup-tight-instrument.html)의
        --tray 값을 그대로 옮겼다. 이 well 을 실제로 칠하는 것은 RulePanel 의
-       rule-list 컨테이너이고, 꺼진 규칙 행(RuleCard 의 data-off)도 같은 톤이다. */
+       rule-list 컨테이너이고, 끝의 빈 슬롯(ghost 행)도 같은 톤이다. */
     --tray: #e9ecf1;
+
+    /* 꺼진 규칙 행. well 로 물러나되 well 이 되지는 않는다 — 시안의 주석 그대로
+       "a switched-off rule recedes toward the well". 이 값이 없을 때 꺼진 행과
+       빈 슬롯과 빈 여백이 셋 다 --tray 라, 마지막 행이 꺼져 있으면 경계가
+       사라지고 한 덩어리로 보였다. 시안의 값 그대로다. */
+    --rowoff: #f1f3f7;
 
     /* 레일은 패널과 다른 재료다. 다크에서 순서가 뒤집힌다 — 라이트에선 레일이
        더 어둡고 패널이 밝은 작업면, 다크에선 레일이 떠 있고 패널이 물러난다.
@@ -162,6 +168,11 @@
        가까워서(대비 1.098) card 쪽으로 완전히 붙이면 background 와 구분이 안 되고
        그 반대도 마찬가지라, 두 표면 모두에게서 어느 정도 떨어지는 지점을 골랐다. */
     --tray: #0e1319;
+    /* 시안에 다크가 없어 새로 잡았다. 다크는 사다리가 뒤집혀 있고(카드가 well
+       보다 밝다) 총폭도 좁다 — --card 와 --tray 사이가 1.098 뿐이라(라이트는
+       1.184) 한 단을 끼울 여유가 작다. 그래서 치우치지 않게 가운데를 잡았다:
+       card 쪽 1.049 / tray 쪽 1.047. */
+    --rowoff: #121821;
     --rail: #141a21;
     --rail-border: #232b36;
     --input: #5f6b79;
@@ -191,6 +202,7 @@
     --color-card: var(--card);
     --color-border: var(--border);
     --color-tray: var(--tray);
+    --color-rowoff: var(--rowoff);
     --color-rail: var(--rail);
     --color-rail-border: var(--rail-border);
     --color-input: var(--input);

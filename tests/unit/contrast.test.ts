@@ -61,6 +61,7 @@ const COLOR_TOKENS = [
   '--card',
   '--border',
   '--tray',
+  '--rowoff',
   '--rail',
   '--rail-border',
   '--input',
@@ -178,18 +179,22 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ],
 
   // --- the tray: the well the rule rows sit in (`rule-list` in RulePanel.tsx)
-  //     and, at the same tone, a switched-off row and the ghost row at the end
-  //     of the list. Reserved ahead of time in Task 1, painted now. ---
+  //     and, at the same tone, the ghost row at the end of the list. ---
   ['text on the well itself — the tray behind the rule rows', '--foreground', '--tray'],
+
+  // --- the switched-off rule row, which has its own tone (`--rowoff`) rather
+  //     than sharing the well's. These two pairs read `--tray` until the token
+  //     arrived; leaving them there would have kept checking a combination no
+  //     longer on screen, which is the way this file rots. ---
   [
     'header name text on a switched-off row — .te-name/[data-on=false] in the mockup',
     '--foreground-2',
-    '--tray',
+    '--rowoff',
   ],
   [
     'header value text on a switched-off row — .te-val/[data-on=false] in the mockup',
     '--muted-foreground',
-    '--tray',
+    '--rowoff',
   ],
 
   // --- the rail, whose surface is the darker material in light and the
@@ -297,10 +302,14 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
+  // The third pair the `--rowoff` change moves, and the one easiest to miss:
+  // this switch is *on* the switched-off row, so its background is that row's
+  // fill, not the well's. Measured across the move — light 3.164 → 3.373, dark
+  // 3.434 → 3.281 — so it clears the shape floor on both sides of the change.
   [
-    'switched-off rule track — the Switch unchecked, on the row it turns off (bg-tray)',
+    'switched-off rule track — the Switch unchecked, on the row it turns off',
     '--input',
-    '--tray',
+    '--rowoff',
   ],
   // Both rail switches live on the readout card and the all-sites row now, not
   // on the rail itself — the surface under an OFF track changed with them.
