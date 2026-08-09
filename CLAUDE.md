@@ -41,8 +41,14 @@ lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
-components/      popup UI
-entrypoints/     background.ts, popup/
+lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
+components/      popup UI — AddSiteField RuleCard RulePanel ScopeRail SiteRow
+                 TypeChecklist
+components/ui/   shadcn primitives, vendored: badge button checkbox input
+                 separator switch tooltip. Source this repo owns and edits.
+entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
+                 point — two hand-written palettes, the @theme inline bridge
+                 that exposes them as utilities, and the shadcn data-* variants
 public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
 ```
@@ -59,8 +65,9 @@ guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-writ
 of exactly three files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts` and
 `lib/model/migrate.ts` — because `lib/permissions/` also holds the adapter (`probe.ts`)
 that must *not* be guarded, so there is no directory-shaped rule to apply. `schema.ts`,
-`defaults.ts` and `types.ts` are pure by convention and unguarded in fact. A new pure
-file outside those two directories is unguarded until someone adds it by name.
+`defaults.ts`, `types.ts` and `lib/utils.ts` are pure by convention and unguarded in
+fact. A new pure file outside those two directories is unguarded until someone adds it
+by name.
 
 **One reconcile loop.** Every trigger — storage change, worker startup, permission
 grant or revoke — funnels into `reconcile()` in `lib/sync/ruleSync.ts`. It recompiles
@@ -161,9 +168,18 @@ a two-line comment ending in the directive suppresses the second comment line an
 else, which reads as working and is not.
 
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
-`**/*.html` are in `ignorePatterns`: the stylesheet is hand-tuned at 4-space indent with a
-comment explaining why, and reformatting it to 2-space is 1124 lines of churn for a
-machine's opinion. Measured, one pattern at a time: dropping the stylesheet exposes it,
+`**/*.html` are in `ignorePatterns`. The stylesheet is hand-tuned at 4-space indent, and
+taking it off the list rewrites **150 of its 316 lines** — re-measured in Task 10 by
+dropping the pattern, running `oxfmt`, and counting `git diff --numstat`. Two changes, both
+cosmetic: 4-space to 2-space throughout, and `"` to `'` inside the attribute selectors of
+the seven `@custom-variant` blocks. The old figure was 1124, taken when the file was 1143
+lines of hand-written component classes; the redesign deleted every one of them and the
+file is now a token bridge. **The ratio is what carried the decision and it barely moved
+— 98% of the file then, 47% now** — so the answer is still to keep it ignored, but on a
+number someone can reproduce rather than one three redesigns out of date. (An earlier
+version of this sentence also said the file carries "a comment explaining why" the indent
+is 4-space. It does not, and neither did the file on `main`.)
+Measured, one pattern at a time: dropping the stylesheet exposes it,
 dropping `**/*.md` exposes CLAUDE.md and README.md, and `docs/**` and `**/*.html` **overlap**
 — each alone can go without exposing anything, but dropping both exposes the two design
 mocks under `docs/design/`. Note the measurement only works with the probe config written
@@ -269,6 +285,32 @@ mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding s
 must also seed the companion version key at the **current** `STATE_VERSION`:
 `{ state, state$: { v: 2 } }`.
 
+**`cn` is `twMerge(clsx(…))`, and tailwind-merge groups by variant, not by property.**
+So `bg-transparent` passed to a shadcn primitive does **not** displace that primitive's
+own `dark:bg-input/30` — different group, both survive, and the `dark:` one wins wherever
+it applies. Measured: `twMerge('dark:bg-input/30', 'bg-transparent')` returns both
+classes; `twMerge('dark:bg-input/30', 'dark:bg-transparent')` returns one. This branch
+paid for it twice — a switch track override that appeared to do nothing, and a grey box
+under the header name input in dark only, which is `--card` under 30% `--input` at
+rgb(44,52,62) and nothing a palette check can see. **To override a `dark:`-prefixed
+default you must write the `dark:` form too**; `AddSiteField` and `RuleCard` both carry
+an explicit `dark:bg-transparent` for exactly this reason.
+
+**A layout measured headless is not a layout measured headed.** `::-webkit-scrollbar`
+alone reserves 0px headless and 8px headed — same CSS, same build, and the whole of
+`offsetWidth − clientWidth`. The 2×2 sits in `entrypoints/popup/style.css` beside
+`scroll-list`, with the reproduction script in
+`docs/research/2026-08-09-headless-vs-headed-scrollbar-gutter.md`. The trap is not the
+scrollbar; it is that **every e2e test in this repo
+runs headless** (`tests/e2e/fixtures.ts` passes no `headless` option and Playwright's
+default is headless), so a layout fact established there may not be the user's. An
+earlier spike concluded that styling the scrollbar cannot take Chromium out of overlay
+mode — true headless, false headed, and it read as general because nothing recorded
+which mode produced it. `scroll-list` sets the gutter *and* the scrollbar style because
+that combination is the one row of the table where both modes agree. When adding a
+layout assertion to the e2e suite, ask whether the thing being measured is mode-invariant;
+when it is not, a screenshot is the instrument, not an assertion.
+
 **Migrations run once, at module evaluation — not per read.** WXT builds the migration
 promise inside `defineItem`, and every `getValue()` awaits that one promise. A value
 written to `local:state` *after* `lib/storage/state.ts` was imported is therefore never
@@ -337,11 +379,19 @@ follow state freely; box dimensions and positions should not.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the five e2e tests drive a real request through the
+against a loaded extension. Two of the seven e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
-evidence in the repo — do not weaken them. The other three cover the popup rendering
-from stored state and the two layout guards (nothing wider than what holds it; a control
-appearing moves nothing).
+evidence in the repo — do not weaken them. The other five cover the popup rendering from
+stored state and four layout guards: nothing wider than what holds it, a control
+appearing moves nothing, a rule row keeps its height when toggled off, and an overflowing
+list clips nothing while its neighbours stay put.
+
+**A contrast pair is not a pixel.** `tests/unit/contrast.test.ts` reads the two palettes
+out of the stylesheet and asserts token against token, so a colour produced by alpha
+compositing or by tailwind-merge picking a class the author did not expect is outside it
+by construction — the file now says so at its top. It went green through a grey box that
+was plainly visible on screen. Green there means the palette is sound, not that the screen
+is; that claim needs `npm run screenshots` or the e2e suite.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
@@ -391,11 +441,8 @@ that no longer renders, passing while describing nothing.
 
 - `stateItem.watch` puts values into state without validation. Pre-existing; reachable
   only by an external writer.
-- The Tailwind, shadcn, Radix and Lucide packages are **dead code**. Nothing imports
-  `components/ui/`, whose three files are the only importers of `lib/utils.ts` (`cn`),
-  no shell file uses a Tailwind class, and none of them reach the bundle. The UI is
-  React plus one hand-written stylesheet. They stay in `package.json` only because
-  touching the lockfile under the publish quarantine is a risk with no upside.
+- `components/ui/separator.tsx` is the one primitive nothing imports. Every other file
+  in that directory has a call site; this one was pulled in with them and never placed.
 - **The popup shows one rule set.** `AppState.profiles` is an array and `compile()`
   handles the whole array, but `resolveSingleProfile` picks one and App.tsx *truncates
   storage* to it — an extra profile the screen cannot show would otherwise go on
