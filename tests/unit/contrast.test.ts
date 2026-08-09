@@ -13,6 +13,32 @@ import { describe, expect, it } from 'vitest';
  * are not derived from the dark ones — they are separate hand-tuned blocks — so
  * every pair below is asserted against BOTH, which is the half that would
  * otherwise rot: fixing one theme's grey says nothing about the other's.
+ *
+ * ## What this file cannot see
+ *
+ * It reads TOKENS, never the composited pixel. Every pair below is two hex
+ * values out of the stylesheet handed to a luminance formula — so a colour that
+ * reaches the screen by any route other than "a token painted straight onto a
+ * token" is outside this file's reach *in principle*, not by omission:
+ *
+ *   - **Alpha.** `bg-input/30` composites `--input` onto whatever is behind it
+ *     and produces a value that is in neither palette. This file would assert
+ *     the two opaque endpoints and never compute the blend.
+ *   - **Which class actually wins.** `cn` is `twMerge(clsx(…))`, and
+ *     tailwind-merge groups by variant: a bare `bg-transparent` does not
+ *     displace a `dark:bg-input/30`, so a call site can believe it overrode a
+ *     fill it did not. Nothing here reads a className.
+ *
+ * Both were live at once and this file was fully green through it: the header
+ * name Input inherited shadcn's `dark:bg-input/30`, `RuleCard`'s
+ * `bg-transparent` failed to displace it, and the field wore a grey box at
+ * rgb(44,52,62) — exactly `--card` under 30% `--input` — in dark only. Every
+ * pair here passed, correctly, because every pair here was about a different
+ * question. It was caught by looking at a screenshot.
+ *
+ * So: green here means the PALETTE is sound. It does not mean the screen is.
+ * A composited or merged colour needs a pixel, and the two places this repo
+ * reads pixels are `npm run screenshots` and the e2e suite.
  */
 
 const CSS = readFileSync('entrypoints/popup/style.css', 'utf8');
@@ -405,8 +431,12 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
  * ratio is scale-relative and means the same thing in both.
  *
  * The floors are set just under what this design measures, so a regression
- * fails while the authored palette passes: rail against panel is 1.184 light /
+ * fails while the authored palette passes: rail against panel is 1.129 light /
  * 1.098 dark, and every edge against the surfaces it divides is at least 1.219.
+ * (The light figure read 1.184 until Task 10 re-measured it: that was `--card`
+ * against `--tray`, one assertion down, and it stopped describing the rail when
+ * Task 1 moved `--rail`. Two adjacent pairs sharing one number is how this file
+ * rots — the ratio here is `--rail` against `--background`, nothing else.)
  */
 describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
   const palette = PALETTES[theme];
