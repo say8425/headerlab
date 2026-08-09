@@ -145,7 +145,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               mockup's own comment on .te-name). */}
           <Input
             aria-label="Header name"
-            className="h-[18px] w-full min-w-0 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2"
+            className="h-[18px] w-full min-w-0 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2 dark:bg-transparent"
             placeholder="header-name"
             autoFocus={autoFocus}
             value={name.draft}
