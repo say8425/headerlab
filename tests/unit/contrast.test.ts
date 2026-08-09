@@ -431,6 +431,38 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
     expect(distinct('--card', '--tray')).toBeGreaterThanOrEqual(1.09);
   });
 
+  /**
+   * The fourth surface, and the only one whose whole job is to be a *step*: a
+   * switched-off rule row recedes toward the well without becoming it. Before
+   * `--rowoff` existed the off row was painted `--tray`, so it, the empty slot
+   * at the end of the list and the empty well below were one value — a last
+   * row that happened to be off dissolved into the space under it.
+   *
+   * **This is the assertion that guards that token, and no ratio pair can.**
+   * The dispatch expected the two moved text pairs to catch a collapse back to
+   * `--tray`; measured, they do not and cannot. A pair asserts a foreground
+   * against a background, and `--foreground-2` on `#e9ecf1` reads the same
+   * whether that value is called `--rowoff` or `--tray` — set the two tokens
+   * equal and the whole file stays green (verified: 126 passed). What is
+   * being claimed here is not legibility but *separation*, so it is separation
+   * that has to be measured.
+   *
+   * Both neighbours, because a step that merges upward is as gone as one that
+   * merges downward, and the dark ladder is inverted (`--card` is the lighter
+   * end there) so neither direction can be assumed.
+   *
+   * The floor is 1.03, set just under the narrowest gap this palette actually
+   * uses. Dark is what sets it: `--card`→`--tray` spans only 1.098 in total
+   * there (1.184 in light), so a step placed midway is ~1.047 on each side and
+   * the 1.09 floor the checks above use is unreachable by construction. Light
+   * measures 1.111 / 1.066, dark 1.049 / 1.047; a collapse to either neighbour
+   * is 1.000 and fails loudly.
+   */
+  it('gives a switched-off row its own tone, stepped from both the card and the well', () => {
+    expect(distinct('--card', '--rowoff')).toBeGreaterThanOrEqual(1.03);
+    expect(distinct('--rowoff', '--tray')).toBeGreaterThanOrEqual(1.03);
+  });
+
   it('gives the rail an edge that is visible against both surfaces it divides', () => {
     expect(distinct('--rail-border', '--rail')).toBeGreaterThanOrEqual(1.2);
     expect(distinct('--rail-border', '--background')).toBeGreaterThanOrEqual(1.2);
