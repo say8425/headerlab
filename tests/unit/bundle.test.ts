@@ -75,9 +75,10 @@ describe('the shipped bundle', () => {
  * present in one palette and missing from the other. It cannot catch an
  * **orphan**: a token both palettes declare, the inventory requires, and
  * nothing uses. Proven both ways while removing one — put the token back in a
- * palette alone and the count assertion goes red; put it back in the palette
- * *and* the inventory, which is exactly the state before its deletion, and all
- * 128 pairs stay green while the built CSS contains no `var()` for it.
+ * palette alone and `contrast.test.ts`'s exact-set inventory assertion goes
+ * red; put it back in the palette *and* the inventory, which is exactly the
+ * state before its deletion, and all **126** of that file's tests stay green
+ * while the built CSS contains no `var()` for it.
  *
  * Four tokens have been removed that way — `--pending-border`, `--live-bg`,
  * `--destructive-bg` on the design-system branch, and `--radius`, which the
@@ -103,19 +104,35 @@ describe('the shipped bundle', () => {
  */
 describe('the palette', () => {
   /**
-   * The two palette blocks, and only those. `@theme inline` declares a
-   * `--color-*` bridge per token, and Tailwind inlines those rather than
-   * emitting `var(--color-x)` — including them would report all 23 as orphans
-   * and the check would have to grow the exception list this test exists
-   * without.
+   * Every custom property the stylesheet declares, minus the one block that is
+   * not a declaration of intent.
+   *
+   * Selector matching was the first attempt and it was the exception list
+   * coming back under another name: `/^(?::root|\.dark)\s*\{/` sees
+   * `:root {` and `.dark {` and misses `:root, :host {`, `:root:not(.light) {`,
+   * `html.dark {`, and anything indented inside `@media` or `@layer` — every
+   * one a shape this stylesheet could plausibly grow. A re-review demonstrated
+   * it end to end with a `--halo` declared inside a media query, invisible to
+   * the guard. Scoping by *structure* instead — the whole file, less the
+   * `@theme inline` block — depends on nothing about how a palette is written.
+   *
+   * `@theme inline` is removed because it is a bridge, not a palette: it
+   * declares a `--color-*` per token and Tailwind inlines those rather than
+   * emitting `var(--color-x)`, so including them would report every bridged
+   * colour as an orphan. That is the only structural exclusion, and it is named by the
+   * at-rule rather than by a list of tokens.
+   *
+   * Comments are stripped first. A declaration written inside a comment is
+   * documentation, not a token, and matching one would be a false red — this
+   * file's own comments quote token names constantly.
    */
-  const PALETTE_BLOCK = /^(?::root|\.dark)\s*\{([\s\S]*?)^\}/gim;
-  const DECLARATION = /^\s*(--[a-z0-9-]+)\s*:\s*[^;]+;/gim;
-
   function declaredTokens(): string[] {
-    const css = readFileSync(path.join(process.cwd(), 'entrypoints/popup/style.css'), 'utf8');
-    const palettes = [...css.matchAll(PALETTE_BLOCK)].map((m) => m[1]!).join('\n');
-    return [...new Set([...palettes.matchAll(DECLARATION)].map((m) => m[1]!))];
+    const raw = readFileSync(path.join(process.cwd(), 'entrypoints/popup/style.css'), 'utf8');
+    const withoutComments = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+    const withoutBridge = withoutComments.replace(/@theme[^{]*\{[\s\S]*?\n\}/g, '');
+    // No line anchor and no trailing `;`: two declarations on one line, and a
+    // last declaration without its semicolon, are both real CSS.
+    return [...new Set([...withoutBridge.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]!))];
   }
 
   function builtCss(): string {
