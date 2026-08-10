@@ -125,10 +125,19 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   idempotent; running it every time costs less than the trap does.
   Both settings come from the developer's `~/.npmrc`, **not from this repo** — there is
   no `.npmrc` here, so neither is reproducible from a clone.
-  pnpm 10 and later also block *dependency* build scripts by default, needing an
-  `onlyBuiltDependencies` allowlist. This tree needs none: installing with
-  `npm_config_ignore_scripts=false` reports nothing blocked, because no package in it
-  declares a build script at all.
+  **A dependency's own build script is a separate mechanism, and an unanswered one fails
+  the install rather than warning.** Exactly one package here asks: `spawn-sync`, reached
+  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner, which this Chrome-only
+  extension never invokes. `pnpm-workspace.yaml` denies it by name and says why. Answer the
+  next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
+  hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
+  10, and the version that does not own a spelling ignores it in silence.
+  **`npm_config_ignore_scripts=false` does not override pnpm's `.npmrc`.
+  `--ignore-scripts=false` does**, and the gap between them is why CI found this rather
+  than this machine: the first form was measured here, reported nothing blocked, and this
+  file was written to say "no package in this tree declares a build script at all". All
+  five jobs failed on the first push. To reproduce what CI does, run
+  `rm -rf node_modules && pnpm install --frozen-lockfile --ignore-scripts=false`.
 
 ## Toolchain
 

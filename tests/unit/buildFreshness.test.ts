@@ -166,7 +166,7 @@ describe('the source set', () => {
   );
 
   it('covers the config files that change the output without being imported', () => {
-    for (const file of ['wxt.config.ts', 'package.json', 'pnpm-lock.yaml']) {
+    for (const file of ['wxt.config.ts', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
       expect(files).toContain(file);
     }
   });

@@ -157,10 +157,11 @@ function nearestExistingDir(root: string, dir: string): string {
  * `git rm public/theme.js` when it was the last file in `public/` — in each the
  * path leaves the index, so nothing is listed as missing, the branch that would
  * read the root as a last ancestor never runs, and the only mtime that moved is
- * the root's. That is all 14 tracked top-level files here, `wxt.config.ts`,
- * `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vitest.config.ts`,
- * `components.json` and `playwright.config.ts` among them. The first example
- * was `git rm vite.config.ts` until the pnpm migration actually did it.
+ * the root's. That is all 15 tracked top-level files here, `wxt.config.ts`,
+ * `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.json`,
+ * `vitest.config.ts`, `components.json` and `playwright.config.ts` among them.
+ * The first example was `git rm vite.config.ts` until the pnpm migration
+ * actually did it.
  * The *unstaged* forms — `rm` or `mv` without git, which is what a person
  * typing in a terminal usually produces — are caught, because they leave a
  * listed path with nothing to stat and its last existing ancestor is the root.
