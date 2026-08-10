@@ -510,18 +510,31 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
   //
   // The fix moved each half's own outer corner onto itself
   // (`rounded-t-[4px]`/`rounded-b-[4px]`) so the wrapper no longer needs to
-  // clip anything. This guards that specific mechanism directly — the
-  // wrapper immediately around each button must not clip on either axis —
-  // rather than only the ring's own width, which a `rounded-none` sibling
-  // could still satisfy while clipped.
+  // clip anything. This guards the actual claim — the ring reaches the
+  // screen unclipped — by walking every ancestor above the focused button,
+  // not only the immediate one: a re-review's mutation proved the gap by
+  // leaving that immediate wrapper clean and adding a *second*,
+  // overflow-hidden wrapper one level further out. The first version of
+  // this guard passed against that mutation (it only ever asked the
+  // immediate parent), while a real screenshot showed the ring gone
+  // entirely. The rewritten version finds the first ancestor whose computed
+  // overflow is not `visible` on either axis — wherever that is — and
+  // checks that the ring's own box (the element's border box, expanded by
+  // its outline width and offset) still fits inside it. A `rounded-none`
+  // sibling with the right width but a clip two levels up now fails this
+  // the same way a clip one level up does.
   //
   // Covers the real-keyboard path only (`page.keyboard.press('Tab')`, the
   // same path every other focus-order assumption in this file relies on).
-  // Chrome was measured, during development, to supply a *different*
-  // outline (a wider one with a zero offset) to a button focused this way
-  // than to one focused via a programmatic `.focus()` call — this guard
-  // does not attempt to pin that second path, only that whichever rule
-  // supplies the ring, the immediate wrapper does not clip it.
+  // An earlier round of this comment called the ring's origin an open
+  // question — different-looking readings depending on how focus arrived.
+  // It has since been established (see RuleCard.tsx's own comment on the
+  // gutter): one rule, style.css's `:focus-visible`, and `badgeVariants`'
+  // `transition-all` meant an early reading caught the transition's start
+  // values rather than its settled ones. What this guard still does not
+  // pin is a programmatic `.focus()` at the exact first frame, which is a
+  // timing question about *when* to read a transitioning value rather than
+  // *which* rule supplies it — not the concern this guard exists for.
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 2,
@@ -566,14 +579,45 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
     page.evaluate(() => {
       const el = document.activeElement as HTMLElement;
       const cs = getComputedStyle(el);
-      const gutter = el.parentElement as HTMLElement;
-      const gutterStyle = getComputedStyle(gutter);
+      const elRect = el.getBoundingClientRect();
+      const outlineWidth = parseFloat(cs.outlineWidth) || 0;
+      const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+      // How far the ring extends beyond the border box, per side. A
+      // negative offset draws inward — clamped at 0 so that case can never
+      // report a phantom overflow of its own.
+      const extent = Math.max(outlineWidth + outlineOffset, 0);
+      const ring = {
+        left: elRect.left - extent,
+        top: elRect.top - extent,
+        right: elRect.right + extent,
+        bottom: elRect.bottom + extent,
+      };
+
+      // Walk every ancestor, not just the immediate one. The first one
+      // whose computed overflow is not `visible` on either axis is the one
+      // that actually clips; anything below it in the tree passes the ring
+      // through untouched, so it does not matter how many clean wrappers
+      // sit between the button and that ancestor.
+      let clipper: HTMLElement | null = el.parentElement;
+      while (clipper) {
+        const ov = getComputedStyle(clipper);
+        if (ov.overflowX !== 'visible' || ov.overflowY !== 'visible') break;
+        clipper = clipper.parentElement;
+      }
+      const clipperRect = clipper?.getBoundingClientRect() ?? null;
+      const ringFitsInsideClipper =
+        !clipperRect ||
+        (ring.left >= clipperRect.left - 0.5 &&
+          ring.top >= clipperRect.top - 0.5 &&
+          ring.right <= clipperRect.right + 0.5 &&
+          ring.bottom <= clipperRect.bottom + 0.5);
+
       return {
         ariaLabel: el.getAttribute('aria-label'),
         outlineStyle: cs.outlineStyle,
-        outlineWidth: parseFloat(cs.outlineWidth),
-        gutterOverflowX: gutterStyle.overflowX,
-        gutterOverflowY: gutterStyle.overflowY,
+        outlineWidth,
+        clipperTestId: clipper?.getAttribute('data-testid') ?? null,
+        ringFitsInsideClipper,
       };
     });
 
@@ -585,8 +629,10 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
   expect(direction.ariaLabel).toBe('Direction: request');
   expect(direction.outlineStyle).toBe('solid');
   expect(direction.outlineWidth).toBeGreaterThan(0);
-  expect(direction.gutterOverflowX).not.toBe('hidden');
-  expect(direction.gutterOverflowY).not.toBe('hidden');
+  expect(
+    direction.ringFitsInsideClipper,
+    `the ring must not be clipped by any ancestor (nearest clipper: ${direction.clipperTestId})`,
+  ).toBe(true);
 
   await page.keyboard.press('Tab'); // -> the operation chip
 
@@ -594,8 +640,10 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
   expect(operation.ariaLabel).toBe('Operation: set');
   expect(operation.outlineStyle).toBe('solid');
   expect(operation.outlineWidth).toBeGreaterThan(0);
-  expect(operation.gutterOverflowX).not.toBe('hidden');
-  expect(operation.gutterOverflowY).not.toBe('hidden');
+  expect(
+    operation.ringFitsInsideClipper,
+    `the ring must not be clipped by any ancestor (nearest clipper: ${operation.clipperTestId})`,
+  ).toBe(true);
 
   await page.close();
 });
