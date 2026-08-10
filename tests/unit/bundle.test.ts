@@ -67,3 +67,58 @@ describe('the shipped bundle', () => {
     }
   });
 });
+
+/**
+ * Every colour the palette declares is painted by something.
+ *
+ * `COLOR_TOKENS` in `contrast.test.ts` catches **declaration drift** — a token
+ * present in one palette and missing from the other. It cannot catch an
+ * **orphan**: a token both palettes declare, the inventory requires, and
+ * nothing paints. Proven both ways while removing one — put the token back in
+ * a palette alone and the count assertion goes red; put it back in the palette
+ * *and* the inventory, which is exactly the state before its deletion, and all
+ * 128 pairs stay green while the built CSS contains no `var()` for it.
+ *
+ * Three tokens were removed that way on the design-system branch —
+ * `--pending-border`, `--live-bg`, `--destructive-bg` — and every one was found
+ * by a human grepping the build, never by a test. This is that grep, written
+ * down.
+ *
+ * Derived from the stylesheet rather than from a hand-kept list, so a token
+ * added tomorrow is covered without anyone remembering to add it here — the
+ * same bargain `purity.test.ts` strikes with its two auto-discovered
+ * directories.
+ *
+ * Colours only, decided by the value rather than by a name list: `--radius` is
+ * genuinely used but never survives as `var(--radius)` (Tailwind's `@theme`
+ * computes the radius scale from it and inlines the result), and the two font
+ * tokens resolve through their own bridge. Keying on "the value is a hex
+ * colour" excludes those three without an exception list to maintain.
+ */
+describe('the palette', () => {
+  const HEX_DECLARATION = /^\s*(--[a-z0-9-]+)\s*:\s*(#[0-9a-f]{3,8})\s*;/gim;
+
+  function declaredColours(): string[] {
+    const css = readFileSync(path.join(process.cwd(), 'entrypoints/popup/style.css'), 'utf8');
+    return [...new Set([...css.matchAll(HEX_DECLARATION)].map((m) => m[1]!))];
+  }
+
+  function builtCss(): string {
+    return bundleFiles()
+      .filter((f) => f.file.endsWith('.css'))
+      .map((f) => f.source)
+      .join('\n');
+  }
+
+  it('declares colours to check, so an empty match cannot satisfy the check below', () => {
+    // Without this, a regex that stopped matching would make the next test
+    // pass by looking at nothing — the failure this repo keeps catching.
+    expect(declaredColours().length).toBeGreaterThan(20);
+  });
+
+  it('paints every colour it declares', () => {
+    const css = builtCss();
+    const orphans = declaredColours().filter((token) => !css.includes(`var(${token})`));
+    expect(orphans).toEqual([]);
+  });
+});
