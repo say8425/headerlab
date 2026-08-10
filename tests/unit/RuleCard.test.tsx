@@ -480,7 +480,7 @@ describe('RuleCard geometry', () => {
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
     clean.unmount();
 
-    render(
+    const { container } = render(
       <RuleCard
         {...props}
         diagnostics={[diag({ severity: 'error', message: 'a real problem' })]}
@@ -488,6 +488,20 @@ describe('RuleCard geometry', () => {
     );
     expect(screen.queryByTestId('rule-value')).toBeNull();
     expect(screen.getByTestId('rule-problem').textContent).toBe('a real problem');
+    // The value textarea is not gone — jsdom cannot see the box-geometry
+    // reason (a re-review found the first version of this fix shrank a
+    // wrapping row to the message's single line; the e2e guard covers the
+    // pixels), but this level can and must check the mechanism the fix
+    // rests on: the field is still in the DOM, still carrying the real
+    // stored value, and marked unreachable rather than merely unstyled.
+    const hidden = container.querySelector('textarea[aria-label="Header value"]');
+    expect(hidden).not.toBeNull();
+    expect((hidden as HTMLTextAreaElement).value).toBe(
+      'a value long enough to wrap onto more than one line',
+    );
+    expect(hidden).toHaveProperty('readOnly', true);
+    expect(hidden?.getAttribute('tabindex')).toBe('-1');
+    expect(hidden?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('leaves the value field alone for a warning, and marks the row beside its name instead', () => {

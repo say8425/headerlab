@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { RuleCard } from './RuleCard';
 import { Button } from '@/components/ui/button';
-import { rowKey } from '@/lib/view/rules';
+import { rowKey } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 export interface RulePanelProps {
@@ -10,7 +10,7 @@ export interface RulePanelProps {
    * The profile `rules` come from. Needed because `byRow` is keyed by profile
    * *and* row — a row id alone is not unique across profiles, and treating it
    * as though it were let one profile's broken row suppress another's healthy
-   * header. See `rowKey` in `lib/view/rules.ts`.
+   * header. See `rowKey` in `lib/compile/validate.ts`.
    */
   profileId: string;
   byRow: ReadonlyMap<string, Diagnostic[]>;

@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { rowError } from '@/lib/compile/validate';
 import { useCommittedDraft } from '@/lib/view/useCommittedDraft';
 import type { Diagnostic, HeaderRule, HeaderTarget, Operation } from '@/lib/model/types';
 
@@ -80,18 +81,34 @@ export interface RuleCardProps {
  * any element whose presence is state-dependent") a sibling shape cannot
  * avoid no matter how it is styled.
  *
- * The fix is not "keep it outside the row" but "give it a slot that already
- * has a size." An `error`-severity diagnostic (the row is not sent to
- * Chrome, per `hasRowError`) takes over line 2 in place of the value it
- * would otherwise show — the same slot a `remove` rule's sentence already
- * occupies, sized identically because it is the identical box with
- * different content. A `warning`-severity diagnostic (`profile-conflict` —
- * the row *is* sent, so hiding its value would be showing less than the
- * truth) adds a small fixed-size marker beside the header name instead,
- * with the full message in its `title`/`aria-label`. Neither adds a new
- * box; both swap content inside one that was already there. Different
+ * "Give it a slot that already has a size" was the right diagnosis and
+ * Task 13's own first attempt at it was still wrong, in the *other*
+ * direction: line 2's slot is not fixed-size at all when it holds a value —
+ * it wraps and grows with the value's own length (`[field-sizing:content]`,
+ * below), which is the "different heights" a re-review had to point at
+ * directly, because the first attempt swapped in a single-line error
+ * message and shrank a wrapped, multi-line row out from under whatever the
+ * user was reading. Replacing content inside a box only holds this
+ * invariant when the box's size does not depend on which content is there
+ * — true of a `remove` rule's one-line sentence (an `error` message swaps
+ * for it below at no cost, both are always one line), false of a value
+ * that can be four lines tall.
+ *
+ * The value case instead follows CLAUDE.md's Interface section literally:
+ * "reserve the space instead: size the container to its largest state and
+ * let the element occupy or vacate it." The textarea that holds the value
+ * keeps rendering — and therefore keeps sizing the box — whether or not an
+ * `error` diagnostic exists; only its content is hidden (`invisible`, inert)
+ * and an absolutely-positioned message painted over it when there is one to
+ * show. The box is exactly as tall as the value would make it either way; a
+ * `warning`-severity diagnostic (`profile-conflict` — the row *is* sent, so
+ * hiding its value would be showing less than the truth) adds a small
+ * fixed-size marker beside the header name instead, with the full message
+ * in its `title`/`aria-label`, touching line 2 not at all. Different
  * *rules* can be different heights; a single rule's height is never a
- * function of its own on/off/problem state.
+ * function of its own on/off/problem state — held now by reserving the
+ * largest box rather than by assuming every possible line 2 is the same
+ * size, which is what broke it the first time.
  */
 export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: RuleCardProps) {
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
@@ -131,21 +148,21 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
    * `compileHeaders` — nothing is sent for it, so showing its stored value
    * would show a value that is not in effect. It takes line 2 outright,
    * ahead of even a `remove` rule's own sentence: what stops a row from
-   * running is a more urgent fact than what the row would do if it ran. At
-   * most one is ever shown (`.find`, not `.filter`) — `validateHeaders`
-   * already stops at the first error a row can carry, so more than one
-   * would only happen if a future diagnostic source disagreed with that,
-   * and showing the first is the same "don't pile on a broken row" call
-   * `validateHeaders` itself makes.
+   * running is a more urgent fact than what the row would do if it ran.
+   * `rowError` — not a local `.find((d) => d.severity === 'error')` — so
+   * this asks the one place "what counts as dropped" is decided
+   * (`lib/compile/validate.ts`) rather than restating that test a second
+   * time where it could quietly drift from it. At most one is ever shown,
+   * because `rowError` itself only ever returns the first.
    *
    * `warning` means the opposite: the row *is* live (`profile-conflict` is
    * the only kind today), so its value is real and hiding it would be
    * showing the user less than the truth. It earns a marker beside the
    * header name instead of touching line 2 at all — `.filter`, not
    * `.find`, because nothing here caps a row at one warning the way
-   * `validateHeaders` caps it at one error.
+   * `rowError` caps it at one error.
    */
-  const errorDiag = problems.find((d) => d.severity === 'error');
+  const errorDiag = rowError(problems);
   const warningDiags = problems.filter((d) => d.severity === 'warning');
 
   return (
@@ -382,40 +399,57 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               gutter above — so it takes the column's full width instead of
               splitting it with a 44px op cycler.
 
-              Three things can occupy this one box, in priority order
-              (Task 13) — never two at once, and never a fourth shape that
-              would need its own height: */}
-        <div className="mt-0.5 flex min-w-0 items-start">
-          {errorDiag ? (
-            // 1. An error message, ahead of even a `remove` rule's own
-            // sentence below — what stops a row from running outranks
-            // what it would do if it ran (see the docblock above
-            // `errorDiag`). This is `rule-problem`'s new home: the
-            // testid survives, its subject moved from a block below the
-            // row into this slot, in place of the value it replaces.
-            // `rule-value` is deliberately absent here, not merely
-            // empty — a test asserting it must say so as a condition
-            // rather than assume it, same as this file's own tests do.
-            //
-            // `text-destructive` on the row's own fill (`--card`, or
-            // `--rowoff` when off) rather than a coloured block: there is
-            // no block left to paint. Only the `--card` pairing has a
-            // contrast guard — `--rowoff` doesn't, deliberately: every
-            // row-diagnostic source in this codebase (`validateHeaders`,
-            // `detectConflicts`) skips a disabled rule before it ever
-            // computes one, so an error message on an off row is not a
-            // state this popup can reach, not merely one this file forgot
-            // to check.
-            <span
-              data-testid="rule-problem"
-              data-severity="error"
-              title={errorDiag.message}
-              className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
-            >
-              {errorDiag.message}
-            </span>
-          ) : removes ? (
-            removeName === '' ? (
+              Three things can occupy it, in priority order (Task 13) — but
+              "never a fourth shape that would need its own height" turned
+              out to be false the first time it met a *wrapping* value.
+              This box's height is not fixed; `[field-sizing:content]` below
+              makes it exactly as tall as the stored value's own wrapped
+              text (that is the owner's ruling this docblock names above —
+              a value wraps and grows). Swapping a tall, wrapped textarea
+              for a single `truncate` line the moment `errorDiag` becomes
+              true does not swap content inside a fixed box; it *changes
+              the box*, by up to `max-h-24`'s full 96px, dragging every row
+              below this one up or down with it — a real regression a
+              re-review measured (92px → 52px on the row itself) and this
+              file shipped, because its own e2e guard's fixture happened to
+              seed a one-character value that could never expose it.
+              `relative` on this container plus `absolute inset-0` on the
+              message below is the fix CLAUDE.md's Interface section
+              already names for this exact shape of problem — "reserve the
+              space instead: size the container to its largest state and
+              let the element occupy or vacate it" — applied literally: the
+              textarea keeps rendering (and therefore keeps sizing the box)
+              whether or not an error is showing, and only the *message*
+              swaps in over it, `remove`'s sentence excepted below, which
+              needs none of this because it is single-line either way. */}
+        <div className="relative mt-0.5 flex min-w-0 items-start">
+          {removes ? (
+            errorDiag ? (
+              // Error still wins over the remove sentence — both are one
+              // `truncate` line regardless, so swapping between them here
+              // never changes this box's height the way the value case
+              // below could. `rule-problem`'s home for a `remove` row: the
+              // testid survives, its subject moved from a block below the
+              // row into this slot, in place of the sentence it replaces.
+              //
+              // `text-destructive` on the row's own fill (`--card`, or
+              // `--rowoff` when off) rather than a coloured block: there
+              // is no block left to paint. Only the `--card` pairing has a
+              // contrast guard — `--rowoff` doesn't, deliberately: every
+              // row-diagnostic source in this codebase (`validateHeaders`,
+              // `detectConflicts`) skips a disabled rule before it ever
+              // computes one, so an error message on an off row is not a
+              // state this popup can reach, not merely one this file
+              // forgot to check.
+              <span
+                data-testid="rule-problem"
+                data-severity="error"
+                title={errorDiag.message}
+                className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
+              >
+                {errorDiag.message}
+              </span>
+            ) : removeName === '' ? (
               // Unfinished, not wrong — same reasoning as the problem
               // block above never accusing a one-click-old row (see this
               // file's own docblock on `unfinished`). The quoted-name
@@ -470,58 +504,93 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               </span>
             )
           ) : (
-            <textarea
-              aria-label="Header value"
-              data-testid="rule-value"
-              rows={1}
-              /* `max-h-24` restored from the pre-mockup field (69bf230) —
-                   the owner's ruling was "값이 감싸지게(예전 방식)", the
-                   previous way, which capped growth and let a very long
-                   value scroll inside itself rather than growing without
-                   bound. Dropping the cap was found in review: a realistic
-                   536-character value made one row 232.5px tall, 42% of the
-                   popup's own height. `max-h-24` (96px) is `.hl-hval`'s old
-                   value.
+            <>
+              {/* Always rendered, error or not — this is the fix. When
+                  `errorDiag` is set it renders `invisible` (keeps its
+                  layout box, paints nothing) and `pointer-events-none`,
+                  `readOnly` and `tabIndex={-1}` (unreachable by mouse or
+                  keyboard) — inert, not deleted, so it goes on being the
+                  thing that sizes this box exactly as it did before an
+                  error existed. `data-testid="rule-value"` moves with the
+                  same condition: this element is not the value field in
+                  any sense that testid means while it is invisible, so a
+                  test asking whether the value field is present must still
+                  get `null`, same contract as before. */}
+              <textarea
+                aria-label="Header value"
+                data-testid={errorDiag ? undefined : 'rule-value'}
+                aria-hidden={errorDiag ? true : undefined}
+                tabIndex={errorDiag ? -1 : undefined}
+                readOnly={errorDiag !== undefined}
+                rows={1}
+                /* `max-h-24` restored from the pre-mockup field (69bf230) —
+                     the owner's ruling was "값이 감싸지게(예전 방식)", the
+                     previous way, which capped growth and let a very long
+                     value scroll inside itself rather than growing without
+                     bound. Dropping the cap was found in review: a realistic
+                     536-character value made one row 232.5px tall, 42% of the
+                     popup's own height. `max-h-24` (96px) is `.hl-hval`'s old
+                     value.
 
-                   The old field's `min-height: 30px` did NOT come back with
-                   it. That number served the old field's padded, bordered,
-                   12px box — this one has neither, so a floor buys nothing
-                   an empty single line doesn't already have (still a real,
-                   ~250px-wide click target via `min-w-0 flex-1`) and costs
-                   real, visible space on every short row: measured 51.5px
-                   → 66.5px with it, on rows that are most of the list, in
-                   the direction opposite the density the owner chose this
-                   whole redesign for. Found in review, corrected the same
-                   round.
+                     The old field's `min-height: 30px` did NOT come back with
+                     it. That number served the old field's padded, bordered,
+                     12px box — this one has neither, so a floor buys nothing
+                     an empty single line doesn't already have (still a real,
+                     ~250px-wide click target via `min-w-0 flex-1`) and costs
+                     real, visible space on every short row: measured 51.5px
+                     → 66.5px with it, on rows that are most of the list, in
+                     the direction opposite the density the owner chose this
+                     whole redesign for. Found in review, corrected the same
+                     round.
 
-                   Once a value is long enough to hit the cap, the textarea
-                   becomes a genuine scroll container of its own —
-                   `scrollHeight > clientHeight` — which is exactly what the
-                   crowding e2e guard's second assertion
-                   (`header-modification.spec.ts`, `expect(scrollers)...`)
-                   enumerates by walking every `overflow-y: auto`/`scroll`
-                   node. Today's fixtures only seed short values, so this
-                   never fires there, but Task 8/9 — which owns that
-                   assertion — should know the reason going in rather than
-                   find the symptom. */
-              className="min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
-              placeholder="value"
-              value={value.draft}
-              onChange={(e) => value.setDraft(e.target.value)}
-              onBlur={value.commit}
-              onKeyDown={(e) => {
-                // Shift+Enter keeps the newline; a bare Enter is a commit —
-                // the same bargain the pre-mockup value editor struck, and
-                // the reason it is a textarea rather than an input again.
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  value.commit();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  value.cancel();
-                }
-              }}
-            />
+                     Once a value is long enough to hit the cap, the textarea
+                     becomes a genuine scroll container of its own —
+                     `scrollHeight > clientHeight` — which is exactly what the
+                     crowding e2e guard's second assertion
+                     (`header-modification.spec.ts`, `expect(scrollers)...`)
+                     enumerates by walking every `overflow-y: auto`/`scroll`
+                     node. Today's fixtures only seed short values, so this
+                     never fires there, but Task 8/9 — which owns that
+                     assertion — should know the reason going in rather than
+                     find the symptom. */
+                className={`min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground${errorDiag ? ' invisible pointer-events-none' : ''}`}
+                placeholder="value"
+                value={value.draft}
+                onChange={(e) => value.setDraft(e.target.value)}
+                onBlur={value.commit}
+                onKeyDown={(e) => {
+                  // Shift+Enter keeps the newline; a bare Enter is a commit —
+                  // the same bargain the pre-mockup value editor struck, and
+                  // the reason it is a textarea rather than an input again.
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    value.commit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    value.cancel();
+                  }
+                }}
+              />
+
+              {/* `absolute inset-0`, not `mt-px flex-1` like the other two
+                  line-2 spans: those size their own box, this one must
+                  not — the textarea above already claims the real one.
+                  Still renders as one `truncate` line, at the top of
+                  whatever height the textarea gave the box; the space
+                  below it when that box is tall is the honest cost of
+                  reserving the space rather than resizing it, named in
+                  this component's own docblock. */}
+              {errorDiag && (
+                <span
+                  data-testid="rule-problem"
+                  data-severity="error"
+                  title={errorDiag.message}
+                  className="absolute inset-0 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
+                >
+                  {errorDiag.message}
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>

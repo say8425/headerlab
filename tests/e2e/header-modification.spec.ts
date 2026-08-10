@@ -672,6 +672,15 @@ test("an error diagnostic replacing a rule row's value never resizes the row or 
   // Only the `error` path is guarded here. The `warning` path (a marker
   // beside the header name, for `profile-conflict`) is not — see the
   // comment at the bottom of this test for why that is not an omission.
+  //
+  // `target`'s value is long enough to wrap onto more than one line — a
+  // re-review found the first version of this guard used a one-character
+  // value, so the pre-fix implementation (which shrank a wrapping value's
+  // whole box down to the error message's single line, the exact reflow
+  // this task exists to remove) passed by accident: a one-line textarea and
+  // a one-line error span are the same height regardless of which one is
+  // wrong. `before.rows[0]` below is the taller box that produces; every
+  // later comparison against it is only a real claim because of that.
   await serviceWorker.evaluate(async () => {
     const state = {
       version: 2,
@@ -697,14 +706,19 @@ test("an error diagnostic replacing a rule row's value never resizes the row or 
             // so cycling this row to `append` raises `append-not-allowed` —
             // the same real error the compile-bug guard above this one uses,
             // reused here for the same reason: a defect this codebase has
-            // already measured rather than an invented one.
+            // already measured rather than an invented one. The value itself
+            // is the same realistic, unbroken bearer token the gutter-chip
+            // guard above uses to force a real wrap — reused rather than
+            // invented so both guards are exercising the same known-wrapping
+            // shape rather than two different guesses at "long enough."
             {
               id: 'target',
               enabled: true,
               target: 'request',
               operation: 'set',
               name: 'X-Custom-Trace',
-              value: 'x',
+              value:
+                'Bearer dev-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJhZG1pbiIsInFhIiwic3RhZ2luZy1kZWJ1ZyJdfQ.dummysignature-not-real-do-not-use',
             },
             // The fixed reference row. Never touched — only its position is
             // asserted, which is what makes it a neighbour rather than a
@@ -748,31 +762,56 @@ test("an error diagnostic replacing a rule row's value never resizes the row or 
   // this file: an empty pair of arrays would agree with anything.
   expect(before.rows, 'both seeded rows must have rendered').toHaveLength(2);
   expect(before.ghost, 'the ghost row must have rendered').not.toBeNull();
+  // The target row really did wrap onto more than one line — otherwise
+  // every equality assertion below would pass trivially, the exact gap a
+  // re-review found in this test's first version. `52` is a real row's
+  // known single-line floor (asserted directly elsewhere in this file);
+  // comparing against `below`'s own height is what makes this a claim
+  // about *this* fixture rather than a literal that could quietly stop
+  // being true.
+  expect(before.rows[0]![3], 'the seeded value must actually wrap').toBeGreaterThan(
+    before.rows[1]![3]!,
+  );
   expect(
     await target.getByTestId('rule-value').count(),
     'the target row starts with a real value field, not an error',
   ).toBe(1);
 
-  // set -> append. Real state, not a synthetic prop: this is the same
-  // reconcile loop a user's click drives.
-  await opButton.click();
+  // Rename to an invalid name (a space) -> invalid-header-name. Deliberately
+  // *not* `opButton.click()` all the way to `remove` and back, which this
+  // test's own first version did: `remove` never shows a wrapping value —
+  // it is a single-line sentence regardless of error state — so cycling
+  // through it changes this row's height for a reason that has nothing to
+  // do with a diagnostic, and nothing this file promises (CLAUDE.md's own
+  // invariant names on/off and a diagnostic appearing, not an operation
+  // change). Renaming keeps the operation at `set` throughout, so the only
+  // thing moving is the diagnostic — the actual claim under test.
+  const nameField = target.getByRole('textbox', { name: 'Header name' });
+  await nameField.fill('X Custom Trace');
+  await nameField.blur();
   await expect(target.getByTestId('rule-problem')).toBeVisible();
   await expect(target.getByTestId('rule-value')).toHaveCount(0);
   expect(await boxes(), 'the error message arriving must move nothing').toEqual(before);
 
-  // append -> remove. `append-not-allowed` no longer applies once the
-  // operation isn't `append`, so the error clears — the "leaving" half,
-  // without which an assertion only on arrival could pass against a layout
-  // frozen at the wrong moment.
-  await opButton.click();
+  // Rename back to the exact original name. The error clears (a valid,
+  // unique name again) and the row returns to the exact state `before`
+  // captured — the "leaving" half, without which an assertion only on
+  // arrival could pass against a layout frozen at the wrong moment, and a
+  // round trip in the same step rather than a second, separately-trusted one.
+  await nameField.fill('X-Custom-Trace');
+  await nameField.blur();
   await expect(target.getByTestId('rule-problem')).toHaveCount(0);
+  await expect(target.getByTestId('rule-value')).toHaveCount(1);
   expect(await boxes(), 'the error message leaving must move nothing').toEqual(before);
 
-  // remove -> set. Back to the exact seeded state, so `before` is what this
-  // asserts against rather than a second, only-approximately-equal snapshot.
+  // A second, independent error kind, arrived at a different way (an
+  // operation click rather than typing), so this guard is not only ever
+  // proven against one trigger. `X-Custom-Trace` is not on Chrome's
+  // request-append allowlist, so set -> append raises `append-not-allowed`.
   await opButton.click();
-  await expect(target.getByTestId('rule-value')).toHaveCount(1);
-  expect(await boxes(), 'a full round trip must return to the exact starting geometry').toEqual(
+  await expect(target.getByTestId('rule-problem')).toBeVisible();
+  await expect(target.getByTestId('rule-value')).toHaveCount(0);
+  expect(await boxes(), 'a second, differently-triggered error must also move nothing').toEqual(
     before,
   );
 

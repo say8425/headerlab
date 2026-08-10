@@ -152,11 +152,16 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // `seen` stores only the `target name` key, never which operation
         // the earlier row used, so the earlier row could be `append` or
         // `remove` just as easily as `set`; saying "sets" was a claim about
-        // something this function does not know. "touches" is the same word
-        // `detectConflicts` already uses for an identical shape of fact
-        // (`firstToucher`, `lib/compile/conflicts.ts`) — one word for "an
-        // earlier row already did something to this header", used the same
-        // way in both places rather than each guessing its own verb.
+        // something this function does not know. `detectConflicts` faces the
+        // identical shape of fact and names it `firstToucher`
+        // (`lib/compile/conflicts.ts`) — that function *can* say which
+        // operation, since it holds the earlier rule and composes `already
+        // ${operation}s`, a message this one has no way to write (there is
+        // no earlier rule here, only a key that already occurred). "touches"
+        // is not quoted from that message — no message anywhere uses the
+        // word — it echoes the *concept* `firstToucher` names, chosen so a
+        // reader who has seen one already recognises the other rather than
+        // parsing a second verb for the same fact.
         message: `Rename this row or delete it. An earlier row already touches "${name}".`,
       });
     }
@@ -167,23 +172,29 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
 }
 
 /**
- * Whether a header row has at least one error-severity diagnostic among the
- * ones already computed for it.
+ * The first error-severity diagnostic on a row, if it has one.
  *
  * One predicate, one definition — `suppression.ts`'s own rule, restated for
- * the row half of it. Two callers used to each decide this independently
- * (or, for compile.ts, not decide it at all): `compile.ts` must not hand a
- * diagnosed row to `compileHeaders` — `updateDynamicRules` is transactional,
- * so one bad row rejects the whole batch and leaves whatever was registered
- * before still in force, silently, while the screen shows the new state.
- * The rail's readout (`lib/view/rules.ts`) must not count a row like that
- * as live either. Both now ask this rather than re-testing `severity`
- * themselves.
+ * the row half of it. Three callers used to each decide "does this row
+ * count as broken" independently (or, for `compile.ts` before its own fix,
+ * not decide it at all): `compile.ts` must not hand a diagnosed row to
+ * `compileHeaders` — `updateDynamicRules` is transactional, so one bad row
+ * rejects the whole batch and leaves whatever was registered before still
+ * in force, silently, while the screen shows the new state. The rail's
+ * readout (`lib/view/rules.ts`) must not count a row like that as live
+ * either. `RuleCard` must show the row's error message on line 2 rather
+ * than a value that is not in effect. All three now ask this — `RuleCard`
+ * for the diagnostic object, the other two via `hasRowError` below for the
+ * boolean — rather than re-testing `severity === 'error'` themselves.
+ * Re-testing it was a review finding, not a hypothetical: `RuleCard` did
+ * exactly that until this function grew a form it could call instead, and
+ * the two would have silently diverged the day a fourth severity arrived
+ * and only one of them was taught about it.
  *
  * Two of the three `error` kinds this file emits are the real batch-rejection
  * risk: an append Chrome will refuse (`append-not-allowed`), and a duplicate
- * (`duplicate-header`) — both pass `HEADER_TOKEN` and were, before this
- * function existed, sent to `compileHeaders` unfiltered. The third,
+ * (`duplicate-header`) — both pass `HEADER_TOKEN` and were, before
+ * `hasRowError` existed, sent to `compileHeaders` unfiltered. The third,
  * `invalid-header-name`, was never actually one of them: `compileHeaders`
  * already runs its own `HEADER_TOKEN.test` and skips a name that fails it,
  * independently of anything here, so that row never reached Chrome even
@@ -193,9 +204,17 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
  * `incomplete` deliberately does not count: an unfinished row is not
  * broken, it simply is not a rule yet, and `compileHeaders` already drops it
  * on its own terms (an empty name fails `HEADER_TOKEN`).
+ *
+ * `.find`, not `.filter`: at most one is ever shown anywhere, so the first
+ * is the one every caller needs.
  */
+export function rowError(diagnostics: readonly Diagnostic[] | undefined): Diagnostic | undefined {
+  return diagnostics?.find((d) => d.severity === 'error');
+}
+
+/** `rowError(diagnostics) !== undefined` — see `rowError`'s own docblock. */
 export function hasRowError(diagnostics: readonly Diagnostic[] | undefined): boolean {
-  return diagnostics?.some((d) => d.severity === 'error') ?? false;
+  return rowError(diagnostics) !== undefined;
 }
 
 /**
@@ -230,10 +249,12 @@ export function hasRowError(diagnostics: readonly Diagnostic[] | undefined): boo
  * The joiner is a space, which is why it looks like nothing between the two
  * halves. It is still load-bearing: `schema.ts` constrains an id to `min(1)`
  * and nothing else, so an id containing the joiner itself could make two
- * different `{profileId, headerRuleId}` pairs collide on the same key — a
- * space is far less likely to appear in a generated id than to be typo-proof
- * against every possible id, so this is a reasonable choice rather than a
- * proven-safe one.
+ * different `{profileId, headerRuleId}` pairs collide on the same key — for
+ * instance `{a, "b c"}` and `{"a b", c}` both key as `"a b c"`. A space is a
+ * practical choice, not a proven-safe one: it does not occur in
+ * `crypto.randomUUID()`'s output, which is every id this product generates
+ * today, but nothing stops a future id (imported, hand-typed) from
+ * containing one.
  */
 export const rowKey = (profileId: string, headerRuleId: string): string =>
   `${profileId} ${headerRuleId}`;

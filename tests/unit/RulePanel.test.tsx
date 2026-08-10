@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RulePanel, type RulePanelProps } from '@/components/RulePanel';
-import { rowKey } from '@/lib/view/rules';
+import { rowKey } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
