@@ -11,22 +11,25 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
-npm run check        # typecheck · lint · format:check · test — what CI runs, in one command
-npm test             # wxt build && vitest run  — the build is not optional, see below
-npm run test:e2e     # wxt build --mode e2e && playwright test
-npm run typecheck    # wxt prepare && tsc --noEmit
-npm run lint         # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
-npm run format:check # oxfmt --check            (npm run format to write)
-npm run build        # production build → .output/chrome-mv3
-npm run dev          # WXT dev server
-npm run screenshots  # wxt build && node scripts/screenshots.mjs → docs/screenshots/
+pnpm check           # typecheck · lint · format:check · test — four of CI's five jobs, in one command
+pnpm test            # wxt build && vitest run  — the build is not optional, see below
+pnpm test:e2e        # wxt build --mode e2e && playwright test
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
+pnpm format:check    # oxfmt --check            (pnpm format to write)
+pnpm build           # production build → .output/chrome-mv3
+pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
+pnpm dev             # WXT dev server
+pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 ```
 
-**`typecheck`, not `compile`.** The script was renamed when CI arrived; the dated plans
-under `docs/superpowers/plans/` still say `npm run compile` because they are records of
-what was run at the time, not instructions for now.
+**pnpm, not npm, and the version is pinned.** `package.json`'s `packageManager` names
+`pnpm@11.20.0`; `corepack enable` is the whole setup. Everything under `docs/superpowers/`
+and `docs/research/` says `npm run …` because those are records of what was run at the
+time, not instructions for now — the same reason they say `npm run compile` for what is
+now `typecheck`.
 
-**Run `npm test`, not `npx vitest run`.** Several tests assert against *built* output,
+**Run `pnpm test`, not a bare `vitest run`.** Several tests assert against *built* output,
 and the bare tools do not build. Running them directly reports on a stale artifact —
 this has produced both a false green that silently disabled a guard and a false red
 that cost an hour. `tests/support/build.ts` now detects staleness and fails loudly with
@@ -104,24 +107,28 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   this claim promises there isn't one of. Two of the tests in that file exist to hold
   that line: one plants each forbidden form and requires the patterns to match, the other
   feeds them the benign substrings and requires they do not.
-- **No new dependencies.** npm here runs under a rolling 72-hour publish quarantine, so
-  a recently published package fails with `ETARGET`. Do not bypass it, and do not run
-  `npm audit fix`.
-  **Assume lifecycle scripts do not run.** `ignore-scripts=true` silently skips
-  `postinstall`, `pretest` and `prepare`. **Chain setup into the script body**, never
-  into a lifecycle hook — `npm test` runs `wxt build && vitest run` for exactly this
-  reason.
+- **No new dependencies.** The rule stands; the thing that used to enforce it
+  mechanically is **gone**. npm here ran under a rolling 72-hour publish quarantine, so a
+  recently published package failed with `ETARGET` — and **pnpm does not read it**.
+  Measured: `pnpm config get before` is `undefined` while `npm config list` still shows
+  the resolved timestamp, because `min-release-age`/`before` is an npm setting. pnpm's own
+  equivalent is `minimumReleaseAge`, and it is unset. So a fresh package now installs
+  quietly; a successful install is no longer evidence that anything is old enough.
+  **Assume lifecycle scripts do not run.** `ignore-scripts=true` is read by pnpm too —
+  measured: `pnpm config get ignore-scripts` is `true`, and `rm -rf .wxt` followed by
+  `pnpm install` leaves `.wxt/` absent, so the declared `postinstall: wxt prepare` has
+  still never once fired here. **Chain setup into the script body**, never into a
+  lifecycle hook — `pnpm test` runs `wxt build && vitest run` for exactly this reason, and
+  `typecheck` is `wxt prepare && tsc --noEmit` rather than `tsc --noEmit` alone because
+  `tsconfig.json` extends `./.wxt/tsconfig.json` and a fresh clone would otherwise
+  type-check against a file that does not exist yet. `wxt prepare` is 177ms and
+  idempotent; running it every time costs less than the trap does.
   Both settings come from the developer's `~/.npmrc`, **not from this repo** — there is
-  no `.npmrc` here, so neither is reproducible from a clone and a contributor on npm's
-  defaults sees the opposite behaviour on both counts. `npm config list` is what
-  actually answers it: the quarantine shows up as a resolved `before` date (npm reads
-  `min-release-age` in days and turns 3 into a timestamp 72 hours back), and
-  `ignore-scripts` shows up verbatim. `package.json` still declares
-  `postinstall: wxt prepare`, and here it has never once fired — which is why
-  `typecheck` is `wxt prepare && tsc --noEmit` rather than `tsc --noEmit` alone.
-  `tsconfig.json` extends `./.wxt/tsconfig.json`, so without that chained prepare a
-  fresh clone type-checks against a file that does not exist yet. `wxt prepare` is
-  177ms and idempotent; running it every time costs less than the trap does.
+  no `.npmrc` here, so neither is reproducible from a clone.
+  pnpm 10 and later also block *dependency* build scripts by default, needing an
+  `onlyBuiltDependencies` allowlist. This tree needs none: installing with
+  `npm_config_ignore_scripts=false` reports nothing blocked, because no package in it
+  declares a build script at all.
 
 ## Toolchain
 
@@ -209,61 +216,86 @@ CLAUDE.md and rebuilding, which changed nothing. That is why `@source not "../..
 exists for the `.html` mocks in that tree rather than for its prose, and why class names
 may be quoted freely *here* but cost bytes in a `.ts` comment.
 
-**`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
-A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
-office, and the lockfile was full of them — 397 on the base commit, 420 by the time they
-were rewritten, the extra 23 added by this branch's own `npm install`. A public
-repository that only its author could install. `replace-registry-host=always` does **not** fix it: it swaps the host and
-keeps the path, producing `registry.npmjs.org/repository/npm-all/zod/-/zod-4.4.3.tgz`,
-which 404s. Measured on CI. The whole base has to be rewritten —
-`https://nexus.mng.musinsa.io/repository/npm-all/` → `https://registry.npmjs.org/` — and
-that is safe because the `integrity` hashes are untouched: the URL says where to look,
-the hash says what is acceptable. Locally npm rewrites canonical URLs back to the
-configured registry on its own, which is why the 428 entries that were already in this
-form have always worked. **If a future lockfile write reintroduces proxy URLs, rewrite
-them before committing.**
+**`pnpm-lock.yaml` records no URL at all, and that deletes a whole defect class.** The
+`package-lock.json` it replaced carried a `resolved` URL per package, and this office's
+proxy kept writing `nexus.mng.musinsa.io` into them — 397 on one base commit, a public
+repository only its author could install, and `replace-registry-host=always` did not fix
+it because it swapped the host and kept the path (`registry.npmjs.org/repository/npm-all/
+zod/-/zod-4.4.3.tgz`, which 404s). pnpm's lockfile 9.0 carries `resolution:
+{integrity: sha512-…}` and nothing else: measured on the committed file, **zero**
+occurrences of the proxy host, zero of `registry.npmjs.org`, zero `tarball:` keys. The
+registry is a config value read at install time, so one lockfile installs from whichever
+registry the machine points at. There is nothing left to rewrite before committing.
 
-**A local `npm install` will corrupt the lockfile. `npm ci` will not.** The proxy serves
-stale metadata for oxlint's and oxfmt's per-platform native bindings — it carries
-`binding-darwin-arm64` at the current version and nothing newer than oxlint 1.43.0 /
-oxfmt 0.58.0 for linux, and asking for a newer one 404s instead of refreshing the
-packument. So an `npm install` here writes the 18 non-darwin bindings as entries with **no
-version at all**, and both `npm ci` *and* `npm install` then die on those stubs with
-`Invalid Version:` before touching the network. `registry.npmjs.org` is unreachable from
-this machine (503), so the correct entries cannot be produced here at all.
+**The lockfile was converted, not re-resolved, and that distinction still matters.**
+`pnpm import` reads `package-lock.json` and reproduces the tree from it, so all 812
+packages carry the versions CI had already resolved — including every one of the 19
+`@oxlint/binding-*@1.76.0` entries, the 18 non-darwin ones among them. The trap underneath
+has not gone away: the proxy still serves stale metadata for those per-platform native
+bindings, and `registry.npmjs.org` is still unreachable from this machine (503), so **a
+resolution from scratch here would still be wrong.** `pnpm install --frozen-lockfile`
+re-resolves nothing and is the everyday command. If a dependency ever has to change, do it
+where the whole registry is visible — CI — and take the lockfile back from there.
 
-They came from CI, which can see the whole registry, and are committed. **Use `npm ci`.**
-If you must `npm install` — adding a dependency — check `git diff package-lock.json` for
-versionless entries and proxy URLs before committing, or get the lockfile back from a CI
-run's install step. The 18 entries carry `os`/`cpu` constraints, so `npm ci` on macOS
-skips fetching the ones it cannot use; having them in the file costs nothing locally and
-is what makes the repository installable anywhere else.
-
-That is history now: CI ran `npm install`, diffed the lockfile, uploaded the resolved one
-as an artifact, and that artifact — the committed lockfile plus exactly the 18 bindings,
-with no version changes and nothing removed — is what is committed. The workflow uses
-`npm ci` again and those steps are gone. If the lockfile ever needs regenerating from a
-machine that can see the whole registry, that is the loop to re-run.
+**corepack cannot fetch pnpm through the proxy**, so `corepack enable` is a CI-only
+instruction. It builds the tarball URL as `<registry>/pnpm-11.20.0/-/pnpm-11.20.0.tgz`,
+which 404s — the same path-shape bug that made `replace-registry-host` useless above.
+Locally, install pnpm however you like and let the pin do the work: pnpm 10 and later read
+`packageManager` and switch themselves to it, measured here by a pnpm 11.20.0 binary
+reporting `9.15.9` while the field still said so. **Do not put a `+sha512…` integrity
+suffix on that field** — corepack accepts that form, pnpm does not, and 9.15.9 refused
+every command with `Invalid package manager specification … expected a semver version`.
 
 **CI references actions by floating major — `actions/checkout@v7`, not a SHA and not
 `@v7.0.1`.** This went SHA → exact tag → major, each step trading supply-chain strength
 for legibility, and the trade is worth naming rather than discovering: a moved tag is a
 real attack and a SHA is the only thing that forecloses it. What makes it acceptable here
-is that all four actions are published by GitHub itself, the workflow holds only
+is that those actions are published by GitHub itself, `ci.yml` holds only
 `contents: read` with `persist-credentials: false`, and it never interpolates
 `github.event.*`, so the blast radius of a hijacked action is this repository's own
-source — which is public. A third-party action would not clear that bar; pin one to a SHA
-if it ever arrives.
+source — which is public.
+
+**The third-party action has arrived, and it is pinned to a SHA as promised.**
+`googleapis/release-please-action` is the only one, and it sits in the only job holding
+`contents: write` and `pull-requests: write`, so it clears none of the three conditions
+above. `release-please.yml` names it by commit with the tag in a comment beside it. Resolve
+a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`; commit
+`a1f8122` has the last version that did this for every action.
 
 Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
-there is no dependabot here yet. To go back to SHAs:
-`gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`, with the tag in a
-comment beside each hash — commit `a1f8122` has the last version that did this.
+there is no dependabot here yet.
 
-**The workflow carries almost no comments, and that is deliberate.** It had many, and they
+**CI is five jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
+Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
+each so a push reported every failure instead of one per round trip. Separate jobs do the
+same thing without the trick, and name the failing check in the PR's check list rather
+than burying it in one job's log. The cost is honest and small: each job installs
+dependencies again, and `format:check` takes 82ms against a setup measured in seconds. It
+buys per-check status, and it is what was asked for.
+
+**The setup those jobs share is a local composite action, `.github/actions/setup`.**
+Five copies of the same six steps is the shape that drifts. Two things in it are surprising
+at the point of use and carry a comment there: `corepack enable` runs *after* setup-node so
+the shims land in the Node the job will use, and `cache: pnpm` is therefore unusable
+because setup-node resolves the store before pnpm exists — hence the explicit
+`pnpm store path` and `actions/cache` pair. A local action is in-repo source, so it adds no
+supply-chain surface.
+
+**Release is `release-please.yml`, on push to `main`.** It opens and grooms a release PR
+from the conventional-commit subjects; merging that PR is what tags, releases, and — only
+then — builds `pnpm zip` and attaches `.output/headerlab-<version>-chrome.zip` to the
+release. Two things to know before wondering why something did not happen. **A release PR
+opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
+loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
+changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the
+workflow this was modelled on: there is no listing, so a `wxt submit` step would need four
+secrets that do not exist and would fail every release. Add it with the listing, not before.
+
+**The workflows carry almost no comments, and that is deliberate.** They had many, and they
 restated what this file already says at more length. The reasoning lives here; the YAML
-should be readable as YAML. What stayed is the two lines that are surprising *at the point
-of use* — why later steps run after a failure, and why `--with-deps` runs on a cache hit.
+should be readable as YAML. What stayed is only what is surprising *at the point of use* —
+the two in the composite action, why `--with-deps` runs on a cache hit, why `pnpm zip`
+needs no build step before it, and why one action is a hash.
 
 ## Platform traps that have already cost time
 
@@ -396,12 +428,15 @@ follow state freely; box dimensions and positions should not.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the seven e2e tests drive a real request through the
+against a loaded extension. Two of the eleven e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
-evidence in the repo — do not weaken them. The other five cover the popup rendering from
-stored state and four layout guards: nothing wider than what holds it, a control
-appearing moves nothing, a rule row keeps its height when toggled off, and an overflowing
-list clips nothing while its neighbours stay put.
+evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
+never reaches declarativeNetRequest while its sibling still does. The other eight cover
+the popup rendering from stored state and seven layout guards: nothing wider than what
+holds it, a control appearing moves nothing, a rule row keeps its height when toggled off,
+an overflowing list clips nothing while its neighbours stay put, the gutter chips match
+size, the badge and the chip each keep a focus ring that reaches the screen, and an error
+diagnostic replacing a value never resizes the row or moves the rows below it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -412,7 +447,7 @@ says so at its top. It went green through a grey box that was plainly visible on
 **The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
 in eight places, `getComputedStyle(el).overflowY` in two — and no colour at all; there is
 no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
-the only output with pixels in it is `npm run screenshots`, and **a human is what reads
+the only output with pixels in it is `pnpm screenshots`, and **a human is what reads
 it**; that is how the grey box was found. A colour defect born of alpha or merge order has
 no automated guard today. Building one means adding a colour read or a snapshot comparison
 to e2e — say so plainly rather than assuming a green run already covered it.
@@ -450,16 +485,20 @@ that no longer renders, passing while describing nothing.
 - Design docs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`,
   measured spikes in `docs/research/`. A spike that contradicts a design is a success —
   fix the design.
-- **The README screenshots are generated, never cropped by hand.** `npm run screenshots`
+- **The README screenshots are generated, never cropped by hand.** `pnpm screenshots`
   builds, loads the production bundle in real Chrome and photographs the popup, so a UI
   change is a re-run rather than an excavation — the same bargain `scripts/make-icons.mjs`
   makes. Its one edit to the loaded copy is `host_permissions` for the example hosts,
   because `permissions.request()` opens a dialog Playwright cannot click and a *granted*
   row cannot otherwise be photographed; the README states that under the images rather
   than letting them imply a grant flow that did not happen. Its waits are written as the
-  row states each shot expects, since the popup renders every row optimistically green
-  in the frame before the permission probe answers — a duration would photograph
-  whichever frame the machine landed on.
+  screen state each shot expects — the site-row states *and* the number of rule rows
+  showing a problem — since the popup renders every row optimistically green in the frame
+  before the permission probe answers, and a duration would photograph whichever frame the
+  machine landed on. The problem count is asserted on all four shots and is `0` on three
+  of them: those zeroes are what make `popup-blocked.png`'s `1` mean something, because a
+  build that errored on every row would otherwise pass the shot whose whole subject is one
+  row failing.
 
 ## Known gaps
 
