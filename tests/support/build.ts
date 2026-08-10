@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 /**
  * Freshness guard for the suites that assert against **built output** rather
  * than source: tests/unit/theme.test.ts, tests/unit/manifest.test.ts and the
- * whole E2E suite. Their `package.json` scripts build first, but `npx vitest
- * run` and `npx playwright test` do not, and until this module existed nothing
- * noticed. Both directions of that had already cost real time:
+ * whole E2E suite. Their `package.json` scripts build first, but a bare
+ * `vitest run` or `playwright test` does not, and until this module existed
+ * nothing noticed. Both directions of that had already cost real time (the
+ * commands below are quoted as they were typed, under npm, which is what these
+ * two incidents actually were):
  *
  *  - A reviewer deleted `width: 100%` from style.css to mutation-check the
  *    layout guard, ran `npx playwright test`, and got 4/4 green. The change
@@ -23,7 +25,7 @@ import { fileURLToPath } from 'node:url';
  * script) would pin itself to the build taken at watch start and go quietly
  * stale for the rest of the session — the original bug with a longer fuse. This
  * check runs at the point the artifact is *consumed*, so it is re-evaluated
- * every time an assertion depends on it. It also keeps `npm test` from building
+ * every time an assertion depends on it. It also keeps `pnpm test` from building
  * twice (measured: ~1.4s build against a ~1.5s suite) and gives an error that
  * names the command to run, the way fixtures.ts already did for absence.
  */
@@ -38,18 +40,18 @@ export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url
  * lands in `chrome-mv3-e2e`, not `chrome-mv3`. Two modes are special-cased in
  * `resolve-config.mjs`'s `modeSuffix` table: `production` gets no suffix at all
  * and `development` gets `-dev` rather than `-development`. Only the first of
- * those is unsuffixed — `npm run dev` really does write to `chrome-mv3-dev`.
+ * those is unsuffixed — `pnpm dev` really does write to `chrome-mv3-dev`.
  */
 const BUILDS = {
   production: {
     dir: '.output/chrome-mv3',
-    fix: 'run `npm test`, which builds first — not a bare `npx vitest run`',
+    fix: 'run `pnpm test`, which builds first — not a bare `vitest run`',
   },
   e2e: {
     dir: '.output/chrome-mv3-e2e',
     fix:
-      'run `npm run test:e2e` (or `npm run build:e2e` before `playwright test`) — ' +
-      'not a bare `npx playwright test`, and not a plain `npm run build`',
+      'run `pnpm test:e2e` (or `pnpm build:e2e` before `playwright test`) — ' +
+      'not a bare `playwright test`, and not a plain `pnpm build`',
   },
 } as const;
 

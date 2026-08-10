@@ -106,7 +106,7 @@ one has run the suite against it.
 
 ```bash
 pnpm dev             # WXT dev server → load .output/chrome-mv3-dev unpacked
-pnpm check           # everything CI runs: typecheck · lint · format · unit tests
+pnpm check           # four of CI's five jobs: typecheck · lint · format · unit tests
 pnpm test            # wxt build && vitest run — unit tests, no browser
 pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit

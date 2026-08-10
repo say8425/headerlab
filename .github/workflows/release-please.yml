@@ -35,6 +35,12 @@ jobs:
       - uses: ./.github/actions/setup
         if: ${{ steps.release.outputs.release_created }}
 
+      # The release PR is opened with the default GITHUB_TOKEN, which by
+      # GitHub's own loop-prevention rule does not trigger `ci.yml` — so the
+      # commit being released is the one commit that reaches `main` unchecked.
+      - run: pnpm check
+        if: ${{ steps.release.outputs.release_created }}
+
       # `wxt zip` builds first, so there is no separate build step.
       - run: pnpm zip
         if: ${{ steps.release.outputs.release_created }}

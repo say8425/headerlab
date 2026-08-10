@@ -28,6 +28,13 @@ import { REPO_ROOT } from '../support/build';
  * pairing on their own — oxfmt and oxlint carry 19 platforms each, `@rolldown`
  * carries 15, so there is no single right number to assert.
  *
+ * The boundary, named rather than left to be discovered: it pairs exactly the
+ * two platforms in play today — developed on `darwin-arm64`, CI on
+ * `linux-x64-gnu`. A lockfile that dropped `linux-arm64-gnu` still passes, and
+ * that becomes a real gap the day anything here runs on an ARM runner or in a
+ * container on Apple silicon. Add the pair then; adding it now would assert
+ * against a platform nothing builds on.
+ *
  * When this fails, do not hand-edit the lockfile. Regenerate it where the whole
  * registry is visible — CI — as recorded in CLAUDE.md.
  */

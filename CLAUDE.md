@@ -463,10 +463,11 @@ loopback echo server and read the headers back off it; those two are the stronge
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
 never reaches declarativeNetRequest while its sibling still does. The other eight cover
 the popup rendering from stored state and seven layout guards: nothing wider than what
-holds it, a control appearing moves nothing, a rule row keeps its height when toggled off,
-an overflowing list clips nothing while its neighbours stay put, the gutter chips match
-size, the badge and the chip each keep a focus ring that reaches the screen, and an error
-diagnostic replacing a value never resizes the row or moves the rows below it.
+holds it, a control appearing moves nothing, an overflowing list clips nothing while its
+neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
+when toggled off (one test, not two), the ghost row at the end matches a minimum rule
+row's height, the badge and the chip each keep a focus ring that reaches the screen, and
+an error diagnostic replacing a value never resizes the row or moves the rows below it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts

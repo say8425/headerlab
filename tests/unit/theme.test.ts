@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readBuildFile } from '../support/build';
 
-// `npm test` runs `wxt build` first, so these read a real build artifact.
-// readBuildFile refuses a missing *or* stale one: a bare `npx vitest run` here
+// `pnpm test` runs `wxt build` first, so these read a real build artifact.
+// readBuildFile refuses a missing *or* stale one: a bare `vitest run` here
 // once reported three failures against a build predating theme.js, and the
 // hours that cost are why the staleness half exists (tests/support/build.ts).
 function read(path: string): string {
