@@ -354,7 +354,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
         <div className="flex min-w-0 items-center gap-1">
           <Input
             aria-label="Header name"
-            className="h-[18px] min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2 dark:bg-transparent"
+            className="h-[18px] min-w-0 flex-1 truncate rounded-none border-0 bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2 dark:bg-transparent"
             placeholder="header-name"
             autoFocus={autoFocus}
             value={name.draft}
@@ -422,7 +422,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               whether or not an error is showing, and only the *message*
               swaps in over it, `remove`'s sentence excepted below, which
               needs none of this because it is single-line either way. */}
-        <div className="relative mt-0.5 flex min-w-0 items-start">
+        <div className="relative flex min-w-0 items-start">
           {removes ? (
             errorDiag ? (
               // Error still wins over the remove sentence — both are one
@@ -445,7 +445,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                 data-testid="rule-problem"
                 data-severity="error"
                 title={errorDiag.message}
-                className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
+                className="min-w-0 flex-1 truncate cursor-not-allowed text-[12px] leading-[18px] font-medium text-destructive"
               >
                 {errorDiag.message}
               </span>
@@ -458,7 +458,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               // or a bug), the sentence drops the name clause entirely
               // and says what is still true without it.
               <span
-                className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-muted-foreground"
+                className="min-w-0 flex-1 truncate cursor-not-allowed text-[12px] leading-[18px] font-medium text-muted-foreground"
                 data-testid="rule-value"
               >
                 This header will be removed once it&apos;s named.
@@ -494,7 +494,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               // shadcn disabled state (`components/ui/input.tsx`) that
               // costs no contrast.
               <span
-                className="mt-px flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
+                className="flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[12px] leading-[18px] font-medium text-muted-foreground"
                 data-testid="rule-value"
               >
                 <span className="min-w-0 truncate font-mono" title={removeName}>
@@ -553,7 +553,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                      never fires there, but Task 8/9 — which owns that
                      assertion — should know the reason going in rather than
                      find the symptom. */
-                className={`min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground${errorDiag ? ' invisible pointer-events-none' : ''}`}
+                className={`min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[12px] leading-[18px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground${errorDiag ? ' invisible pointer-events-none' : ''}`}
                 placeholder="value"
                 value={value.draft}
                 onChange={(e) => value.setDraft(e.target.value)}
@@ -585,7 +585,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                   data-testid="rule-problem"
                   data-severity="error"
                   title={errorDiag.message}
-                  className="absolute inset-0 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
+                  className="absolute inset-0 truncate cursor-not-allowed text-[12px] leading-[18px] font-medium text-destructive"
                 >
                   {errorDiag.message}
                 </span>
