@@ -83,7 +83,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'incomplete',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: 'This rule has no name yet, so nothing is sent for it.',
+        message: 'No name yet, so nothing is sent.',
       });
       continue;
     }
@@ -99,7 +99,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // bounded-row-meets-unbounded-text spot in this popup, and the tail
         // is what gets cut. The character set the user can actually act on
         // has to survive that; the fact of the failure is what can afford to.
-        message: 'Not a valid header name — no spaces, colons or quotes.',
+        message: 'Not a valid header name — no spaces or colons.',
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -160,7 +160,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // word — it echoes the *concept* `firstToucher` names, chosen so a
         // reader who has seen one already recognises the other rather than
         // parsing a second verb for the same fact.
-        message: 'Rename or delete this row — an earlier row already uses this header.',
+        message: 'Rename or delete. An earlier row uses this header.',
       });
     }
     seen.add(key);
