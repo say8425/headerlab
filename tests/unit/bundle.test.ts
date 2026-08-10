@@ -69,38 +69,53 @@ describe('the shipped bundle', () => {
 });
 
 /**
- * Every colour the palette declares is painted by something.
+ * Every token the palette declares is named by something the build scans.
  *
  * `COLOR_TOKENS` in `contrast.test.ts` catches **declaration drift** — a token
  * present in one palette and missing from the other. It cannot catch an
  * **orphan**: a token both palettes declare, the inventory requires, and
- * nothing paints. Proven both ways while removing one — put the token back in
- * a palette alone and the count assertion goes red; put it back in the palette
+ * nothing uses. Proven both ways while removing one — put the token back in a
+ * palette alone and the count assertion goes red; put it back in the palette
  * *and* the inventory, which is exactly the state before its deletion, and all
  * 128 pairs stay green while the built CSS contains no `var()` for it.
  *
- * Three tokens were removed that way on the design-system branch —
- * `--pending-border`, `--live-bg`, `--destructive-bg` — and every one was found
- * by a human grepping the build, never by a test. This is that grep, written
- * down.
+ * Four tokens have been removed that way — `--pending-border`, `--live-bg`,
+ * `--destructive-bg` on the design-system branch, and `--radius`, which the
+ * first draft of *this* test excluded on a false premise and thereby hid. Every
+ * one was found by a human grepping the build, never by a test. This is that
+ * grep, written down.
  *
- * Derived from the stylesheet rather than from a hand-kept list, so a token
- * added tomorrow is covered without anyone remembering to add it here — the
- * same bargain `purity.test.ts` strikes with its two auto-discovered
- * directories.
+ * **What it establishes, exactly:** no token is declared that nothing in the
+ * scanned source even *names*. It is not "reaches the screen" and must not be
+ * read as that. Tailwind scans source text, not a render tree, so a utility
+ * written in a comment, or on a component that never mounts, still emits the
+ * rule and still satisfies this check — measured. The narrower claim is the one
+ * that has shipped four times, so it is the one worth holding.
  *
- * Colours only, decided by the value rather than by a name list: `--radius` is
- * genuinely used but never survives as `var(--radius)` (Tailwind's `@theme`
- * computes the radius scale from it and inlines the result), and the two font
- * tokens resolve through their own bridge. Keying on "the value is a hex
- * colour" excludes those three without an exception list to maintain.
+ * Derived from the stylesheet, and with **no exclusion list at all**: every
+ * custom property either palette declares must appear. The first draft keyed on
+ * "the value is a hex colour" to skip three non-colours, and the justification
+ * for skipping `--radius` was wrong in both of its clauses — nothing referenced
+ * `var(--radius)` and no `@theme` entry derived the radius scale from it
+ * (Tailwind's stock `--radius-sm/md/lg` were doing that work, unchanged when
+ * `--radius` was set to `99px`). An exception list is a place for an orphan to
+ * hide, which is what happened; without one there is nowhere to hide.
  */
 describe('the palette', () => {
-  const HEX_DECLARATION = /^\s*(--[a-z0-9-]+)\s*:\s*(#[0-9a-f]{3,8})\s*;/gim;
+  /**
+   * The two palette blocks, and only those. `@theme inline` declares a
+   * `--color-*` bridge per token, and Tailwind inlines those rather than
+   * emitting `var(--color-x)` — including them would report all 23 as orphans
+   * and the check would have to grow the exception list this test exists
+   * without.
+   */
+  const PALETTE_BLOCK = /^(?::root|\.dark)\s*\{([\s\S]*?)^\}/gim;
+  const DECLARATION = /^\s*(--[a-z0-9-]+)\s*:\s*[^;]+;/gim;
 
-  function declaredColours(): string[] {
+  function declaredTokens(): string[] {
     const css = readFileSync(path.join(process.cwd(), 'entrypoints/popup/style.css'), 'utf8');
-    return [...new Set([...css.matchAll(HEX_DECLARATION)].map((m) => m[1]!))];
+    const palettes = [...css.matchAll(PALETTE_BLOCK)].map((m) => m[1]!).join('\n');
+    return [...new Set([...palettes.matchAll(DECLARATION)].map((m) => m[1]!))];
   }
 
   function builtCss(): string {
@@ -110,15 +125,15 @@ describe('the palette', () => {
       .join('\n');
   }
 
-  it('declares colours to check, so an empty match cannot satisfy the check below', () => {
-    // Without this, a regex that stopped matching would make the next test
+  it('declares tokens to check, so an empty match cannot satisfy the check below', () => {
+    // Without this, a derivation that stopped matching would make the next test
     // pass by looking at nothing — the failure this repo keeps catching.
-    expect(declaredColours().length).toBeGreaterThan(20);
+    expect(declaredTokens().length).toBeGreaterThan(20);
   });
 
-  it('paints every colour it declares', () => {
+  it('has something naming every token it declares', () => {
     const css = builtCss();
-    const orphans = declaredColours().filter((token) => !css.includes(`var(${token})`));
+    const orphans = declaredTokens().filter((token) => !css.includes(`var(${token})`));
     expect(orphans).toEqual([]);
   });
 });

@@ -91,7 +91,7 @@ const PALETTES = {
 };
 
 /** 색이 아닌 토큰. 형태 검사에서 제외된다. */
-const NON_COLOR = ['--radius', '--font-sans', '--font-mono'];
+const NON_COLOR = ['--font-sans', '--font-mono'];
 
 /** 두 팔레트가 모두 정의해야 하는 색 토큰. 이름이 바뀌면 조용히 지나가지 않는다. */
 const COLOR_TOKENS = [
