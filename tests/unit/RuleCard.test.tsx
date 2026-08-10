@@ -355,14 +355,26 @@ describe('RuleCard tab order', () => {
 });
 
 describe('RuleCard value slot', () => {
-  it('says a remove rule takes no value, and offers no field to type one into', () => {
+  it('says what a remove rule will do, and offers no field to type a value into', () => {
     // The grid this replaces drew an empty cell for `remove` because a column
-    // layout gave it no choice, then invented "— no value" to fill it. Here
-    // the operation genuinely has no value, so there is nothing to edit —
-    // `queryByRole` is what pins that, not just the wording.
-    renderCard({ operation: 'remove', value: '' });
-    expect(screen.getByTestId('rule-value').textContent).toBe('remove takes no value');
+    // layout gave it no choice, then invented "— no value" to fill it. Task
+    // 12 moved on from "remove takes no value" (which described the empty
+    // field, not the rule's effect) to a sentence that says what actually
+    // happens. `queryByRole` still pins that there is nothing to edit here,
+    // not just the wording.
+    renderCard({ operation: 'remove', name: 'X-Trace', value: '' });
+    expect(screen.getByTestId('rule-value').textContent).toBe('"X-Trace"will be removed');
     expect(screen.queryByRole('textbox', { name: 'Header value' })).toBeNull();
+  });
+
+  it('says a remove rule with no name yet will still be removed, without printing empty quotes', () => {
+    // The name clause needs a real name to quote. `""` will be removed reads
+    // as a typo, not a sentence, so the empty case drops the clause entirely
+    // rather than interpolating a blank string into it.
+    renderCard({ operation: 'remove', name: '', value: '' });
+    expect(screen.getByTestId('rule-value').textContent).toBe(
+      "This header will be removed once it's named.",
+    );
   });
 
   it('gives a set rule a real editable value carrying the stored text', () => {

@@ -34,20 +34,24 @@ export interface RuleCardProps {
  * This is where "one line, four button languages" lived: direction was a
  * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
  * switch was a fourth shape again. Now there is one family — a real Switch,
- * a direction Badge carrying an arrow stacked above an operation chip cut
- * from the exact same cloth (same size, same radius, the badge's sibling
- * rather than a fourth shape of its own — their fills differ on purpose,
- * see the chip's own comment below), and a ghost icon Button for delete.
+ * a direction Badge fused to an operation chip cut from the exact same
+ * cloth (same size, same radius, the badge's sibling rather than a fourth
+ * shape of its own — their fills differ on purpose, see the chip's own
+ * comment below), and a ghost icon Button for delete.
  *
  * The gutter reads top-to-bottom as *what this rule does* — direction, then
- * operation, two chips in one column — and the right-hand column reads as
+ * operation, one glued block with a straight seam rather than a gap between
+ * its two halves (owner decision: variant C of four 1:1 renders, picked
+ * knowing the risk a fused shape carries — two buttons that change two
+ * different fields can read as one; the `hover:brightness-110` on each half
+ * is what keeps that discoverable) — and the right-hand column reads as
  * *what it is about* — name, then value, the value now alone on its own
- * line and free to use the column's full width (owner decision: variant B
- * of four 1:1 renders, chip height pinned to the badge's 18px). Name is
- * sans, value is monospace — provenance, not rank, decides the typeface
+ * line and free to use the column's full width. Name is sans, value is
+ * monospace — provenance, not rank, decides the typeface
  * (docs/design/2026-08-07-popup-tight-instrument.html). A `remove` rule has
- * no value, and says so in the place a value would be rather than rendering
- * an empty field.
+ * no value, and its line says what the row will actually do — `"X-Trace"
+ * will be removed` — rather than describing the empty field it doesn't
+ * render.
  *
  * The row's height follows its value: the value wraps and grows rather than
  * truncating, the same bargain the pre-mockup design struck — a value with
@@ -72,6 +76,10 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
   const value = useCommittedDraft(rule.value, (next) => onPatch({ value: next }));
   const removes = rule.operation === 'remove';
+  // The stored name, not `name.draft` — the remove-value sentence is a
+  // static readout of what is actually saved, not of what is mid-edit in
+  // the name field beside it.
+  const removeName = rule.name.trim();
   const DirIcon = TARGET_ICON[rule.target];
 
   /**
@@ -130,18 +138,26 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           className="data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white"
         />
 
-        {/* The gutter: direction over operation, one column, two chips cut
-            from the same cloth. Owner-picked variant B of four 1:1 renders,
-            with one addendum — the chip is pinned to the badge's own 18px
-            height rather than shaved down to save the 3px the taller gutter
-            costs. `gap-0.5` (2px) keeps them two controls, not one: flush
-            against each other would read as a single button that changes
-            both direction and operation on one click, and they change
-            different fields. */}
-        <div className="flex flex-col gap-0.5">
+        {/* The gutter: direction fused to operation, one rounded block.
+            Owner-picked variant C of four 1:1 renders — the fused shape I
+            flagged a concern about when I first drew it: these are two
+            buttons that change two different fields, and a single glued
+            block reads as one control that would flip both on one click.
+            Built anyway (the owner's call, made knowing the concern), with
+            the two-button nature made discoverable on touch — see the
+            `hover:brightness-110` on each half below, which lights up only
+            the half under the cursor, and the two distinct `aria-label`s,
+            unmerged.
+
+            The outer box owns the only curve (`rounded-[4px]`, the corner
+            radius for controls this size) and clips its children
+            (`overflow-hidden`); each half is `rounded-none` and exactly
+            `h-[18px] w-12`, so the seam between them is a straight line, not
+            a gap — `gap-0.5` from the previous (B) round is gone. */}
+        <div className="flex w-12 shrink-0 flex-col overflow-hidden rounded-[4px]">
           <Badge
             asChild
-            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-[4px] border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] ${TARGET_TONE[rule.target]}`}
+            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
           >
             <button
               type="button"
@@ -159,20 +175,28 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               clipping check the same way it was counted as the old op
               button.
 
-              What it actually shares with the badge above it is narrower
-              than "same fill logic": both are opaque token pairs, never
-              repainted by the *row's* state (`data-off`), so the text stays
-              `--muted-foreground` on `--tray` whether the rule is on or
-              off — that is the parity, and it is the only one. The badge
-              *does* still repaint by its own value (`TARGET_TONE`, blue
-              REQ / purple RES); the chip deliberately does not, because
-              three operations is a cycler rather than a two-state
-              direction, and tinting each would spend colour marking a
-              distinction the word "set"/"append"/"remove" already makes on
-              its own. */}
+              Typography now matches the badge exactly rather than only in
+              size: `font-semibold tracking-[0.01em]`, the same 600 weight
+              and 0.11px letter-spacing REQ/RES wears (measured — the two
+              were already both 11px; weight and tracking were the actual
+              gap, and are what read as a size difference). Never repainted
+              by `rule.operation` or by `data-off` — what it shares with the
+              badge above it is narrower than "same fill logic": both are
+              opaque token pairs, never repainted by the *row's* state, so
+              the text stays `--muted-foreground` on `--tray` whether the
+              rule is on or off. The badge *does* still repaint by its own
+              value (`TARGET_TONE`, blue REQ / purple RES); the chip
+              deliberately does not, because three operations is a cycler
+              rather than a two-state direction, and tinting each would
+              spend colour marking a distinction the word
+              "set"/"append"/"remove" already makes on its own — measured
+              across all three operations and both `data-off` states: font
+              size, weight, tracking and box size are identical in every
+              one; only the glyph count (3 vs 6 characters in a fixed 48px
+              box) differs, which is not a font change. */}
           <Badge
             asChild
-            className="h-[18px] w-12 shrink-0 justify-center rounded-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-medium text-muted-foreground"
+            className="h-[18px] w-12 shrink-0 justify-center rounded-none border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
           >
             <button
               type="button"
@@ -184,7 +208,21 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
           </Badge>
         </div>
 
-        <div className="min-w-0 flex-1">
+        {/* `self-stretch` overrides the row's own `items-start` for just this
+            child, so its box is exactly as tall as the gutter (38px) rather
+            than only as tall as its own content (~34.5px, which used to
+            leave 4px of dead space below the value — measured, and the
+            reason the value read as pushed toward the top). `justify-between`
+            inside it pins name to the very top of that box and value to the
+            very bottom, rather than `justify-center`, which was tried first
+            and rejected: centering would have pushed name's own top edge
+            down by half the slack, breaking the one thing the row's
+            `items-start` exists to guarantee — name's first line sitting on
+            the same axis as the badge above it. `justify-between` keeps
+            name's top pixel-identical to before while still using the
+            gutter's full height, which is what "vertically centered against
+            the gutter" turns into once that constraint is held fixed. */}
+        <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch">
           {/* display:block, not flex — a flex child truncates by hard-clipping
               instead of marking the truncation with an ellipsis (see the
               mockup's own comment on .te-name). */}
@@ -207,12 +245,60 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               splitting it with a 44px op cycler. */}
           <div className="mt-0.5 flex min-w-0 items-start">
             {removes ? (
-              <span
-                className="mt-px min-w-0 flex-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
-                data-testid="rule-value"
-              >
-                remove takes no value
-              </span>
+              removeName === '' ? (
+                // Unfinished, not wrong — same reasoning as the problem
+                // block above never accusing a one-click-old row (see this
+                // file's own docblock on `unfinished`). The quoted-name
+                // sentence needs a real name to quote; rather than print
+                // empty quotes ("" will be removed, which reads as a typo
+                // or a bug), the sentence drops the name clause entirely
+                // and says what is still true without it.
+                <span
+                  className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-muted-foreground"
+                  data-testid="rule-value"
+                >
+                  This header will be removed once it&apos;s named.
+                </span>
+              ) : (
+                // Says what the row will do, not that it has nothing to
+                // show — the previous "remove takes no value" described the
+                // field, not the effect. The header name is mono (the one
+                // piece of this sentence the user actually typed — the
+                // global rule) and, unlike the rest of the fixed sentence,
+                // unbounded in length (no cap in lib/model/schema.ts), so it
+                // is the part that gives way: `min-w-0 truncate` plus
+                // `title` on its own span, mirroring AddSiteField.tsx's
+                // "already in the list" note — the same shape of problem
+                // (a bounded row holding one unbounded value beside fixed
+                // words) gets the same fix. The fixed suffix is `shrink-0
+                // whitespace-nowrap` so it is never itself the thing that
+                // clips. `gap-1`, not a text-node space, between them —
+                // flex blockifies both children, and a blockified box's own
+                // leading/trailing white space collapses to nothing at
+                // render (measured in AddSiteField's own history; jsdom's
+                // `textContent` would not have shown the difference).
+                //
+                // `cursor-not-allowed` is the disabled signal, not
+                // `disabled:opacity-50` as suggested — that pseudo-class
+                // only matches a real form control, this is a `<span>`, and
+                // fading `--muted-foreground` toward the background instead
+                // (an unconditional `opacity-50`) measures at 2.1–2.5:1 in
+                // this palette, under the 4.5 floor every other piece of
+                // text in this popup clears — exactly the failure mode this
+                // redesign's whole contrast section exists to keep out.
+                // `cursor-not-allowed` is real vocabulary from the same
+                // shadcn disabled state (`components/ui/input.tsx`) that
+                // costs no contrast.
+                <span
+                  className="mt-px flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
+                  data-testid="rule-value"
+                >
+                  <span className="min-w-0 truncate font-mono" title={removeName}>
+                    &quot;{removeName}&quot;
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap">will be removed</span>
+                </span>
+              )
             ) : (
               <textarea
                 aria-label="Header value"
