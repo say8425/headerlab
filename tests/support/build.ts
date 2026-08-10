@@ -153,13 +153,14 @@ function nearestExistingDir(root: string, dir: string): string {
  *
  * What that exclusion costs, stated as the class it is rather than the one
  * example of it: **a staged removal or rename of any top-level file is
- * invisible.** `git rm vite.config.ts`, `git mv wxt.config.ts wxt.config.mts`,
+ * invisible.** `git rm vitest.config.ts`, `git mv wxt.config.ts wxt.config.mts`,
  * `git rm public/theme.js` when it was the last file in `public/` — in each the
  * path leaves the index, so nothing is listed as missing, the branch that would
  * read the root as a last ancestor never runs, and the only mtime that moved is
- * the root's. That is all 11 tracked top-level files here, `wxt.config.ts`,
- * `vite.config.ts`, `package.json`, `package-lock.json`, `tsconfig.json`,
- * `vitest.config.ts`, `components.json` and `playwright.config.ts` among them.
+ * the root's. That is all 14 tracked top-level files here, `wxt.config.ts`,
+ * `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vitest.config.ts`,
+ * `components.json` and `playwright.config.ts` among them. The first example
+ * was `git rm vite.config.ts` until the pnpm migration actually did it.
  * The *unstaged* forms — `rm` or `mv` without git, which is what a person
  * typing in a terminal usually produces — are caught, because they leave a
  * listed path with nothing to stat and its last existing ancestor is the root.
