@@ -9,8 +9,21 @@ import { startEchoServer, type EchoServer } from './echo-server';
  * reaching for `any`.
  */
 declare const chrome: {
-  storage: { local: { set(items: Record<string, unknown>): Promise<void> } };
-  declarativeNetRequest: { getDynamicRules(): Promise<Array<{ id: number }>> };
+  storage: {
+    local: { set(items: Record<string, unknown>): Promise<void> };
+    session: { get(key: string): Promise<Record<string, unknown>> };
+  };
+  declarativeNetRequest: {
+    getDynamicRules(): Promise<
+      Array<{
+        id: number;
+        action: {
+          requestHeaders?: Array<{ header: string; operation: string; value?: string }>;
+          responseHeaders?: Array<{ header: string; operation: string; value?: string }>;
+        };
+      }>
+    >;
+  };
 };
 
 let echo: EchoServer;
@@ -178,6 +191,106 @@ test('a remove rule strips a header the page would otherwise send', async ({
   expect(xhr.headers['x-keep-me']).toBe('should-survive');
 
   await page.close();
+});
+
+test('a row Chrome would refuse never reaches declarativeNetRequest, and its sibling still does', async ({
+  serviceWorker,
+}) => {
+  // Task 12's real bug. `append` on a request header outside Chrome's
+  // 21-header allowlist (lib/compile/validate.ts's APPEND_ALLOWED_REQUEST_
+  // HEADERS) is diagnosed on screen — but until this fix, compile.ts sent
+  // the same row to Chrome anyway, and `updateDynamicRules` is
+  // transactional: Chrome rejects the *whole batch*, `lastError` fills in
+  // with `ERROR_APPEND_INVALID_REQUEST_HEADER`, and whatever was registered
+  // before the rejected write stays in force — a divergence between what
+  // the screen claims and what is actually being enforced, unstated.
+  //
+  // Two headers in one profile rather than one, deliberately: a single bad
+  // row compiling to zero rules is indistinguishable from reconcile simply
+  // not having run yet, which would make this test pass green for the
+  // wrong reason even on the unfixed code. Waiting for the *good* sibling's
+  // rule to actually appear is a real settling signal — it can only be
+  // true after a real reconcile pass — and then the same rule's own
+  // `requestHeaders` is the direct, positive check that the bad row never
+  // reached the wire, not merely that nothing did.
+  const worker = serviceWorker;
+
+  await worker.evaluate(
+    async (state) => {
+      await chrome.storage.local.set({ state, state$: { v: 2 } });
+    },
+    {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'E2E',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            // e2e's the only pre-granted host — see the other tests in this
+            // file for why domain-caused suppression is not what this test
+            // is about.
+            domains: ['127.0.0.1'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'bad',
+              enabled: true,
+              target: 'request',
+              operation: 'append',
+              name: 'X-Custom-Header',
+              value: 'x',
+            },
+            {
+              id: 'good',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Headerlab-Ok',
+              value: 'yes',
+            },
+          ],
+        },
+      ],
+    },
+  );
+
+  // The good row's rule really did register — the settling signal. Waited
+  // for as a plain length first (a robust, simple predicate for `poll`);
+  // the exact shape is asserted separately below, once, rather than inside
+  // the polled predicate.
+  await expect
+    .poll(
+      async () =>
+        await worker.evaluate(() =>
+          chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length),
+        ),
+      { timeout: 10_000 },
+    )
+    .toBe(1);
+
+  const rules = await worker.evaluate(() => chrome.declarativeNetRequest.getDynamicRules());
+  // The direct, positive check: the one rule that did register carries only
+  // the good header. The bad row is not merely "not causing an error" —
+  // it never reached `declarativeNetRequest` at all.
+  expect(rules[0]!.action.requestHeaders).toEqual([
+    { header: 'X-Headerlab-Ok', operation: 'set', value: 'yes' },
+  ]);
+  expect(rules[0]!.action.responseHeaders).toBeUndefined();
+
+  const syncStatus = await worker.evaluate(() =>
+    chrome.storage.session.get('syncStatus').then((r) => r.syncStatus),
+  );
+  expect(syncStatus).toMatchObject({ lastError: null });
 });
 
 test('the popup renders its rules from stored state', async ({

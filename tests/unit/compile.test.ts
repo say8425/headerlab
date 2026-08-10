@@ -468,6 +468,71 @@ describe('compile emits diagnostics', () => {
     ]);
   });
 
+  it('drops an append-not-allowed row from the compiled rule, but keeps its sibling and the diagnostic', () => {
+    // The real bug (Task 12): compileHeaders used to compile every enabled
+    // row regardless of what validateHeaders had just said about it, so a
+    // row diagnosed error was shown to the user AND sent to Chrome — where
+    // updateDynamicRules rejects the whole batch and the previously
+    // registered rule stays in force. `append` on a request header outside
+    // Chrome's 21-header allowlist is exactly that: diagnosed, and (before
+    // this fix) compiled anyway.
+    const p = profile({
+      headers: [
+        header({ id: 'bad', name: 'X-Custom', operation: 'append' }),
+        header({ id: 'good', name: 'X-Ok', operation: 'set' }),
+      ],
+    });
+    const result = compile(state({ profiles: [p] }));
+    expect(result.diagnostics.map((d) => d.kind)).toEqual(['append-not-allowed']);
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.action.requestHeaders).toEqual([
+      { header: 'X-Ok', operation: 'set', value: 'true' },
+    ]);
+  });
+
+  it('drops a duplicate header row the same way, keeping the first occurrence', () => {
+    const p = profile({
+      headers: [
+        header({ id: 'first', name: 'X-Dup', operation: 'set', value: 'a' }),
+        header({ id: 'second', name: 'X-Dup', operation: 'set', value: 'b' }),
+      ],
+    });
+    const result = compile(state({ profiles: [p] }));
+    expect(result.diagnostics.map((d) => d.kind)).toEqual(['duplicate-header']);
+    expect(result.dynamic[0]!.action.requestHeaders).toEqual([
+      { header: 'X-Dup', operation: 'set', value: 'a' },
+    ]);
+  });
+
+  it('suppresses only the diagnosed row, not the whole profile, when one row is bad and another is fine', () => {
+    // The asymmetry CLAUDE.md states: headers skip per row, domains suppress
+    // the whole profile. This is the row half.
+    const p = profile({
+      headers: [
+        header({ id: 'bad', name: 'X-Custom', operation: 'append' }),
+        header({ id: 'good', name: 'X-Ok', operation: 'set' }),
+      ],
+    });
+    const result = compile(state({ profiles: [p] }));
+    expect(result.dynamic).toHaveLength(1);
+  });
+
+  it("does not let a bad row in one profile suppress another profile's rows", () => {
+    const bad = profile({
+      id: 'bad',
+      order: 0,
+      headers: [header({ id: 'bad', name: 'X-Custom', operation: 'append' })],
+    });
+    const good = profile({ id: 'good', order: 1 });
+    const result = compile(state({ profiles: [bad, good] }));
+    // The bad profile's own row compiles to nothing, so it never emits a
+    // rule at all — only the good profile's does.
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.action.requestHeaders).toEqual([
+      { header: 'X-Debug-Mode', operation: 'set', value: 'true' },
+    ]);
+  });
+
   it('does not report on a disabled profile', () => {
     const base = profile();
     expect(

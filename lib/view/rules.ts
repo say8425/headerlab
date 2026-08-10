@@ -1,3 +1,4 @@
+import { hasRowError } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 export interface RoutedDiagnostics {
@@ -146,7 +147,7 @@ export function ruleTally(
     }
 
     if (!liveness.live) continue;
-    if (problems?.some((d) => d.severity === 'error')) continue;
+    if (hasRowError(problems)) continue;
     live += 1;
   }
 

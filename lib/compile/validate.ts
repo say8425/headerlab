@@ -135,3 +135,26 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
 
   return diagnostics;
 }
+
+/**
+ * Whether a header row has at least one error-severity diagnostic among the
+ * ones already computed for it.
+ *
+ * One predicate, one definition — `suppression.ts`'s own rule, restated for
+ * the row half of it. Two callers used to each decide this independently
+ * (or, for compile.ts, not decide it at all): `compile.ts` must not hand a
+ * diagnosed row to `compileHeaders` — `updateDynamicRules` is transactional,
+ * so one bad row (an append Chrome will refuse, a name that fails the
+ * token, a duplicate) rejects the whole batch and leaves whatever was
+ * registered before still in force, silently, while the screen shows the
+ * new state. The rail's readout (`lib/view/rules.ts`) must not count a row
+ * like that as live either. Both now ask this rather than re-testing
+ * `severity` themselves.
+ *
+ * `incomplete` deliberately does not count: an unfinished row is not
+ * broken, it simply is not a rule yet, and `compileHeaders` already drops it
+ * on its own terms (an empty name fails `HEADER_TOKEN`).
+ */
+export function hasRowError(diagnostics: readonly Diagnostic[] | undefined): boolean {
+  return diagnostics?.some((d) => d.severity === 'error') ?? false;
+}

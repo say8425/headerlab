@@ -4,7 +4,7 @@ import { detectConflicts } from '@/lib/compile/conflicts';
 import { validateFilter } from '@/lib/compile/filterDiagnostics';
 import { allocate } from '@/lib/compile/priority';
 import { isSuppressed } from '@/lib/compile/suppression';
-import { validateHeaders } from '@/lib/compile/validate';
+import { hasRowError, validateHeaders } from '@/lib/compile/validate';
 import { originsForFilter } from '@/lib/permissions/origins';
 import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
 
@@ -35,6 +35,17 @@ export function compile(state: AppState): CompileResult {
   }
   diagnostics.push(...detectConflicts(state.profiles));
 
+  // Grouped once by the id every header-row diagnostic carries, and reused
+  // for every profile/allocation below — the one place this repo asks "does
+  // this row have an error" (lib/compile/validate.ts's hasRowError).
+  const byRow = new Map<string, Diagnostic[]>();
+  for (const d of diagnostics) {
+    if (d.headerRuleId === undefined) continue;
+    const existing = byRow.get(d.headerRuleId);
+    if (existing) existing.push(d);
+    else byRow.set(d.headerRuleId, [d]);
+  }
+
   // globalPause suppresses rules but not analysis: the user must still be able
   // to see problems with their configuration while paused.
   if (!state.globalPause) {
@@ -42,7 +53,12 @@ export function compile(state: AppState): CompileResult {
       const profile = byId.get(alloc.profileId);
       if (!profile) continue;
 
-      const action = compileHeaders(profile.headers);
+      // A row diagnosed error must never reach compileHeaders — see
+      // hasRowError's own comment for why. Fail-open is asymmetric here
+      // (CLAUDE.md): headers skip per row, domains suppress the whole
+      // profile (isSuppressed, below, is the second half).
+      const compilable = profile.headers.filter((rule) => !hasRowError(byRow.get(rule.id)));
+      const action = compileHeaders(compilable);
       if (!action.requestHeaders && !action.responseHeaders) continue;
 
       // Fail the whole profile closed rather than drop the bad domain — the
