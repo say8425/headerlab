@@ -1,0 +1,28 @@
+name: Setup
+description: Node from .nvmrc, pnpm from packageManager, dependencies installed from the lockfile.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+
+    # After setup-node, not before: the shims land in the Node this job will
+    # actually run, and setup-node's own `cache: pnpm` cannot be used because it
+    # resolves the store before pnpm exists.
+    - run: corepack enable
+      shell: bash
+
+    - id: store
+      run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - uses: actions/cache@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-${{ runner.os }}-
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash

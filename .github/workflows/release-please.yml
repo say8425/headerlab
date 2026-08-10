@@ -1,0 +1,43 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # SHA-pinned, unlike the GitHub-published actions elsewhere: this is the
+      # one third-party action here and the only job that holds write scopes.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          release-type: node
+
+      - uses: actions/checkout@v7
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        if: ${{ steps.release.outputs.release_created }}
+
+      # `wxt zip` builds first, so there is no separate build step.
+      - run: pnpm zip
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Attach the unpacked-loadable build to the release
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release upload "$TAG" .output/*.zip
