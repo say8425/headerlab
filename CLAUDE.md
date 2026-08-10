@@ -312,12 +312,20 @@ loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT
 changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the
 workflow this was modelled on: there is no listing, so a `wxt submit` step would need four
 secrets that do not exist and would fail every release. Add it with the listing, not before.
+The first run starts from **zero tags and zero releases**, so it reads the whole history and
+its first changelog will hold every commit this repository has — expected, not a
+misconfiguration. It proposes a version from `package.json`'s `1.0.0` and the
+conventional-commit subjects above it rather than releasing `1.0.0` itself.
 
 **The workflows carry almost no comments, and that is deliberate.** They had many, and they
 restated what this file already says at more length. The reasoning lives here; the YAML
 should be readable as YAML. What stayed is only what is surprising *at the point of use* —
 the two in the composite action, why `--with-deps` runs on a cache hit, why `pnpm zip`
-needs no build step before it, and why one action is a hash.
+needs no build step before it, why one action is a hash, and why the release job checks out
+unconditionally when the action that runs next needs no worktree (the step after it is a
+*local* action, and a local action with no checkout is the "Can't find action.yml" failure;
+hanging that on a conditional step is how it would be discovered on a release rather than
+on a push).
 
 ## Platform traps that have already cost time
 

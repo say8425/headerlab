@@ -74,15 +74,13 @@ describe('the lockfile', () => {
 
     expect(missing).toEqual([]);
   });
-
-  it('resolves every binding it declares to a version', () => {
-    // The npm-era form of the same defect, kept because the subject survives:
-    // the proxy's stale metadata used to produce entries with no version at
-    // all, and `npm ci` then died on the stub rather than on the cause.
-    const versionless = [...LOCKFILE.matchAll(/'(@[a-z0-9-]+\/binding-[a-z0-9-]+)@'/g)].map(
-      (match) => match[1]!,
-    );
-
-    expect(versionless).toEqual([]);
-  });
 });
+
+// A third assertion was written here and removed before it shipped: the
+// npm-era form of this defect, where the proxy's stale metadata produced
+// lockfile entries with no version at all and `npm ci` died on the stub rather
+// than on the cause. It cannot fail under pnpm, and not by luck — npm keyed
+// entries by install path and carried `version` as a separate field, so an
+// empty one was expressible; a pnpm key *is* `name@version`. The subject went
+// with `package-lock.json`, which is the only reason deleting the guard is the
+// right move rather than the lazy one.
