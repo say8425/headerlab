@@ -167,11 +167,28 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             only ever meant to be decorative.
 
             Do not reintroduce `overflow-hidden` here to "keep the corners
-            tidy". Two different rules supply the ring depending on how focus
-            arrives — `:focus-visible` in style.css on one path, Badge's own
-            `focus-visible:*` on the other — and both draw at or outside the
-            border box, so a clip here removes the indicator on both. Nothing
-            about the corners needs it. */}
+            tidy". The ring's own metrics vary by how focus arrives — a real
+            Tab press measured 3px at offset 0 on both halves, a programmatic
+            `.focus()` measured 2px–2.5px at offset 0.5–1 — and three separate
+            measurements disagreed on the exact split, so treat the numbers as
+            unstable. What every one of them agreed on is the only thing this
+            fix rests on: **the offset is never negative**, so the ring always
+            paints at or outside the border box, and any clip on an ancestor
+            the width of the halves erases it. That holds whichever rule wins.
+
+            Which rule does win is *not* established. The built CSS carries
+            only two outline declarations — style.css's unlayered
+            `:focus-visible` (2px, offset 1px) and an `outline: auto` — and
+            neither is the 3px/offset-0 that the keyboard path actually
+            computes; nobody has tracked down where that comes from. It did
+            not need tracking down to fix this, and it is written here so the
+            next person knows it is an open question rather than assuming the
+            comment already answered it.
+
+            One thing that *is* established, because it was tried and failed:
+            `focus-visible:outline-offset-[-3px]` does not work here. The
+            utility compiles into the bundle and lands on the element, and the
+            computed offset stays `0px`. */}
         <div className="flex w-12 shrink-0 flex-col">
           <Badge
             asChild
