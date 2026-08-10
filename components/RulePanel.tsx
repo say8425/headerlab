@@ -120,21 +120,24 @@ export function RulePanel({
             otherwise squeeze the last child to make room, which is what turns
             a fixed row into a 20px sliver at the bottom of a full list.
 
-            `h-[54px]`, not the round `52px` this used to be: the minimum a
-            `RuleCard` row can be moved 51.5px → 54px when Task 11 stacked the
-            operation chip under the direction badge (`RuleCard.tsx`, the
-            gutter's `18 + gap-0.5(2) + 18 = 38px` now exceeds the text
-            column's own ~35px, and `items-start` follows the taller side).
-            This number is derived from that gutter, not independent of it —
-            if the gutter's own chips ever change size again, re-measure a
-            real short-value row (e2e, real Chromium; jsdom does no layout)
-            and update this literal to match, the same way this comment had
-            to be updated this time. Nothing currently guards the two
-            staying in sync; a 2px drift here is cosmetic, not a correctness
-            bug, which is why this is a comment rather than a shared
-            constant. */}
+            `h-[52px]`. This number has now drifted twice from the minimum a
+            `RuleCard` row actually renders at, in two consecutive tasks, in
+            opposite directions: 51.5px → 54px when Task 11 stacked the
+            operation chip under the direction badge (adding a 2px gap
+            between them), then back to 52px when Task 12 fused that same
+            gap away (`RuleCard.tsx`'s gutter — badge + chip, no gap between
+            them — is `18 + 18 = 36px`; `52px` is that plus the row's own
+            `py-2`). The second drift was this exact comment's own
+            prediction going unheeded — it said to re-measure and update
+            this literal when the gutter changed size again, and the gutter
+            changed size again. The e2e suite's "the ghost row at the end of
+            the list matches a minimum rule row's height" now asserts this
+            row's height against a real rule row's height directly, rather
+            than against either literal, so a third drift fails a test
+            instead of waiting for someone to notice a screenshot looks 2px
+            off. */}
         <button
-          className="mb-px flex h-[54px] shrink-0 items-center gap-2.5 bg-tray pr-2 pl-3 text-left"
+          className="mb-px flex h-[52px] shrink-0 items-center gap-2.5 bg-tray pr-2 pl-3 text-left"
           aria-label="New rule at end"
           onClick={onAddRule}
         >

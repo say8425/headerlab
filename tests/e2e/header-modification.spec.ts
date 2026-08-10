@@ -475,6 +475,81 @@ test("a rule row's gutter chips match size, and the row keeps its own height whe
   await page.close();
 });
 
+test("the ghost row at the end of the list matches a minimum rule row's height", async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  // A standalone test rather than folded into the gutter/toggle test above —
+  // Task 11's own review caught exactly that shape of mistake once already
+  // ("the guard is correct but files its failure under someone else's
+  // name"), and a third unrelated claim sharing one already-dual-purpose
+  // test's name would be the same thing again, not a lesson learned from it.
+  //
+  // The claim: RulePanel.tsx's "New rule at end" ghost row is supposed to
+  // read as the next rule's own place in the list, which only holds if it
+  // is exactly as tall as the shortest a real rule row gets. That literal
+  // has drifted twice in two consecutive tasks, in opposite directions —
+  // 51.5 → 54 → 52 — as the gutter above the row changed shape, and the
+  // second drift was this exact comment's own prediction ("re-measure and
+  // update this literal... when the gutter changes size again") going
+  // unheeded. Comparing the two rows' own measured heights to each other,
+  // not to a literal, is what makes a third drift fail here instead of
+  // waiting for someone to notice a screenshot looks 2px off — the same
+  // shape as the badge/chip guard in the gutter test above.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: true,
+            domains: [],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'short',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Short',
+              value: 'ok',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="rule"]').first().waitFor();
+
+  const ruleHeight = await page
+    .getByTestId('rule')
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().height);
+  const ghostHeight = await page
+    .getByRole('button', { name: 'New rule at end' })
+    .evaluate((el) => el.getBoundingClientRect().height);
+
+  expect(ghostHeight - ruleHeight).toBe(0);
+
+  await page.close();
+});
+
 test("nothing in the popup is wider than what holds it, at the popup's own width", async ({
   context,
   extensionId,
