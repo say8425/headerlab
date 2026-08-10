@@ -251,7 +251,7 @@ export default function App() {
   // which reaches `byRow`. `isSuppressed` is called, never restated
   // (lib/compile/suppression.ts).
   const live = active.enabled && !state.globalPause && !isSuppressed(active);
-  const tally = ruleTally(active.headers, routed.byRow, { live });
+  const tally = ruleTally(active.headers, active.id, routed.byRow, { live });
 
   // Why the rules are held, when it is not the rules' own fault. A count
   // reading "1 blocked" beside a perfectly good rule points the user at the
@@ -379,6 +379,7 @@ export default function App() {
       />
       <RulePanel
         rules={active.headers}
+        profileId={active.id}
         byRow={routed.byRow}
         autoFocusFirstRule={autoFocusFirstRule}
         onPatchRule={patchRule}

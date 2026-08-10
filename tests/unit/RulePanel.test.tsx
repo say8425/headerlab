@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RulePanel, type RulePanelProps } from '@/components/RulePanel';
+import { rowKey } from '@/lib/view/rules';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
@@ -30,6 +31,13 @@ function props(over: Partial<RulePanelProps> = {}): RulePanelProps {
     onDeleteRule: vi.fn(),
     onAddRule: vi.fn(),
     ...over,
+    // Set after the spread rather than defaulted inside it: `over` is
+    // `Partial<RulePanelProps>`, so spreading it last widens every property
+    // it touches to include `undefined` — harmless for the optional ones,
+    // but `profileId` is required, and `over.profileId ?? 'p1'` is what
+    // gets its type back to plain `string` for `RulePanelProps` while still
+    // honouring an explicit override.
+    profileId: over.profileId ?? 'p1',
   };
 }
 
@@ -71,7 +79,9 @@ describe('RulePanel', () => {
     // own box and nowhere near rule "a"'s.
     renderPanel({
       rules: [rule({ id: 'a', name: 'Clean' }), rule({ id: 'b', name: 'Broken' })],
-      byRow: new Map([['b', [diag({ severity: 'error', message: 'Header name is empty.' })]]]),
+      byRow: new Map([
+        [rowKey('p1', 'b'), [diag({ severity: 'error', message: 'Header name is empty.' })]],
+      ]),
     });
     const [clean, broken] = screen.getAllByTestId('rule');
     expect(within(clean!).queryAllByTestId('rule-problem')).toEqual([]);

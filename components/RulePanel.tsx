@@ -1,10 +1,18 @@
 import { Plus } from 'lucide-react';
 import { RuleCard } from './RuleCard';
 import { Button } from '@/components/ui/button';
+import { rowKey } from '@/lib/view/rules';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 export interface RulePanelProps {
   rules: readonly HeaderRule[];
+  /**
+   * The profile `rules` come from. Needed because `byRow` is keyed by profile
+   * *and* row — a row id alone is not unique across profiles, and treating it
+   * as though it were let one profile's broken row suppress another's healthy
+   * header. See `rowKey` in `lib/view/rules.ts`.
+   */
+  profileId: string;
   byRow: ReadonlyMap<string, Diagnostic[]>;
   /**
    * Put the caret in the first rule's name on mount.
@@ -64,6 +72,7 @@ export interface RulePanelProps {
  */
 export function RulePanel({
   rules,
+  profileId,
   byRow,
   autoFocusFirstRule,
   onPatchRule,
@@ -105,7 +114,7 @@ export function RulePanel({
           <RuleCard
             key={rule.id}
             rule={rule}
-            diagnostics={byRow.get(rule.id) ?? []}
+            diagnostics={byRow.get(rowKey(profileId, rule.id)) ?? []}
             autoFocus={autoFocusFirstRule && index === 0}
             onPatch={(patch) => onPatchRule(rule.id, patch)}
             onDelete={() => onDeleteRule(rule.id)}
