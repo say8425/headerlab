@@ -55,26 +55,28 @@ describe('RulePanel', () => {
     expect(names).toEqual(['First', 'Second', 'Third']);
   });
 
-  it('places each diagnostic right after the rule it names, and not after the others', () => {
-    // Not a descendant of its rule any more. A rule row is no longer a fixed
-    // 52px — the owner ruled that a value must wrap and grow (c6c9bdb), so
-    // different rules are different heights — but what still holds, and is
-    // what this shape buys, is that a *given* rule's row does not change
-    // height when a problem appears on it (CLAUDE.md, Interface — a control
-    // appearing must not resize what holds it, and that includes a
-    // diagnostic). A problem block nested in the row would make the row's own
-    // height a function of its diagnostic state; as the next sibling it is
-    // still visibly attached to its rule and cannot touch that box.
+  it('renders each diagnostic inside the rule it names, and not on the others', () => {
+    // Task 13: a diagnostic is now a *descendant* of its rule's row, not a
+    // sibling after it — that is the fix for CLAUDE.md's "a control
+    // appearing must not resize what holds it" (Interface). A sibling block
+    // still had a height, and a sibling gaining height still pushed every
+    // *following* row down by that much; a descendant swapping content
+    // inside a slot the row already reserves (line 2, sized for the value it
+    // replaces) cannot resize anything, which a same-height sibling never
+    // could guarantee. RuleCard's own docblock and the e2e suite's "an
+    // error diagnostic replacing a rule row's value never resizes the row
+    // or moves the rows below it" guard carry the height half of this
+    // claim, which jsdom cannot see; this test carries the routing half,
+    // which it can: a problem named for rule "b" renders inside rule "b"'s
+    // own box and nowhere near rule "a"'s.
     renderPanel({
       rules: [rule({ id: 'a', name: 'Clean' }), rule({ id: 'b', name: 'Broken' })],
       byRow: new Map([['b', [diag({ severity: 'error', message: 'Header name is empty.' })]]]),
     });
     const [clean, broken] = screen.getAllByTestId('rule');
     expect(within(clean!).queryAllByTestId('rule-problem')).toEqual([]);
-    expect(clean!.nextElementSibling?.getAttribute('data-testid')).not.toBe('rule-problem');
-    const problem = broken!.nextElementSibling;
-    expect(problem?.getAttribute('data-testid')).toBe('rule-problem');
-    expect(problem?.textContent).toBe('!Header name is empty.');
+    const problem = within(broken!).getByTestId('rule-problem');
+    expect(problem.textContent).toBe('Header name is empty.');
   });
 
   it('renders no cards and still offers a way to make one when there are no rules', () => {

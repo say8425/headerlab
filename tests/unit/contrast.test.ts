@@ -114,7 +114,6 @@ const COLOR_TOKENS = [
   '--pending',
   '--pending-bg',
   '--destructive',
-  '--destructive-bg',
   '--req',
   '--req-bg',
   '--res',
@@ -209,6 +208,19 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--muted-foreground',
     '--card',
   ],
+  // Task 13: an `error`-severity diagnostic takes the same value-column slot
+  // outright, ahead of even a `remove` sentence — see RuleCard.tsx's own
+  // comment on `errorDiag`. No `--rowoff` counterpart, deliberately, unlike
+  // the pair above: every source of a row diagnostic in this codebase
+  // (`validateHeaders`, `detectConflicts`) skips a disabled rule before
+  // computing one, so an error message painted on a switched-off row is not
+  // a state this popup can reach — asserting that pair would guard a
+  // combination that cannot render, same failure this file's docblock names.
+  [
+    'error message — the value column of a rule the compiler excluded, on a live row',
+    '--destructive',
+    '--card',
+  ],
   // The ghost row that ends the rule list is toned as what it is — the first
   // empty slot in the well — so its label and its dashed plus are read against
   // `--tray`, not against the panel. The outline is load-bearing (it is the
@@ -218,22 +230,30 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ["the ghost row's plus glyph — inside its dashed chip", '--muted-foreground', '--tray'],
   ['REQ direction badge — the Badge wearing an ArrowUp, data-dir=request', '--req', '--req-bg'],
   ['RES direction badge — the Badge wearing an ArrowDown, data-dir=response', '--res', '--res-bg'],
-  [
-    'warning inside a rule card — the diagnostic line below the row',
-    '--foreground',
-    '--pending-bg',
-  ],
-  [
-    'error inside a rule card — the diagnostic line below the row, error severity',
-    '--foreground',
-    '--destructive-bg',
-  ],
-  ['the "!" in a warning badge — the diagnostic icon', '--pending-bg', '--pending'],
-  [
-    'the "!" in an error badge — the diagnostic icon, error severity',
-    '--destructive-bg',
-    '--destructive',
-  ],
+  // Task 13 moved a rule's diagnostic off a sibling block below the row
+  // (CLAUDE.md: a control appearing must not resize what holds it, and a
+  // block gaining height still pushed every following row down by that
+  // much) into two slots that already have a size. Both pairs that named
+  // "the diagnostic line below the row" — text on `--pending-bg` for a
+  // warning, text on `--destructive-bg` for an error — went with the block:
+  // there is no coloured fill left anywhere in a rule row for either
+  // severity, so a foreground-on-that-fill pair would guard a combination
+  // that renders nowhere, the exact failure this file's own docblock names.
+  // `--destructive-bg` itself is gone from the palette (`style.css`, both
+  // themes) and the `@theme inline` bridge that exposed it as
+  // `bg-destructive-bg`/`text-destructive-bg` — zero consumers left in
+  // `components/`/`entrypoints/` once the block did, checked before
+  // deleting (R2). `--pending-bg` stays: `SiteRow`'s Grant button still
+  // paints with it, and so does the marker two lines down.
+  //
+  // An error's message is now plain text on the row's own fill — see the
+  // new `--destructive` pair among the rule-row text pairs above.
+  //
+  // A warning's marker keeps the exact circle-and-glyph pair the old badge
+  // wore (`--pending-bg` glyph on `--pending` fill) — Task 13 relocated it
+  // rather than inventing a new one, so only its description changes here;
+  // the tokens are identical to what this entry always asserted.
+  ['the "!" in the warning marker beside a header name', '--pending-bg', '--pending'],
 
   // --- the tray: the well the rule rows sit in (`rule-list` in RulePanel.tsx)
   //     and, at the same tone, the ghost row at the end of the list. ---

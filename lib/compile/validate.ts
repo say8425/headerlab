@@ -94,7 +94,12 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
+        // Remedy first (Task 13): this renders truncated at ~338px/11px when
+        // it takes over a rule row's value line, same as every other
+        // bounded-row-meets-unbounded-text spot in this popup, and the tail
+        // is what gets cut. The character set the user can actually act on
+        // has to survive that; the fact of the failure is what can afford to.
+        message: `Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons. "${name}" is not a valid header name.`,
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -107,9 +112,13 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
+        // Remedy first (Task 13) — same reasoning as invalid-header-name
+        // above: what to do ("Use Set instead…") used to be the clause a
+        // truncated row cut, with the clause the user can do nothing about
+        // left standing.
         message:
-          `Chrome does not allow appending to the request header "${name}". ` +
-          'Use Set instead, or switch this row to a response header.',
+          'Use Set instead, or switch this row to a response header. ' +
+          `Chrome does not allow appending to the request header "${name}".`,
       });
     }
 
@@ -133,7 +142,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // is the one that stays home; the earlier row is the one still going
         // out, deterministically, by list order rather than by Chrome's own
         // unspecified resolution between two conflicting entries.
-        message: `"${name}" is set more than once — this row won't be sent. An earlier row already sets it.`,
+        //
+        // Remedy first (Task 13), same reasoning as the other two error
+        // messages in this file: what to do about it survives truncation,
+        // not just the fact that something is wrong.
+        message: `Rename this row or delete it. An earlier row already sets "${name}".`,
       });
     }
     seen.add(key);

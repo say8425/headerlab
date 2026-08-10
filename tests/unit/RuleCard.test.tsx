@@ -352,6 +352,29 @@ describe('RuleCard tab order', () => {
       'Delete rule',
     ]);
   });
+
+  it('skips the warning marker — it is not a control, so it does not enter the sequence', async () => {
+    // Task 13's marker beside the header name is supplementary information,
+    // not a control of its own (see its own comment in RuleCard.tsx), so it
+    // must not add a stop. Same six-step sequence as the first test in this
+    // block, now with a warning present, to prove that rather than assume it.
+    render(
+      <RuleCard
+        rule={rule({ name: 'X-Test' })}
+        diagnostics={[diag({ severity: 'warning', message: 'a live conflict' })]}
+        onPatch={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(await walk(6)).toEqual([
+      'X-Test enabled',
+      'Direction: request',
+      'Operation: set',
+      'Header name',
+      'Header value',
+      'Delete rule',
+    ]);
+  });
 });
 
 describe('RuleCard value slot', () => {
@@ -439,29 +462,49 @@ describe('RuleCard geometry', () => {
     expect(shapes[0]!.valueText).toBe(base.value);
   });
 
-  it("changes only colour and weight when a diagnostic appears, never the row's own structure", () => {
-    // The diagnostic renders as a sibling of the row, not inside it — this
-    // pins that half of the claim: adding one must not alter the row
-    // element's own children at all, not merely "not by much."
+  it('replaces the value field with the error message, and never renders both at once', () => {
+    // Task 13. An `error`-severity diagnostic means `hasRowError` has
+    // already excluded this row from `compileHeaders` — the stored value is
+    // not in effect, so showing it would show something that is not real.
+    // It takes line 2 outright rather than appearing beside the value,
+    // which is why `rule-value` must be genuinely absent here, not merely
+    // empty — this is the "state a `rule-value` assertion must name rather
+    // than assume" case the brief called out.
     const props = {
       rule: rule({ value: 'a value long enough to wrap onto more than one line' }),
       onPatch: () => {},
       onDelete: () => {},
     };
     const clean = render(<RuleCard {...props} diagnostics={[]} />);
-    const cleanStructure = clean.container.querySelector('[data-testid="rule"]')!.outerHTML;
+    expect(screen.getByTestId('rule-value')).toBeTruthy();
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
     clean.unmount();
 
-    const broken = render(
+    render(
       <RuleCard
         {...props}
         diagnostics={[diag({ severity: 'error', message: 'a real problem' })]}
       />,
     );
-    const brokenStructure = broken.container.querySelector('[data-testid="rule"]')!.outerHTML;
-    broken.unmount();
+    expect(screen.queryByTestId('rule-value')).toBeNull();
+    expect(screen.getByTestId('rule-problem').textContent).toBe('a real problem');
+  });
 
-    expect(brokenStructure).toBe(cleanStructure);
+  it('leaves the value field alone for a warning, and marks the row beside its name instead', () => {
+    // The opposite half of the same split. `profile-conflict` (the only
+    // `warning` kind today) means the row *is* live — hiding its value
+    // would show the user less than the truth — so `rule-value` must
+    // survive untouched, and the diagnostic gets a marker beside the name
+    // rather than line 2.
+    renderCard(
+      { value: 'still going out' },
+      { diagnostics: [diag({ severity: 'warning', message: 'a live conflict' })] },
+    );
+    expect((screen.getByTestId('rule-value') as HTMLTextAreaElement).value).toBe('still going out');
+    expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+    const marker = screen.getByTestId('rule-warning');
+    expect(marker.getAttribute('title')).toBe('a live conflict');
+    expect(marker.getAttribute('aria-label')).toBe('a live conflict');
   });
 });
 
@@ -469,9 +512,10 @@ describe('RuleCard problems', () => {
   it('renders nothing extra when the rule is fine', () => {
     renderCard();
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+    expect(screen.queryAllByTestId('rule-warning')).toEqual([]);
   });
 
-  it('shows no problem block for a rule that is merely unfinished', () => {
+  it('shows no problem for a rule that is merely unfinished', () => {
     // The complaint this fixes: pressing "New rule" put a red "Header name is
     // empty." on a row created one click ago. The empty field and its
     // placeholder already say the rule is unfinished, and they say it without
@@ -489,6 +533,7 @@ describe('RuleCard problems', () => {
       },
     );
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
+    expect(screen.queryAllByTestId('rule-warning')).toEqual([]);
     expect(screen.getByTestId('rule').getAttribute('data-unfinished')).toBe('true');
   });
 
@@ -505,8 +550,7 @@ describe('RuleCard problems', () => {
         ],
       },
     );
-    const lines = screen.getAllByTestId('rule-problem');
-    expect(lines.map((l) => l.textContent)).toEqual(['!a real problem']);
+    expect(screen.getByTestId('rule-problem').textContent).toBe('a real problem');
   });
 
   it('marks a finished rule as finished, so the unfinished flag means something', () => {
@@ -516,7 +560,12 @@ describe('RuleCard problems', () => {
     expect(screen.getByTestId('rule').getAttribute('data-unfinished')).toBeNull();
   });
 
-  it('shows one line per diagnostic, in order, with its severity marked', () => {
+  it('shows only the error in line 2 and a marker for the warning when a row carries both', () => {
+    // Not "one line per diagnostic" any more (Task 13, replacing the test
+    // this one used to be) — an error takes line 2 outright and a warning
+    // never touches it, so a row carrying one of each shows exactly one
+    // `rule-problem` (the error) and one `rule-warning` (the warning), not
+    // two stacked lines.
     renderCard(
       {},
       {
@@ -526,8 +575,55 @@ describe('RuleCard problems', () => {
         ],
       },
     );
-    const lines = screen.getAllByTestId('rule-problem');
-    expect(lines.map((l) => l.textContent)).toEqual(['!first', '!second']);
-    expect(lines.map((l) => l.getAttribute('data-severity'))).toEqual(['error', 'warning']);
+    expect(screen.getAllByTestId('rule-problem').map((l) => l.textContent)).toEqual(['first']);
+    expect(screen.getByTestId('rule-problem').getAttribute('data-severity')).toBe('error');
+    expect(screen.getByTestId('rule-warning').getAttribute('title')).toBe('second');
+  });
+
+  it('picks the first error when a row somehow carries more than one', () => {
+    // Reachable in practice: `validateHeaders` stops at the first *token*
+    // failure but does not stop after `append-not-allowed`, so a row can
+    // still pick up `duplicate-header` behind it — two error diagnostics on
+    // one row. `.find`, not `.filter`, so this shows the first rather than
+    // piling both onto a row that is already not going anywhere.
+    renderCard(
+      {},
+      {
+        diagnostics: [
+          diag({ severity: 'error', message: 'first error' }),
+          diag({ severity: 'error', message: 'second error' }),
+        ],
+      },
+    );
+    expect(screen.getByTestId('rule-problem').textContent).toBe('first error');
+  });
+
+  it('joins more than one warning into the same marker rather than adding a second', () => {
+    renderCard(
+      {},
+      {
+        diagnostics: [
+          diag({ severity: 'warning', message: 'one conflict' }),
+          diag({ severity: 'warning', message: 'another conflict' }),
+        ],
+      },
+    );
+    expect(screen.getAllByTestId('rule-warning')).toHaveLength(1);
+    expect(screen.getByTestId('rule-warning').getAttribute('title')).toBe(
+      'one conflict another conflict',
+    );
+  });
+
+  it("lets an error outrank a remove rule's own sentence", () => {
+    // Priority item 1 of the brief: `remove` + `error` together (a
+    // duplicated remove is the real-world example) show the error, not
+    // "will be removed" — what stops the row from running outranks what it
+    // would have done if it had run.
+    renderCard(
+      { operation: 'remove', name: 'X-Trace' },
+      { diagnostics: [diag({ severity: 'error', message: 'duplicated' })] },
+    );
+    expect(screen.getByTestId('rule-problem').textContent).toBe('duplicated');
+    expect(screen.queryByText(/will be removed/)).toBeNull();
   });
 });

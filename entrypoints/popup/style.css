@@ -145,7 +145,6 @@
     --pending: #8a5200;
     --pending-bg: #fbefdb;
     --destructive: #b3261e;
-    --destructive-bg: #fbe6e3;
     --req: #1a56c4;
     --req-bg: #e4ecfb;
     --res: #6a2fbd;
@@ -182,7 +181,6 @@
     --pending: #f0b45c;
     --pending-bg: #2c2113;
     --destructive: #f08c7c;
-    --destructive-bg: #331916;
     --req: #8dc5f7;
     --req-bg: #0f3050;
     --res: #c6abf7;
@@ -210,7 +208,6 @@
     --color-pending: var(--pending);
     --color-pending-bg: var(--pending-bg);
     --color-destructive: var(--destructive);
-    --color-destructive-bg: var(--destructive-bg);
     --color-req: var(--req);
     --color-req-bg: var(--req-bg);
     --color-res: var(--res);

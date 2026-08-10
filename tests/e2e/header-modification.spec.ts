@@ -600,6 +600,154 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
   await page.close();
 });
 
+test("an error diagnostic replacing a rule row's value never resizes the row or moves the rows below it", async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  // Task 13. The owner found switching a row to `append` made a diagnostic
+  // block appear below it, pushing every row after it down by 48.8px —
+  // almost exactly one row height (block 42.8px). CLAUDE.md's Interface
+  // section already forbade this in as many words ("a control appearing
+  // must not resize what holds it… applies to any element whose presence is
+  // state-dependent") — the rail already had a guard for its own version of
+  // this defect (`'a control appearing in the rail does not move
+  // anything'`, below); the rule panel's diagnostic never had one.
+  //
+  // The fix moved an `error`-severity diagnostic into line 2, the value
+  // slot the row already reserves, in place of the value it replaces rather
+  // than beside or below it — see RuleCard.tsx's own docblock. This is the
+  // geometric half of that claim, measured the same way the rail's guard
+  // measures its own: a box's coordinates, compared before and after a real
+  // state transition, not read off a class name.
+  //
+  // Only the `error` path is guarded here. The `warning` path (a marker
+  // beside the header name, for `profile-conflict`) is not — see the
+  // comment at the bottom of this test for why that is not an omission.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: true,
+            domains: [],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            // Not on Chrome's request-append allowlist (lib/compile/validate.ts),
+            // so cycling this row to `append` raises `append-not-allowed` —
+            // the same real error the compile-bug guard above this one uses,
+            // reused here for the same reason: a defect this codebase has
+            // already measured rather than an invented one.
+            {
+              id: 'target',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Custom-Trace',
+              value: 'x',
+            },
+            // The fixed reference row. Never touched — only its position is
+            // asserted, which is what makes it a neighbour rather than a
+            // second subject.
+            {
+              id: 'below',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Below',
+              value: 'y',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 748, height: 600 });
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="rule"]').first().waitFor();
+
+  const boxes = () =>
+    page.evaluate(() => {
+      const round = (r: DOMRect) =>
+        [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
+      const rows = [...document.querySelectorAll('[data-testid="rule"]')].map((el) =>
+        round(el.getBoundingClientRect()),
+      );
+      const ghost = document.querySelector('[aria-label="New rule at end"]');
+      return { rows, ghost: ghost ? round(ghost.getBoundingClientRect()) : null };
+    });
+
+  const target = page.locator('[data-testid="rule"]').first();
+  const opButton = target.getByRole('button', { name: /Operation/ });
+
+  const before = await boxes();
+  // Presence first, same reasoning as every other box-comparison guard in
+  // this file: an empty pair of arrays would agree with anything.
+  expect(before.rows, 'both seeded rows must have rendered').toHaveLength(2);
+  expect(before.ghost, 'the ghost row must have rendered').not.toBeNull();
+  expect(
+    await target.getByTestId('rule-value').count(),
+    'the target row starts with a real value field, not an error',
+  ).toBe(1);
+
+  // set -> append. Real state, not a synthetic prop: this is the same
+  // reconcile loop a user's click drives.
+  await opButton.click();
+  await expect(target.getByTestId('rule-problem')).toBeVisible();
+  await expect(target.getByTestId('rule-value')).toHaveCount(0);
+  expect(await boxes(), 'the error message arriving must move nothing').toEqual(before);
+
+  // append -> remove. `append-not-allowed` no longer applies once the
+  // operation isn't `append`, so the error clears — the "leaving" half,
+  // without which an assertion only on arrival could pass against a layout
+  // frozen at the wrong moment.
+  await opButton.click();
+  await expect(target.getByTestId('rule-problem')).toHaveCount(0);
+  expect(await boxes(), 'the error message leaving must move nothing').toEqual(before);
+
+  // remove -> set. Back to the exact seeded state, so `before` is what this
+  // asserts against rather than a second, only-approximately-equal snapshot.
+  await opButton.click();
+  await expect(target.getByTestId('rule-value')).toHaveCount(1);
+  expect(await boxes(), 'a full round trip must return to the exact starting geometry').toEqual(
+    before,
+  );
+
+  await page.close();
+
+  // Why no warning-path guard: `profile-conflict` needs two enabled,
+  // overlapping profiles, and this popup cannot stably show two. Measured
+  // directly (temporary script, not committed) rather than assumed from
+  // reading App.tsx: seeded two profiles ordered so the one carrying the
+  // conflict is the one `resolveSingleProfile` would keep, then polled the
+  // popup's DOM every 40ms from the first paint. `rule-warning` was never
+  // present at any sampled frame, and storage already held only the
+  // surviving profile by the very first sample — the truncating effect
+  // CLAUDE.md's Known Gaps section documents ("the popup shows one rule
+  // set… App.tsx truncates storage to it") runs faster than anything this
+  // suite can observe, not merely faster than convenient. A two-profile
+  // conflict is not a state a real popup session can hold long enough to
+  // measure, so no e2e guard here would be measuring the real thing — the
+  // marker's own geometry-safety is covered instead where it can actually
+  // be driven: RuleCard.test.tsx's "RuleCard problems" and "RuleCard
+  // geometry" describe blocks, via the component directly.
+});
+
 test("the ghost row at the end of the list matches a minimum rule row's height", async ({
   context,
   extensionId,

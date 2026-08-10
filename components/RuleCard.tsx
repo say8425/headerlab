@@ -69,11 +69,29 @@ export interface RuleCardProps {
  * a *given* rule's row must not change height when it is toggled on or off,
  * or when a problem appears on it — that is state changing geometry, which
  * this repo cares about most. Toggling only ever changes colour/weight on
- * fixed-metric elements (never the text content, never what wraps where),
- * and a diagnostic renders as a sibling below the row, never inside it — so
- * neither can touch the row's own box. Different *rules* can be different
- * heights; a single rule's height is never a function of its own on/off/
- * problem state.
+ * fixed-metric elements (never the text content, never what wraps where).
+ *
+ * A diagnostic used to guarantee this by rendering as a sibling block below
+ * the row (Tasks 7–12) — outside the row's own box, so it plainly couldn't
+ * resize it. Task 13 found the same box could be pushed 48.8px anyway: the
+ * block itself has height, and a sibling gaining height still shoves every
+ * *following* row's box down by exactly that much, which is the CLAUDE.md
+ * violation ("a control appearing must not resize what holds it… applies to
+ * any element whose presence is state-dependent") a sibling shape cannot
+ * avoid no matter how it is styled.
+ *
+ * The fix is not "keep it outside the row" but "give it a slot that already
+ * has a size." An `error`-severity diagnostic (the row is not sent to
+ * Chrome, per `hasRowError`) takes over line 2 in place of the value it
+ * would otherwise show — the same slot a `remove` rule's sentence already
+ * occupies, sized identically because it is the identical box with
+ * different content. A `warning`-severity diagnostic (`profile-conflict` —
+ * the row *is* sent, so hiding its value would be showing less than the
+ * truth) adds a small fixed-size marker beside the header name instead,
+ * with the full message in its `title`/`aria-label`. Neither adds a new
+ * box; both swap content inside one that was already there. Different
+ * *rules* can be different heights; a single rule's height is never a
+ * function of its own on/off/problem state.
  */
 export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: RuleCardProps) {
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
@@ -86,13 +104,13 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   const DirIcon = TARGET_ICON[rule.target];
 
   /**
-   * An unfinished rule shows no problem block.
+   * An unfinished rule shows no problem at all, in either slot.
    *
    * Pressing "New rule" used to produce a red "Header name is empty." on a row
    * created one click ago — the product manufacturing an invalid object and
    * then telling the user off for it. The row is already self-evidently
    * unfinished: its name field is empty and showing its placeholder, which is
-   * both the marker and the thing to do about it. A block repeating that in red
+   * both the marker and the thing to do about it. Repeating that in red
    * adds nothing but alarm.
    *
    * Not hidden, though. The state is counted and named in the rail's readout,
@@ -105,19 +123,46 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
   const problems = diagnostics.filter((d) => d.severity !== 'incomplete');
   const unfinished = diagnostics.length !== problems.length;
 
+  /**
+   * The two consequences a row diagnostic can have, and why they get
+   * different treatment (Task 13).
+   *
+   * `error` means `hasRowError` has already excluded this row from
+   * `compileHeaders` — nothing is sent for it, so showing its stored value
+   * would show a value that is not in effect. It takes line 2 outright,
+   * ahead of even a `remove` rule's own sentence: what stops a row from
+   * running is a more urgent fact than what the row would do if it ran. At
+   * most one is ever shown (`.find`, not `.filter`) — `validateHeaders`
+   * already stops at the first error a row can carry, so more than one
+   * would only happen if a future diagnostic source disagreed with that,
+   * and showing the first is the same "don't pile on a broken row" call
+   * `validateHeaders` itself makes.
+   *
+   * `warning` means the opposite: the row *is* live (`profile-conflict` is
+   * the only kind today), so its value is real and hiding it would be
+   * showing the user less than the truth. It earns a marker beside the
+   * header name instead of touching line 2 at all — `.filter`, not
+   * `.find`, because nothing here caps a row at one warning the way
+   * `validateHeaders` caps it at one error.
+   */
+  const errorDiag = problems.find((d) => d.severity === 'error');
+  const warningDiags = problems.filter((d) => d.severity === 'warning');
+
   return (
-    <>
-      <div
-        className="group/rule mb-px flex items-start gap-2.5 bg-card py-2 pr-2 pl-3 data-[off]:bg-rowoff"
-        data-testid="rule"
-        data-off={!rule.enabled || undefined}
-        data-unfinished={unfinished || undefined}
-      >
-        <Switch
-          aria-label={`${rule.name || 'Unnamed'} enabled`}
-          checked={rule.enabled}
-          onCheckedChange={(checked) => onPatch({ enabled: checked })}
-          /* shadcn's default checked track is `--primary` (ink) — this is a
+    // No longer a Fragment wrapping a sibling — Task 13 moved the last thing
+    // that sat beside this row (the diagnostic block) inside it, so this is
+    // now the component's one and only returned element.
+    <div
+      className="group/rule mb-px flex items-start gap-2.5 bg-card py-2 pr-2 pl-3 data-[off]:bg-rowoff"
+      data-testid="rule"
+      data-off={!rule.enabled || undefined}
+      data-unfinished={unfinished || undefined}
+    >
+      <Switch
+        aria-label={`${rule.name || 'Unnamed'} enabled`}
+        checked={rule.enabled}
+        onCheckedChange={(checked) => onPatch({ enabled: checked })}
+        /* shadcn's default checked track is `--primary` (ink) — this is a
              live/on state, so it wears the same green every other "on"
              indicator in the popup does (the rail's own switch, the
              readout's live dot), not the neutral ink token. Unchecked is
@@ -138,10 +183,10 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
              were `#fff` outright too, and the mockup's `.te-sw i` never
              varies by theme; a switch knob reads as a physical part, not
              themed ink. */
-          className="data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white"
-        />
+        className="data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white"
+      />
 
-        {/* The gutter: direction fused to operation, one rounded block.
+      {/* The gutter: direction fused to operation, one rounded block.
             Owner-picked variant C of four 1:1 renders — the fused shape I
             flagged a concern about when I first drew it: these are two
             buttons that change two different fields, and a single glued
@@ -189,22 +234,22 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             `focus-visible:outline-offset-[-3px]` does not work here. The
             utility compiles into the bundle and lands on the element, and the
             computed offset stays `0px`. */}
-        <div className="flex w-12 shrink-0 flex-col">
-          <Badge
-            asChild
-            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
+      <div className="flex w-12 shrink-0 flex-col">
+        <Badge
+          asChild
+          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
+        >
+          <button
+            type="button"
+            aria-label={`Direction: ${rule.target}`}
+            onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
           >
-            <button
-              type="button"
-              aria-label={`Direction: ${rule.target}`}
-              onClick={() => onPatch({ target: TARGET_NEXT[rule.target] })}
-            >
-              <DirIcon aria-hidden="true" />
-              {TARGET_LABEL[rule.target]}
-            </button>
-          </Badge>
+            <DirIcon aria-hidden="true" />
+            {TARGET_LABEL[rule.target]}
+          </button>
+        </Badge>
 
-          {/* No icon (unlike the direction badge above it), so this stays a
+        {/* No icon (unlike the direction badge above it), so this stays a
               true leaf node — text only, no child element — which is what
               keeps it counted by the crowding e2e guard's leaf-based
               clipping check the same way it was counted as the old op
@@ -229,21 +274,21 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               size, weight, tracking and box size are identical in every
               one; only the glyph count (3 vs 6 characters in a fixed 48px
               box) differs, which is not a font change. */}
-          <Badge
-            asChild
-            className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
+        <Badge
+          asChild
+          className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
+        >
+          <button
+            type="button"
+            aria-label={`Operation: ${rule.operation}`}
+            onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
           >
-            <button
-              type="button"
-              aria-label={`Operation: ${rule.operation}`}
-              onClick={() => onPatch({ operation: OP_NEXT[rule.operation] })}
-            >
-              {rule.operation}
-            </button>
-          </Badge>
-        </div>
+            {rule.operation}
+          </button>
+        </Badge>
+      </div>
 
-        {/* `self-stretch` overrides the row's own `items-start` for just this
+      {/* `self-stretch` overrides the row's own `items-start` for just this
             child, so its box is exactly as tall as the gutter (36px, two
             18px badges with no gap between them) rather than only as tall as
             its own content (34px: 18px name + 2px gap + 14px value, which
@@ -258,13 +303,22 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             name's top pixel-identical to before while still using the
             gutter's full height, which is what "vertically centered against
             the gutter" turns into once that constraint is held fixed. */}
-        <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch">
-          {/* display:block, not flex — a flex child truncates by hard-clipping
-              instead of marking the truncation with an ellipsis (see the
-              mockup's own comment on .te-name). */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch">
+        {/* Line 1: name, and — since Task 13 — the warning marker beside
+              it when one applies. `flex items-center` regardless of whether
+              a marker is actually rendered, so the name Input's own box
+              never moves between the two states; only `flex-1` replaces
+              `w-full` to make room for a marker that may or may not be
+              there, which costs nothing when it isn't (a lone `flex-1`
+              child fills its row exactly as `w-full` did).
+              display:block, not flex, *inside* the Input itself — a flex
+              child truncates by hard-clipping instead of marking the
+              truncation with an ellipsis (see the mockup's own comment on
+              .te-name). */}
+        <div className="flex min-w-0 items-center gap-1">
           <Input
             aria-label="Header name"
-            className="h-[18px] w-full min-w-0 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2 dark:bg-transparent"
+            className="h-[18px] min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent p-0 text-[12px] leading-[18px] font-semibold text-foreground shadow-none outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground hover:border-b-border focus-visible:border-b-ring focus-visible:ring-0 group-data-off/rule:font-medium group-data-off/rule:text-foreground-2 dark:bg-transparent"
             placeholder="header-name"
             autoFocus={autoFocus}
             value={name.draft}
@@ -276,71 +330,132 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             }}
           />
 
-          {/* Line 2 is the value alone now — operation moved into the
+          {/* The warning marker. Reuses the exact circle-and-glyph pair
+                the old below-the-row block wore for its "!" icon
+                (`bg-pending`/`--pending` fill, `text-pending-bg` glyph) —
+                Task 13 relocated it rather than inventing a new one, per
+                CLAUDE.md's "one predicate, one definition" spirit applied
+                to colour: the same severity should look the same wherever
+                it appears. `title` for a mouse hover, `aria-label` so the
+                message still reaches a screen reader without one — `title`
+                alone is not reliably exposed as an accessible name. Not
+                `aria-hidden`: unlike the direction/operation badges, this
+                is the *only* place the warning's text exists on screen, so
+                hiding it from the accessibility tree would be the exact
+                silent failure this popup exists to not have. Not
+                focusable — it is supplementary to the name field beside
+                it, not a control of its own, so it does not enter the tab
+                sequence (see `RuleCard tab order` in the test file: this
+                must never appear in that list). */}
+          {warningDiags.length > 0 && (
+            <span
+              data-testid="rule-warning"
+              title={warningDiags.map((d) => d.message).join(' ')}
+              aria-label={warningDiags.map((d) => d.message).join(' ')}
+              className="flex size-3.5 shrink-0 items-center justify-center rounded-full bg-pending text-[9px] font-bold text-pending-bg"
+            >
+              !
+            </span>
+          )}
+        </div>
+
+        {/* Line 2 is the value alone now — operation moved into the
               gutter above — so it takes the column's full width instead of
-              splitting it with a 44px op cycler. */}
-          <div className="mt-0.5 flex min-w-0 items-start">
-            {removes ? (
-              removeName === '' ? (
-                // Unfinished, not wrong — same reasoning as the problem
-                // block above never accusing a one-click-old row (see this
-                // file's own docblock on `unfinished`). The quoted-name
-                // sentence needs a real name to quote; rather than print
-                // empty quotes ("" will be removed, which reads as a typo
-                // or a bug), the sentence drops the name clause entirely
-                // and says what is still true without it.
-                <span
-                  className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-muted-foreground"
-                  data-testid="rule-value"
-                >
-                  This header will be removed once it&apos;s named.
-                </span>
-              ) : (
-                // Says what the row will do, not that it has nothing to
-                // show — the previous "remove takes no value" described the
-                // field, not the effect. The header name is mono (the one
-                // piece of this sentence the user actually typed — the
-                // global rule) and, unlike the rest of the fixed sentence,
-                // unbounded in length (no cap in lib/model/schema.ts), so it
-                // is the part that gives way: `min-w-0 truncate` plus
-                // `title` on its own span, mirroring AddSiteField.tsx's
-                // "already in the list" note — the same shape of problem
-                // (a bounded row holding one unbounded value beside fixed
-                // words) gets the same fix. The fixed suffix is `shrink-0
-                // whitespace-nowrap` so it is never itself the thing that
-                // clips. `gap-1`, not a text-node space, between them —
-                // flex blockifies both children, and a blockified box's own
-                // leading/trailing white space collapses to nothing at
-                // render (measured in AddSiteField's own history; jsdom's
-                // `textContent` would not have shown the difference).
-                //
-                // `cursor-not-allowed` is the disabled signal, not
-                // `disabled:opacity-50` as suggested — that pseudo-class
-                // only matches a real form control, this is a `<span>`, and
-                // fading `--muted-foreground` toward the background instead
-                // (an unconditional `opacity-50`) measures at 2.1–2.5:1 in
-                // this palette, under the 4.5 floor every other piece of
-                // text in this popup clears — exactly the failure mode this
-                // redesign's whole contrast section exists to keep out.
-                // `cursor-not-allowed` is real vocabulary from the same
-                // shadcn disabled state (`components/ui/input.tsx`) that
-                // costs no contrast.
-                <span
-                  className="mt-px flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
-                  data-testid="rule-value"
-                >
-                  <span className="min-w-0 truncate font-mono" title={removeName}>
-                    &quot;{removeName}&quot;
-                  </span>
-                  <span className="shrink-0 whitespace-nowrap">will be removed</span>
-                </span>
-              )
-            ) : (
-              <textarea
-                aria-label="Header value"
+              splitting it with a 44px op cycler.
+
+              Three things can occupy this one box, in priority order
+              (Task 13) — never two at once, and never a fourth shape that
+              would need its own height: */}
+        <div className="mt-0.5 flex min-w-0 items-start">
+          {errorDiag ? (
+            // 1. An error message, ahead of even a `remove` rule's own
+            // sentence below — what stops a row from running outranks
+            // what it would do if it ran (see the docblock above
+            // `errorDiag`). This is `rule-problem`'s new home: the
+            // testid survives, its subject moved from a block below the
+            // row into this slot, in place of the value it replaces.
+            // `rule-value` is deliberately absent here, not merely
+            // empty — a test asserting it must say so as a condition
+            // rather than assume it, same as this file's own tests do.
+            //
+            // `text-destructive` on the row's own fill (`--card`, or
+            // `--rowoff` when off) rather than a coloured block: there is
+            // no block left to paint. Only the `--card` pairing has a
+            // contrast guard — `--rowoff` doesn't, deliberately: every
+            // row-diagnostic source in this codebase (`validateHeaders`,
+            // `detectConflicts`) skips a disabled rule before it ever
+            // computes one, so an error message on an off row is not a
+            // state this popup can reach, not merely one this file forgot
+            // to check.
+            <span
+              data-testid="rule-problem"
+              data-severity="error"
+              title={errorDiag.message}
+              className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-destructive"
+            >
+              {errorDiag.message}
+            </span>
+          ) : removes ? (
+            removeName === '' ? (
+              // Unfinished, not wrong — same reasoning as the problem
+              // block above never accusing a one-click-old row (see this
+              // file's own docblock on `unfinished`). The quoted-name
+              // sentence needs a real name to quote; rather than print
+              // empty quotes ("" will be removed, which reads as a typo
+              // or a bug), the sentence drops the name clause entirely
+              // and says what is still true without it.
+              <span
+                className="mt-px min-w-0 flex-1 truncate cursor-not-allowed text-[11px] leading-[14px] font-medium text-muted-foreground"
                 data-testid="rule-value"
-                rows={1}
-                /* `max-h-24` restored from the pre-mockup field (69bf230) —
+              >
+                This header will be removed once it&apos;s named.
+              </span>
+            ) : (
+              // Says what the row will do, not that it has nothing to
+              // show — the previous "remove takes no value" described the
+              // field, not the effect. The header name is mono (the one
+              // piece of this sentence the user actually typed — the
+              // global rule) and, unlike the rest of the fixed sentence,
+              // unbounded in length (no cap in lib/model/schema.ts), so it
+              // is the part that gives way: `min-w-0 truncate` plus
+              // `title` on its own span, mirroring AddSiteField.tsx's
+              // "already in the list" note — the same shape of problem
+              // (a bounded row holding one unbounded value beside fixed
+              // words) gets the same fix. The fixed suffix is `shrink-0
+              // whitespace-nowrap` so it is never itself the thing that
+              // clips. `gap-1`, not a text-node space, between them —
+              // flex blockifies both children, and a blockified box's own
+              // leading/trailing white space collapses to nothing at
+              // render (measured in AddSiteField's own history; jsdom's
+              // `textContent` would not have shown the difference).
+              //
+              // `cursor-not-allowed` is the disabled signal, not
+              // `disabled:opacity-50` as suggested — that pseudo-class
+              // only matches a real form control, this is a `<span>`, and
+              // fading `--muted-foreground` toward the background instead
+              // (an unconditional `opacity-50`) measures at 2.1–2.5:1 in
+              // this palette, under the 4.5 floor every other piece of
+              // text in this popup clears — exactly the failure mode this
+              // redesign's whole contrast section exists to keep out.
+              // `cursor-not-allowed` is real vocabulary from the same
+              // shadcn disabled state (`components/ui/input.tsx`) that
+              // costs no contrast.
+              <span
+                className="mt-px flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[11px] leading-[14px] font-medium text-muted-foreground"
+                data-testid="rule-value"
+              >
+                <span className="min-w-0 truncate font-mono" title={removeName}>
+                  &quot;{removeName}&quot;
+                </span>
+                <span className="shrink-0 whitespace-nowrap">will be removed</span>
+              </span>
+            )
+          ) : (
+            <textarea
+              aria-label="Header value"
+              data-testid="rule-value"
+              rows={1}
+              /* `max-h-24` restored from the pre-mockup field (69bf230) —
                    the owner's ruling was "값이 감싸지게(예전 방식)", the
                    previous way, which capped growth and let a very long
                    value scroll inside itself rather than growing without
@@ -370,66 +485,48 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                    never fires there, but Task 8/9 — which owns that
                    assertion — should know the reason going in rather than
                    find the symptom. */
-                className="min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
-                placeholder="value"
-                value={value.draft}
-                onChange={(e) => value.setDraft(e.target.value)}
-                onBlur={value.commit}
-                onKeyDown={(e) => {
-                  // Shift+Enter keeps the newline; a bare Enter is a commit —
-                  // the same bargain the pre-mockup value editor struck, and
-                  // the reason it is a textarea rather than an input again.
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    value.commit();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    value.cancel();
-                  }
-                }}
-              />
-            )}
-          </div>
+              className="min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[11px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground"
+              placeholder="value"
+              value={value.draft}
+              onChange={(e) => value.setDraft(e.target.value)}
+              onBlur={value.commit}
+              onKeyDown={(e) => {
+                // Shift+Enter keeps the newline; a bare Enter is a commit —
+                // the same bargain the pre-mockup value editor struck, and
+                // the reason it is a textarea rather than an input again.
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  value.commit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  value.cancel();
+                }
+              }}
+            />
+          )}
         </div>
+      </div>
 
-        {/* Last in the DOM, at the row's right edge.
+      {/* Last in the DOM, at the row's right edge.
             Tab order follows the document, so while this sat beside the name
             input a Tab out of the name landed on Delete instead of the value —
             the one sequence this card exists to support, name then value,
             interrupted by its destructive action. Being last in the flex row
             is now also where it visually belongs, so no positioning trick is
             needed to hold it there. */}
-        {/* `variant="ghost"` sets no text colour of its own — it inherits the
+      {/* `variant="ghost"` sets no text colour of its own — it inherits the
             row's full-strength ink, the loudest colour in the row, on the
             control that is destructive. The mockup's `.te-icb` and the old
             `.hl-del` both wear `--muted-foreground`; this restores that. */}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Delete rule"
-          onClick={onDelete}
-          className="text-muted-foreground"
-        >
-          <Trash2 />
-        </Button>
-      </div>
-
-      {problems.map((d, i) => (
-        <div
-          key={`${d.kind}-${i}`}
-          data-testid="rule-problem"
-          data-severity={d.severity}
-          className="group/prob mt-1.5 mr-2 ml-[110px] flex items-start gap-1.5 rounded-md bg-pending-bg px-2 py-1.5 text-[11px] leading-[1.4] text-foreground data-[severity=error]:bg-destructive-bg"
-        >
-          <span
-            className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-pending text-[9px] font-bold text-pending-bg group-data-[severity=error]/prob:bg-destructive group-data-[severity=error]/prob:text-destructive-bg"
-            aria-hidden="true"
-          >
-            !
-          </span>
-          <span>{d.message}</span>
-        </div>
-      ))}
-    </>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Delete rule"
+        onClick={onDelete}
+        className="text-muted-foreground"
+      >
+        <Trash2 />
+      </Button>
+    </div>
   );
 }
