@@ -123,11 +123,17 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // No "profile" here either: the UI shows one implicit rule set and no
         // profiles, so the word named something the reader cannot see.
         //
-        // Deliberately does not say *which* of the two wins. Both are emitted
-        // into one action's header list and Chrome's resolution between them
-        // is not something this project has measured; naming a winner would be
-        // a claim the code cannot back.
-        message: `"${name}" is set more than once — only one of them can take effect.`,
+        // Names the winner, unlike the message this replaced. That older
+        // message hedged because both rows used to reach Chrome and this
+        // project had not measured which one Chrome kept. That is no longer
+        // true: only the *first* occurrence of a key is left undiagnosed —
+        // every later one lands here, at `error` severity, and `compile.ts`'s
+        // `hasRowError` filter now excludes every diagnosed row from
+        // `compileHeaders` before anything is sent. So this row specifically
+        // is the one that stays home; the earlier row is the one still going
+        // out, deterministically, by list order rather than by Chrome's own
+        // unspecified resolution between two conflicting entries.
+        message: `"${name}" is set more than once — this row won't be sent. An earlier row already sets it.`,
       });
     }
     seen.add(key);
@@ -144,12 +150,21 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
  * the row half of it. Two callers used to each decide this independently
  * (or, for compile.ts, not decide it at all): `compile.ts` must not hand a
  * diagnosed row to `compileHeaders` — `updateDynamicRules` is transactional,
- * so one bad row (an append Chrome will refuse, a name that fails the
- * token, a duplicate) rejects the whole batch and leaves whatever was
- * registered before still in force, silently, while the screen shows the
- * new state. The rail's readout (`lib/view/rules.ts`) must not count a row
- * like that as live either. Both now ask this rather than re-testing
- * `severity` themselves.
+ * so one bad row rejects the whole batch and leaves whatever was registered
+ * before still in force, silently, while the screen shows the new state.
+ * The rail's readout (`lib/view/rules.ts`) must not count a row like that
+ * as live either. Both now ask this rather than re-testing `severity`
+ * themselves.
+ *
+ * Two of the three `error` kinds this file emits are the real batch-rejection
+ * risk: an append Chrome will refuse (`append-not-allowed`), and a duplicate
+ * (`duplicate-header`) — both pass `HEADER_TOKEN` and were, before this
+ * function existed, sent to `compileHeaders` unfiltered. The third,
+ * `invalid-header-name`, was never actually one of them: `compileHeaders`
+ * already runs its own `HEADER_TOKEN.test` and skips a name that fails it,
+ * independently of anything here, so that row never reached Chrome even
+ * before this filter existed. Excluding it here too is belt-and-braces, not
+ * the fix for a reach-Chrome bug the other two are.
  *
  * `incomplete` deliberately does not count: an unfinished row is not
  * broken, it simply is not a rule yet, and `compileHeaders` already drops it

@@ -196,6 +196,19 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ],
   ['header name over the card behind it — the name Input on the row', '--foreground', '--card'],
   ['header value over the card behind it — the value Input on the row', '--foreground-2', '--card'],
+  // Task 12 item 6: a `remove` rule's value column is a sentence, not the
+  // value textarea — "X-Trace" will be removed — and it doubles as the
+  // "this row's input is disabled" signal (`cursor-not-allowed`, no
+  // `disabled:opacity-50`, which measured 2.1–2.5:1 in this palette and
+  // would have failed the floor below). Unconditionally `--muted-foreground`,
+  // not repainted by `data-off` the way the value textarea is, so this one
+  // pair covers both the finished and unfinished ("This header will be
+  // removed once it's named.") wording.
+  [
+    'remove-rule sentence — the value column of a remove rule, on a live row',
+    '--muted-foreground',
+    '--card',
+  ],
   // The ghost row that ends the rule list is toned as what it is — the first
   // empty slot in the well — so its label and its dashed plus are read against
   // `--tray`, not against the panel. The outline is load-bearing (it is the
@@ -237,6 +250,15 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ],
   [
     'header value text on a switched-off row — .te-val/[data-on=false] in the mockup',
+    '--muted-foreground',
+    '--rowoff',
+  ],
+  // The remove-rule sentence's own state does not move when the row does —
+  // see the on-row entry above for why — so it lands on `--rowoff` too once
+  // the row is switched off, same token pair as the value textarea directly
+  // above but a different element, same as that pair's own reasoning.
+  [
+    'remove-rule sentence — the value column of a remove rule, on a switched-off row',
     '--muted-foreground',
     '--rowoff',
   ],

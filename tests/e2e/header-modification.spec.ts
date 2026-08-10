@@ -433,14 +433,32 @@ test("a rule row's gutter chips match size, and the row keeps its own height whe
   // only fails when the two actually disagree with each other — which is
   // the real requirement. A mutation dropping the chip's `h-[18px]` (found
   // in review — nothing else in the suite caught it) fails this with
-  // `{ height: 2, width: 0 }`.
+  // `{ height: 2, width: 0, fontWeight: 0, letterSpacing: 0 }`.
+  //
+  // Task 12 item 3 also put the chip's weight and tracking in lockstep with
+  // the badge's (`font-semibold tracking-[0.01em]` on both — the two were
+  // already the same font-size; weight and tracking were the actual gap
+  // that read as a size difference). `fontWeight`/`letterSpacing` are
+  // compared the same way as the box, by diff against the badge's own
+  // computed value rather than a literal, so this fails if either drifts
+  // from the other again rather than only if both drift from one recorded
+  // number.
   const chipMatch = await page.evaluate(() => {
     const row = document.querySelector('[data-testid="rule"]')!;
-    const badge = row.querySelector('[aria-label^="Direction"]')!.getBoundingClientRect();
-    const chip = row.querySelector('[aria-label^="Operation"]')!.getBoundingClientRect();
-    return { height: chip.height - badge.height, width: chip.width - badge.width };
+    const badgeEl = row.querySelector('[aria-label^="Direction"]')!;
+    const chipEl = row.querySelector('[aria-label^="Operation"]')!;
+    const badge = badgeEl.getBoundingClientRect();
+    const chip = chipEl.getBoundingClientRect();
+    const badgeStyle = getComputedStyle(badgeEl);
+    const chipStyle = getComputedStyle(chipEl);
+    return {
+      height: chip.height - badge.height,
+      width: chip.width - badge.width,
+      fontWeight: Number(chipStyle.fontWeight) - Number(badgeStyle.fontWeight),
+      letterSpacing: parseFloat(chipStyle.letterSpacing) - parseFloat(badgeStyle.letterSpacing),
+    };
   });
-  expect(chipMatch).toEqual({ height: 0, width: 0 });
+  expect(chipMatch).toEqual({ height: 0, width: 0, fontWeight: 0, letterSpacing: 0 });
 
   const rows = page.locator('[data-testid="rule"]');
   const longRow = rows.first();
@@ -471,6 +489,113 @@ test("a rule row's gutter chips match size, and the row keeps its own height whe
   // either, and must not move its untouched sibling below it.
   expect(after.long).toEqual(before.long);
   expect(after.short).toEqual(before.short);
+
+  await page.close();
+});
+
+test('the fused direction badge and operation chip each keep a keyboard focus ring that reaches the screen', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  // Regression guard for a WCAG 2.4.7 failure (Task 12 fix round). The
+  // wrapper that fuses the direction badge to the operation chip into one
+  // rounded block used to carry `overflow-hidden` to give the pair its
+  // shared outer corners — and a focus ring is drawn *outside* its
+  // element's border box, with each half exactly as wide as that wrapper,
+  // so the wrapper clipped the ring on every side. A real Tab press before
+  // the fix: the direction half rendered nothing at all, the operation half
+  // rendered a single bar at the seam that read as a divider between two
+  // rows rather than a ring around one control.
+  //
+  // The fix moved each half's own outer corner onto itself
+  // (`rounded-t-[4px]`/`rounded-b-[4px]`) so the wrapper no longer needs to
+  // clip anything. This guards that specific mechanism directly — the
+  // wrapper immediately around each button must not clip on either axis —
+  // rather than only the ring's own width, which a `rounded-none` sibling
+  // could still satisfy while clipped.
+  //
+  // Covers the real-keyboard path only (`page.keyboard.press('Tab')`, the
+  // same path every other focus-order assumption in this file relies on).
+  // Chrome was measured, during development, to supply a *different*
+  // outline (a wider one with a zero offset) to a button focused this way
+  // than to one focused via a programmatic `.focus()` call — this guard
+  // does not attempt to pin that second path, only that whichever rule
+  // supplies the ring, the immediate wrapper does not clip it.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            domains: ['api.example.com'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-Trace',
+              value: 'v',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="rule"]').first().waitFor();
+
+  const measureFocused = () =>
+    page.evaluate(() => {
+      const el = document.activeElement as HTMLElement;
+      const cs = getComputedStyle(el);
+      const gutter = el.parentElement as HTMLElement;
+      const gutterStyle = getComputedStyle(gutter);
+      return {
+        ariaLabel: el.getAttribute('aria-label'),
+        outlineStyle: cs.outlineStyle,
+        outlineWidth: parseFloat(cs.outlineWidth),
+        gutterOverflowX: gutterStyle.overflowX,
+        gutterOverflowY: gutterStyle.overflowY,
+      };
+    });
+
+  await page.getByRole('button', { name: 'New rule', exact: true }).focus();
+  await page.keyboard.press('Tab'); // -> the row's switch
+  await page.keyboard.press('Tab'); // -> the direction badge
+
+  const direction = await measureFocused();
+  expect(direction.ariaLabel).toBe('Direction: request');
+  expect(direction.outlineStyle).toBe('solid');
+  expect(direction.outlineWidth).toBeGreaterThan(0);
+  expect(direction.gutterOverflowX).not.toBe('hidden');
+  expect(direction.gutterOverflowY).not.toBe('hidden');
+
+  await page.keyboard.press('Tab'); // -> the operation chip
+
+  const operation = await measureFocused();
+  expect(operation.ariaLabel).toBe('Operation: set');
+  expect(operation.outlineStyle).toBe('solid');
+  expect(operation.outlineWidth).toBeGreaterThan(0);
+  expect(operation.gutterOverflowX).not.toBe('hidden');
+  expect(operation.gutterOverflowY).not.toBe('hidden');
 
   await page.close();
 });

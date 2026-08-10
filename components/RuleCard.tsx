@@ -35,9 +35,12 @@ export interface RuleCardProps {
  * pill, `set`/`remove` was a bordered box, delete was a bare `×`, and the
  * switch was a fourth shape again. Now there is one family — a real Switch,
  * a direction Badge fused to an operation chip cut from the exact same
- * cloth (same size, same radius, the badge's sibling rather than a fourth
- * shape of its own — their fills differ on purpose, see the chip's own
- * comment below), and a ghost icon Button for delete.
+ * cloth (same size, the same 4px corner radius, the badge's sibling rather
+ * than a fourth shape of its own — their fills differ on purpose, see the
+ * chip's own comment below), and a ghost icon Button for delete. "Same
+ * radius" is no longer one wrapper rounding both — each half now owns the
+ * single outer corner that used to belong to it (see the gutter comment
+ * below for why), so it is two 4px radii in the same position, not one.
  *
  * The gutter reads top-to-bottom as *what this rule does* — direction, then
  * operation, one glued block with a straight seam rather than a gap between
@@ -224,10 +227,11 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
         </div>
 
         {/* `self-stretch` overrides the row's own `items-start` for just this
-            child, so its box is exactly as tall as the gutter (38px) rather
-            than only as tall as its own content (~34.5px, which used to
-            leave 4px of dead space below the value — measured, and the
-            reason the value read as pushed toward the top). `justify-between`
+            child, so its box is exactly as tall as the gutter (36px, two
+            18px badges with no gap between them) rather than only as tall as
+            its own content (34px: 18px name + 2px gap + 14px value, which
+            used to leave 2px of dead space below the value — measured, and
+            the reason the value read as pushed toward the top). `justify-between`
             inside it pins name to the very top of that box and value to the
             very bottom, rather than `justify-center`, which was tried first
             and rejected: centering would have pushed name's own top edge

@@ -302,6 +302,17 @@ describe('compile emits diagnostics', () => {
     // entry, which a toContain check would not catch.
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0]?.kind).toBe('profile-conflict');
+    // The severity boundary this test's name doesn't say it covers:
+    // `profile-conflict` is `warning`, not `error` (lib/compile/conflicts.ts),
+    // so `hasRowError` must not treat either row as diagnosed and neither
+    // header may be dropped from compilation — a conflict is advisory, only
+    // an error-severity row is excluded. Both profiles still produce a rule
+    // carrying its own Authorization header.
+    expect(result.dynamic).toHaveLength(2);
+    expect(result.dynamic.map((r) => r.action.requestHeaders)).toEqual([
+      [{ header: 'Authorization', operation: 'set', value: 'true' }],
+      [{ header: 'Authorization', operation: 'set', value: 'true' }],
+    ]);
   });
 
   it('keeps diagnostics when globalPause is on — the user still needs to see them', () => {
