@@ -326,19 +326,24 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
 
       {/* `self-stretch` overrides the row's own `items-start` for just this
             child, so its box is exactly as tall as the gutter (36px, two
-            18px badges with no gap between them) rather than only as tall as
-            its own content (34px: 18px name + 2px gap + 14px value, which
-            used to leave 2px of dead space below the value — measured, and
-            the reason the value read as pushed toward the top). `justify-between`
-            inside it pins name to the very top of that box and value to the
-            very bottom, rather than `justify-center`, which was tried first
-            and rejected: centering would have pushed name's own top edge
-            down by half the slack, breaking the one thing the row's
-            `items-start` exists to guarantee — name's first line sitting on
-            the same axis as the badge above it. `justify-between` keeps
-            name's top pixel-identical to before while still using the
-            gutter's full height, which is what "vertically centered against
-            the gutter" turns into once that constraint is held fixed. */}
+            18px badges with no gap between them). It used to matter that
+            this is taller than the column's own content (18px name + 2px
+            gap + 14px value = 34px, 2px of dead space below the value,
+            measured, and the reason the value read as pushed toward the
+            top) — the owner's later request to unify name and value onto
+            one 12px/18px type scale and drop the inter-line margin closed
+            that gap for a single-line value: 18px name + 0 + 18px value is
+            36px, exactly the gutter's own height, so there is no dead space
+            left for `justify-between` to spend. It is kept anyway rather
+            than swapped for `justify-center` or dropped outright, because a
+            *wrapping* value's content can still exceed 36px, and
+            `justify-between` is what keeps name pinned to the very top of
+            the box in that case too — the one thing the row's `items-start`
+            exists to guarantee, name's first line sitting on the same axis
+            as the badge above it. `justify-center` was tried and rejected
+            for the same reason before the type unification and the
+            reasoning did not change: centering would still move name's own
+            top edge by half of whatever slack exists. */}
       <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch">
         {/* Line 1: name, and — since Task 13 — the warning marker beside
               it when one applies. `flex items-center` regardless of whether
