@@ -144,20 +144,35 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             buttons that change two different fields, and a single glued
             block reads as one control that would flip both on one click.
             Built anyway (the owner's call, made knowing the concern), with
-            the two-button nature made discoverable on touch — see the
-            `hover:brightness-110` on each half below, which lights up only
-            the half under the cursor, and the two distinct `aria-label`s,
-            unmerged.
+            the two-button nature discoverable by all three routes: the
+            `hover:brightness-110` on each half lights only the half under
+            the cursor, the two `aria-label`s stay unmerged, and each half
+            takes focus separately with its own visible ring.
 
-            The outer box owns the only curve (`rounded-[4px]`, the corner
-            radius for controls this size) and clips its children
-            (`overflow-hidden`); each half is `rounded-none` and exactly
-            `h-[18px] w-12`, so the seam between them is a straight line, not
-            a gap — `gap-0.5` from the previous (B) round is gone. */}
-        <div className="flex w-12 shrink-0 flex-col overflow-hidden rounded-[4px]">
+            **Each half owns its own outer corner** — `rounded-t-[4px]` on
+            the direction, `rounded-b-[4px]` on the operation, `rounded-none`
+            on the two edges that meet — rather than the wrapper rounding
+            them together behind an `overflow-hidden`. The look is identical
+            (one block, straight seam, 4px outer corners, and `gap-0.5` from
+            the previous round still gone) and the clip is what had to go:
+            a focus ring is drawn *outside* the border box, each half is
+            exactly as wide as the wrapper was, so the wrapper clipped the
+            ring away on every side. Measured before the change, with a real
+            Tab press: focusing the direction half rendered **nothing at
+            all**, and the operation half rendered one 3px bar at the seam
+            that read as a divider — WCAG 2.4.7 failed by a shape that was
+            only ever meant to be decorative.
+
+            Do not reintroduce `overflow-hidden` here to "keep the corners
+            tidy". Two different rules supply the ring depending on how focus
+            arrives — `:focus-visible` in style.css on one path, Badge's own
+            `focus-visible:*` on the other — and both draw at or outside the
+            border box, so a clip here removes the indicator on both. Nothing
+            about the corners needs it. */}
+        <div className="flex w-12 shrink-0 flex-col">
           <Badge
             asChild
-            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
+            className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
           >
             <button
               type="button"
@@ -196,7 +211,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               box) differs, which is not a font change. */}
           <Badge
             asChild
-            className="h-[18px] w-12 shrink-0 justify-center rounded-none border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
+            className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
           >
             <button
               type="button"
