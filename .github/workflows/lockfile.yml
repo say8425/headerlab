@@ -3,7 +3,9 @@ name: Lockfile
 # Temporary. `pnpm import` run where the whole registry is visible, because this
 # office's proxy cannot see the pinned versions of some optional platform
 # bindings and drops them in silence. Delete once its artifact is committed.
-on: workflow_dispatch
+on:
+  push:
+    branches: [ci-split-pnpm-release-please]
 
 permissions:
   contents: read
