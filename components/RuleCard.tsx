@@ -212,28 +212,47 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             only ever meant to be decorative.
 
             Do not reintroduce `overflow-hidden` here to "keep the corners
-            tidy". The ring's own metrics vary by how focus arrives — a real
-            Tab press measured 3px at offset 0 on both halves, a programmatic
-            `.focus()` measured 2px–2.5px at offset 0.5–1 — and three separate
-            measurements disagreed on the exact split, so treat the numbers as
-            unstable. What every one of them agreed on is the only thing this
-            fix rests on: **the offset is never negative**, so the ring always
-            paints at or outside the border box, and any clip on an ancestor
-            the width of the halves erases it. That holds whichever rule wins.
+            tidy". Earlier measurements of this ring disagreed with each
+            other — a real Tab press read 3px at offset 0, a programmatic
+            `.focus()` read narrower widths at a positive offset — and an
+            earlier round of this comment called that an open question about
+            which of two CSS rules was supplying the ring. It is not two
+            rules. `badgeVariants` (`components/ui/badge.tsx`) carries
+            `transition-all`, and `outline-width`, `outline-offset` and
+            `outline-color` are all animatable — so a reading taken on the
+            first frame after focus catches the *transition's start values*,
+            not style.css's `:focus-visible` rule (2px solid `var(--ring)`,
+            offset 1px), which is what every reading settles to ~150ms later
+            regardless of how focus arrived. Confirmed three ways: waiting
+            out the transition on a real Tab press converges on 2px/offset
+            1px; injecting `transition:none` gives 2px/offset 1px from frame
+            one; and the colour at frame one is each half's own text colour
+            (the direction badge's tint, the operation chip's
+            `--muted-foreground`) rather than `--ring` — only explained by
+            `outline-color`'s initial value, `currentColor`, being what a
+            transition starts from before it animates toward the rule that
+            actually applies.
 
-            Which rule does win is *not* established. The built CSS carries
-            only two outline declarations — style.css's unlayered
-            `:focus-visible` (2px, offset 1px) and an `outline: auto` — and
-            neither is the 3px/offset-0 that the keyboard path actually
-            computes; nobody has tracked down where that comes from. It did
-            not need tracking down to fix this, and it is written here so the
-            next person knows it is an open question rather than assuming the
-            comment already answered it.
+            What stays true regardless: **the offset is never negative** at
+            either end of that transition (0 at the start, 1px once
+            settled), so the ring always paints at or outside the border
+            box, and any clip on an ancestor the width of the halves erases
+            it whichever moment it is read. That is what this fix rests on,
+            and it never depended on which rule was supplying the ring.
 
-            One thing that *is* established, because it was tried and failed:
-            `focus-visible:outline-offset-[-3px]` does not work here. The
-            utility compiles into the bundle and lands on the element, and the
-            computed offset stays `0px`. */}
+            One thing that really was tried and failed: setting
+            `outline-offset` to a negative value, `-3px`, on each half via a
+            Tailwind arbitrary-value utility. It compiled into the bundle
+            and landed on the element, and the computed offset still read
+            `0px` — style.css's `:focus-visible` block is unlayered, and an
+            unlayered rule wins over a layered Tailwind utility for the same
+            property regardless of specificity. (That failed utility is
+            deliberately not spelled out here as one token — writing
+            "outline-offset" immediately followed by its bracketed value in
+            prose is indistinguishable from using it to Tailwind's content
+            scanner, which does not parse comments, and emits the rule into
+            the bundle for a class nothing renders — the same mechanism
+            found in an earlier task.) */}
       <div className="flex w-12 shrink-0 flex-col">
         <Badge
           asChild

@@ -146,7 +146,18 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // Remedy first (Task 13), same reasoning as the other two error
         // messages in this file: what to do about it survives truncation,
         // not just the fact that something is wrong.
-        message: `Rename this row or delete it. An earlier row already sets "${name}".`,
+        //
+        // "already touches", not "already sets" — a re-review caught the
+        // earlier wording naming an operation this code never checks.
+        // `seen` stores only the `target name` key, never which operation
+        // the earlier row used, so the earlier row could be `append` or
+        // `remove` just as easily as `set`; saying "sets" was a claim about
+        // something this function does not know. "touches" is the same word
+        // `detectConflicts` already uses for an identical shape of fact
+        // (`firstToucher`, `lib/compile/conflicts.ts`) — one word for "an
+        // earlier row already did something to this header", used the same
+        // way in both places rather than each guessing its own verb.
+        message: `Rename this row or delete it. An earlier row already touches "${name}".`,
       });
     }
     seen.add(key);
