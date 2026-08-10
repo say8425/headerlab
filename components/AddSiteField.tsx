@@ -1,4 +1,6 @@
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
 
 /**
  * What happened to an entry the field handed over.
@@ -54,32 +56,93 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
   };
 
   return (
-    <>
-      <input
-        aria-label="Add a site"
-        className="hl-addfield"
-        placeholder="+ add a site"
-        value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          // The complaint is about the text as it stands; editing it makes the
-          // complaint stale.
-          setAlreadyThere(null);
-        }}
-        onBlur={add}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') add();
-          if (e.key === 'Escape') {
-            setDraft('');
+    // Two flex items, not a Fragment: `.hl-railsec` (the sites section) is a
+    // flex column that gaps its direct children, so the field and the note
+    // used to get that spacing for free as siblings. Wrapping them costs
+    // nothing as long as this div reproduces the same gap itself — `gap-1.5`
+    // below is that reproduction, not a new number.
+    <div className="flex flex-col gap-1.5">
+      {/* The dashed edge is the input's own border, not a decoration wrapped
+          around a plain one. `data-testid="add-field"` has to sit on this
+          element because the e2e layout guard measures *this* box — an outer
+          div carrying the border while the input sat inside it, padded
+          smaller, would measure a rectangle the user never sees as "the
+          control". The icon is the one piece that cannot live on the input
+          itself, so it is positioned over it from a `relative` wrapper that
+          adds no border, padding or margin of its own — it does not change
+          what the input's own rect is. */}
+      <div className="relative">
+        <Plus
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-foreground-2"
+        />
+        <Input
+          aria-label="Add a site"
+          data-testid="add-field"
+          placeholder="add a site"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            // The complaint is about the text as it stands; editing it makes the
+            // complaint stale.
             setAlreadyThere(null);
-          }
-        }}
-      />
-      {alreadyThere !== null && (
-        <p className="hl-fieldnote" data-testid="add-site-note">
-          <b>{alreadyThere}</b> is already in the list.
-        </p>
-      )}
-    </>
+          }}
+          onBlur={add}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add();
+            if (e.key === 'Escape') {
+              setDraft('');
+              setAlreadyThere(null);
+            }
+          }}
+          className="rounded-md border-dashed border-boundary bg-transparent pr-2.5 pl-7 font-mono text-[12px] placeholder:font-sans placeholder:text-[11px] placeholder:font-semibold placeholder:text-foreground-2 dark:bg-transparent"
+        />
+      </div>
+      {/* Reserved, not created: the wrapper is always here, and only the
+          paragraph inside it — the thing the tests key on — comes and goes.
+          A duplicate complaint appearing must not push "Request types" down
+          the rail any more than a Grant button may push the row under it
+          (CLAUDE.md, Interface).
+
+          The reservation is `h-[15px]`, a fixed height rather than a
+          `min-h`, because `schema.ts` puts no length cap on a domain and the
+          rail's usable width is ~194px — an ordinary corporate subdomain
+          (`internal-api-gateway.staging.eu-west-1.example.com`) already
+          exceeds one line before "is already in the list." is even
+          appended, so a `min-h` alone is a floor, not a ceiling: the note
+          can still grow past it and push. The domain is the part that can
+          be arbitrarily long, so it is the part that gives way — `<b>`
+          truncates to an ellipsis inside a `min-w-0` flex slot, `title`
+          keeps the full value one hover away, and the fixed suffix
+          (`shrink-0 whitespace-nowrap`) never itself wraps or is cut. That
+          makes every state of this paragraph — absent, short, or long —
+          exactly one line, so `h-[15px]` is a real ceiling rather than a
+          usual-case guess. Nothing is truncated in `alreadyThere` itself or
+          in what is stored; only this one rendering of it is bounded. */}
+      <div className="h-[15px] px-px">
+        {alreadyThere !== null && (
+          // `gap-1`, not a leading space in the `<span>`'s own text. `flex`
+          // blockifies both children (CSS Display's flex-item blockification),
+          // and a blockified box's own leading/trailing white space collapses
+          // away at render — verified in real Chromium: the space character
+          // that used to sit at the front of the suffix span measured zero
+          // width and was absent from `innerText`, even though jsdom's
+          // `textContent` (which does no layout or collapsing) still showed
+          // it, so the tests stayed green while the screen was wrong. `gap`
+          // is box-model spacing, not text, so it is not subject to that
+          // collapse — the trade is that the separating space no longer
+          // appears in `textContent` either, on purpose (see the tests).
+          <p
+            className="flex items-baseline gap-1 overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
+            data-testid="add-site-note"
+          >
+            <b className="min-w-0 truncate font-mono font-semibold" title={alreadyThere}>
+              {alreadyThere}
+            </b>
+            <span className="shrink-0 whitespace-nowrap">is already in the list.</span>
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

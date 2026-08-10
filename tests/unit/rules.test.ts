@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
+import { routeDiagnostics, ruleTally, rowKey } from '@/lib/view/rules';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function row(over: Partial<HeaderRule> = {}): HeaderRule {
@@ -35,7 +35,7 @@ describe('routeDiagnostics', () => {
     const onScreen = diag({ kind: 'no-scope' });
     const routed = routeDiagnostics([onRule, onHost, onScreen]);
 
-    expect([...routed.byRow.entries()]).toEqual([['h1', [onRule]]]);
+    expect([...routed.byRow.entries()]).toEqual([[rowKey('p1', 'h1'), [onRule]]]);
     expect([...routed.byHost.entries()]).toEqual([['api.example.com', [onHost]]]);
     expect(routed.scope).toEqual([onScreen]);
   });
@@ -45,7 +45,7 @@ describe('routeDiagnostics', () => {
     // about a specific rule belongs beside that rule, where it can be acted on.
     const both = diag({ severity: 'error', headerRuleId: 'h1', host: 'api.example.com' });
     const routed = routeDiagnostics([both]);
-    expect(routed.byRow.get('h1')).toEqual([both]);
+    expect(routed.byRow.get(rowKey('p1', 'h1'))).toEqual([both]);
     expect(routed.byHost.size).toBe(0);
   });
 
@@ -59,7 +59,35 @@ describe('routeDiagnostics', () => {
   it('collects several diagnostics on one rule, in input order', () => {
     const a = diag({ kind: 'invalid-header-name', severity: 'error', headerRuleId: 'h1' });
     const b = diag({ kind: 'duplicate-header', severity: 'error', headerRuleId: 'h1' });
-    expect(routeDiagnostics([a, b]).byRow.get('h1')).toEqual([a, b]);
+    expect(routeDiagnostics([a, b]).byRow.get(rowKey('p1', 'h1'))).toEqual([a, b]);
+  });
+
+  it('keeps two profiles apart when their rows share an id', () => {
+    // The reason `byRow` is keyed by profile *and* row rather than by row
+    // alone. Sharing a bucket is not a display glitch: the predicate that
+    // drops diagnosed rows from the compile reads this map, so B's broken row
+    // would take A's healthy header out of the ruleset — headers silently
+    // ceasing to be modified, which is the first thing this project forbids.
+    //
+    // Asserted as two separate buckets rather than "A's bucket is empty",
+    // which would also pass if routing dropped B's diagnostic on the floor.
+    const inA = diag({
+      kind: 'invalid-header-name',
+      severity: 'error',
+      profileId: 'pA',
+      headerRuleId: 'shared',
+    });
+    const inB = diag({
+      kind: 'append-not-allowed',
+      severity: 'error',
+      profileId: 'pB',
+      headerRuleId: 'shared',
+    });
+    const routed = routeDiagnostics([inA, inB]);
+
+    expect(routed.byRow.get(rowKey('pA', 'shared'))).toEqual([inA]);
+    expect(routed.byRow.get(rowKey('pB', 'shared'))).toEqual([inB]);
+    expect(routed.byRow.size).toBe(2);
   });
 
   it('collects several diagnostics on one host, in input order', () => {
@@ -116,14 +144,14 @@ describe('ruleTally', () => {
     const byRow = new Map([
       // A warning does not stop a rule going out — that is what makes it a
       // warning — so both of these must land in `live`, not `blocked`.
-      ['warned-a', [diag({ severity: 'warning', headerRuleId: 'warned-a' })]],
-      ['warned-b', [diag({ severity: 'warning', headerRuleId: 'warned-b' })]],
-      ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
+      [rowKey('p1', 'warned-a'), [diag({ severity: 'warning', headerRuleId: 'warned-a' })]],
+      [rowKey('p1', 'warned-b'), [diag({ severity: 'warning', headerRuleId: 'warned-b' })]],
+      [rowKey('p1', 'broken'), [diag({ severity: 'error', headerRuleId: 'broken' })]],
       // Not going out either, but not blocked: nothing is stopping it, it is
       // simply not a rule yet. Counting it as blocked is what put a red error
       // on a row created one click ago.
       [
-        'unnamed',
+        rowKey('p1', 'unnamed'),
         [
           diag({
             kind: 'incomplete-header',
@@ -133,7 +161,7 @@ describe('ruleTally', () => {
         ],
       ],
     ]);
-    expect(ruleTally(rows, byRow, live)).toEqual({
+    expect(ruleTally(rows, 'p1', byRow, live)).toEqual({
       total: 7,
       live: 4,
       off: 1,
@@ -147,8 +175,8 @@ describe('ruleTally', () => {
     // they switched off themselves is not that, and counting it in both figures
     // would report more rules than exist.
     const rows = [row({ id: 'a', enabled: false })];
-    const byRow = new Map([['a', [diag({ severity: 'error', headerRuleId: 'a' })]]]);
-    expect(ruleTally(rows, byRow, live)).toEqual({
+    const byRow = new Map([[rowKey('p1', 'a'), [diag({ severity: 'error', headerRuleId: 'a' })]]]);
+    expect(ruleTally(rows, 'p1', byRow, live)).toEqual({
       total: 1,
       live: 0,
       off: 1,
@@ -165,7 +193,7 @@ describe('ruleTally', () => {
     // registered — here they must all read as blocked, and the rules the user
     // switched off must still read as off rather than being swept in.
     const rows = [row({ id: 'a' }), row({ id: 'b' }), row({ id: 'c', enabled: false })];
-    expect(ruleTally(rows, new Map(), { live: false })).toEqual({
+    expect(ruleTally(rows, 'p1', new Map(), { live: false })).toEqual({
       total: 3,
       live: 0,
       off: 1,
@@ -185,7 +213,7 @@ describe('ruleTally', () => {
     const rows = [row({ id: 'unnamed' }), row({ id: 'ready' })];
     const byRow = new Map([
       [
-        'unnamed',
+        rowKey('p1', 'unnamed'),
         [
           diag({
             kind: 'incomplete-header',
@@ -195,7 +223,7 @@ describe('ruleTally', () => {
         ],
       ],
     ]);
-    expect(ruleTally(rows, byRow, { live: false })).toEqual({
+    expect(ruleTally(rows, 'p1', byRow, { live: false })).toEqual({
       total: 2,
       live: 0,
       off: 0,
@@ -211,7 +239,7 @@ describe('ruleTally', () => {
     // reason the user actually chose. This pins the tally agreeing with that
     // rather than re-deriving "unnamed" from the row itself.
     const rows = [row({ id: 'a', enabled: false, name: '' })];
-    expect(ruleTally(rows, new Map(), live)).toEqual({
+    expect(ruleTally(rows, 'p1', new Map(), live)).toEqual({
       total: 1,
       live: 0,
       off: 1,
@@ -226,10 +254,10 @@ describe('ruleTally', () => {
     // sweep all of these into one.
     const rows = [row({ id: 'warned' }), row({ id: 'broken' })];
     const byRow = new Map([
-      ['warned', [diag({ severity: 'warning', headerRuleId: 'warned' })]],
-      ['broken', [diag({ severity: 'error', headerRuleId: 'broken' })]],
+      [rowKey('p1', 'warned'), [diag({ severity: 'warning', headerRuleId: 'warned' })]],
+      [rowKey('p1', 'broken'), [diag({ severity: 'error', headerRuleId: 'broken' })]],
     ]);
-    expect(ruleTally(rows, byRow, live)).toEqual({
+    expect(ruleTally(rows, 'p1', byRow, live)).toEqual({
       total: 2,
       live: 1,
       off: 0,
@@ -239,7 +267,7 @@ describe('ruleTally', () => {
   });
 
   it('counts nothing for an empty rule set', () => {
-    expect(ruleTally([], new Map(), live)).toEqual({
+    expect(ruleTally([], 'p1', new Map(), live)).toEqual({
       total: 0,
       live: 0,
       off: 0,

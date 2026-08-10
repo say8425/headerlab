@@ -15,7 +15,7 @@ npm run check        # typecheck · lint · format:check · test — what CI run
 npm test             # wxt build && vitest run  — the build is not optional, see below
 npm run test:e2e     # wxt build --mode e2e && playwright test
 npm run typecheck    # wxt prepare && tsc --noEmit
-npm run lint         # oxlint --deny-warnings   (npm run lint:fix to apply fixes)
+npm run lint         # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 npm run format:check # oxfmt --check            (npm run format to write)
 npm run build        # production build → .output/chrome-mv3
 npm run dev          # WXT dev server
@@ -41,8 +41,14 @@ lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
-components/      popup UI
-entrypoints/     background.ts, popup/
+lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
+components/      popup UI — AddSiteField RuleCard RulePanel ScopeRail SiteRow
+                 TypeChecklist
+components/ui/   shadcn primitives, vendored: badge button checkbox input
+                 separator switch tooltip. Source this repo owns and edits.
+entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
+                 point — two hand-written palettes, the @theme inline bridge
+                 that exposes them as utilities, and the shadcn data-* variants
 public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
 ```
@@ -59,8 +65,9 @@ guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-writ
 of exactly three files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts` and
 `lib/model/migrate.ts` — because `lib/permissions/` also holds the adapter (`probe.ts`)
 that must *not* be guarded, so there is no directory-shaped rule to apply. `schema.ts`,
-`defaults.ts` and `types.ts` are pure by convention and unguarded in fact. A new pure
-file outside those two directories is unguarded until someone adds it by name.
+`defaults.ts`, `types.ts` and `lib/utils.ts` are pure by convention and unguarded in
+fact. A new pure file outside those two directories is unguarded until someone adds it
+by name.
 
 **One reconcile loop.** Every trigger — storage change, worker startup, permission
 grant or revoke — funnels into `reconcile()` in `lib/sync/ruleSync.ts`. It recompiles
@@ -130,7 +137,8 @@ release still stops the build.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 126 `@/…` imports.
+`correctness` enables (`import/default`, `import/namespace`), across 141 `@/…` imports
+(126 when this was written; the design-system branch added 15).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
@@ -161,9 +169,20 @@ a two-line comment ending in the directive suppresses the second comment line an
 else, which reads as working and is not.
 
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
-`**/*.html` are in `ignorePatterns`: the stylesheet is hand-tuned at 4-space indent with a
-comment explaining why, and reformatting it to 2-space is 1124 lines of churn for a
-machine's opinion. Measured, one pattern at a time: dropping the stylesheet exposes it,
+`**/*.html` are in `ignorePatterns`. The stylesheet is hand-tuned at 4-space indent, and
+taking it off the list rewrites **150 of its 325 lines** — re-measured by dropping the
+pattern, running `oxfmt`, and counting `git diff --numstat`. Two changes, both cosmetic:
+4-space to 2-space throughout, and `"` to `'` inside the attribute selectors of the seven
+`@custom-variant` blocks. The old figure was 1124, taken when the file was 1143 lines of
+hand-written component classes; the redesign deleted every one of them and the file is now
+a token bridge. **The ratio is what carried the decision and it barely moved — 98% of the
+file then, 46% now** — so the answer is still to keep it ignored, but on a number someone
+can reproduce rather than one three redesigns out of date. Re-derive both halves if you
+touch that file; the denominator went stale once inside the very task that fixed it, by
+nine lines added two commits earlier. (An earlier version of this sentence also said the
+file carries "a comment explaining why" the indent is 4-space. It does not, and neither
+did the file on `main`.)
+Measured, one pattern at a time: dropping the stylesheet exposes it,
 dropping `**/*.md` exposes CLAUDE.md and README.md, and `docs/**` and `**/*.html` **overlap**
 — each alone can go without exposing anything, but dropping both exposes the two design
 mocks under `docs/design/`. Note the measurement only works with the probe config written
@@ -175,6 +194,20 @@ actually formats. (An earlier note said 40/50/45; that was a narrower hand-writt
 set, and the *ordering* is what the choice rests on, which reproduces either way.)
 `singleQuote: true` matches what the repo already wrote. **oxfmt also sorts `package.json`
 keys** by default — that is why `dependencies` now precedes `devDependencies`.
+
+**Writing about a utility ships it.** Tailwind v4 auto-detects sources by scanning the
+tree as raw text, so a class name quoted in a *comment* is indistinguishable from one
+used on an element and its CSS is emitted. Measured: the 143 B this repo's popup CSS grew
+during the documentation task came entirely from prose — docblocks and test comments
+naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
+remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
+and `scripts/` 30 B, 0.8% of 43,790 B, which is not worth two more `@source not` lines;
+that is a re-measurable ruling, not a permanent one. Two things not to waste time on:
+`.superpowers/` contributes exactly **0 B** because auto-detection skips dot-directories,
+and **`.md` files are not scanned at all** — probed by planting a unique utility in
+CLAUDE.md and rebuilding, which changed nothing. That is why `@source not "../../docs"`
+exists for the `.html` mocks in that tree rather than for its prose, and why class names
+may be quoted freely *here* but cost bytes in a `.ts` comment.
 
 **`package-lock.json` records canonical `registry.npmjs.org` URLs, never the proxy's.**
 A `resolved` URL naming `nexus.mng.musinsa.io` is unreachable from anywhere but this
@@ -269,6 +302,32 @@ mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding s
 must also seed the companion version key at the **current** `STATE_VERSION`:
 `{ state, state$: { v: 2 } }`.
 
+**`cn` is `twMerge(clsx(…))`, and tailwind-merge groups by variant, not by property.**
+So `bg-transparent` passed to a shadcn primitive does **not** displace that primitive's
+own `dark:bg-input/30` — different group, both survive, and the `dark:` one wins wherever
+it applies. Measured: `twMerge('dark:bg-input/30', 'bg-transparent')` returns both
+classes; `twMerge('dark:bg-input/30', 'dark:bg-transparent')` returns one. This branch
+paid for it twice — a switch track override that appeared to do nothing, and a grey box
+under the header name input in dark only, which is `--card` under 30% `--input` at
+rgb(44,52,62) and nothing a palette check can see. **To override a `dark:`-prefixed
+default you must write the `dark:` form too**; `AddSiteField` and `RuleCard` both carry
+an explicit `dark:bg-transparent` for exactly this reason.
+
+**A layout measured headless is not a layout measured headed.** `::-webkit-scrollbar`
+alone reserves 0px headless and 8px headed — same CSS, same build, and the whole of
+`offsetWidth − clientWidth`. The 2×2 sits in `entrypoints/popup/style.css` beside
+`scroll-list`, with the reproduction script in
+`docs/research/2026-08-09-headless-vs-headed-scrollbar-gutter.md`. The trap is not the
+scrollbar; it is that **every e2e test in this repo
+runs headless** (`tests/e2e/fixtures.ts` passes no `headless` option and Playwright's
+default is headless), so a layout fact established there may not be the user's. An
+earlier spike concluded that styling the scrollbar cannot take Chromium out of overlay
+mode — true headless, false headed, and it read as general because nothing recorded
+which mode produced it. `scroll-list` sets the gutter *and* the scrollbar style because
+that combination is the one row of the table where both modes agree. When adding a
+layout assertion to the e2e suite, ask whether the thing being measured is mode-invariant;
+when it is not, a screenshot is the instrument, not an assertion.
+
 **Migrations run once, at module evaluation — not per read.** WXT builds the migration
 promise inside `defineItem`, and every `getValue()` awaits that one promise. A value
 written to `local:state` *after* `lib/storage/state.ts` was imported is therefore never
@@ -337,11 +396,26 @@ follow state freely; box dimensions and positions should not.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the five e2e tests drive a real request through the
+against a loaded extension. Two of the seven e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
-evidence in the repo — do not weaken them. The other three cover the popup rendering
-from stored state and the two layout guards (nothing wider than what holds it; a control
-appearing moves nothing).
+evidence in the repo — do not weaken them. The other five cover the popup rendering from
+stored state and four layout guards: nothing wider than what holds it, a control
+appearing moves nothing, a rule row keeps its height when toggled off, and an overflowing
+list clips nothing while its neighbours stay put.
+
+**A contrast pair is not a pixel, and nothing here reads one automatically.**
+`tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
+token against token, so a colour produced by alpha compositing or by tailwind-merge
+picking a class the author did not expect is outside it by construction — the file now
+says so at its top. It went green through a grey box that was plainly visible on screen.
+
+**The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
+in eight places, `getComputedStyle(el).overflowY` in two — and no colour at all; there is
+no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
+the only output with pixels in it is `npm run screenshots`, and **a human is what reads
+it**; that is how the grey box was found. A colour defect born of alpha or merge order has
+no automated guard today. Building one means adding a colour read or a snapshot comparison
+to e2e — say so plainly rather than assuming a green run already covered it.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
@@ -391,11 +465,8 @@ that no longer renders, passing while describing nothing.
 
 - `stateItem.watch` puts values into state without validation. Pre-existing; reachable
   only by an external writer.
-- The Tailwind, shadcn, Radix and Lucide packages are **dead code**. Nothing imports
-  `components/ui/`, whose three files are the only importers of `lib/utils.ts` (`cn`),
-  no shell file uses a Tailwind class, and none of them reach the bundle. The UI is
-  React plus one hand-written stylesheet. They stay in `package.json` only because
-  touching the lockfile under the publish quarantine is a risk with no upside.
+- `components/ui/separator.tsx` is the one primitive nothing imports. Every other file
+  in that directory has a call site; this one was pulled in with them and never placed.
 - **The popup shows one rule set.** `AppState.profiles` is an array and `compile()`
   handles the whole array, but `resolveSingleProfile` picks one and App.tsx *truncates
   storage* to it — an extra profile the screen cannot show would otherwise go on
@@ -408,3 +479,13 @@ that no longer renders, passing while describing nothing.
 - Not built at all, deliberately: JSON export/import, the regex/`pathPattern` UI and its
   RE2 validation, the theme toggle (the theme follows the OS). If import is ever built,
   its validation must come first — import is what makes the regex surface reachable.
+- **`COLOR_TOKENS` in `tests/unit/contrast.test.ts` catches declaration drift, not
+  orphaning.** It asserts both palettes declare exactly the same named set, so a renamed
+  or dropped token fails loudly. It does not ask whether a token either palette still
+  declares is actually painted by anything — a token can sit in both palettes, pass
+  every check in that file, and correspond to nothing on screen. `--pending-border` and
+  `--live-bg` were exactly this: zero consumers in `components/`/`entrypoints/` and zero
+  `var(--pending-border)`/`var(--live-bg)` in the built CSS, found by grepping for them
+  by hand and removed (`git log --oneline -- entrypoints/popup/style.css` around
+  "아무것도 칠하지 않는 토큰 둘과 그 가드를 걷어낸다"). Nothing runs that grep
+  automatically; finding the next one means doing it again.

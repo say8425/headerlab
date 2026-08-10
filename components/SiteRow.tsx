@@ -1,3 +1,5 @@
+import { Ban, CircleCheck, CircleMinus, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { Diagnostic } from '@/lib/model/types';
 
 export interface SiteRowProps {
@@ -69,6 +71,55 @@ const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
   idle: 'Not in use while All sites is on',
 };
 
+/** The glyph each row state wears, next to the hostname. */
+const STATE_ICON = {
+  granted: CircleCheck,
+  pending: CircleMinus,
+  unusable: Ban,
+  idle: CircleMinus,
+} as const;
+
+/** The icon's colour, one token per state. */
+const STATE_TONE = {
+  granted: 'text-live',
+  pending: 'text-pending',
+  unusable: 'text-destructive',
+  idle: 'text-muted-foreground',
+} as const;
+
+/**
+ * The second line's colour and weight, mirroring the mockup's `.te-l2--live`
+ * / `.te-l2--err` — severity is said in the line itself, not only on the icon
+ * beside it. `pending` is never seen: that state's line holds the Grant
+ * button, or nothing (see `STATE_LINE`), never this span's text.
+ */
+const STATE_LINE_TONE: Record<RowState, string> = {
+  granted: 'font-semibold text-live',
+  pending: 'font-medium text-muted-foreground',
+  unusable: 'font-semibold text-destructive',
+  idle: 'font-medium text-muted-foreground',
+} as const;
+
+/**
+ * The Grant button's classes, exported so `ScopeRail`'s all-sites bar can use
+ * the exact same ones for its own Grant button.
+ *
+ * "All-sites reaches the same state, so it must offer the same remedy rather
+ * than a second vocabulary" (CLAUDE.md, No silent failures) — a pending site
+ * and an on-but-ungranted all-sites mode are the same fact (waiting on the
+ * same kind of permission), so one class string shared by both call sites is
+ * what makes that promise hold by construction instead of by two people
+ * remembering to keep two copies in sync.
+ *
+ * `hover:bg-pending-bg` is not decorative: shadcn's `secondary` variant ships
+ * `hover:bg-tray/80`, and `bg-pending-bg` above only overrides the base
+ * (unprefixed) utility — `twMerge` treats a `hover:`-prefixed class as a
+ * different group, so without this the button's fill would flash grey on
+ * hover. Verified in the built CSS.
+ */
+export const GRANT_BUTTON_CLASS =
+  'h-5 rounded-[4px] bg-pending-bg text-pending hover:bg-pending-bg';
+
 export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
    * One symbol, one meaning.
@@ -110,62 +161,107 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     (d) => d.kind === 'permission-missing' && d.host !== undefined,
   );
 
+  const Icon = STATE_ICON[state];
+
   return (
-    <div className="hl-dom" data-testid="site" data-state={state}>
-      {/* Was `aria-hidden`, which left a granted row and an unusable row with
-          identical accessible names — the colour was the only thing telling
-          them apart. */}
-      <span className="hl-domstate" role="img" aria-label={STATE_LABEL[state]} />
-      <span className="hl-domhost">{domain}</span>
-      <button className="hl-domx" aria-label={`Remove ${domain}`} onClick={onRemove}>
-        ×
-      </button>
-
-      {/* The row's second line, present in **every** state and always the same
-          height.
-
-          It used to render only when a permission was pending, which made the
-          Grant button's arrival add 30.5px to the row — pushing the sites under
-          it, the add field and the whole rail below down by that much, at the
-          moment the user was reading the row that had just changed. A control
-          appearing must not resize what holds it (CLAUDE.md, Interface), so the
-          line is sized to the tallest thing it can hold, which is the button,
-          and the other states occupy that space rather than removing it.
-
-          It is not reserved by rendering a hidden button. An invisible control
-          is still in the accessibility tree and still lands in the tab order,
-          which would put an unpressable Grant between the × of one row and the
-          host of the next. The space is reserved; the control is not.
-
-          The words are `aria-hidden` because the dot at the head of the row
-          already carries the same fact as its accessible name — without that,
-          every row would announce its state twice.
-
-          A pending permission is state and remedy, and nothing else. The
-          sentence this replaces spent four lines telling a developer what a
-          Grant button beside a hostname already says; two of them filled the
-          rail. A `?` explaining the button went the same way for the same
-          reason — a help mark on every pending row is a repeated affordance
-          for something nobody was confused by.
-
-          Never on an unusable row: granting a host that cannot be used changes
-          nothing, so the button would be an action that looks like the remedy
-          and is not. */}
-      <span className="hl-need" data-testid="site-line">
-        {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
-          <button
-            className="hl-grant"
-            data-testid="site-pending"
-            onClick={() => onGrant(awaitingGrant.host!)}
+    <div
+      className="flex h-12 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+      data-testid="site"
+      data-state={state}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex h-4 items-center gap-1.5">
+          {/* Was `aria-hidden`, which left a granted row and an unusable row
+              with identical accessible names — the colour was the only thing
+              telling them apart. Lives on line 1, unconditionally: it is the
+              one element every state renders, which the second line no longer
+              is on its own (a pending row's line holds the Grant button, not
+              a sentence), so the accessible name has to sit somewhere that
+              never goes away. */}
+          <Icon
+            className={`size-3.5 shrink-0 ${STATE_TONE[state]}`}
+            role="img"
+            aria-label={STATE_LABEL[state]}
+          />
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-[12px] leading-4 font-semibold text-foreground"
+            title={domain}
           >
-            Grant
-          </button>
-        ) : (
-          <span className="hl-needsay" aria-hidden="true">
-            {state === 'pending' ? '' : STATE_LINE[state]}
+            {domain}
           </span>
-        )}
-      </span>
+        </div>
+
+        {/* The row's second line, present in **every** state and always the
+            same height.
+
+            It used to render only when a permission was pending, which made
+            the Grant button's arrival add 30.5px to the row — pushing the
+            sites under it, the add field and the whole rail below down by
+            that much, at the moment the user was reading the row that had
+            just changed. A control appearing must not resize what holds it
+            (CLAUDE.md, Interface), so the line is sized to the tallest thing
+            it can hold, which is the button, and the other states occupy
+            that space rather than removing it.
+
+            It is not reserved by rendering a hidden button. An invisible
+            control is still in the accessibility tree and still lands in the
+            tab order, which would put an unpressable Grant between the
+            remove control of one row and the host of the next. The space is
+            reserved; the control is not.
+
+            The words are `aria-hidden` because the icon on line 1 already
+            carries the same fact as its accessible name — without that,
+            every row would announce its state twice. `pl-5` lines the text
+            up under the hostname rather than under that icon, since the icon
+            has no counterpart on this line.
+
+            A pending permission is state and remedy, and nothing else. The
+            sentence this replaces spent four lines telling a developer what
+            a Grant button beside a hostname already says; two of them filled
+            the rail. A `?` explaining the button went the same way for the
+            same reason — a help mark on every pending row is a repeated
+            affordance for something nobody was confused by.
+
+            Never on an unusable row: granting a host that cannot be used
+            changes nothing, so the button would be an action that looks like
+            the remedy and is not. */}
+        <span className="flex h-5 items-center pl-5" data-testid="site-line">
+          {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
+            <Button
+              size="xs"
+              variant="secondary"
+              data-testid="site-pending"
+              className={GRANT_BUTTON_CLASS}
+              onClick={() => onGrant(awaitingGrant.host!)}
+            >
+              Grant
+            </Button>
+          ) : (
+            <span
+              className={`text-[11px] leading-[14px] ${STATE_LINE_TONE[state]}`}
+              aria-hidden="true"
+            >
+              {state === 'pending' ? '' : STATE_LINE[state]}
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* `variant="ghost"` sets no text colour of its own, so without this the
+          Trash2 inherits the row's full-strength ink — the loudest colour in
+          the row, on its destructive control, while the identical button on a
+          rule row already wears `--muted-foreground`. The mockup's `.te-icb`
+          is `--ink-3`; this is that, and it is what makes the two delete
+          buttons one control rather than two. */}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={`Remove ${domain}`}
+        onClick={onRemove}
+        className="text-muted-foreground"
+      >
+        <Trash2 />
+      </Button>
     </div>
   );
 }

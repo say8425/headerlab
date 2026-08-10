@@ -1,7 +1,10 @@
+import { ArrowUpDown, CircleHelp, Globe } from 'lucide-react';
 import { AddSiteField, type AddSiteResult } from './AddSiteField';
-import { HelpTip } from './HelpTip';
-import { SiteRow } from './SiteRow';
+import { GRANT_BUTTON_CLASS, SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
 import type { RuleTally } from '@/lib/view/rules';
 import type { Diagnostic, ResourceType } from '@/lib/model/types';
@@ -53,6 +56,25 @@ export interface ScopeRailProps {
   onGrant: (host: string) => void;
 }
 
+/** A rail section's heading: "Sites 2", "Request types 3 of 8". */
+const HEAD_CLASS =
+  'flex h-5 shrink-0 items-center gap-1.5 px-3 text-[11px] leading-[14px] font-semibold text-foreground-2';
+/** The count beside a heading — the same word, one rank quieter. */
+const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
+/**
+ * A note parked against its cause: a neutral card with a coloured edge, never a
+ * coloured block. A pending site is already carrying colour; a stack of amber
+ * slabs beside it would rebuild the wall of yellow this layout exists to
+ * remove. Severity is carried by the edge, not by the mass.
+ *
+ * `[overflow-wrap:anywhere]` because these name hosts, and a host is one word —
+ * without it a domain longer than the rail pushes the note out of the column.
+ */
+const NOTE_CLASS =
+  'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
+/** The two switches in the rail are one control in two places. */
+const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
+
 /**
  * The left rail: where does this apply, and is it working.
  *
@@ -65,6 +87,18 @@ export interface ScopeRailProps {
  * Diagnostics land here for the same reason. Every message the old build
  * stacked above the grid was about scope, so putting them in the scope column
  * costs the rules nothing instead of shoving them down the screen.
+ *
+ * **The rail does not scroll; the site list inside it does.** It used to scroll
+ * as one block — 862px of content in a 600px column — so a seventh site pushed
+ * the brand, the readout, the run state, "Add a site" and the whole request-type
+ * checklist off the top and bottom together. Everything here is fixed but the
+ * list, which stops at a height deliberately off the row pitch so that the row
+ * it cuts in half is itself the "there is more" signal.
+ *
+ * Only the site list may give way when the rail is under pressure — a long
+ * scope note, a smaller font, a taller field. Every other child is `shrink-0`,
+ * so the checklist and the readout keep their size and the list shows fewer
+ * rows rather than the column overflowing.
  */
 export function ScopeRail({
   tally,
@@ -117,58 +151,143 @@ export function ScopeRail({
   if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
   if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
 
+  /**
+   * The whole second line as one string, or empty when there is nothing to add.
+   *
+   * Resolved here rather than branched in the markup so the line has exactly
+   * one value: it is both what is rendered and what `title` carries, and those
+   * two must not be able to disagree. The healthy state — rules configured and
+   * all of them going out — has nothing to say and renders no text, which is
+   * not the same fact as "nothing configured yet".
+   */
+  const subline = tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ');
+
+  /**
+   * The all-sites row's state, in the same four-way shape a site row uses.
+   *
+   * `unknown` is not `pending`. `null` means the probe has not answered, and a
+   * row that named a state before the browser had been asked is the flicker
+   * `allSitesGranted: null` exists to prevent — so that state carries no icon,
+   * no colour and no sentence, only the switch.
+   */
+  const allSitesState = !allSites
+    ? 'off'
+    : allSitesGranted === null
+      ? 'unknown'
+      : allSitesGranted
+        ? 'granted'
+        : 'pending';
+
   return (
-    <aside className="hl-rail">
-      <div className="hl-brand">
-        <span className="hl-mark" aria-hidden="true">
-          <svg width="11" height="11" viewBox="0 0 11 11">
-            <path
-              d="M1.5 2h8M1.5 5.5h5M1.5 9h8"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
+    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
+      <div className="flex h-6 shrink-0 items-center gap-2 px-3">
+        <span
+          className="flex size-6 shrink-0 items-center justify-center rounded-md bg-foreground text-background"
+          aria-hidden="true"
+        >
+          <ArrowUpDown className="size-3.5" />
         </span>
-        <span className="hl-name">
-          Header<i>lab</i>
+        <span className="text-[14px] leading-[18px] font-semibold tracking-[-0.014em] text-foreground">
+          HeaderLab
         </span>
       </div>
 
-      <div className="hl-readout" data-testid="readout">
-        <div className="hl-bignum">
-          <b>{tally.live}</b>
-          <span>of {tally.total} rules live</span>
-        </div>
-        <div className="hl-subcount">
-          {tally.total === 0 ? (
-            'nothing configured yet'
-          ) : subcount.length > 0 ? (
-            <>
-              {tally.off > 0 && <span className="hl-pip" aria-hidden="true" />}
-              {subcount.join(' · ')}
-            </>
-          ) : null}
-        </div>
-      </div>
+      {/* The count and the master switch on one raised surface. They are the
+          same question asked twice — how much is going out, and is any of it —
+          so they share a card rather than sitting as two bands on the rail. */}
+      <div className="mx-3 mt-4 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
+        <div data-testid="readout">
+          <div className="flex h-7 items-baseline gap-[7px] tabular-nums">
+            {/* No `leading-1`: at this weight macOS's system-ui glyphs have
+                more ascent+descent than the nominal em square, so a line box
+                the size of the font clips its own text — measured at 32px of
+                content in a 30px box. CI renders the same stack under Linux
+                Chromium's fallback fonts, with different metrics again, which
+                is why this is a comfortable multiple rather than a number
+                tuned against one machine's font. */}
+            <b className="text-[24px] leading-7 tracking-[-0.03em] text-foreground [font-weight:650]">
+              {tally.live}
+            </b>
+            <span className="text-[12px] leading-4 font-medium text-foreground-2">
+              of {tally.total} rules live
+            </span>
+          </div>
+          {/* One line is always reserved, empty or not. `display: none` on an
+              empty count was the widest-reaching reflow in the popup: the
+              healthy state has nothing to add, so switching one rule off made
+              this line appear and pushed the run state, the all-sites switch,
+              every site row and the request types down at once — from a click
+              on the other side of the screen.
 
-      <div className="hl-pausebar" data-testid="runstate" data-paused={paused || undefined}>
-        <span className="hl-pauselab">{paused ? 'Paused' : 'Active'}</span>
-        <button
-          role="switch"
-          aria-checked={!paused}
-          aria-label={paused ? 'Resume all rules' : 'Pause all rules'}
-          className="hl-sw"
-          onClick={() => onTogglePause(!paused)}
-        />
+              One line, not two. The longest message this can hold wraps to two
+              in a 199px column, and reserving for that would spend 16px of rail
+              on a sentence most sessions never see. A message growing a line
+              because it has more to say is content changing; an empty line
+              appearing because a control did is the defect.
+
+              That bound is a *ceiling*, so the text has to be told what to do
+              when it reaches it. It was not: the box was `h-4 overflow-hidden`
+              with the sentence as a bare anonymous flex item, so the longest
+              real message — "1 off · 1 unfinished · 2 blocked by an unusable
+              site" — wrapped to 22px inside a 16px box and `items-center` then
+              sliced *both* lines through the middle. Measured in the built
+              popup at 748×600. The clause it cut is the one this component
+              argues hardest for ten lines above: naming the cause is what keeps
+              the count from blaming the rule for an unusable site.
+
+              So it truncates rather than wraps, with an ellipsis saying so and
+              `title` carrying the whole sentence — the same bargain the
+              hostname on a site row and the duplicate note in AddSiteField
+              already make. `truncate` needs the text in its own `min-w-0` flex
+              child; as a bare text node it is an anonymous box that
+              `text-overflow` cannot address. */}
+          <div
+            className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
+            data-testid="subcount"
+          >
+            {subline !== '' && (
+              <>
+                {tally.off > 0 && (
+                  <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
+                )}
+                <span className="min-w-0 truncate" title={subline}>
+                  {subline}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="group/run mt-3 flex h-5 items-center gap-[7px]"
+          data-testid="runstate"
+          data-paused={paused || undefined}
+        >
+          {/* Paused is deliberate, not broken, so it recedes to a neutral dot
+              rather than borrowing the amber that means "something needs you". */}
+          <span
+            className="size-1.5 shrink-0 rounded-full bg-live group-data-[paused]/run:bg-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="text-[12px] leading-4 font-semibold text-foreground">
+            {paused ? 'Paused' : 'Active'}
+          </span>
+          <span className="flex-1" />
+          <Switch
+            aria-label={paused ? 'Resume all rules' : 'Pause all rules'}
+            checked={!paused}
+            onCheckedChange={(on) => onTogglePause(!on)}
+            className={SWITCH_CLASS}
+          />
+        </div>
       </div>
 
       {/* A failed reconcile means nothing is applying, which contradicts the
           run state directly above it — so it sits here rather than among the
           scope notes, above everything it makes untrue. */}
       {lastError !== null && (
-        <div className="hl-note hl-note-err" data-testid="sync-error">
-          <b>Rules not registered</b>
+        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="sync-error">
+          <b className="mb-0.5 block font-bold text-destructive">Rules not registered</b>
           {lastError}
         </div>
       )}
@@ -178,16 +297,36 @@ export function ScopeRail({
           extension that is modifying headers. The run state above is the one
           that is true. */}
       {iconError !== null && (
-        <div className="hl-note hl-note-err" data-testid="icon-error">
-          <b>Toolbar icon out of date</b>
+        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="icon-error">
+          <b className="mb-0.5 block font-bold text-destructive">Toolbar icon out of date</b>
           The icon may not match the run state above. {iconError}
         </div>
       )}
 
-      <div className="hl-railsec">
-        <div className="hl-railhead">
+      {/* The only part of the rail allowed to give way, and the only part that
+          scrolls — see the component docblock.
+
+          `min-h-0` here is load-bearing, and this is the one place in the popup
+          where it is — all three conditions have to hold at once, which is why
+          the two in RulePanel are inert and this one is not:
+
+          the `aside` is a **column** flex container, so height is the main axis
+          and a child's automatic minimum size actually applies (in the panel's
+          row-direction parent it never does); this column's own `overflow` is
+          `visible`, so that minimum is not zeroed the way a scroll container's
+          is; and its minimum resolves to the full height of the heading, the
+          all-sites row and the add field, because those three are `shrink-0`
+          and only the list between them can collapse.
+
+          Measured by removing it: with a scope note on screen the rail went to
+          676px of content in a 600px box and pushed the request types 37px
+          down, instead of the site list shrinking from 132 to 48. The e2e
+          suite opens exactly that page (a note plus eight sites), so the class
+          cannot be dropped in silence. */}
+      <div className="mt-4 flex min-h-0 flex-col gap-1.5">
+        <div className={HEAD_CLASS}>
           Sites{' '}
-          <span className="hl-n" data-testid="site-count">
+          <span className={HEAD_COUNT_CLASS} data-testid="site-count">
             {/* Reads the mode, not the list length. `all` used to mean "the
                 list is empty", which was true of a filter applying everywhere
                 and equally true of one that had not been scoped yet — the same
@@ -196,86 +335,164 @@ export function ScopeRail({
                 counts as the 0 it is. */}
             {allSites ? 'all' : domains.length}
           </span>
+          <span className="flex-1" />
           {/* The one fact the chip cannot convey: a port or a path could never
               have narrowed anything, because `requestDomains` is host-only.
               Behind a `?` rather than standing under the field — it is worth
-              knowing once, not worth 196px of permanent rail. */}
-          {/* Shown before it is stated. The reader's real question is "what
+              knowing once, not worth 196px of permanent rail.
+
+              Shown before it is stated. The reader's real question is "what
               happens to what I paste", and two worked pairs answer that faster
-              than the rule they demonstrate. */}
-          <HelpTip
-            label="About matching sites"
-            examples={[
-              ['https://x.com/a/b', 'x.com'],
-              ['localhost:3000', 'localhost'],
-            ]}
-            text="Matched by host — a port or path is dropped."
-          />
+              than the rule they demonstrate.
+
+              A portalled tooltip rather than the hand-rolled bubble this
+              replaces: that one was absolutely positioned inside the rail, and
+              the rail's own `overflow-y: auto` made `overflow-x` compute to
+              `auto` too, which sliced the bubble at the 224px edge. It was
+              anchored to the full-width heading to work around that. Nothing
+              anchored inside the rail is clipped now, because the content is
+              not inside the rail at all. */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="About matching sites"
+                  className="flex size-5 shrink-0 items-center justify-center rounded-[4px] text-muted-foreground hover:text-foreground"
+                >
+                  <CircleHelp className="size-3.5" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                data-testid="help-bubble"
+                side="bottom"
+                align="end"
+                className="max-w-[210px] flex-col items-start gap-1 px-2.5 py-2 text-[10.5px] leading-[1.45] font-normal [overflow-wrap:anywhere]"
+              >
+                <span className="flex flex-col gap-[3px]">
+                  {[
+                    ['https://x.com/a/b', 'x.com'],
+                    ['localhost:3000', 'localhost'],
+                  ].map(([from, to]) => (
+                    <span key={from} className="flex items-baseline gap-[5px]">
+                      <code className="font-mono text-[9.5px] leading-[1.35] font-medium">
+                        {from}
+                      </code>
+                      <span aria-hidden="true">→</span>
+                      <code className="font-mono text-[9.5px] leading-[1.35] font-medium">
+                        {to}
+                      </code>
+                    </span>
+                  ))}
+                </span>
+                <span>Matched by host — a port or path is dropped.</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
+
         {/* Above the list, because it decides what the list means.
             Underneath it the rows would read as one more site among the
             others rather than as the switch that turns all of them off.
+
+            Shaped exactly like a site row — same height, same fill, same
+            reserved second line — because it is the same object: a scope, its
+            access state, and the remedy when that access is missing. It used
+            to be a coloured bar that changed fill with its state, which meant
+            "on and working" and "on and waiting for a grant" were an amber
+            tint apart and the Grant button had nowhere to go but the same
+            line as the label. The colour is on the glyph and the button now,
+            which is where a site row puts it.
 
             Its own control rather than a row in the list: "everywhere" is not
             a site, and giving it a chip beside `api.example.com` would put the
             thing that overrides the list inside the list. That shape is what
             made the empty list mean two things in the first place. */}
         <div
-          className="hl-allsites"
+          className="mx-3 flex h-12 shrink-0 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
           data-testid="all-sites"
-          data-on={allSites || undefined}
-          data-granted={allSites && allSitesGranted === false ? 'no' : undefined}
+          data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
-          {/* The mode is on and the access is not: said, not merely coloured.
-              The switch beside it reports on/off and nothing about permission,
-              which left these two states — working everywhere, and applying
-              nowhere pending a grant — telling apart by an amber tint alone.
-              That is the defect the site rows were already fixed for: a dot
-              that was `aria-hidden` gave a granted row and an unusable one
-              identical accessible names. Same words as those rows, because it
-              is the same state. */}
-          {/* The dot's *slot* is unconditional; only its meaning is not. It
-              used to render solely once the state was known, so "All sites"
-              slid 14px sideways the moment a probe answered — and the same
-              14px back when the mode went off. State changes appearance, not
-              geometry (CLAUDE.md, Interface).
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex h-4 items-center gap-1.5">
+              {/* The glyph's *slot* is unconditional; only its meaning is not.
+                  It used to render solely once the state was known, so "All
+                  sites" slid sideways the moment a probe answered — and back
+                  again when the mode went off. State changes appearance, not
+                  geometry (CLAUDE.md, Interface).
 
-              With nothing to report it is a blank 7px, carrying no `role` and
-              no label: reserving the space must not put a phantom image into
-              the accessibility tree, and a dot that named a state before the
-              browser had been asked is the flicker `allSitesGranted: null`
-              exists to prevent. It also lands the label on the same x as the
-              hostnames below, which the conditional version only managed in
-              one of its two states. */}
-          {allSites && allSitesGranted !== null ? (
-            <span
-              className="hl-allsitesstate"
-              role="img"
-              aria-label={allSitesGranted ? 'Access granted' : 'Awaiting permission'}
-            />
-          ) : (
-            <span className="hl-allsitesstate" data-unknown="" />
-          )}
-          <span className="hl-allsiteslab">All sites</span>
-          {/* The only control here that asks the browser for anything. The
-              switch sets the mode and stops (App.tsx): `<all_urls>` is the
-              largest grant this extension can request, so it is spent when a
-              button labelled Grant is pressed, never as a side effect of a
-              switch moving. Every way of reaching this state — turning the mode
-              on, declining once, or a store migrated from a build that never
-              asked — therefore arrives at the same button, which is the same
-              shape a pending site row offers for the same reason. */}
-          {allSites && allSitesGranted === false && (
-            <button className="hl-grant" onClick={onGrantAllSites}>
-              Grant
-            </button>
-          )}
-          <button
-            role="switch"
-            aria-checked={allSites}
+                  With nothing to report it is a blank 14px carrying no `role`
+                  and no label: reserving the space must not put a phantom
+                  image into the accessibility tree. A globe rather than the
+                  site rows' circle, because this row is a mode and not a
+                  host — the one thing about it that is not the same fact. */}
+              {allSitesState === 'granted' || allSitesState === 'pending' ? (
+                <Globe
+                  className={`size-3.5 shrink-0 ${allSitesState === 'granted' ? 'text-live' : 'text-pending'}`}
+                  data-testid="all-sites-state"
+                  role="img"
+                  aria-label={
+                    allSitesState === 'granted' ? 'Access granted' : 'Awaiting permission'
+                  }
+                />
+              ) : (
+                <span className="size-3.5 shrink-0" data-testid="all-sites-state" data-unknown="" />
+              )}
+              <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-semibold text-foreground">
+                All sites
+              </span>
+            </div>
+
+            {/* The second line, reserved in every state and sized to the
+                tallest thing it can hold — the Grant button — exactly as a
+                site row's is. The mode being on and the access being missing
+                is *said* here rather than left to a tint, in the same words a
+                pending site row uses, because it is the same state.
+
+                The only control here that asks the browser for anything. The
+                switch sets the mode and stops (App.tsx): `<all_urls>` is the
+                largest grant this extension can request, so it is spent when a
+                button labelled Grant is pressed, never as a side effect of a
+                switch moving. Every way of reaching this state — turning the
+                mode on, declining once, or a store migrated from a build that
+                never asked — therefore arrives at the same button. */}
+            <span className="flex h-5 items-center pl-5">
+              {allSitesState === 'pending' ? (
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  className={GRANT_BUTTON_CLASS}
+                  onClick={onGrantAllSites}
+                >
+                  Grant
+                </Button>
+              ) : (
+                <span
+                  className={`text-[11px] leading-[14px] ${
+                    allSitesState === 'granted'
+                      ? 'font-semibold text-live'
+                      : 'font-medium text-muted-foreground'
+                  }`}
+                  // Hidden only when the glyph above already carries these
+                  // exact words; the off state has no glyph, so hiding its
+                  // line would take the sentence out of the tree entirely.
+                  aria-hidden={allSitesState === 'granted' || undefined}
+                >
+                  {allSitesState === 'granted'
+                    ? 'Access granted'
+                    : allSitesState === 'off'
+                      ? 'The list below applies'
+                      : ''}
+                </span>
+              )}
+            </span>
+          </div>
+
+          <Switch
             aria-label="Apply to every site"
-            className="hl-sw"
-            onClick={() => onToggleAllSites(!allSites)}
+            checked={allSites}
+            onCheckedChange={onToggleAllSites}
+            className={SWITCH_CLASS}
           />
         </div>
 
@@ -283,78 +500,108 @@ export function ScopeRail({
             hiding it would make turning the mode off look like it had thrown
             the user's scope away, and there would be no way to see what
             turning it back off returns to. It is shown as what it is — still
-            there, not in use — and each row now says so on its own second
-            line.
+            there, not in use — and each row says so on its own second line.
 
-            That sentence used to be a paragraph here, above the list. It said
-            the same words about the same rows, and it appeared and vanished
-            with the mode, adding 23.7px above every site the instant the
-            switch moved. Its subject survives on the object it describes,
-            which is where this rail puts a site's state anyway: "a domain and
-            whether HeaderLab may act on it are the same fact" (SiteRow). The
-            row's line is reserved in every state, so saying it there costs no
-            movement at all. */}
-        {domains.map((stored) => {
-          // `analyzeDomain` is asked, never restated — it is the one definition
-          // of what a usable host is, and the same call already supplies the
-          // key this row's diagnostics are filed under.
-          //
-          // The row shows the *effective* value, not the stored one. New
-          // entries are already normalized on commit, so for those the two are
-          // the same string; entries written before that are still raw, and
-          // showing those verbatim would put the old defect back on screen for
-          // exactly the people who already hit it. `key` and removal stay on
-          // the stored value, which is what identifies the entry in the list.
-          const analysis = analyzeDomain(stored);
-          return (
-            <SiteRow
-              key={stored}
-              domain={effectiveDomain(stored)}
-              usable={analysis.valid}
-              inert={allSites}
-              diagnostics={byHost.get(analysis.host) ?? []}
-              onGrant={onGrant}
-              onRemove={() => onRemoveDomain(stored)}
-            />
-          );
-        })}
-        <AddSiteField onAdd={onAddDomain} />
+            The height stops at 132px, which is deliberately NOT a multiple of
+            the 54px row pitch: two rows and the gap after them are 108px and
+            three are 156px, so a third site leaves that row cut across the
+            middle — 24px of 48 — and the cut row is the affordance saying the
+            list continues. 156 or 162 would each show a whole number of rows
+            and say nothing. The remaining rail is what caps it: 132 leaves
+            28px of slack under the checklist, and every 48px more would spend
+            a whole row of that. The reference
+            mockup capped the list at a fixed 176px, which this does not copy —
+            a hard cap opens a hole between the last site and everything below
+            it when there are only one or two. `max-height` lets the list be as
+            tall as it has content for, and `mt-auto` on the section below
+            sends the leftover to the foot of the rail instead.
+
+            The scrollbar is not assumed to be visible: on macOS it is an
+            overlay that paints over the content and vanishes. `scroll-list`
+            reserves its 8px anyway (see style.css for the measurement), so the
+            rows do not shift the moment a fourth site arrives — but what says
+            "there is more" is the cut row, which is there in every case.
+
+            `empty:hidden` so a rail with no sites yet does not carry a 6px gap
+            for a list with nothing in it. */}
+        <div
+          className="scroll-list flex max-h-[132px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          data-testid="site-list"
+        >
+          {domains.map((stored) => {
+            // `analyzeDomain` is asked, never restated — it is the one definition
+            // of what a usable host is, and the same call already supplies the
+            // key this row's diagnostics are filed under.
+            //
+            // The row shows the *effective* value, not the stored one. New
+            // entries are already normalized on commit, so for those the two are
+            // the same string; entries written before that are still raw, and
+            // showing those verbatim would put the old defect back on screen for
+            // exactly the people who already hit it. `key` and removal stay on
+            // the stored value, which is what identifies the entry in the list.
+            const analysis = analyzeDomain(stored);
+            return (
+              <SiteRow
+                key={stored}
+                domain={effectiveDomain(stored)}
+                usable={analysis.valid}
+                inert={allSites}
+                diagnostics={byHost.get(analysis.host) ?? []}
+                onGrant={onGrant}
+                onRemove={() => onRemoveDomain(stored)}
+              />
+            );
+          })}
+        </div>
+
+        {/* Outside the scroll container, always. Inside it, adding a site
+            would be something you have to scroll to reach once you have a few
+            — which is hiding the one control that makes the list grow. */}
+        <div className="shrink-0 px-3">
+          <AddSiteField onAdd={onAddDomain} />
+        </div>
       </div>
 
-      {/* Neutral cards with a coloured edge, not coloured blocks. A pending
-          site is already carrying colour; a stack of amber slabs beside it
-          would rebuild the wall of yellow this layout exists to remove.
-          Severity is carried by the edge, not by the mass.
-
-          Above the request types, not below them. Every one of these is about
-          the sites directly above, and the rail scrolls: with two sites
-          awaiting permission the real diagnostic copy is tall enough to push
-          anything after the checklist past 600px, and a warning you have to
-          scroll to find is the failure this whole layout is against. The
-          checklist is the least-touched control on screen, so it is the one
-          that can afford to be the thing you scroll to. */}
       {notes.map((d, i) => (
         <div
           key={`${d.kind}-${i}`}
           data-testid="scope-note"
           data-severity={d.severity}
-          className="hl-note"
+          className={`${NOTE_CLASS} ${
+            d.severity === 'error'
+              ? 'border-l-destructive'
+              : // `incomplete` is not a complaint. Nothing is wrong and nothing
+                // is at risk — the configuration simply is not finished yet,
+                // which is the state a fresh install opens in. Amber is this
+                // palette's "something needs you", and spending it on the one
+                // note that is asking for nothing would rebuild the standing
+                // warning this state replaces, in a different colour.
+                d.severity === 'incomplete'
+                ? 'border-l-muted-foreground'
+                : 'border-l-pending'
+          }`}
         >
           {d.message}
         </div>
       ))}
 
-      <div className="hl-railsec hl-railsec-types">
-        <div className="hl-railhead">
+      {/* Last, and pushed to the foot by `mt-auto`: the leftover space in a
+          rail with two sites belongs at the bottom of the column, not as a
+          hole in the middle of it. Above the checklist rather than below is
+          also where the scope notes go — every one of them is about the sites,
+          and the checklist is the least-touched control on screen, so it is
+          the one that can afford to be the thing you scroll past. */}
+      <div className="mt-auto shrink-0 pt-3" data-testid="rail-section-types">
+        <div className={HEAD_CLASS}>
           Request types{' '}
-          <span className="hl-n">
+          <span className={HEAD_COUNT_CLASS}>
             {typeCount} of {OFFERED_TYPES.length}
           </span>
         </div>
-        <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
+        <div className="mt-1.5 px-3">
+          <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
+        </div>
       </div>
-
-      <div className="hl-railfill" />
     </aside>
   );
 }

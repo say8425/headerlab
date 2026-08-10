@@ -83,7 +83,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'incomplete',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: 'This rule has no name yet, so nothing is sent for it.',
+        message: 'No name yet, so nothing is sent.',
       });
       continue;
     }
@@ -94,7 +94,12 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: `"${name}" is not a valid header name. Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons.`,
+        // Remedy first (Task 13): this renders truncated at ~338px/11px when
+        // it takes over a rule row's value line, same as every other
+        // bounded-row-meets-unbounded-text spot in this popup, and the tail
+        // is what gets cut. The character set the user can actually act on
+        // has to survive that; the fact of the failure is what can afford to.
+        message: 'Not a valid header name — no spaces or colons.',
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -107,9 +112,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message:
-          `Chrome does not allow appending to the request header "${name}". ` +
-          'Use Set instead, or switch this row to a response header.',
+        // Remedy first (Task 13) — same reasoning as invalid-header-name
+        // above: what to do ("Use Set instead…") used to be the clause a
+        // truncated row cut, with the clause the user can do nothing about
+        // left standing.
+        message: 'Use Set. Chrome does not append request headers.',
       });
     }
 
@@ -123,11 +130,37 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // No "profile" here either: the UI shows one implicit rule set and no
         // profiles, so the word named something the reader cannot see.
         //
-        // Deliberately does not say *which* of the two wins. Both are emitted
-        // into one action's header list and Chrome's resolution between them
-        // is not something this project has measured; naming a winner would be
-        // a claim the code cannot back.
-        message: `"${name}" is set more than once — only one of them can take effect.`,
+        // Names the winner, unlike the message this replaced. That older
+        // message hedged because both rows used to reach Chrome and this
+        // project had not measured which one Chrome kept. That is no longer
+        // true: only the *first* occurrence of a key is left undiagnosed —
+        // every later one lands here, at `error` severity, and `compile.ts`'s
+        // `hasRowError` filter now excludes every diagnosed row from
+        // `compileHeaders` before anything is sent. So this row specifically
+        // is the one that stays home; the earlier row is the one still going
+        // out, deterministically, by list order rather than by Chrome's own
+        // unspecified resolution between two conflicting entries.
+        //
+        // Remedy first (Task 13), same reasoning as the other two error
+        // messages in this file: what to do about it survives truncation,
+        // not just the fact that something is wrong.
+        //
+        // "already touches", not "already sets" — a re-review caught the
+        // earlier wording naming an operation this code never checks.
+        // `seen` stores only the `target name` key, never which operation
+        // the earlier row used, so the earlier row could be `append` or
+        // `remove` just as easily as `set`; saying "sets" was a claim about
+        // something this function does not know. `detectConflicts` faces the
+        // identical shape of fact and names it `firstToucher`
+        // (`lib/compile/conflicts.ts`) — that function *can* say which
+        // operation, since it holds the earlier rule and composes `already
+        // ${operation}s`, a message this one has no way to write (there is
+        // no earlier rule here, only a key that already occurred). "touches"
+        // is not quoted from that message — no message anywhere uses the
+        // word — it echoes the *concept* `firstToucher` names, chosen so a
+        // reader who has seen one already recognises the other rather than
+        // parsing a second verb for the same fact.
+        message: 'Rename or delete. An earlier row uses this header.',
       });
     }
     seen.add(key);
@@ -135,3 +168,91 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
 
   return diagnostics;
 }
+
+/**
+ * The first error-severity diagnostic on a row, if it has one.
+ *
+ * One predicate, one definition — `suppression.ts`'s own rule, restated for
+ * the row half of it. Three callers used to each decide "does this row
+ * count as broken" independently (or, for `compile.ts` before its own fix,
+ * not decide it at all): `compile.ts` must not hand a diagnosed row to
+ * `compileHeaders` — `updateDynamicRules` is transactional, so one bad row
+ * rejects the whole batch and leaves whatever was registered before still
+ * in force, silently, while the screen shows the new state. The rail's
+ * readout (`lib/view/rules.ts`) must not count a row like that as live
+ * either. `RuleCard` must show the row's error message on line 2 rather
+ * than a value that is not in effect. All three now ask this — `RuleCard`
+ * for the diagnostic object, the other two via `hasRowError` below for the
+ * boolean — rather than re-testing `severity === 'error'` themselves.
+ * Re-testing it was a review finding, not a hypothetical: `RuleCard` did
+ * exactly that until this function grew a form it could call instead, and
+ * the two would have silently diverged the day a fourth severity arrived
+ * and only one of them was taught about it.
+ *
+ * Two of the three `error` kinds this file emits are the real batch-rejection
+ * risk: an append Chrome will refuse (`append-not-allowed`), and a duplicate
+ * (`duplicate-header`) — both pass `HEADER_TOKEN` and were, before
+ * `hasRowError` existed, sent to `compileHeaders` unfiltered. The third,
+ * `invalid-header-name`, was never actually one of them: `compileHeaders`
+ * already runs its own `HEADER_TOKEN.test` and skips a name that fails it,
+ * independently of anything here, so that row never reached Chrome even
+ * before this filter existed. Excluding it here too is belt-and-braces, not
+ * the fix for a reach-Chrome bug the other two are.
+ *
+ * `incomplete` deliberately does not count: an unfinished row is not
+ * broken, it simply is not a rule yet, and `compileHeaders` already drops it
+ * on its own terms (an empty name fails `HEADER_TOKEN`).
+ *
+ * `.find`, not `.filter`: at most one is ever shown anywhere, so the first
+ * is the one every caller needs.
+ */
+export function rowError(diagnostics: readonly Diagnostic[] | undefined): Diagnostic | undefined {
+  return diagnostics?.find((d) => d.severity === 'error');
+}
+
+/** `rowError(diagnostics) !== undefined` — see `rowError`'s own docblock. */
+export function hasRowError(diagnostics: readonly Diagnostic[] | undefined): boolean {
+  return rowError(diagnostics) !== undefined;
+}
+
+/**
+ * The key a row-level diagnostic map is grouped under: a diagnostic belongs
+ * to a row *of a profile*, never to a row id on its own.
+ *
+ * `headerRuleId` alone was the key both `compile.ts` and `lib/view/rules.ts`
+ * used until a re-review demonstrated what that costs. With two profiles
+ * whose rows happen to share an id, profile B's broken row lands in the same
+ * bucket as profile A's healthy one, and `hasRowError` reading that bucket
+ * then drops A's header from `compileHeaders` too — measured: `dynamic: []`,
+ * A's header silently stops being sent, while the only diagnostic on screen
+ * carries B's `profileId` and so says nothing about A at all. Headers that
+ * stop being modified without the screen saying so is the first thing this
+ * project's rules forbid.
+ *
+ * Not reachable today: ids come from `crypto.randomUUID()`, and the popup
+ * truncates storage to a single profile before this ever gets two to
+ * compare. It becomes reachable the day anything else writes state —
+ * `schema.ts` requires only `id: z.string().min(1)`, enforces no uniqueness
+ * across profiles, and its own docblock says it guards "every trust
+ * boundary, including JSON import." Import is exactly the feature CLAUDE.md
+ * names as the one that makes a dormant surface reachable, so this is closed
+ * now rather than left as a trap for the commit that adds it.
+ *
+ * Lives here, not in `lib/view/rules.ts`, even though the UI-routing half of
+ * this fix is also there: `lib/view/rules.ts` already imports `hasRowError`
+ * from this file, and the reverse import would run the compile layer through
+ * the view layer for one string. One predicate, one definition, and one
+ * direction for the dependency.
+ *
+ * The joiner is a space, which is why it looks like nothing between the two
+ * halves. It is still load-bearing: `schema.ts` constrains an id to `min(1)`
+ * and nothing else, so an id containing the joiner itself could make two
+ * different `{profileId, headerRuleId}` pairs collide on the same key — for
+ * instance `{a, "b c"}` and `{"a b", c}` both key as `"a b c"`. A space is a
+ * practical choice, not a proven-safe one: it does not occur in
+ * `crypto.randomUUID()`'s output, which is every id this product generates
+ * today, but nothing stops a future id (imported, hand-typed) from
+ * containing one.
+ */
+export const rowKey = (profileId: string, headerRuleId: string): string =>
+  `${profileId} ${headerRuleId}`;

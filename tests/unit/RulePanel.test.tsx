@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RulePanel, type RulePanelProps } from '@/components/RulePanel';
+import { rowKey } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
 
 function rule(over: Partial<HeaderRule> = {}): HeaderRule {
@@ -30,6 +31,13 @@ function props(over: Partial<RulePanelProps> = {}): RulePanelProps {
     onDeleteRule: vi.fn(),
     onAddRule: vi.fn(),
     ...over,
+    // Set after the spread rather than defaulted inside it: `over` is
+    // `Partial<RulePanelProps>`, so spreading it last widens every property
+    // it touches to include `undefined` — harmless for the optional ones,
+    // but `profileId` is required, and `over.profileId ?? 'p1'` is what
+    // gets its type back to plain `string` for `RulePanelProps` while still
+    // honouring an explicit override.
+    profileId: over.profileId ?? 'p1',
   };
 }
 
@@ -55,14 +63,30 @@ describe('RulePanel', () => {
     expect(names).toEqual(['First', 'Second', 'Third']);
   });
 
-  it('hangs each diagnostic under the rule it names, and not under the others', () => {
+  it('renders each diagnostic inside the rule it names, and not on the others', () => {
+    // Task 13: a diagnostic is now a *descendant* of its rule's row, not a
+    // sibling after it — that is the fix for CLAUDE.md's "a control
+    // appearing must not resize what holds it" (Interface). A sibling block
+    // still had a height, and a sibling gaining height still pushed every
+    // *following* row down by that much; a descendant swapping content
+    // inside a slot the row already reserves (line 2, sized for the value it
+    // replaces) cannot resize anything, which a same-height sibling never
+    // could guarantee. RuleCard's own docblock and the e2e suite's "an
+    // error diagnostic replacing a rule row's value never resizes the row
+    // or moves the rows below it" guard carry the height half of this
+    // claim, which jsdom cannot see; this test carries the routing half,
+    // which it can: a problem named for rule "b" renders inside rule "b"'s
+    // own box and nowhere near rule "a"'s.
     renderPanel({
       rules: [rule({ id: 'a', name: 'Clean' }), rule({ id: 'b', name: 'Broken' })],
-      byRow: new Map([['b', [diag({ severity: 'error', message: 'Header name is empty.' })]]]),
+      byRow: new Map([
+        [rowKey('p1', 'b'), [diag({ severity: 'error', message: 'Header name is empty.' })]],
+      ]),
     });
     const [clean, broken] = screen.getAllByTestId('rule');
     expect(within(clean!).queryAllByTestId('rule-problem')).toEqual([]);
-    expect(within(broken!).getByTestId('rule-problem').textContent).toBe('!Header name is empty.');
+    const problem = within(broken!).getByTestId('rule-problem');
+    expect(problem.textContent).toBe('Header name is empty.');
   });
 
   it('renders no cards and still offers a way to make one when there are no rules', () => {
@@ -72,9 +96,13 @@ describe('RulePanel', () => {
   });
 
   it('adds a rule from the head button, which never scrolls away', async () => {
+    // "New rule", not "+ New rule": the plus is a lucide icon carrying no
+    // accessible name of its own now, where it used to be a literal `+`
+    // character in the label. Exact-matching the two names apart is what keeps
+    // this from also matching the ghost row below.
     const onAddRule = vi.fn();
     renderPanel({ onAddRule });
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     expect(onAddRule).toHaveBeenCalledTimes(1);
   });
 

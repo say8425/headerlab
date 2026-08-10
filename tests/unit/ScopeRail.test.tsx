@@ -203,8 +203,8 @@ describe('sites', () => {
     // the line would still fit the layout, and this is the assertion that
     // notices.
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.com×Access granted',
-      'staging.acme.dev×Access granted',
+      'api.example.comAccess granted',
+      'staging.acme.devAccess granted',
     ]);
     expect(screen.getByTestId('site-count').textContent).toBe('2');
   });
@@ -365,7 +365,7 @@ describe('sites', () => {
     expect(onGrant).not.toHaveBeenCalledWith('host-a.example.com');
   });
 
-  it('removes the domain whose × was clicked', async () => {
+  it('removes the domain whose remove control was clicked', async () => {
     const onRemoveDomain = vi.fn();
     renderRail({ domains: ['a.example.com', 'b.example.com'], onRemoveDomain });
     await userEvent.click(screen.getByRole('button', { name: 'Remove b.example.com' }));
@@ -470,8 +470,8 @@ describe('the site list while all-sites is on', () => {
     // naming what is overriding it, would leave the reader looking for why.
     renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.com×Not in use while All sites is on',
-      'x.com×Not in use while All sites is on',
+      'api.example.comNot in use while All sites is on',
+      'x.comNot in use while All sites is on',
     ]);
   });
 
@@ -489,7 +489,7 @@ describe('the site list while all-sites is on', () => {
     renderRail({ allSites: false, domains: ['api.example.com'] });
     expect(screen.getByTestId('site').textContent).not.toMatch(/Not in use/);
     // …and the row is not merely silent: it states the state it is actually in.
-    expect(screen.getByTestId('site').textContent).toBe('api.example.com×Access granted');
+    expect(screen.getByTestId('site').textContent).toBe('api.example.comAccess granted');
   });
 
   it('stops claiming access is granted for a host nothing is scoped to', () => {
@@ -581,8 +581,44 @@ describe('adding a site', () => {
     const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: 'x.com' }));
     renderRail({ domains: ['x.com'], onAddDomain });
     await userEvent.type(field(), 'https://x.com/{Enter}');
-    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    // No space between the host and "is": the two live in separate flex
+    // items now (for the truncation in the test below), separated on screen
+    // by `gap-1` rather than by a text character. `textContent` sees only
+    // the text nodes, never the gap, so this is what it actually reads —
+    // a text-character space here would be the same bug round 2 caught
+    // (see the test below), just missed the other way.
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.comis already in the list.');
     expect(field()).toHaveProperty('value', 'https://x.com/');
+  });
+
+  it('bounds the duplicate note to one line, whatever the hostname length', async () => {
+    // `schema.ts` caps nothing about domain length, and the rail is ~194px
+    // wide at a 10.5px note — an ordinary corporate subdomain already
+    // exceeds one line before "is already in the list." is even appended.
+    // jsdom computes no layout, so it cannot see a box actually stay one
+    // line tall; what it can check is that the reservation is a fixed
+    // height (not a `min-h`, which is only a floor a long note could still
+    // push past) and that bounding the *rendering* does not lose the value
+    // — the full host survives in `title` and in `textContent` alike, only
+    // its on-screen width is clipped by CSS.
+    const long = 'internal-api-gateway.staging.eu-west-1.example.com';
+    const onAddDomain = vi.fn(() => ({ added: false as const, alreadyThere: long }));
+    renderRail({ domains: [long], onAddDomain });
+    await userEvent.type(field(), `${long}{Enter}`);
+
+    const note = screen.getByTestId('add-site-note');
+    // No space here either — see the comment on the sibling test above.
+    // `gap-1` on the flex row (not a text-node space) is what separates the
+    // two on screen; jsdom cannot see that gap, only the text nodes either
+    // side of it.
+    expect(note.textContent).toBe(`${long}is already in the list.`);
+
+    const host = note.querySelector('b')!;
+    expect(host.className).toContain('truncate');
+    expect(host.getAttribute('title')).toBe(long);
+
+    expect(note.parentElement!.className).toContain('h-[15px]');
+    expect(note.parentElement!.className).not.toContain('min-h');
   });
 
   it('drops the complaint as soon as the entry is edited', async () => {
@@ -604,7 +640,12 @@ describe('adding a site', () => {
     renderRail();
     expect(screen.queryByTestId('help-bubble')).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'About matching sites' }));
+    // Hover, not click. The `?` is a shadcn Tooltip trigger now, and a Radix
+    // tooltip treats a click as "I am busy, get out of the way" — it closes on
+    // pointerdown. Hovering and focusing are the two ways it opens, and both
+    // are pinned in tooltip.test.tsx; what this test is about is which fact
+    // the rail's own mark carries.
+    await userEvent.hover(screen.getByRole('button', { name: 'About matching sites' }));
     // Worked pairs first, then the rule they demonstrate — a developer
     // pattern-matches the transformation faster than a sentence describing it.
     expect(screen.getByTestId('help-bubble').textContent).toBe(
@@ -620,6 +661,14 @@ describe('adding a site', () => {
     renderRail({ onAddDomain });
     await userEvent.type(field(), '   {Enter}');
     expect(onAddDomain).not.toHaveBeenCalled();
+  });
+
+  it('추가 슬롯의 경계는 대비가 보장된 토큰을 쓴다', () => {
+    // The dashed edge is the only thing telling this control apart from
+    // plain text — Task 1's 3:1 guard is on `--boundary` itself, so this only
+    // has to confirm the slot actually reaches for that token.
+    renderRail();
+    expect(screen.getByTestId('add-field').className).toContain('border-boundary');
   });
 });
 
@@ -643,15 +692,17 @@ describe('request types', () => {
 
   it('shows xmlhttprequest as xhr, because the rail column is not 14 characters wide', () => {
     renderRail();
-    expect(screen.getByRole('button', { name: 'xmlhttprequest' }).textContent).toBe('xhr');
+    expect(
+      screen.getByRole('checkbox', { name: 'xmlhttprequest' }).closest('label')?.textContent,
+    ).toBe('xhr');
   });
 
   it('marks the selected types and leaves the rest unmarked', () => {
     renderRail({ resourceTypes: ['script'] });
-    expect(screen.getByRole('button', { name: 'script' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('checkbox', { name: 'script' }).getAttribute('aria-checked')).toBe(
       'true',
     );
-    expect(screen.getByRole('button', { name: 'image' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('checkbox', { name: 'image' }).getAttribute('aria-checked')).toBe(
       'false',
     );
   });
@@ -667,9 +718,9 @@ describe('request types', () => {
   it('toggles the type that was clicked — a different row toggles a different type', async () => {
     const onToggleType = vi.fn();
     renderRail({ resourceTypes: ['script'], onToggleType });
-    await userEvent.click(screen.getByRole('button', { name: 'image' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'image' }));
     expect(onToggleType).toHaveBeenNthCalledWith(1, 'image');
-    await userEvent.click(screen.getByRole('button', { name: 'font' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'font' }));
     expect(onToggleType).toHaveBeenNthCalledWith(2, 'font');
   });
 });

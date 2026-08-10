@@ -1,3 +1,85 @@
+@import "tailwindcss";
+/* tooltip.tsx(shadcn)의 data-open:animate-in/fade-in-0/zoom-in-95, data-closed:
+   animate-out/fade-out-0/zoom-out-95, data-[side=*]:slide-in-from-* 는 이 패키지가
+   정의하는 유틸리티다 — import 없이는 전부 존재하지 않는 클래스라 아무 CSS도
+   나오지 않고 열림·닫힘 자체가 무모션이 된다. package.json 에 이미 있는
+   dependency 를 실제로 쓰는 것일 뿐 새 의존성이 아니다. */
+@import "tw-animate-css";
+
+/* Tailwind 의 자동 소스 탐지가 이 파일 밖의 .tsx/.html 도 훑어서 클래스를 찾는다.
+   docs/ 는 마크업이 아니라 산문(설계 문서·시안)이라 계속 뺀다. components/ui/ 는
+   Task 3 부터 shadcn 프리미티브(checkbox/tooltip/badge/separator)가 실제로 이
+   디렉터리에 쓰여 더는 죽은 코드가 아니므로, 그 예외를 뺐다. */
+@source not "../../docs";
+
+/* public/theme.js 가 파싱 시점에 documentElement 에 .dark 를 붙인다.
+   MV3 는 인라인 스크립트를 막으므로 그 부트스트랩은 classic script 로 남고,
+   Tailwind 는 미디어 쿼리가 아니라 그 클래스를 봐야 한다. */
+@custom-variant dark (&:is(.dark *));
+
+/* shadcn 컴포넌트가 쓰는 data-checked/data-open 같은 축약 variant를 Tailwind 기본
+   동작에 맡기면 속성이 "존재하는지"만 본다 — [data-checked]. 그런데 설치된
+   radix-ui(@radix-ui/react-{checkbox,switch,tooltip,separator}/dist/index.mjs 로
+   확인)는 값을 담아 data-state="checked"/"unchecked"/"open"/"closed",
+   data-orientation="horizontal"/"vertical" 로 내보낸다 — 이름은 같고 모양이 다른
+   두 표기다. 그 결과 셋 다 조용히 매칭에 실패한다: separator 는 높이도 너비도
+   없는 0×0, checkbox 는 체크돼도 --primary 가 안 칠해지고, tooltip 은
+   열림·닫힘 애니메이션이 안 붙는다. data-disabled 만 radix 도 존재-only(빈
+   문자열)로 찍어서 원래도 맞았지만, 다른 radix 컴포넌트는 "true"/"false" 문자열로
+   찍기도 해 아래 정의로 통일한다.
+
+   `npx shadcn add` 가 받아 오는 소스는 이 variant들이 shadcn 자신의 프리셋
+   패키지(`shadcn/tailwind.css`)에 정의돼 있다고 가정하고 나온다 — 그 패키지는
+   여기 설치하지 않는다(새 의존성 금지, CLAUDE.md), 그래서 그 정의를 그대로
+   옮겨 심는다. 여기 한 번 정의해 두면 이후 `shadcn add` 로 받는 컴포넌트도
+   같은 축약을 그대로 쓸 수 있다. */
+@custom-variant data-open {
+    &:where([data-state="open"]),
+    &:where([data-open]:not([data-open="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-closed {
+    &:where([data-state="closed"]),
+    &:where([data-closed]:not([data-closed="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-checked {
+    &:where([data-state="checked"]),
+    &:where([data-checked]:not([data-checked="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-unchecked {
+    &:where([data-state="unchecked"]),
+    &:where([data-unchecked]:not([data-unchecked="false"])) {
+        @slot;
+    }
+}
+
+@custom-variant data-horizontal {
+    &:where([data-orientation="horizontal"]) {
+        @slot;
+    }
+}
+
+@custom-variant data-vertical {
+    &:where([data-orientation="vertical"]) {
+        @slot;
+    }
+}
+
+@custom-variant data-disabled {
+    &:where([data-disabled="true"]),
+    &:where([data-disabled]:not([data-disabled="false"])) {
+        @slot;
+    }
+}
+
 /*
  * HeaderLab popup — "Console".
  *
@@ -23,78 +105,173 @@
  */
 
 :root {
-    --hl-panel: #ffffff;
-    --hl-rail: #e9ecf1;
-    --hl-rail-edge: #cdd4de;
-    --hl-card: #f6f8fa;
-    --hl-card-edge: #dae0e8;
-    --hl-ink: #101720;
-    --hl-ink-2: #4c5563;
-    --hl-ink-3: #616b79;
+    --radius: 8px;
 
-    --hl-req-bg: #d7e7fa;
-    --hl-req-fg: #0e4b87;
-    --hl-res-bg: #e9e1f9;
-    --hl-res-fg: #59299f;
+    --background: #ffffff;
+    --foreground: #14161c;
+    --foreground-2: #454b57;
+    --muted-foreground: #5c6371;
+    --card: #ffffff;
+    --border: #d5d9e1;
 
-    --hl-live: #136b3e;
-    --hl-live-bg: #dcf0e4;
-    --hl-pend: #8a4b00;
-    --hl-pend-bg: #fbeeda;
-    --hl-pend-edge: #e8c88e;
-    --hl-err: #a32718;
-    --hl-err-bg: #fbe6e3;
-    --hl-act: #12569f;
+    /* 규칙 행이 들어앉는 오목한 well. --card 가 --background 와 같은 값이라
+       카드 자체는 채움만으로는 패널과 구분되지 않는다(1.000) — 이 토큰이 그 사이의
+       세 번째 표면이다. 시안(docs/design/2026-08-07-popup-tight-instrument.html)의
+       --tray 값을 그대로 옮겼다. 이 well 을 실제로 칠하는 것은 RulePanel 의
+       rule-list 컨테이너이고, 끝의 빈 슬롯(ghost 행)도 같은 톤이다. */
+    --tray: #e9ecf1;
 
-    --hl-off-track: #7a8593;
+    /* 꺼진 규칙 행. well 로 물러나되 well 이 되지는 않는다 — 시안의 주석 그대로
+       "a switched-off rule recedes toward the well". 이 값이 없을 때 꺼진 행과
+       빈 슬롯과 빈 여백이 셋 다 --tray 라, 마지막 행이 꺼져 있으면 경계가
+       사라지고 한 덩어리로 보였다. 시안의 값 그대로다. */
+    --rowoff: #f1f3f7;
+
+    /* 레일은 패널과 다른 재료다. 다크에서 순서가 뒤집힌다 — 라이트에선 레일이
+       더 어둡고 패널이 밝은 작업면, 다크에선 레일이 떠 있고 패널이 물러난다.
+       shadcn 기본 어휘에는 이 개념이 없어서 따로 둔다. */
+    --rail: #f0f1f4;
+    --rail-border: #d5d9e1;
+
+    --input: #7a8593;
+    --primary: #14161c;
+    --primary-foreground: #ffffff;
+    --ring: #1a56c4;
+
+    /* 경계선이 컨트롤 식별의 유일한 단서인 자리. 3:1 을 넘어야 한다. */
+    --boundary: #767d8c;
+
+    --live: #0d6b41;
+    --pending: #8a5200;
+    --pending-bg: #fbefdb;
+    --destructive: #b3261e;
+    --req: #1a56c4;
+    --req-bg: #e4ecfb;
+    --res: #6a2fbd;
+    --res-bg: #efe7fb;
 }
 
-/*
- * Deliberate, not inverted. In light the rail is the *darker* material and the
- * panel is the bright working surface; carrying that straight over would put a
- * near-black rail against a lifted panel, which reads as a hole punched in the
- * window. So dark flips the material order — the rail becomes the lighter,
- * raised surface and the panel recedes to true near-black — and "panel = where
- * the work is" survives the flip.
- *
- * The class is set by public/theme.js at parse time, before first paint. MV3's
- * CSP forbids inline scripts, so that logic cannot move into the HTML.
- */
+/* 라이트에서 파생하지 않는다. 손으로 맞춘 두 번째 팔레트이고, 그래서
+   contrast.test.ts 가 양쪽을 각각 검사한다. */
 .dark {
-    --hl-panel: #0b0f14;
-    --hl-rail: #141a21;
-    --hl-rail-edge: #232b36;
-    --hl-card: #161d25;
-    --hl-card-edge: #242d38;
-    --hl-ink: #e7eef6;
-    --hl-ink-2: #a6b3c1;
-    --hl-ink-3: #8b98a6;
+    --background: #0b0f14;
+    --foreground: #e7eef6;
+    --foreground-2: #a6b3c1;
+    --muted-foreground: #8b98a6;
+    --card: #161d25;
+    --border: #242d38;
+    /* 라이트처럼 시안에서 그대로 옮길 값이 없다 — 시안은 라이트만 그렸다. 다크는
+       --background(#0b0f14)와 --card(#161d25) 사이에서 새로 잡았다: 두 값이 워낙
+       가까워서(대비 1.098) card 쪽으로 완전히 붙이면 background 와 구분이 안 되고
+       그 반대도 마찬가지라, 두 표면 모두에게서 어느 정도 떨어지는 지점을 골랐다. */
+    --tray: #0e1319;
+    /* 시안에 다크가 없어 새로 잡았다. 다크는 사다리가 뒤집혀 있고(카드가 well
+       보다 밝다) 총폭도 좁다 — --card 와 --tray 사이가 1.098 뿐이라(라이트는
+       1.184) 한 단을 끼울 여유가 작다. 그래서 치우치지 않게 가운데를 잡았다:
+       card 쪽 1.049 / tray 쪽 1.047. */
+    --rowoff: #121821;
+    --rail: #141a21;
+    --rail-border: #232b36;
+    --input: #5f6b79;
+    --primary: #e7eef6;
+    --primary-foreground: #0b0f14;
+    --ring: #7fb8f0;
+    --boundary: #7b8694;
+    --live: #4cde84;
+    --pending: #f0b45c;
+    --pending-bg: #2c2113;
+    --destructive: #f08c7c;
+    --req: #8dc5f7;
+    --req-bg: #0f3050;
+    --res: #c6abf7;
+    --res-bg: #2b1f49;
+}
 
-    --hl-req-bg: #0f3050;
-    --hl-req-fg: #8dc5f7;
-    --hl-res-bg: #2b1f49;
-    --hl-res-fg: #c6abf7;
-
-    --hl-live: #4cde84;
-    --hl-live-bg: #10301e;
-    --hl-pend: #f0b45c;
-    --hl-pend-bg: #2c2113;
-    --hl-pend-edge: #4e3a1b;
-    --hl-err: #f08c7c;
-    --hl-err-bg: #331916;
-    --hl-act: #7fb8f0;
-
-    --hl-off-track: #5f6b79;
+/* 위 토큰을 Tailwind 유틸리티로 노출한다 — bg-rail, text-live, border-boundary 등. */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-foreground-2: var(--foreground-2);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-card: var(--card);
+    --color-border: var(--border);
+    --color-tray: var(--tray);
+    --color-rowoff: var(--rowoff);
+    --color-rail: var(--rail);
+    --color-rail-border: var(--rail-border);
+    --color-input: var(--input);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-ring: var(--ring);
+    --color-boundary: var(--boundary);
+    --color-live: var(--live);
+    --color-pending: var(--pending);
+    --color-pending-bg: var(--pending-bg);
+    --color-destructive: var(--destructive);
+    --color-req: var(--req);
+    --color-req-bg: var(--req-bg);
+    --color-res: var(--res);
+    --color-res-bg: var(--res-bg);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
 }
 
 :root {
-    --hl-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    --hl-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --hl-card-sh: 0 1px 1px rgba(16, 23, 32, 0.04);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-.dark {
-    --hl-card-sh: none;
+/* 이 팝업에서 스크롤하는 것은 두 목록뿐이고, 둘 다 이 유틸리티를 쓴다.
+   컴포넌트가 아니라 여기 있는 이유는 ::-webkit-scrollbar 가 의사요소라서
+   두 곳에 같은 여섯 줄을 복사하게 되기 때문이다 — @utility 는 Tailwind v4 의
+   지시문이고, 이 파일이 방금 다 걷어낸 손수 쓴 컴포넌트 클래스가 아니다.
+
+   두 선언은 한 쌍이다. offsetWidth − clientWidth 를 (넘침 / 안 넘침) 으로 잰
+   값이다 — 순수 Chromium 페이지, 이 저장소의 어떤 것도 걸치지 않았다
+   (Chromium 151.0.7922.34, playwright 1.62.0 동봉본, macOS):
+
+                                headless      headed
+     기본                        0 / 0         0 / 0
+     scrollbar-gutter: stable    0 / 0         0 / 0
+     ::-webkit-scrollbar 스타일  0 / 0         8 / 0
+     둘 다                       8 / 8         8 / 8
+
+   즉 gutter 만으로는 macOS 에서 아무것도 예약되지 않고, 스크롤바 스타일만으로는
+   headed 에서 목록이 넘치기 시작하는 순간 행이 8px 밀린다. 둘 다 있어야
+   "행이 안 밀린다"가 모드와 상관없이 참이 된다.
+
+   세로줄이 둘인 것이 요점이다. 3행 headless 0 / headed 8 — 같은 CSS, 같은
+   빌드, 다른 결과. 스타일을 줘도 오버레이가 안 꺼진다던 옛 결론은 headless
+   에서만 재서 나온 것이고, 그 조건 안에서는 지금도 참이다. 틀린 게 아니라
+   좁았다. 이 저장소의 e2e 는 전부 headless 이므로(tests/e2e/fixtures.ts 는
+   launchPersistentContext 에 headless 를 넘기지 않고, playwright 의 기본이
+   headless 다) e2e 로 잰 레이아웃 값은 사용자가 보는 화면의 값이 아닐 수 있다.
+   지금 쓰는 조합(둘 다)을 고른 이유가 그것이다 — 4행은 양쪽이 같다.
+
+   그렇다고 스크롤바가 "더 있다"는 유일한 신호는 아니다 — 두 목록 모두 행 피치의
+   정수배가 아닌 높이로 잘라, 가장자리에서 잘린 행 자체가 신호다. */
+@utility scroll-list {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    scrollbar-gutter: stable;
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    /* 8px 트랙 안의 4px 손잡이 — 투명 테두리를 padding-box 로 잘라 만든다.
+       시안(.te-scroll)의 방식 그대로다. */
+    &::-webkit-scrollbar-thumb {
+        background: var(--input);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+    }
 }
 
 * {
@@ -110,9 +287,9 @@ body {
 }
 
 body {
-    font-family: var(--hl-sans);
-    background: var(--hl-panel);
-    color: var(--hl-ink);
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -120,1024 +297,25 @@ body {
     height: 100%;
 }
 
-.hl-loading {
-    display: grid;
-    place-items: center;
-    height: 100%;
-    font: 400 12px/1 var(--hl-sans);
-    color: var(--hl-ink-2);
-}
-
-/* The store could not be read. Deliberately not the normal two-column shell:
-   there is no scope and there are no rules to show, and dressing the failure up
-   as the working screen is how it gets missed. */
-.hl-broken {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    height: 100%;
-    padding: 0 40px;
-    background: var(--hl-rail);
-    color: var(--hl-ink);
-}
-
-.hl-broken b {
-    font: 700 13px/1.4 var(--hl-sans);
-    color: var(--hl-err);
-}
-
-.hl-broken p {
-    margin: 0;
-    font: 400 12px/1.55 var(--hl-sans);
-    color: var(--hl-ink-2);
-    max-width: 420px;
-}
-
-.hl-pop {
-    display: grid;
-    grid-template-columns: 224px 1fr;
-    height: 100%;
-}
-
 /* Focus is never removed, only restyled — a popup driven from the keyboard is
-   the fast path this product is for. */
+   the fast path this product is for. It is stated here, once, rather than per
+   control: shadcn's own primitives bring a focus ring with them, but the popup
+   also holds hand-written buttons (the ghost row, the rail's "About matching
+   sites" help trigger) that would otherwise have none. A rule's direction
+   badge and its operation chip look hand-written too — both are a raw
+   `<button>` in the markup — but they sit inside `Badge asChild`
+   (`components/ui/badge.tsx`), which already carries its own
+   `focus-visible:*` classes, so this rule is not what rings them; it is
+   still what rings the two named above, which have no such wrapper. */
 :focus-visible {
-    outline: 2px solid var(--hl-act);
+    outline: 2px solid var(--ring);
     outline-offset: 1px;
     border-radius: 4px;
 }
 
-/* ============================= LEFT RAIL ============================= */
-
-.hl-rail {
-    background: var(--hl-rail);
-    border-right: 1px solid var(--hl-rail-edge);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow-y: auto;
-}
-
-.hl-brand {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 14px 14px 12px;
-}
-
-.hl-mark {
-    width: 17px;
-    height: 17px;
-    border-radius: 5px;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
-    flex: none;
-    display: grid;
-    place-items: center;
-}
-
-.hl-mark svg {
-    display: block;
-}
-
-.hl-name {
-    font: 700 11px/1 var(--hl-sans);
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--hl-ink);
-}
-
-.hl-name i {
-    font-style: normal;
-    font-weight: 500;
-    color: var(--hl-ink-3);
-}
-
-/* A number big enough to read from the far side of the desk, because "is it
-   on" is the question asked most often. */
-.hl-readout {
-    flex: none;
-    padding: 2px 14px 14px;
-}
-
-.hl-bignum {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-variant-numeric: tabular-nums;
-}
-
-.hl-bignum b {
-    font: 650 30px/1 var(--hl-sans);
-    letter-spacing: -0.02em;
-    color: var(--hl-ink);
-}
-
-.hl-bignum span {
-    font: 500 12.5px/1 var(--hl-sans);
-    color: var(--hl-ink-2);
-}
-
-/* One line is always reserved, empty or not.
-   `:empty { display: none }` here was the widest-reaching reflow in the popup:
-   the healthy state has nothing to add to the count, so switching one rule off
-   made this line appear and pushed the pause bar, the all-sites switch, every
-   site row and the request types down 22.1px — the whole rail below the number,
-   from a click in the panel on the other side of the screen.
-
-   One line, not two. The longest message this can hold ("3 off · 2 unfinished ·
-   1 blocked by an unusable site") wraps to two at 195px, and reserving for that
-   would spend 38px of rail on a sentence most sessions never see. A message
-   growing a line because it has more to say is content changing; an empty line
-   appearing because a control did is the defect. */
-.hl-subcount {
-    margin-top: 6px;
-    min-height: 1.4em;
-    font: 400 11.5px/1.4 var(--hl-sans);
-    color: var(--hl-ink-2);
-}
-
-.hl-pip {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--hl-off-track);
-    margin-right: 5px;
-    vertical-align: 1px;
-}
-
-.hl-pausebar {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 14px 14px;
-    padding: 8px 9px;
-    background: var(--hl-live-bg);
-    border: 1px solid color-mix(in srgb, var(--hl-live) 32%, transparent);
-    border-radius: 7px;
-}
-
-.hl-pauselab {
-    flex: 1;
-    font: 600 11.5px/1 var(--hl-sans);
-    color: var(--hl-live);
-}
-
-/* Paused is deliberate, not broken, so it recedes to a neutral surface rather
-   than borrowing the amber that means "something needs you". */
-.hl-pausebar[data-paused] {
-    background: var(--hl-panel);
-    border-color: var(--hl-rail-edge);
-}
-
-.hl-pausebar[data-paused] .hl-pauselab {
-    color: var(--hl-ink-2);
-}
-
-.hl-sw {
-    width: 32px;
-    height: 18px;
-    border-radius: 999px;
-    border: 0;
-    padding: 0;
-    background: var(--hl-live);
-    position: relative;
-    cursor: pointer;
-    flex: none;
-}
-
-.hl-sw::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 16px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--hl-panel);
-}
-
-.hl-sw[aria-checked="false"] {
-    background: var(--hl-off-track);
-}
-
-.hl-sw[aria-checked="false"]::after {
-    left: 2px;
-}
-
-.hl-railsec {
-    padding: 0 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-/* Stated on the section rather than as an adjacent-sibling rule: any number of
-   scope notes can sit between the two sections, and a `+` selector silently
-   stops applying the moment one does. */
-.hl-railsec-types {
-    margin-top: 15px;
-}
-
-/* Positioned so the help bubble can span this heading's full width. The rail
-   sets `overflow-y: auto`, which makes overflow-x compute to `auto` as well —
-   so anything anchored to the 13px `?` itself gets sliced off at the rail's
-   224px edge. Anchoring to the heading, which is already exactly the rail's
-   content width, is what keeps the bubble whole without a portal. */
-.hl-railhead {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font: 700 9.5px/1 var(--hl-sans);
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--hl-ink-2);
-    margin-bottom: 1px;
-}
-
-.hl-n {
-    font: 600 9.5px/1 var(--hl-sans);
-    letter-spacing: 0;
-    color: var(--hl-ink-3);
-}
-
-/* ---- sites: the row IS the permission control ---- */
-
-/* The all-sites switch. Shaped like the pause bar above it rather than like a
-   site row below it, because that is what it is: a mode switch that decides
-   what the rows underneath mean. Giving it a chip in the list would put the
-   control that overrides the list inside the list — the same conflation that
-   let an empty list stand for "everywhere" in the first place.
-
-   Off is the resting state and stays quiet: a neutral surface, no colour, no
-   claim. Colour arrives only once the mode is on, because that is when there
-   is something to report. */
-/* `min-height` is the bar's tallest state, measured: 22.5px of Grant button
-   between 7px of padding, inside a 1px border. Without it the bar grew 4.5px
-   the moment Grant appeared and shrank back when the grant landed, taking the
-   site list and everything under it with it both times.
-
-   The height is reserved rather than a whole second line: the largest thing
-   this bar holds is one button, 4.5px taller than the switch already in it, so
-   sizing to it costs 4.5px in every state. A reserved sub-line would cost 30px
-   on a control that is off by default and whose ungranted state most people
-   never reach. */
-.hl-allsites {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    min-height: 38.5px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
-    border-radius: 6px;
-    padding: 7px 7px 7px 9px;
-    margin-bottom: 1px;
-}
-
-.hl-allsiteslab {
-    flex: 1;
-    min-width: 0;
-    font: 600 11.5px/1.25 var(--hl-sans);
-    color: var(--hl-ink-2);
-}
-
-/* The same dot a site row wears, in the same place on the row, because it
-   reports the same fact. Granted is the default; the ungranted rule below
-   overrides it, so the two states cannot drift to different shapes. */
-.hl-allsitesstate {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--hl-live);
-    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
-}
-
-.hl-allsites[data-granted="no"] .hl-allsitesstate {
-    background: var(--hl-pend);
-    box-shadow: 0 0 0 2.5px var(--hl-pend-bg);
-}
-
-/* The slot with nothing to report: the mode is off, or the probe has not
-   answered yet. It holds its 7px and paints nothing, so the label does not
-   slide sideways when a state arrives. */
-.hl-allsitesstate[data-unknown] {
-    background: none;
-    box-shadow: none;
-}
-
-/* On and granted: live, and coloured like everything else that is working. */
-.hl-allsites[data-on] {
-    background: var(--hl-live-bg);
-    border-color: color-mix(in srgb, var(--hl-live) 32%, transparent);
-}
-
-.hl-allsites[data-on] .hl-allsiteslab {
-    color: var(--hl-live);
-}
-
-/* On but ungranted — the migrated store, and the declined prompt. It borrows
-   the pending site row's amber rather than an error red: nothing is broken,
-   the mode is on and waiting for an access the user can still give, and the
-   remedy is the same Grant button on the same surface. Two controls in the
-   same state should not need two vocabularies. */
-.hl-allsites[data-granted="no"] {
-    background: var(--hl-pend-bg);
-    border-color: var(--hl-pend-edge);
-}
-
-.hl-allsites[data-granted="no"] .hl-allsiteslab {
-    color: var(--hl-pend);
-}
-
-/* Two lines in every state, not only when there is a Grant button to show.
-   `flex-wrap`, `row-gap` and the extra bottom padding used to live on
-   `[data-state="pending"]`, so a row grew from 28.4px to 58.9px the moment its
-   permission came back missing — and the sites below it, the add field and the
-   whole rail under them moved 30.5px each time. Two pending sites moved the
-   request types 61px. That is the defect this file's shape is now against.
-
-   Reserving the line costs 30.5px on every row, and that is the deliberate
-   trade rather than an oversight. The alternative was to put Grant on line 1:
-   the button is 51.4px wide and a plain `api.example.com` needs 103.9px of the
-   146.9px the host has, so an inline slot pushes ordinary hostnames into a
-   mid-label wrap — the row stops moving between states and starts looking
-   broken in all of them. The reserved line is also not wasted: every state has
-   a word for it (see SiteRow). */
-.hl-dom {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    /* Both axes, one declaration — `gap` sets `row-gap` too, so a separate
-       `row-gap` after it is the shorthand overwriting itself. */
-    gap: 7px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
-    border-radius: 6px;
-    padding: 6px 7px 7px 8px;
-}
-
-.hl-domhost {
-    flex: 1;
-    min-width: 0;
-    font: 500 11.5px/1.25 var(--hl-mono);
-    color: var(--hl-ink);
-    overflow-wrap: anywhere;
-}
-
-.hl-domstate {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--hl-live);
-    box-shadow: 0 0 0 2.5px var(--hl-live-bg);
-}
-
-.hl-domx {
-    flex: none;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    color: var(--hl-ink-3);
-    font: 400 13px/1 var(--hl-sans);
-    padding: 0 1px;
-}
-
-.hl-domx:hover {
-    color: var(--hl-err);
-}
-
-/* A site awaiting permission keeps its identity and gains a step. It is not
-   moved into a separate error region — the thing to act on is the thing just
-   typed. */
-/* Colour only. The wrap and the padding that used to sit here are on `.hl-dom`
-   now — they were the row's geometry following its state, which is the one
-   thing state is not allowed to do. */
-.hl-dom[data-state="pending"] {
-    background: var(--hl-pend-bg);
-    border-color: var(--hl-pend-edge);
-}
-
-.hl-dom[data-state="pending"] .hl-domstate {
-    background: var(--hl-pend);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-pend) 22%, transparent);
-}
-
-/* A site that cannot be used at all. It used to render the same green dot as a
-   granted, working one while the explanation sat in a paragraph elsewhere —
-   one symbol meaning two opposite things, and the broken object the only one
-   on screen not admitting it. */
-.hl-dom[data-state="unusable"] {
-    background: var(--hl-err-bg);
-    border-color: color-mix(in srgb, var(--hl-err) 45%, transparent);
-}
-
-.hl-dom[data-state="unusable"] .hl-domstate {
-    background: var(--hl-err);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--hl-err) 22%, transparent);
-}
-
-/* Stored, still editable, and not in use — the list while all-sites is on. It
-   recedes rather than disappearing: hiding it would make turning the mode off
-   look like it had discarded the user's scope, and leave no way to see what
-   turning it back off returns to. The dot goes hollow because there is no
-   access state to report on a host nothing is scoped to; a green one here
-   would be claiming a grant no probe has asked for. */
-.hl-dom[data-state="idle"] {
-    background: none;
-    border-style: dashed;
-}
-
-.hl-dom[data-state="idle"] .hl-domhost {
-    color: var(--hl-ink-3);
-}
-
-.hl-dom[data-state="idle"] .hl-domstate {
-    background: none;
-    border: 1.5px solid var(--hl-ink-3);
-    box-shadow: none;
-}
-
-/* `min-width: 0` is defence in depth rather than the thing doing the work: the
-   child below wraps, so this block's min-content already fits. It is kept
-   because the Grant button beside that text is `flex: none`, and any future
-   change that stops the text wrapping puts this row back over the rail's
-   width. Mutation-checked — removing it alone does not fail the layout guard.
-
-   `min-height` is the Grant button's own height — 10.5px of line between 6px
-   of padding, twice. It is what makes the line the same size whether the
-   button is in it or a word is, which is the whole point of the line existing
-   in every state. The e2e guard is what keeps the two numbers equal: if this
-   ever falls short of the button, the pending row grows again and the
-   geometry assertion goes red naming it. */
-.hl-need {
-    flex: 0 0 100%;
-    min-width: 0;
-    min-height: 22.5px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-
-/* What the reserved line holds when it is not holding the button. Quiet, and
-   the same tone the row's other secondary marks use — it restates the dot, so
-   it must not compete with the hostname above it. */
-.hl-needsay {
-    font: 400 10.5px/1.4 var(--hl-sans);
-    color: var(--hl-ink-3);
-    overflow-wrap: anywhere;
-}
-
-.hl-grant {
-    flex: none;
-    border: 0;
-    border-radius: 5px;
-    cursor: pointer;
-    background: var(--hl-act);
-    color: var(--hl-panel);
-    font: 600 10.5px/1 var(--hl-sans);
-    padding: 6px 11px;
-    align-self: flex-start;
-}
-
-.hl-grant:hover {
-    filter: brightness(1.12);
-}
-
-.hl-addfield {
-    display: block;
-    width: 100%;
-    background: var(--hl-panel);
-    border: 1px dashed var(--hl-rail-edge);
-    border-radius: 6px;
-    padding: 7px 8px;
-    font: 400 11.5px/1.25 var(--hl-mono);
-    color: var(--hl-ink);
-}
-
-.hl-addfield::placeholder {
-    color: var(--hl-ink-3);
-}
-
-.hl-addfield:focus {
-    border-style: solid;
-    border-color: var(--hl-act);
-    outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
-}
-
-/* ---- the `?` and its bubble ---- */
-
-.hl-helptip {
-    display: inline-flex;
-}
-
-.hl-helpmark {
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    border: 1px solid var(--hl-ink-3);
-    background: none;
-    color: var(--hl-ink-3);
-    font: 700 8.5px/1 var(--hl-sans);
-    letter-spacing: 0;
-    cursor: help;
-    padding: 0;
-    display: grid;
-    place-items: center;
-}
-
-.hl-helpmark:hover,
-.hl-helpmark[aria-expanded="true"] {
-    border-color: var(--hl-ink);
-    color: var(--hl-ink);
-}
-
-/* Spans the heading rather than hugging the mark — see .hl-railhead for why a
-   224px column with its own overflow leaves no room to sit beside it. The
-   arrow points back up at the mark instead of across at it. */
-.hl-helpbubble {
-    position: absolute;
-    top: calc(100% + 7px);
-    left: 0;
-    right: 0;
-    z-index: 2;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
-    border-radius: 7px;
-    padding: 7px 9px;
-    font: 400 10.5px/1.45 var(--hl-sans);
-    letter-spacing: 0;
-    text-transform: none;
-    overflow-wrap: anywhere;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-}
-
-/* Aimed at the one mark there is, measured in the built popup. This was a
-   custom property while two contexts each needed their own offset; with a
-   single call site the indirection pointed at nothing. */
-.hl-helpbubble::before {
-    content: "";
-    position: absolute;
-    bottom: 100%;
-    left: 54px;
-    border: 5px solid transparent;
-    border-bottom-color: var(--hl-ink);
-}
-
-.hl-helpex {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    margin-bottom: 5px;
-}
-
-.hl-helprow {
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
-    color: var(--hl-panel);
-}
-
-.hl-helprow code {
-    font: 500 9.5px/1.35 var(--hl-mono);
-    overflow-wrap: anywhere;
-}
-
-.hl-helpsay {
-    display: block;
-}
-
-.hl-fieldnote {
-    margin: 3px 1px 0;
-    font: 400 10.5px/1.4 var(--hl-sans);
-    color: var(--hl-pend);
-    overflow-wrap: anywhere;
-}
-
-.hl-fieldnote b {
-    font: 600 10.5px/1.4 var(--hl-mono);
-}
-
-/* `.hl-fieldnote-calm` used to sit here, for the "Not in use while All sites is
-   on" paragraph above the site list. That sentence is on each idle row's own
-   reserved line now (`.hl-needsay`), where saying it costs no movement — the
-   paragraph appeared and vanished with the mode and pushed the list 23.7px each
-   way. The rule is gone because its only subject is; the reasoning it carried
-   is not: a state that is behaving exactly as asked must not borrow the amber
-   that means "something needs you", which is why `.hl-needsay` is `--hl-ink-3`
-   and `.hl-fieldnote` is still `--hl-pend`. */
-
-/* ---- request types: all eight, no disclosure. The rail has vertical room the
-   grid never had, so a rarely-touched control can be visible and small instead
-   of hidden behind a chevron. ---- */
-
-.hl-types {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px 8px;
-}
-
-.hl-ty {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font: 400 10.5px/1.3 var(--hl-mono);
-    color: var(--hl-ink-3);
-    background: none;
-    border: 0;
-    padding: 1px 0;
-    cursor: pointer;
-    text-align: left;
-}
-
-.hl-tybox {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    flex: none;
-    border: 1.5px solid var(--hl-off-track);
-    background: var(--hl-panel);
-}
-
-.hl-ty[aria-pressed="true"] {
-    color: var(--hl-ink);
-    font-weight: 500;
-}
-
-.hl-ty[aria-pressed="true"] .hl-tybox {
-    background: var(--hl-act);
-    border-color: var(--hl-act);
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-    background-size: 12px 12px;
-}
-
-/* ---- a whole-screen note, parked against its cause ---- */
-/* A neutral card with a coloured edge, never a coloured block. A pending site
-   is already carrying colour; a stack of amber slabs beside it would rebuild
-   the wall of yellow this layout exists to remove. Severity is carried by the
-   edge, not by the mass. */
-
-.hl-note {
-    margin: 15px 14px 0;
-    padding: 8px 9px 8px 10px;
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-rail-edge);
-    border-left: 3px solid var(--hl-pend);
-    border-radius: 6px;
-    font: 400 10.5px/1.45 var(--hl-sans);
-    color: var(--hl-ink);
-    /* These name hosts, and a host is one word — without this a domain longer
-       than the rail pushes the note out of the 224px column. */
-    overflow-wrap: anywhere;
-}
-
-.hl-note[data-severity="error"] {
-    border-left-color: var(--hl-err);
-}
-
-/* `incomplete` is not a complaint. Nothing is wrong and nothing is at risk —
-   the configuration simply is not finished yet, which is the state a fresh
-   install opens in. Amber is this palette's "something needs you", and the
-   default edge would spend it on the one note that is asking for nothing:
-   the standing warning this state replaces, rebuilt in a different colour.
-   A neutral edge still separates the card from the rail, which is the only
-   job the border actually has here. */
-.hl-note[data-severity="incomplete"] {
-    border-left-color: var(--hl-ink-3);
-}
-
-.hl-note-err {
-    border-left-color: var(--hl-err);
-}
-
-.hl-note b {
-    display: block;
-    margin-bottom: 2px;
-    font-weight: 700;
-    color: var(--hl-err);
-}
-
-.hl-railfill {
-    flex: 1;
-    min-height: 14px;
-}
-
-/* ============================= RIGHT PANEL ============================= */
-
-.hl-panel {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: 0;
-}
-
-.hl-panelhead {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 13px 16px 11px;
-    border-bottom: 1px solid var(--hl-card-edge);
-}
-
-.hl-panelhead h2 {
-    margin: 0;
-    flex: 1;
-    font: 700 9.5px/1 var(--hl-sans);
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--hl-ink-2);
-}
-
-.hl-newbtn {
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    background: var(--hl-ink);
-    color: var(--hl-panel);
-    font: 600 11.5px/1 var(--hl-sans);
-    padding: 7px 12px;
-}
-
-.hl-newbtn:hover {
-    filter: brightness(1.25);
-}
-
-.hl-stack {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 9px 12px 12px;
-}
-
-/* ---- a rule: two tiers, so the value gets real width ---- */
-
-.hl-rule {
-    position: relative;
-    background: var(--hl-card);
-    border: 1px solid var(--hl-card-edge);
-    border-radius: 8px;
-    padding: 8px 9px 9px;
-    box-shadow: var(--hl-card-sh);
-}
-
-.hl-rule + .hl-rule,
-.hl-rule + .hl-ghostrule {
-    margin-top: 7px;
-}
-
-/* A switched-off rule keeps full-contrast text. It is marked by its switch and
-   by losing the card's fill — never by fading its words toward the background,
-   which is how the previous palette reached 2.99:1. */
-.hl-rule[data-off] {
-    background: none;
-    border-style: dashed;
-}
-
-.hl-r1 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    /* The delete button is out of this row's flow (it is last in the DOM so
-       Tab reaches it after the value) but still sits on top of it. This is the
-       width it used to occupy — 22px of button plus the row's 8px gap — so the
-       name field ends exactly where it did before. */
-    padding-right: 30px;
-}
-
-.hl-tog {
-    width: 30px;
-    height: 17px;
-    border-radius: 999px;
-    border: 0;
-    padding: 0;
-    background: var(--hl-live);
-    position: relative;
-    cursor: pointer;
-    flex: none;
-}
-
-.hl-tog::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 15px;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.28);
-}
-
-.hl-tog[aria-checked="false"] {
-    background: var(--hl-off-track);
-}
-
-.hl-tog[aria-checked="false"]::after {
-    left: 2px;
-}
-
-/* Direction is a coloured pill, so it is never read out of a column. */
-.hl-pill {
-    flex: none;
-    border: 0;
-    cursor: pointer;
-    font: 700 9.5px/1 var(--hl-sans);
-    letter-spacing: 0.07em;
-    padding: 5px 7px;
-    border-radius: 5px;
-}
-
-.hl-pill[data-target="request"] {
-    background: var(--hl-req-bg);
-    color: var(--hl-req-fg);
-}
-
-.hl-pill[data-target="response"] {
-    background: var(--hl-res-bg);
-    color: var(--hl-res-fg);
-}
-
-.hl-op {
-    flex: none;
-    cursor: pointer;
-    font: 600 10.5px/1 var(--hl-mono);
-    color: var(--hl-ink-2);
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-card-edge);
-    border-radius: 5px;
-    padding: 5px 7px;
-}
-
-.hl-op[data-op="remove"] {
-    color: var(--hl-err);
-    border-color: color-mix(in srgb, var(--hl-err) 35%, transparent);
-}
-
-.hl-hname {
-    flex: 1;
-    min-width: 0;
-    font: 600 12.5px/1.3 var(--hl-mono);
-    color: var(--hl-ink);
-    letter-spacing: -0.1px;
-    background: none;
-    border: 0;
-    border-bottom: 1px solid transparent;
-    padding: 2px 0;
-}
-
-.hl-hname::placeholder {
-    color: var(--hl-ink-3);
-    font-weight: 500;
-}
-
-.hl-hname:hover {
-    border-bottom-color: var(--hl-card-edge);
-}
-
-.hl-hname:focus {
-    outline: none;
-    border-bottom-color: var(--hl-act);
-}
-
-.hl-del {
-    position: absolute;
-    top: 8px;
-    right: 9px;
-    width: 22px;
-    height: 22px;
-    border-radius: 5px;
-    border: 0;
-    background: none;
-    color: var(--hl-ink-3);
-    font: 400 15px/1 var(--hl-sans);
-    cursor: pointer;
-    opacity: 0;
-}
-
-/* `focus-within` as well as hover: a control that only exists for a mouse is
-   a control a keyboard cannot reach. */
-.hl-rule:hover .hl-del,
-.hl-rule:focus-within .hl-del {
-    opacity: 1;
-}
-
-.hl-del:hover {
-    background: var(--hl-err);
-    color: #fff;
-    opacity: 1;
-}
-
-.hl-r2 {
-    margin-top: 7px;
-    padding-left: 38px;
-}
-
-.hl-hval {
-    display: block;
-    width: 100%;
-    font: 400 12px/1.4 var(--hl-mono);
-    color: var(--hl-ink);
-    background: var(--hl-panel);
-    border: 1px solid var(--hl-card-edge);
-    border-radius: 6px;
-    padding: 6px 8px;
-    /* The value wraps and grows instead of truncating — a 246px cell with an
-       ellipsis was the first thing named about the layout this replaces. The
-       wrapping is the textarea's own (a soft-wrapped textarea breaks an
-       unbroken token on its own, so `overflow-wrap` here is inert and is kept
-       only for a future element that is not a textarea); `field-sizing` is
-       what makes it grow to fit rather than scroll inside a fixed box. */
-    overflow-wrap: anywhere;
-    field-sizing: content;
-    resize: none;
-    min-height: 30px;
-    max-height: 96px;
-}
-
-.hl-hval::placeholder {
-    color: var(--hl-ink-3);
-}
-
-.hl-hval:hover {
-    border-color: var(--hl-ink-3);
-}
-
-.hl-hval:focus {
-    outline: none;
-    border-color: var(--hl-act);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hl-act) 16%, transparent);
-}
-
-.hl-hval-none {
-    background: none;
-    border-style: dashed;
-    color: var(--hl-ink-3);
-    font: italic 400 11.5px/1.4 var(--hl-sans);
-    min-height: 0;
-}
-
-/* ---- a problem, inside the card it belongs to ---- */
-
-.hl-rprob {
-    margin: 7px 0 0 38px;
-    display: flex;
-    gap: 7px;
-    align-items: flex-start;
-    background: var(--hl-pend-bg);
-    border-radius: 6px;
-    padding: 6px 8px;
-    font: 400 11px/1.4 var(--hl-sans);
-    color: var(--hl-ink);
-    /* These quote header names and hostnames back at the user verbatim. */
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.hl-rprob[data-severity="error"] {
-    background: var(--hl-err-bg);
-}
-
-.hl-rprob-ic {
-    flex: none;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: var(--hl-pend);
-    color: var(--hl-pend-bg);
-    font: 700 9px/13px var(--hl-sans);
-    text-align: center;
-    margin-top: 1px;
-}
-
-.hl-rprob[data-severity="error"] .hl-rprob-ic {
-    background: var(--hl-err);
-    color: var(--hl-err-bg);
-}
-
-.hl-ghostrule {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    background: none;
-    border: 1px dashed var(--hl-card-edge);
-    border-radius: 8px;
-    padding: 11px 9px;
-    font: 400 11.5px/1 var(--hl-sans);
-    color: var(--hl-ink-3);
-}
-
-.hl-ghostrule:hover {
-    border-color: var(--hl-ink-3);
-    color: var(--hl-ink-2);
-}
+/* Every component class this file used to carry is gone: the rail, the panel,
+   the rule row, the site row, the notes and the help bubble are all composed
+   from Tailwind utilities and shadcn primitives in their own files now. What
+   is left here is what has no component to live in — the two palettes, the
+   token bridge, the popup's own 748×600 box, and the two rules above that
+   cannot be expressed as a utility on an element. */

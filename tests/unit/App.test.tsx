@@ -88,7 +88,7 @@ describe('App', () => {
     render(<App />);
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
     const notes = screen.queryAllByTestId('scope-note');
     expect(notes.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(false);
   });
@@ -592,7 +592,13 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, 'https://x.com/{Enter}');
 
-    expect(screen.getByTestId('add-site-note').textContent).toBe('x.com is already in the list.');
+    // No space between the host and "is": AddSiteField separates the two
+    // with a flex `gap`, not a text character — a leading space in the text
+    // node collapses away in a real browser (verified in Chromium; jsdom
+    // does no such collapsing, which is why this had to be caught by eye,
+    // not by this suite, the first time). `textContent` sees only the text
+    // nodes either side of the gap.
+    expect(screen.getByTestId('add-site-note').textContent).toBe('x.comis already in the list.');
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['x.com']);
   });
 
@@ -655,8 +661,9 @@ describe('editing scope', () => {
     const field = await screen.findByRole('textbox', { name: 'Add a site' });
     await userEvent.type(field, '*.*.example.com{Enter}');
 
+    // No space — see the comment on the same assertion above.
     expect(screen.getByTestId('add-site-note').textContent).toBe(
-      'example.com is already in the list.',
+      'example.comis already in the list.',
     );
     expect((await stored()).profiles[0]!.filter.domains).toEqual(['example.com']);
     expect(screen.getAllByTestId('site')).toHaveLength(1);
@@ -684,7 +691,7 @@ describe('editing scope', () => {
     await seed(s);
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'script' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'script' }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual(['script']);
   });
@@ -695,7 +702,7 @@ describe('editing scope', () => {
     await seed(stateWith());
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'image' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'image' }));
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
         'xmlhttprequest',
@@ -704,7 +711,7 @@ describe('editing scope', () => {
         'image',
       ]),
     );
-    await userEvent.click(screen.getByRole('button', { name: 'image' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'image' }));
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual([
         'xmlhttprequest',
@@ -725,7 +732,7 @@ describe('a rule that has not been named yet', () => {
     await screen.findByDisplayValue('X-A');
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(screen.getAllByTestId('rule')).toHaveLength(3));
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
@@ -739,7 +746,7 @@ describe('a rule that has not been named yet', () => {
     await screen.findByDisplayValue('X-A');
     await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
     expect(screen.queryAllByTestId('rule-problem')).toEqual([]);
   });
@@ -779,7 +786,7 @@ describe('a rule that has not been named yet', () => {
     await userEvent.tab();
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
   });
 
   it('is not live, because the compiler emits nothing for it', async () => {
@@ -810,7 +817,7 @@ describe('editing rules', () => {
     render(<App />);
     await screen.findByDisplayValue('X-A');
 
-    await userEvent.click(screen.getByRole('button', { name: '+ New rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(async () => expect((await stored()).profiles[0]!.headers).toHaveLength(3));
     expect((await stored()).profiles[0]!.headers.map((h) => h.name)).toEqual(['X-A', 'X-B', '']);
   });

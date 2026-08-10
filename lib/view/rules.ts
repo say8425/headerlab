@@ -1,4 +1,13 @@
+import { hasRowError, rowKey } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
+
+// Re-exported so every existing caller and test
+// (`import { rowKey } from '@/lib/view/rules'`) keeps working — the
+// definition itself now lives in `lib/compile/validate.ts`, beside
+// `hasRowError`, which this file already imports from there. See that
+// file's own docblock on `rowKey` for why it moved and what it guards
+// against.
+export { rowKey };
 
 export interface RoutedDiagnostics {
   /** Problems belonging to one rule, keyed by its id. */
@@ -42,7 +51,7 @@ export function routeDiagnostics(diagnostics: readonly Diagnostic[]): RoutedDiag
 
   for (const diagnostic of diagnostics) {
     if (diagnostic.headerRuleId !== undefined) {
-      push(byRow, diagnostic.headerRuleId, diagnostic);
+      push(byRow, rowKey(diagnostic.profileId, diagnostic.headerRuleId), diagnostic);
     } else if (diagnostic.host !== undefined) {
       push(byHost, diagnostic.host, diagnostic);
     } else {
@@ -116,6 +125,8 @@ export interface RuleTally {
  */
 export function ruleTally(
   rows: readonly HeaderRule[],
+  /** The profile `rows` belong to — half of `byRow`'s key. See `rowKey`. */
+  profileId: string,
   byRow: ReadonlyMap<string, Diagnostic[]>,
   liveness: Liveness,
 ): RuleTally {
@@ -132,7 +143,7 @@ export function ruleTally(
       continue;
     }
 
-    const problems = byRow.get(rule.id);
+    const problems = byRow.get(rowKey(profileId, rule.id));
 
     // Unfinished before the liveness test, so pausing cannot relabel a rule
     // the user simply has not named yet. "Blocked" would say the pause is what
@@ -146,7 +157,7 @@ export function ruleTally(
     }
 
     if (!liveness.live) continue;
-    if (problems?.some((d) => d.severity === 'error')) continue;
+    if (hasRowError(problems)) continue;
     live += 1;
   }
 
