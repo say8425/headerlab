@@ -236,15 +236,28 @@ occurrences of the proxy host, zero of `registry.npmjs.org`, zero `tarball:` key
 registry is a config value read at install time, so one lockfile installs from whichever
 registry the machine points at. There is nothing left to rewrite before committing.
 
-**The lockfile was converted, not re-resolved, and that distinction still matters.**
-`pnpm import` reads `package-lock.json` and reproduces the tree from it, so all 812
-packages carry the versions CI had already resolved — including every one of the 19
-`@oxlint/binding-*@1.76.0` entries, the 18 non-darwin ones among them. The trap underneath
-has not gone away: the proxy still serves stale metadata for those per-platform native
-bindings, and `registry.npmjs.org` is still unreachable from this machine (503), so **a
-resolution from scratch here would still be wrong.** `pnpm install --frozen-lockfile`
-re-resolves nothing and is the everyday command. If a dependency ever has to change, do it
-where the whole registry is visible — CI — and take the lockfile back from there.
+**Never write the lockfile on this machine. `pnpm import` drops packages here, in
+silence.** It converts `package-lock.json` rather than re-resolving, so the 812 versions
+are the ones CI had already picked — but platform bindings are *optional* dependencies, and
+for those it goes back to the registry. The proxy's packument for
+`@oxfmt/binding-linux-x64-gnu` stops at **0.58.0** while `package.json` pins oxfmt
+**0.60.0**, so the 18 non-darwin entries could not resolve and were dropped without a word.
+The same run kept all 19 `@oxlint/binding-*@1.76.0`, because that packument does reach
+1.77.0 — one tool silently mutilated, its neighbour intact, from one command.
+
+**Nothing local can see it.** macOS never loads those bindings, so `pnpm check`,
+`pnpm test:e2e` and a clean `--frozen-lockfile` install were all green on a lockfile that
+could not install on Linux. Four of the five CI jobs passed too; `format` was the one that
+died, with `Cannot find module '@oxfmt/binding-linux-x64-gnu'`.
+`tests/unit/lockfile.test.ts` now closes that gap by pairing the platforms — whatever
+`darwin-arm64` was resolved for, `linux-x64-gnu` must have been resolved for too — which
+is a guard the machine that causes the defect can run.
+
+The committed file came from CI: the same `pnpm import`, against a registry that can see
+everything, uploaded as an artifact. **That is the loop to re-run** whenever a dependency
+changes, and the diff proves it converts rather than drifts — 188 insertions, **zero**
+deletions, all 18 of them the missing bindings. `pnpm install --frozen-lockfile`
+re-resolves nothing and is the everyday command.
 
 **corepack cannot fetch pnpm through the proxy**, so `corepack enable` is a CI-only
 instruction. It builds the tarball URL as `<registry>/pnpm-11.20.0/-/pnpm-11.20.0.tgz`,

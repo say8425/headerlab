@@ -201,7 +201,7 @@ and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 637 unit tests across 29 files, plus 11 e2e tests.
+At the time of writing: 640 unit tests across 30 files, plus 11 e2e tests.
 
 ## Status
 
