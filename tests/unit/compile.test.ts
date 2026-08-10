@@ -544,6 +544,36 @@ describe('compile emits diagnostics', () => {
     ]);
   });
 
+  it('does not let a bad row in one profile suppress a healthy row of the same id in another', () => {
+    // The re-review's own repro, reduced to a unit test. The test above this
+    // one uses two different row ids ('bad' and the default 'h1') and would
+    // have passed even with the bug this one exists to catch: `byRow` used
+    // to be keyed by `headerRuleId` alone, so two profiles whose rows happen
+    // to share an id land in the *same* bucket, and the predicate that drops
+    // a diagnosed row from `compileHeaders` then drops the other profile's
+    // healthy row too. Both profiles here use the header factory's default
+    // id ('h1') on purpose — that collision is the whole point.
+    const bad = profile({
+      id: 'pB',
+      order: 0,
+      headers: [header({ name: 'X-Custom', operation: 'append' })], // id: 'h1'
+    });
+    const good = profile({ id: 'pA', order: 1, headers: [header()] }); // also id: 'h1'
+    const result = compile(state({ profiles: [bad, good] }));
+
+    // The diagnostic is real and belongs to the bad profile...
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]).toMatchObject({ kind: 'append-not-allowed', profileId: 'pB' });
+    // ...but says nothing about the good one, which must still go out. Before
+    // the fix this was `dynamic: []` — both profiles' rows shared the 'h1'
+    // bucket, so the bad row's diagnostic suppressed the good row too, with
+    // nothing on screen naming `pA` at all.
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]!.action.requestHeaders).toEqual([
+      { header: 'X-Debug-Mode', operation: 'set', value: 'true' },
+    ]);
+  });
+
   it('does not report on a disabled profile', () => {
     const base = profile();
     expect(

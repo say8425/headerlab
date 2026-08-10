@@ -186,3 +186,43 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
 export function hasRowError(diagnostics: readonly Diagnostic[] | undefined): boolean {
   return diagnostics?.some((d) => d.severity === 'error') ?? false;
 }
+
+/**
+ * The key a row-level diagnostic map is grouped under: a diagnostic belongs
+ * to a row *of a profile*, never to a row id on its own.
+ *
+ * `headerRuleId` alone was the key both `compile.ts` and `lib/view/rules.ts`
+ * used until a re-review demonstrated what that costs. With two profiles
+ * whose rows happen to share an id, profile B's broken row lands in the same
+ * bucket as profile A's healthy one, and `hasRowError` reading that bucket
+ * then drops A's header from `compileHeaders` too — measured: `dynamic: []`,
+ * A's header silently stops being sent, while the only diagnostic on screen
+ * carries B's `profileId` and so says nothing about A at all. Headers that
+ * stop being modified without the screen saying so is the first thing this
+ * project's rules forbid.
+ *
+ * Not reachable today: ids come from `crypto.randomUUID()`, and the popup
+ * truncates storage to a single profile before this ever gets two to
+ * compare. It becomes reachable the day anything else writes state —
+ * `schema.ts` requires only `id: z.string().min(1)`, enforces no uniqueness
+ * across profiles, and its own docblock says it guards "every trust
+ * boundary, including JSON import." Import is exactly the feature CLAUDE.md
+ * names as the one that makes a dormant surface reachable, so this is closed
+ * now rather than left as a trap for the commit that adds it.
+ *
+ * Lives here, not in `lib/view/rules.ts`, even though the UI-routing half of
+ * this fix is also there: `lib/view/rules.ts` already imports `hasRowError`
+ * from this file, and the reverse import would run the compile layer through
+ * the view layer for one string. One predicate, one definition, and one
+ * direction for the dependency.
+ *
+ * The joiner is a space, which is why it looks like nothing between the two
+ * halves. It is still load-bearing: `schema.ts` constrains an id to `min(1)`
+ * and nothing else, so an id containing the joiner itself could make two
+ * different `{profileId, headerRuleId}` pairs collide on the same key — a
+ * space is far less likely to appear in a generated id than to be typo-proof
+ * against every possible id, so this is a reasonable choice rather than a
+ * proven-safe one.
+ */
+export const rowKey = (profileId: string, headerRuleId: string): string =>
+  `${profileId} ${headerRuleId}`;

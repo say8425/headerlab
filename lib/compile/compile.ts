@@ -4,7 +4,7 @@ import { detectConflicts } from '@/lib/compile/conflicts';
 import { validateFilter } from '@/lib/compile/filterDiagnostics';
 import { allocate } from '@/lib/compile/priority';
 import { isSuppressed } from '@/lib/compile/suppression';
-import { hasRowError, validateHeaders } from '@/lib/compile/validate';
+import { hasRowError, rowKey, validateHeaders } from '@/lib/compile/validate';
 import { originsForFilter } from '@/lib/permissions/origins';
 import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
 
@@ -35,15 +35,20 @@ export function compile(state: AppState): CompileResult {
   }
   diagnostics.push(...detectConflicts(state.profiles));
 
-  // Grouped once by the id every header-row diagnostic carries, and reused
-  // for every profile/allocation below — the one place this repo asks "does
-  // this row have an error" (lib/compile/validate.ts's hasRowError).
+  // Grouped once by profile *and* row id — see `rowKey`'s own docblock —
+  // and reused for every profile/allocation below. This is the one place
+  // this repo asks "does this row have an error" (lib/compile/validate.ts's
+  // hasRowError), and it is also the place a re-review demonstrated the
+  // cost of grouping by row id alone: two profiles whose rows share an id
+  // made one profile's diagnosed row suppress the other's healthy header —
+  // `dynamic: []` for a state where only one row was actually broken.
   const byRow = new Map<string, Diagnostic[]>();
   for (const d of diagnostics) {
     if (d.headerRuleId === undefined) continue;
-    const existing = byRow.get(d.headerRuleId);
+    const key = rowKey(d.profileId, d.headerRuleId);
+    const existing = byRow.get(key);
     if (existing) existing.push(d);
-    else byRow.set(d.headerRuleId, [d]);
+    else byRow.set(key, [d]);
   }
 
   // globalPause suppresses rules but not analysis: the user must still be able
@@ -57,7 +62,9 @@ export function compile(state: AppState): CompileResult {
       // hasRowError's own comment for why. Fail-open is asymmetric here
       // (CLAUDE.md): headers skip per row, domains suppress the whole
       // profile (isSuppressed, below, is the second half).
-      const compilable = profile.headers.filter((rule) => !hasRowError(byRow.get(rule.id)));
+      const compilable = profile.headers.filter(
+        (rule) => !hasRowError(byRow.get(rowKey(profile.id, rule.id))),
+      );
       const action = compileHeaders(compilable);
       if (!action.requestHeaders && !action.responseHeaders) continue;
 
