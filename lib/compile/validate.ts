@@ -99,7 +99,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // bounded-row-meets-unbounded-text spot in this popup, and the tail
         // is what gets cut. The character set the user can actually act on
         // has to survive that; the fact of the failure is what can afford to.
-        message: `Use letters, digits, and ! # $ % & ' * + - . ^ _ \` | ~ only — no spaces or colons. "${name}" is not a valid header name.`,
+        message: 'Not a valid header name — no spaces, colons or quotes.',
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -116,9 +116,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // above: what to do ("Use Set instead…") used to be the clause a
         // truncated row cut, with the clause the user can do nothing about
         // left standing.
-        message:
-          'Use Set instead, or switch this row to a response header. ' +
-          `Chrome does not allow appending to the request header "${name}".`,
+        message: 'Use Set — Chrome does not append request headers like this one.',
       });
     }
 
@@ -162,7 +160,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // word — it echoes the *concept* `firstToucher` names, chosen so a
         // reader who has seen one already recognises the other rather than
         // parsing a second verb for the same fact.
-        message: `Rename this row or delete it. An earlier row already touches "${name}".`,
+        message: 'Rename or delete this row — an earlier row already uses this header.',
       });
     }
     seen.add(key);

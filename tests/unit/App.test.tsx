@@ -88,7 +88,7 @@ describe('App', () => {
     render(<App />);
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
     const notes = screen.queryAllByTestId('scope-note');
     expect(notes.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(false);
   });
@@ -786,7 +786,7 @@ describe('a rule that has not been named yet', () => {
     await userEvent.tab();
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
   });
 
   it('is not live, because the compiler emits nothing for it', async () => {

@@ -93,14 +93,20 @@ describe('validateHeaders', () => {
     expect(d[0]?.kind).toBe('incomplete-header');
   });
 
-  it('keeps a typo an error, with the message that names the offending text', () => {
+  it('keeps a typo an error, and says what is wrong without repeating the name', () => {
     // The other side of the split, asserted alongside it: making "unfinished"
     // its own state must not soften a name the user actually got wrong.
+    //
+    // The message deliberately does *not* quote the offending name any more.
+    // It renders on that row, two lines under the field still showing the
+    // name — repeating it there spent the width that made the sentence need
+    // truncating in the first place. What the message owes the user is the
+    // rule they broke, not an echo of what they typed.
     const d = validateHeaders(profileWith([row({ name: 'X Session Id' })]));
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('invalid-header-name');
     expect(d[0]?.severity).toBe('error');
-    expect(d[0]?.message).toContain('"X Session Id"');
+    expect(d[0]?.message).toBe('Not a valid header name — no spaces, colons or quotes.');
   });
 
   it('accepts a name that only needs trimming, matching what the compiler emits', () => {

@@ -499,10 +499,27 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               // shadcn disabled state (`components/ui/input.tsx`) that
               // costs no contrast.
               <span
-                className="flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 text-[12px] leading-[18px] font-medium text-muted-foreground"
+                /* One typeface for the whole sentence, not a mixed line.
+                   The half-pixel this removes was real: with the header name
+                   in monospace and "will be removed" in sans, `items-baseline`
+                   had to reconcile two fonts whose baselines sit at different
+                   heights inside identical 18px line boxes, and the flex line
+                   resolved to 18.5px — making the `remove` row 52.5px against
+                   every other row's 52px. Pinning the height would have hidden
+                   that; one font removes the cause, and the line is 18px
+                   because the metrics agree rather than because a literal says
+                   so.
+
+                   Owner's call that the shared font is monospace. Note it
+                   reads against this repo's own typography rule — monospace is
+                   for values the user types, and a header *name* is sans
+                   everywhere else, including the field two lines above showing
+                   this same string. Flipping the family on this one element
+                   reverses it if that trade stops being worth it. */
+                className="flex min-w-0 flex-1 cursor-not-allowed items-baseline gap-1 font-mono text-[12px] leading-[18px] font-medium text-muted-foreground"
                 data-testid="rule-value"
               >
-                <span className="min-w-0 truncate font-mono" title={removeName}>
+                <span className="min-w-0 truncate" title={removeName}>
                   &quot;{removeName}&quot;
                 </span>
                 <span className="shrink-0 whitespace-nowrap">will be removed</span>
