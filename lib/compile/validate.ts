@@ -116,7 +116,7 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // above: what to do ("Use Set instead…") used to be the clause a
         // truncated row cut, with the clause the user can do nothing about
         // left standing.
-        message: 'Use Set — Chrome does not append request headers like this one.',
+        message: 'Use Set. Chrome does not append request headers.',
       });
     }
 
