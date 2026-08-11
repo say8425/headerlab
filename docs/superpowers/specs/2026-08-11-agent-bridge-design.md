@@ -18,7 +18,7 @@ AI 에이전트가 개발자가 **실제로 쓰는 Chrome** 의 HeaderLab 을 �
 | 연결 경로 | native messaging | 소유자 선택. CDP 는 Chrome 을 평소처럼 띄우면 안 된다는 대가가 있었다 |
 | 권한 모양 | `optional_permissions: ["nativeMessaging"]` | 설치 시점 `permissions` 를 한 글자도 안 바꾼다 |
 | 명령 표면 | 의미 단위 + 통째 JSON 읽기/쓰기 | 소유자 요구. raw write 는 zod 검증 + 스냅샷을 통과해야 한다 |
-| keepalive | 하트비트 + `alarms` 복구 바닥 | 열린 포트만으로는 SW 가 안 산다 |
+| keepalive | **없음** — 포트가 살려둔다 | 실측으로 뒤집힘, §8.4 |
 | 팝업 표시 | 리드아웃 카드의 넷째 줄 (안 A) | 레일 여유 28px 에 정확히 들어간다 |
 | 레포 모양 | pnpm workspace, **확장은 루트에 유지** | 확장을 옮기면 릴리즈가 조용히 빈 채로 나간다 (§6.1) |
 | 버전 추종 | release-please `extra-files` | 독립 PR 을 유지한 채 플러그인 버전만 따라온다 |
@@ -113,7 +113,7 @@ headerlab pause | resume                    globalPause
 |---|---|---|
 | `lib/bridge/protocol.ts` | 순수 | 명령 zod 스키마와 결과 타입 |
 | `lib/bridge/apply.ts` | 순수 | `(AppState, Command) → AppState \| error`. 심장 |
-| `lib/bridge/port.ts` | 어댑터 | `connectNative`·하트비트·`alarms`·재연결 |
+| `lib/bridge/port.ts` | 어댑터 | `connectNative`·재연결. **`browser` 가 아니라 `chrome.` 을 부른다** |
 | `packages/host/headerlab-host.mjs` | Node, 의존성 0 | stdio ↔ 유닉스 소켓 중계 |
 | `packages/cli/bin/headerlab.mjs` | Node, 의존성 0 | `node:util` `parseArgs` |
 | `packages/plugin/skills/headerlab/SKILL.md` | 문서 | 매니페스트 둘이 공유 |
@@ -336,8 +336,10 @@ CSS 바이트 수를 비교한다** — 143 B 를 잰 그 도구 그대로.
 `extensions_api_permissions.cc:113-114` 에 `kFlagCannotBeOptional` 이 없다(`declarativeNetRequest`
 는 `:57-59` 에서 그 플래그를 단다). **HeaderLab 은 zero-permission 설치 자세를 유지한다.**
 
-이건 소스 사실이고 **런타임 `permissions.request()` 는 아직 실행해보지 않았다. 그 스파이크가
-빚이다**(§10, Q10).
+**실행됐다. 받아진다.** 팝업 버튼에서 호출하니 Chrome 의 동의 대화상자가 떴고, 허용하자
+승인됐으며, 두 번째 클릭은 대화상자 없이 곧장 `connectNative` 로 갔다 — 승인이 유지된다.
+`docs/research/2026-08-11-native-messaging-spike.md`. 이 설계에서 가장 무거운 전제였고
+살아남았다.
 
 플래그가 바뀌면 실패가 조용하다: `permissions_parser.cc:301-326` 이 optional 불가 권한을
 목록에서 지우고 설치 경고만 남기며, 유일한 정합성 검사 `DCHECK_EQ` 는 릴리즈 빌드에서
@@ -381,19 +383,45 @@ unpacked ID 는 로드 경로 **바이트**의 SHA-256 앞 16바이트를 0-f �
 자기 출력을 스스로 검증한다** — Chrome 이 설명해주길 기대하는 것은 이 저장소 정의상 silent
 failure 다.
 
-### 8.4 keepalive
+**세 번째 원인이 실측으로 추가됐고, 문구가 앞의 둘과 똑같다.** Chrome 은 호스트를 **자기
+환경**으로 띄우며 그 PATH 에는 nvm 도 homebrew 도 없다. `#!/usr/bin/env node` 셔뱅은 해석에
+실패하고, 스크립트는 첫 줄도 못 돌며, 확장이 받는 것은
+`{"message":"Native host has exited."}` 뿐이다 — 호스트 로그는 두 번의 연결 시도 내내
+완전히 비어 있었다. 절대 경로 셔뱅으로 바꾸자 `env -i` 아래에서도 정상 실행됐다.
 
-공식 문서 기준: 열린 `connectNative` 포트는 MV3 SW 를 살려둔다(Chrome 105 로 기술). 기본 유휴
-30초. Chrome 110 이 5분 상한을 제거했다. **문서가 자기들끼리 버전이 어긋난다**(What's New 는
-Chrome 100 이라 한다) — **설계는 Chrome 105 기준이라고 문서에 적는다.**
+즉 **매니페스트 거부·ID 불일치·인터프리터 부재가 확장 쪽에서 구분되지 않는다.** 인스톨러의
+요구사항: `path` 는 최소 환경에서 실행되는 것을 가리켜야 하고, 설치 직후 그것을 **직접 한 번
+실행해 확인**해야 한다. 이건 §8.5 가 `$TMPDIR` 에 대해 추론해둔 것과 같은 뿌리이고 —
+호스트는 Chrome 의 환경을, CLI 는 터미널의 환경을 물려받는다 — 이제 측정된 사실이다.
 
-`alarms` 는 **복구 트리거**이지 keepalive 가 아니다. 하트비트가 유지를 맡고, 그럼에도 SW 가
-죽었을 때 다시 붙이는 게 alarm 의 역할이다.
+### 8.4 keepalive — 필요 없다. 실측했다
 
-**개발에서 뒤집히는 함정:** unpacked 로드에서는 alarm 주기 제한이 없다. `pnpm dev` 도 e2e 도
-전부 unpacked 다. **개발에서 잰 하트비트는 스로틀 없는 타이머를 잰 것**이고 출시 빌드에서는
-조용히 30초 타이머가 된다. `.output/chrome-mv3` 를 unpacked 로 로드해 돌린 스파이크는
-프로덕션 타이밍에 대해 아무것도 증명하지 않는다.
+**측정됨** (Chrome 151.0.7922.108, macOS 26.4.1, unpacked):
+`docs/research/2026-08-11-native-messaging-spike.md`.
+
+하트비트를 끈 채 포트 둘을 열고 최초 echo 이후 **아무 트래픽 없이** 7분을 두었더니 호스트 둘이
+그대로 살아 있었다. 30초 유휴 타임아웃도, 제거된 5분 상한도 넘겼다. **열려 있다는 사실 자체가
+SW 를 살려둔다.**
+
+**이 문서의 이전 판은 반대로 적혀 있었고 그것이 틀렸다.** "포트를 여는 것은 더 이상 타이머를
+리셋하지 않는다"는 서술은 **일반 runtime 포트**에 대한 것이고, 네이티브 메시징에 확대한 것이
+오류였다. 같은 문서의 다른 줄 — 네이티브 메시징은 두 타이머를 모두 취소하는 강한 keep-alive 를
+제공한다 — 이 맞았다. 근거로 인용했던 이슈 두 건도 반박됐다(하나는 Linux/Chromium 의 추측,
+하나는 Chrome 105/110 이전).
+
+따라서:
+
+- **하트비트를 넣지 않는다.** 유지할 것이 없다.
+- **`alarms` 를 넣지 않는다.** 권한이 하나 준다. SW 가 실제로 죽는 경우 — 브라우저 재시작,
+  확장 리로드, 크래시 — 는 `background.ts` 가 **이미 듣고 있는** `onStartup`·`onInstalled` 가
+  덮는다. 재연결은 새 기제가 아니라 기존 배선에 얹는다.
+- `onDisconnect` 에 **제한된** 재시도만 더한다. 무제한 재시도는 인터프리터가 없거나 ID 가
+  틀린 경우(§8.3) 무한 루프가 된다 — 그 둘은 재시도로 낫지 않는다.
+
+**한계, 그대로 남긴다.** 7분은 무한이 아니고 unpacked 로드다. unpacked 예외는 `chrome.alarms`
+스로틀에 걸리는 것이지 포트 keep-alive 와는 다른 기제라 이 측정은 유효하다고 보지만, packed
+에서 다시 잰 적은 없다. `alarms` 를 쓰지 않기로 했으므로 그 스로틀은 이제 이 설계에 걸리지
+않는다.
 
 ### 8.5 소켓
 
@@ -483,9 +511,9 @@ Node 에 native-order 32비트 쓰기 헬퍼는 없다. `os.endianness()` 로 �
 
 | # | 질문 | 정하는 법 |
 |---|---|---|
-| Q10 | `permissions.request({permissions:['nativeMessaging']})` 가 런타임에 실제로 true 를 주는가 | 라이브 스파이크. 소스는 optional 가능함만 증명한다 |
-| Q11 | 이 확장에서 관측되는 keepalive 는 얼마인가 | 포트 열고 60초 유휴 후 호스트 생존 확인 — **packed 빌드에서**. unpacked 는 alarm 스로틀이 없다 |
-| Q12 | 호스트가 포트가 닫힌 *이유*(유휴/비활성화/종료/권한 해제)를 구분할 수 있는가 | 4방향 실험. UI 가 이유를 말해야 한다면 확장이 끊기 전에 이유를 내려보내야 한다 |
+| ~~Q10~~ | ~~런타임 승인이 실제로 떨어지는가~~ | **답함 — 떨어진다.** §8.1, 스파이크 문서 |
+| ~~Q11~~ | ~~관측되는 keepalive 는 얼마인가~~ | **답함 — 포트만으로 7분+ 산다.** §8.4, 스파이크 문서 |
+| Q12 | 호스트가 포트가 닫힌 *이유*(비활성화/종료/권한 해제)를 구분할 수 있는가 | 값이 내려갔다. Q11 이 "유휴로는 안 죽는다"로 답하면서 네 경우 중 하나가 사라졌고, 나머지를 가르는 것은 UI 가 이유를 말해야 할 때만 필요하다. 필요해지면 확장이 끊기 전에 이유를 포트로 내려보내는 것이 유일한 방법이다 |
 | Q5 | CLI 를 npm 에 올리는가, 어느 레지스트리로 | CLAUDE.md 의 프록시 문제가 걸린다. 별도 결정 |
 | Q13 | Codex 의 `.claude-plugin` 폴백이 0.145.0 에서 실제로 도는가 | 스크래치 마켓플레이스로 확인. 단 `~/.codex/config.toml` 을 건드린다 |
 | Q9 | 이관이 Tailwind 스캔 집합과 팝업 CSS 바이트 수를 바꾸는가 | 전후 빌드하고 `wc -c` 비교 |
