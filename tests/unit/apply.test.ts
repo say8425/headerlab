@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { apply } from '@/lib/bridge/apply';
-import { bootstrapProfile, STATE_VERSION } from '@/lib/model/defaults';
-import type { AppState, Profile } from '@/lib/model/types';
+import { bootstrapProfile, newRule, STATE_VERSION } from '@/lib/model/defaults';
+import type { AppState, HeaderRule, Profile } from '@/lib/model/types';
 
 function stateWith(profile: Profile): AppState {
   return { version: STATE_VERSION, profiles: [profile], globalPause: false, theme: 'system' };
@@ -154,5 +154,135 @@ describe('apply — site.allSites', () => {
     const on = ok(apply(scoped([]), { cmd: 'site.allSites', on: true })).state;
     const again = ok(apply(on, { cmd: 'site.allSites', on: true }));
     expect(again.changed).toBe(false);
+  });
+});
+
+function ruled(...headers: HeaderRule[]): AppState {
+  const profile = bootstrapProfile();
+  return stateWith({ ...profile, headers });
+}
+
+const AUTH: HeaderRule = {
+  id: 'r-auth',
+  enabled: true,
+  target: 'request',
+  operation: 'set',
+  name: 'Authorization',
+  value: 'Bearer old',
+};
+
+describe('apply — rule.add', () => {
+  it('appends a rule with the fields it was given', () => {
+    const result = ok(
+      apply(ruled(), {
+        cmd: 'rule.add',
+        target: 'response',
+        operation: 'set',
+        name: 'Cache-Control',
+        value: 'no-store',
+      }),
+    );
+    const rules = result.state.profiles[0]!.headers;
+    expect(rules).toHaveLength(1);
+    expect(rules[0]!.target).toBe('response');
+    expect(rules[0]!.operation).toBe('set');
+    expect(rules[0]!.name).toBe('Cache-Control');
+    expect(rules[0]!.value).toBe('no-store');
+    expect(rules[0]!.enabled).toBe(true);
+  });
+
+  it('appends after the rules already there', () => {
+    const result = ok(
+      apply(ruled(AUTH), {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'X-Debug',
+        value: '1',
+      }),
+    );
+    expect(result.state.profiles[0]!.headers.map((h) => h.name)).toEqual([
+      'Authorization',
+      'X-Debug',
+    ]);
+  });
+
+  it('gives each added rule its own id', () => {
+    const once = ok(
+      apply(ruled(), {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'A',
+        value: '1',
+      }),
+    ).state;
+    const twice = ok(
+      apply(once, { cmd: 'rule.add', target: 'request', operation: 'set', name: 'B', value: '2' }),
+    ).state;
+    const [first, second] = twice.profiles[0]!.headers;
+    expect(first!.id).not.toBe(second!.id);
+  });
+
+  // types.ts: "Empty string when operation is 'remove'. The compiler drops the
+  // field entirely." A value carried on a remove would be dead data that reads
+  // as meaningful.
+  it('drops a value handed to a remove', () => {
+    const result = ok(
+      apply(ruled(), {
+        cmd: 'rule.add',
+        target: 'response',
+        operation: 'remove',
+        name: 'Content-Security-Policy',
+        value: 'ignored',
+      }),
+    );
+    expect(result.state.profiles[0]!.headers[0]!.value).toBe('');
+  });
+});
+
+describe('apply — rule.remove', () => {
+  it('removes the named rule and leaves the rest', () => {
+    const other = { ...newRule(), id: 'r-other', name: 'X-Other' };
+    const result = ok(apply(ruled(AUTH, other), { cmd: 'rule.remove', id: 'r-auth' }));
+    expect(result.state.profiles[0]!.headers.map((h) => h.id)).toEqual(['r-other']);
+    expect(result.changed).toBe(true);
+  });
+
+  it('names an id that is not there rather than reporting success', () => {
+    const result = apply(ruled(AUTH), { cmd: 'rule.remove', id: 'nope' });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.code).toBe('unknown-rule');
+    expect(result.error.message).toContain('nope');
+  });
+});
+
+describe('apply — rule.toggle', () => {
+  it('flips an on rule off when told nothing', () => {
+    const result = ok(apply(ruled(AUTH), { cmd: 'rule.toggle', id: 'r-auth' }));
+    expect(result.state.profiles[0]!.headers[0]!.enabled).toBe(false);
+    expect(result.changed).toBe(true);
+  });
+
+  it('flips an off rule on when told nothing', () => {
+    const result = ok(
+      apply(ruled({ ...AUTH, enabled: false }), { cmd: 'rule.toggle', id: 'r-auth' }),
+    );
+    expect(result.state.profiles[0]!.headers[0]!.enabled).toBe(true);
+  });
+
+  it('sets rather than flips when told explicitly', () => {
+    const result = ok(apply(ruled(AUTH), { cmd: 'rule.toggle', id: 'r-auth', on: true }));
+    expect(result.state.profiles[0]!.headers[0]!.enabled).toBe(true);
+    // Already on, so nothing moved — an explicit set is idempotent and says so.
+    expect(result.changed).toBe(false);
+  });
+
+  it('names an id that is not there', () => {
+    const result = apply(ruled(AUTH), { cmd: 'rule.toggle', id: 'nope' });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.code).toBe('unknown-rule');
   });
 });

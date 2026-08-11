@@ -1,4 +1,4 @@
-import { bootstrapProfile } from '@/lib/model/defaults';
+import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { effectiveDomain } from '@/lib/permissions/origins';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import type { ApplyResult, Command } from '@/lib/bridge/protocol';
@@ -88,6 +88,58 @@ export function apply(state: AppState, command: Command): ApplyResult {
       // 목록은 남긴다. 그게 스위치를 되돌릴 수 있게 하는 것이고, 끄면 사용자가
       // 쌓아둔 스코프가 돌아온다.
       return replace(base, { ...active, filter: { ...active.filter, allSites: command.on } }, true);
+    }
+
+    case 'rule.add': {
+      const { base, active } = seed(state);
+      // `remove` 는 값을 갖지 않는다(types.ts). 여기서 떨어뜨려, 저장되는
+      // 모양이 늘 하나가 되게 한다 — 죽은 값이 의미 있는 것처럼 읽히는 일이
+      // 없도록.
+      const value = command.operation === 'remove' ? '' : command.value;
+      const rule = {
+        ...newRule(),
+        target: command.target,
+        operation: command.operation,
+        name: command.name,
+        value,
+      };
+      return replace(base, { ...active, headers: [...active.headers, rule] }, true);
+    }
+
+    case 'rule.remove': {
+      const { base, active } = seed(state);
+      if (!active.headers.some((h) => h.id === command.id)) {
+        return {
+          ok: false,
+          error: { code: 'unknown-rule', message: `no rule with id ${command.id}` },
+        };
+      }
+      return replace(
+        base,
+        { ...active, headers: active.headers.filter((h) => h.id !== command.id) },
+        true,
+      );
+    }
+
+    case 'rule.toggle': {
+      const { base, active } = seed(state);
+      const current = active.headers.find((h) => h.id === command.id);
+      if (!current) {
+        return {
+          ok: false,
+          error: { code: 'unknown-rule', message: `no rule with id ${command.id}` },
+        };
+      }
+      const next = command.on ?? !current.enabled;
+      if (next === current.enabled) return replace(base, active, false);
+      return replace(
+        base,
+        {
+          ...active,
+          headers: active.headers.map((h) => (h.id === command.id ? { ...h, enabled: next } : h)),
+        },
+        true,
+      );
     }
 
     default:
