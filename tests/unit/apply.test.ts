@@ -294,6 +294,15 @@ describe('apply — rule.toggle', () => {
     expect(result.error.code).toBe('unknown-rule');
     expect(result.error.message).toContain('nope');
   });
+
+  // Two rules, because with one the reducer cannot tell "the one you named"
+  // from "all of them" — and a regression to the second spelling would turn a
+  // single `headerlab rule toggle <id>` into switching the whole profile off.
+  it('flips only the rule it names', () => {
+    const other = { ...newRule(), id: 'r-other', enabled: true };
+    const result = ok(apply(ruled(AUTH, other), { cmd: 'rule.toggle', id: 'r-auth' }));
+    expect(result.state.profiles[0]!.headers.map((h) => h.enabled)).toEqual([false, true]);
+  });
 });
 
 describe('apply — rule commands leave their input alone', () => {
