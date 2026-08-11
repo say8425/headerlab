@@ -78,6 +78,28 @@ describe('apply — site.add', () => {
     apply(before, { cmd: 'site.add', domains: ['a.com'] });
     expect(before.profiles[0]!.filter.domains).toEqual([]);
   });
+
+  // `replace()` maps by id rather than writing `[next]`, and that is the whole
+  // of "operate on the one rule set the popup shows, leave the ones it cannot
+  // show alone". A regression to `profiles: [next]` would silently delete a
+  // stored rule set that goes on modifying headers with nothing able to show
+  // it. One test covers all three commands because all three write through
+  // `replace()` — three copies of it would be the duplication this file is
+  // trying to prevent.
+  it('leaves a second stored rule set untouched', () => {
+    const first = bootstrapProfile();
+    const second = { ...bootstrapProfile(), name: 'Legacy', order: 1 };
+    const before: AppState = {
+      version: STATE_VERSION,
+      profiles: [first, second],
+      globalPause: false,
+      theme: 'system',
+    };
+    const result = ok(apply(before, { cmd: 'site.add', domains: ['a.com'] }));
+    expect(result.state.profiles).toHaveLength(2);
+    expect(result.state.profiles[0]!.filter.domains).toEqual(['a.com']);
+    expect(result.state.profiles[1]).toEqual(second);
+  });
 });
 
 describe('apply — site.remove', () => {
