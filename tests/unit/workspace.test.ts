@@ -146,4 +146,36 @@ describe('the release configuration', () => {
     expect(workflow).toContain('steps.release.outputs.release_created');
     expect(workflow).not.toContain('release-type: node');
   });
+
+  // The absence assertion above passes against a step that is malformed in
+  // other ways — removing `release-type: node` once left an empty `with:`
+  // behind, which parses to null and supplies no inputs at all. Assert the
+  // shape, not just what is missing from it.
+  //
+  // A flat `/^\s*with:\s*$/m` is not that assertion: YAML puts a mapping's
+  // children on following, more-indented lines, so the same pattern matches
+  // the checkout step's `with:` two lines above just as readily — that block
+  // is populated (`persist-credentials: false` sits under it), and the flat
+  // regex cannot see that because it never looks past the `with:` line
+  // itself. Measured: it does fire on this file's correctly-formed
+  // `with:` at actions/checkout, which is the false positive a stronger
+  // check has to rule out. `with:` is empty only when the next non-blank
+  // line is NOT indented past it — end of file, a blank line then a
+  // same-or-lesser-indented line, or another line right away all count.
+  // No YAML parser exists in this dependency tree (confirmed: no `yaml` or
+  // `js-yaml` in package.json or node_modules, and CLAUDE.md forbids adding
+  // one), so this walks lines by hand rather than reaching for one.
+  it('leaves the release step well-formed after losing its only input', () => {
+    const lines = readFileSync('.github/workflows/release-please.yml', 'utf8').split('\n');
+    const emptyWithLines = lines.filter((line, i) => {
+      const withMatch = /^(\s*)with:\s*$/.exec(line);
+      if (!withMatch) return false;
+      const indent = withMatch[1]!.length;
+      let next = i + 1;
+      while (next < lines.length && lines[next]!.trim() === '') next++;
+      const nextIndent = next < lines.length ? /^(\s*)/.exec(lines[next]!)![1]!.length : -1;
+      return nextIndent <= indent;
+    });
+    expect(emptyWithLines).toEqual([]);
+  });
 });

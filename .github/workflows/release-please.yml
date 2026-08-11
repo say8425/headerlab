@@ -29,7 +29,6 @@ jobs:
       # one third-party action here and the only job that holds write scopes.
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
-        with:
 
       - uses: ./.github/actions/setup
         if: ${{ steps.release.outputs.release_created }}
