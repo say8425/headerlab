@@ -438,7 +438,7 @@ export type ApplyResult =
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/protocol.test.ts`
-Expected: PASS, 12 tests.
+Expected: PASS, 17 tests.
 
 - [ ] **Step 5: 순수 가드에 넣는다**
 
@@ -725,7 +725,7 @@ export function apply(state: AppState, command: Command): ApplyResult {
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 15 tests.
+Expected: PASS, 14 tests.
 
 - [ ] **Step 5: 순수 가드에 넣는다**
 
@@ -973,7 +973,7 @@ Expected: FAIL — 새 describe 블록들이 `invalid-command` 를 받는다(아
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 25 tests.
+Expected: PASS, 24 tests.
 
 - [ ] **Step 5: 커밋**
 
@@ -1116,7 +1116,7 @@ Expected: FAIL — 새 케이스들이 `invalid-command` 로 떨어진다.
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 34 tests.
+Expected: PASS, 33 tests.
 
 **"says which field was wrong" 이 실패하면** zod 의 기본 메시지가 경로를 안 담은 것이다. 계약은 메시지가 필드 이름을 담는다는 것이므로, 메시지를 zod 에 맡기지 말고 직접 만든다. `apply.ts` 의 `catch` 를 이렇게 바꾼다:
 
