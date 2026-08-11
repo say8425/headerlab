@@ -318,3 +318,70 @@ describe('apply — rule commands leave their input alone', () => {
     expect(before).toEqual(snapshot);
   });
 });
+
+describe('apply — pause and resume', () => {
+  it('pauses', () => {
+    const result = ok(apply(scoped(['a.com']), { cmd: 'pause' }));
+    expect(result.state.globalPause).toBe(true);
+    expect(result.changed).toBe(true);
+  });
+
+  it('reports no change when already paused', () => {
+    const paused = ok(apply(scoped([]), { cmd: 'pause' })).state;
+    expect(ok(apply(paused, { cmd: 'pause' })).changed).toBe(false);
+  });
+
+  it('resumes', () => {
+    const paused = ok(apply(scoped([]), { cmd: 'pause' })).state;
+    const result = ok(apply(paused, { cmd: 'resume' }));
+    expect(result.state.globalPause).toBe(false);
+    expect(result.changed).toBe(true);
+  });
+
+  // globalPause is a top-level key. Minting a rule set as a side effect of
+  // pausing would write a profile nobody asked for onto an empty store.
+  it('does not mint a rule set on an empty store', () => {
+    const result = ok(apply(EMPTY, { cmd: 'pause' }));
+    expect(result.state.profiles).toEqual([]);
+    expect(result.state.globalPause).toBe(true);
+  });
+});
+
+describe('apply — state.set', () => {
+  it('replaces the whole state when it validates', () => {
+    const incoming = scoped(['fresh.example.com']);
+    const result = ok(apply(scoped(['old.example.com']), { cmd: 'state.set', state: incoming }));
+    expect(result.state.profiles[0]!.filter.domains).toEqual(['fresh.example.com']);
+    expect(result.changed).toBe(true);
+  });
+
+  // A store that fails validation is never compiled, so there is nothing to
+  // neutralise and nothing to justify writing over the caller's bytes.
+  it('refuses a payload the schema rejects and leaves the state alone', () => {
+    const before = scoped(['keep.example.com']);
+    const result = apply(before, { cmd: 'state.set', state: { version: 2, profiles: 'no' } });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.code).toBe('invalid-state');
+    expect(before.profiles[0]!.filter.domains).toEqual(['keep.example.com']);
+  });
+
+  it('refuses a payload that is not an object at all', () => {
+    const result = apply(scoped([]), { cmd: 'state.set', state: 'wat' });
+    expect(result.ok).toBe(false);
+  });
+
+  // The message has to name the field. A caller three processes away cannot
+  // read the zod error off a console that closed.
+  it('says which field was wrong', () => {
+    const result = apply(scoped([]), { cmd: 'state.set', state: { version: 2, profiles: [] } });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.message).toContain('globalPause');
+  });
+
+  it('accepts a state with no profiles without minting one', () => {
+    const result = ok(apply(scoped(['a.com']), { cmd: 'state.set', state: EMPTY }));
+    expect(result.state.profiles).toEqual([]);
+  });
+});

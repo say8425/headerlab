@@ -1,5 +1,6 @@
 import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { effectiveDomain } from '@/lib/permissions/origins';
+import { parseAppState } from '@/lib/model/schema';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import type { ApplyResult, Command } from '@/lib/bridge/protocol';
 import type { AppState, Profile } from '@/lib/model/types';
@@ -142,10 +143,41 @@ export function apply(state: AppState, command: Command): ApplyResult {
       );
     }
 
-    default:
+    case 'pause':
+    case 'resume': {
+      const paused = command.cmd === 'pause';
+      // `seeded` 가 아니라 `state`. 일시정지는 최상위 키이고, 그것 때문에
+      // 규칙 세트가 생겨서는 안 된다.
+      if (state.globalPause === paused) return { ok: true, state, changed: false };
+      return { ok: true, state: { ...state, globalPause: paused }, changed: true };
+    }
+
+    case 'state.set': {
+      try {
+        // 검증을 통과하지 못한 저장소는 컴파일되지 않으므로 중화할 것도 없고,
+        // 남의 바이트를 덮어쓸 근거도 없다. 거절하고 그대로 둔다.
+        return { ok: true, state: parseAppState(command.state), changed: true };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'invalid-state',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        };
+      }
+    }
+
+    default: {
+      // 위 아홉 case 가 `Command` 의 전부라서 타입 위에서는 여기 닿지 않는다 —
+      // `command` 는 `never` 로 좁혀진다. 그래도 지우지 않는다: `parseCommand`
+      // 를 거치지 않고 부른 호출이 타입을 우회해 들어오면 여기가 마지막
+      // 방어선이다. 그 값을 읽으려면 좁혀진 타입을 다시 넓혀야 한다.
+      const unexpected = command as Command;
       return {
         ok: false,
-        error: { code: 'invalid-command', message: `unhandled command: ${command.cmd}` },
+        error: { code: 'invalid-command', message: `unhandled command: ${unexpected.cmd}` },
       };
+    }
   }
 }
