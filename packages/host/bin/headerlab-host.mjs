@@ -27,6 +27,7 @@ import {
   socketDir,
   socketPathFor,
   sweepStaleSockets,
+  watchForServerErrors,
   writeRegistryEntry,
 } from '../lib/socket.mjs';
 
@@ -62,8 +63,8 @@ const server = createServer((socket) => {
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
     let newlineAt;
-    // The CLI writes newline-delimited JSON, one command per line, per the
-    // design's "JSON 한 줄" wire format on this side of the host.
+    // The CLI writes one JSON command per line — newline-delimited JSON is
+    // this side of the host's wire format, per the design.
     while ((newlineAt = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, newlineAt);
       buffer = buffer.slice(newlineAt + 1);
@@ -149,5 +150,14 @@ try {
   log('failed to start:', error.message);
   cleanup(1);
 }
+
+// A later host's startup sweep would eventually recover a socket and
+// registry entry orphaned by an unhandled post-bind error, but this file's
+// whole job is disciplined lifecycle handling — it should not depend on
+// someone else noticing the mess it left.
+watchForServerErrors(server, (error) => {
+  log('socket error:', error.message);
+  cleanup(1);
+});
 
 writeRegistryEntry(dir, pid, { origin: extensionOrigin, startedAt: new Date().toISOString() });

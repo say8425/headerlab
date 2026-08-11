@@ -24,6 +24,7 @@ import {
   socketDir,
   socketPathFor,
   sweepStaleSockets,
+  watchForServerErrors,
   writeRegistryEntry,
 } from '../lib/socket.mjs';
 
@@ -139,6 +140,53 @@ test('listening restricts the socket to 0600, not the 0755 Node leaves by defaul
   const socketPath = socketPathFor(dir, freshPid());
   await listeningServer(socketPath);
   assert.equal(statSync(socketPath).mode & 0o777, 0o600);
+});
+
+// --- error wiring -------------------------------------------------------
+
+// listenWithRestrictedPermissions removes its own error listener the moment
+// the bind succeeds, so nothing protects the process from an unhandled
+// 'error' event afterward without this. A genuine post-bind fault (EMFILE,
+// a socket-level error) is impractical to force into a live process from
+// outside it, so this exercises the wiring directly: a real net.Server, a
+// real emitted 'error' event, and an assertion that the handler this
+// function installs actually receives it — the part that is provable
+// without an OS-level fault, and the part the review found missing.
+test('watchForServerErrors routes a post-bind server error to the given handler', async () => {
+  const dir = freshDir();
+  ensureSocketDir(dir);
+  const socketPath = socketPathFor(dir, freshPid());
+  const server = await listeningServer(socketPath);
+
+  const received = [];
+  watchForServerErrors(server, (error) => received.push(error));
+
+  const fault = new Error('simulated post-bind socket fault');
+  server.emit('error', fault);
+
+  assert.deepEqual(received, [fault]);
+});
+
+// What a wrong implementation would let through: reacting to the FIRST
+// error only, or wiring a `.once` instead of `.on` — this is meant to be a
+// permanent handler, since the process must survive for as long as the
+// host runs, not just past the first fault.
+test('watchForServerErrors keeps handling errors after the first one', async () => {
+  const dir = freshDir();
+  ensureSocketDir(dir);
+  const socketPath = socketPathFor(dir, freshPid());
+  const server = await listeningServer(socketPath);
+
+  const received = [];
+  watchForServerErrors(server, (error) => received.push(error));
+
+  server.emit('error', new Error('first'));
+  server.emit('error', new Error('second'));
+
+  assert.deepEqual(
+    received.map((e) => e.message),
+    ['first', 'second'],
+  );
 });
 
 // --- filesystem: liveness probing -------------------------------------------

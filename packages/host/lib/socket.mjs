@@ -46,6 +46,20 @@ export function registryPathFor(dir, pid) {
 const BRIDGE_SOCKET_NAME = /^bridge-(\d+)\.sock$/;
 
 /**
+ * Unlinking a file that is already gone is success, not an error — this is
+ * how a filesystem race between two hosts sweeping the same dead entry is
+ * supposed to resolve (see `removeStaleSocket` and `removeRegistryEntry`),
+ * not a state either caller should have to special-case for itself.
+ */
+function unlinkIfExists(targetPath) {
+  try {
+    unlinkSync(targetPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+/**
  * Resolves the per-user socket directory.
  *
  * `getconf DARWIN_USER_TEMP_DIR` asks the OS directly rather than trusting
@@ -120,6 +134,22 @@ export function listenWithRestrictedPermissions(server, socketPath) {
 }
 
 /**
+ * Wires a permanent handler for 'error' events on an already-listening
+ * server. `listenWithRestrictedPermissions` only guards the bind itself and
+ * removes its own listener the instant that succeeds, so without this,
+ * Node's default behavior for an unhandled 'error' event on an
+ * EventEmitter — crashing the process outright — applies to anything that
+ * goes wrong afterward (EMFILE, a socket-level fault), skipping whatever
+ * cleanup the caller would otherwise run. Split out from the caller so the
+ * wiring itself is a unit a real `net.Server` can exercise directly (an
+ * emitted 'error' reaching the handler), rather than something only provable
+ * by forcing a genuine OS-level fault into a live process from outside it.
+ */
+export function watchForServerErrors(server, onError) {
+  server.on('error', onError);
+}
+
+/**
  * Probes whether something is listening on `socketPath` without disturbing
  * it: connect, then immediately close. Resolves `false` for both "nothing
  * there" and "the file exists but nothing answers" — exactly the state a
@@ -149,12 +179,20 @@ export function isSocketAlive(socketPath) {
  * nothing is listening on it — otherwise a third host starting up could
  * steal a live second host's socket out from under it. Returns whether
  * anything was actually removed.
+ *
+ * The liveness check and the unlink are not atomic, so two hosts starting
+ * near-simultaneously (plausible after a crash, if Chrome spawns a burst)
+ * can both see the same dead socket, both pass the check, and both reach
+ * the unlink — the loser would otherwise get ENOENT for a file its own
+ * check had just confirmed was there. That must not be an error here: it
+ * would propagate out of `sweepStaleSockets` and kill a perfectly healthy
+ * starting host over a race to clean up someone else's junk.
  */
 export async function removeStaleSocket(dir, pid) {
   const socketPath = socketPathFor(dir, pid);
   if (!existsSync(socketPath)) return false;
   if (await isSocketAlive(socketPath)) return false;
-  unlinkSync(socketPath);
+  unlinkIfExists(socketPath);
   removeRegistryEntry(dir, pid);
   return true;
 }
@@ -189,8 +227,12 @@ export function writeRegistryEntry(dir, pid, { origin, startedAt }) {
   });
 }
 
-/** Idempotent: removing an already-absent entry is not an error. */
+/**
+ * Idempotent: removing an already-absent entry is not an error. Goes
+ * straight to unlinkIfExists rather than an existsSync-then-unlink pair —
+ * that pair has the identical race `removeStaleSocket` documents, one level
+ * down, since two hosts can call this for the same pid concurrently.
+ */
 export function removeRegistryEntry(dir, pid) {
-  const registryPath = registryPathFor(dir, pid);
-  if (existsSync(registryPath)) unlinkSync(registryPath);
+  unlinkIfExists(registryPathFor(dir, pid));
 }
