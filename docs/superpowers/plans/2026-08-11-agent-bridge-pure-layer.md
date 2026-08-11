@@ -119,7 +119,7 @@ describe('bootstrapProfile', () => {
 
 - [ ] **Step 2: 실패를 확인한다**
 
-Run: `pnpm test -- tests/unit/defaults.test.ts`
+Run: `pnpm test tests/unit/defaults.test.ts`
 Expected: FAIL — `bootstrapProfile` 과 `newRule` 이 `@/lib/model/defaults` 에서 export 되지 않는다.
 
 - [ ] **Step 3: defaults.ts 로 옮긴다**
@@ -160,7 +160,7 @@ export function bootstrapProfile(): Profile {
 
 - [ ] **Step 4: 통과를 확인한다**
 
-Run: `pnpm test -- tests/unit/defaults.test.ts`
+Run: `pnpm test tests/unit/defaults.test.ts`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: App.tsx 가 사본 대신 그걸 부르게 한다**
@@ -323,7 +323,7 @@ describe('parseCommand', () => {
 
 - [ ] **Step 2: 실패를 확인한다**
 
-Run: `pnpm test -- tests/unit/protocol.test.ts`
+Run: `pnpm test tests/unit/protocol.test.ts`
 Expected: FAIL — `@/lib/bridge/protocol` 을 못 찾는다.
 
 - [ ] **Step 3: protocol.ts 를 쓴다**
@@ -400,7 +400,7 @@ export type ApplyResult =
 
 - [ ] **Step 4: 통과를 확인한다**
 
-Run: `pnpm test -- tests/unit/protocol.test.ts`
+Run: `pnpm test tests/unit/protocol.test.ts`
 Expected: PASS, 12 tests.
 
 - [ ] **Step 5: 순수 가드에 넣는다**
@@ -578,7 +578,7 @@ describe('apply — site.allSites', () => {
 
 - [ ] **Step 2: 실패를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: FAIL — `@/lib/bridge/apply` 를 못 찾는다.
 
 - [ ] **Step 3: apply.ts 를 쓴다**
@@ -687,7 +687,7 @@ export function apply(state: AppState, command: Command): ApplyResult {
 
 - [ ] **Step 4: 통과를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: PASS, 15 tests.
 
 - [ ] **Step 5: 순수 가드에 넣는다**
@@ -872,7 +872,7 @@ describe('apply — rule.toggle', () => {
 
 - [ ] **Step 2: 실패를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: FAIL — 새 describe 블록들이 `invalid-command` 를 받는다(아직 `default` 로 떨어진다).
 
 - [ ] **Step 3: 구현한다**
@@ -935,7 +935,7 @@ Expected: FAIL — 새 describe 블록들이 `invalid-command` 를 받는다(아
 
 - [ ] **Step 4: 통과를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: PASS, 25 tests.
 
 - [ ] **Step 5: 커밋**
@@ -1040,7 +1040,7 @@ describe('apply — state.set', () => {
 
 - [ ] **Step 2: 실패를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: FAIL — 새 케이스들이 `invalid-command` 로 떨어진다.
 
 - [ ] **Step 3: 구현한다**
@@ -1078,7 +1078,7 @@ Expected: FAIL — 새 케이스들이 `invalid-command` 로 떨어진다.
 
 - [ ] **Step 4: 통과를 확인한다**
 
-Run: `pnpm test -- tests/unit/apply.test.ts`
+Run: `pnpm test tests/unit/apply.test.ts`
 Expected: PASS, 34 tests.
 
 **"says which field was wrong" 이 실패하면** zod 의 기본 메시지가 경로를 안 담은 것이다. 계약은 메시지가 필드 이름을 담는다는 것이므로, 메시지를 zod 에 맡기지 말고 직접 만든다. `apply.ts` 의 `catch` 를 이렇게 바꾼다:
