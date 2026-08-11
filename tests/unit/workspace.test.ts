@@ -124,15 +124,7 @@ describe('the release configuration', () => {
 
   // All eleven extraFileUpdates sites set createIfMissing: false. A wrong
   // path produces no error and no diff — the version just stops tracking.
-  //
-  // Skipped for now: both paths point at packages/plugin/.claude-plugin/
-  // plugin.json and packages/plugin/.codex-plugin/plugin.json, which Task 6
-  // creates. This task lands the release config before the manifests it
-  // points at exist, so the assertion has nothing to check yet. It stays
-  // exact ("exists"), not weakened to "exists or does not" — Task 6 must
-  // turn this back on (remove `.skip`) once it writes those two files.
-  // oxlint-disable-next-line vitest/no-disabled-tests
-  it.skip('points extra-files at manifests that exist', () => {
+  it('points extra-files at manifests that exist', () => {
     for (const entry of config.packages['packages/cli']['extra-files']) {
       const path = typeof entry === 'string' ? entry : entry.path;
       expect(existsSync(path.replace(/^\//, ''))).toBe(true);
