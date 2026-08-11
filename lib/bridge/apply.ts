@@ -183,7 +183,7 @@ export function apply(state: AppState, command: Command): ApplyResult {
     case 'pause':
     case 'resume': {
       const paused = command.cmd === 'pause';
-      // `state`, not `seeded`. Pause is a top-level key, and it must not
+      // `state`, not `seed(state)`. Pause is a top-level key, and it must not
       // cause a rule set to be minted.
       if (state.globalPause === paused) return { ok: true, state, changed: false };
       return { ok: true, state: { ...state, globalPause: paused }, changed: true };

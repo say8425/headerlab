@@ -85,6 +85,13 @@ export function newRule(): HeaderRule {
 /**
  * The implicit rule set created the first time an empty store is opened.
  *
+ * **It holds a rule already, and that is the point of it.** `DEFAULT_STATE`
+ * ships `profiles: []`, and a fresh install used to open on a single "Create
+ * profile" button — a wall between the user and the one thing this extension
+ * does. The state worth opening on is one where a header name can be typed
+ * immediately, so `headers: [newRule()]` is a requirement rather than a
+ * convenience. Emptying it puts the wall back.
+ *
  * **A function, not a module constant.** As a constant, `crypto.randomUUID()`
  * would run at import time, minting an id nobody uses every time, and leaving
  * the background and the popup with different ids for what should be the same
