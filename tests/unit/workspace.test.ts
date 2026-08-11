@@ -91,3 +91,59 @@ describe('the workspace', () => {
     }
   });
 });
+
+describe('the release configuration', () => {
+  const config = JSON.parse(readFileSync('release-please-config.json', 'utf8'));
+  const manifest = JSON.parse(readFileSync('.release-please-manifest.json', 'utf8'));
+
+  // Nothing validates this file at runtime. extractReleaserConfig reads a
+  // fixed list of known keys and discards the rest without a log line, so a
+  // per-package typo is invisible in the editor AND at runtime — the plugin
+  // version would silently stop tracking and the first symptom is a report.
+  it('configures exactly the packages that exist', () => {
+    expect(Object.keys(config.packages)).toEqual(['.', 'packages/cli']);
+    for (const path of Object.keys(config.packages)) {
+      expect(existsSync(path === '.' ? 'package.json' : `${path}/package.json`)).toBe(true);
+    }
+  });
+
+  // include-component-in-tag defaults to TRUE in manifest mode — the opposite
+  // of the action input's default. Exactly one package may hold the bare
+  // v<version> namespace, and v1.0.0 already belongs to the extension.
+  it('leaves the bare tag namespace to the extension', () => {
+    expect(config.packages['.']['include-component-in-tag']).toBe(false);
+    expect(config.packages['packages/cli']['include-component-in-tag']).toBeUndefined();
+  });
+
+  // A never-released package must be seeded exactly "0.0.0" or the backfill
+  // makes its first changelog cover the entire history.
+  it('seeds the unreleased package at exactly 0.0.0', () => {
+    expect(manifest['.']).toBe('1.0.0');
+    expect(manifest['packages/cli']).toBe('0.0.0');
+  });
+
+  // All eleven extraFileUpdates sites set createIfMissing: false. A wrong
+  // path produces no error and no diff — the version just stops tracking.
+  //
+  // Skipped for now: both paths point at packages/plugin/.claude-plugin/
+  // plugin.json and packages/plugin/.codex-plugin/plugin.json, which Task 6
+  // creates. This task lands the release config before the manifests it
+  // points at exist, so the assertion has nothing to check yet. It stays
+  // exact ("exists"), not weakened to "exists or does not" — Task 6 must
+  // turn this back on (remove `.skip`) once it writes those two files.
+  // oxlint-disable-next-line vitest/no-disabled-tests
+  it.skip('points extra-files at manifests that exist', () => {
+    for (const entry of config.packages['packages/cli']['extra-files']) {
+      const path = typeof entry === 'string' ? entry : entry.path;
+      expect(existsSync(path.replace(/^\//, ''))).toBe(true);
+    }
+  });
+
+  // The workflow reads unprefixed outputs, which only exist while the
+  // extension sits at `.`.
+  it('keeps the workflow reading output names its packages can produce', () => {
+    const workflow = readFileSync('.github/workflows/release-please.yml', 'utf8');
+    expect(workflow).toContain('steps.release.outputs.release_created');
+    expect(workflow).not.toContain('release-type: node');
+  });
+});

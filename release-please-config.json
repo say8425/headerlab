@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json",
+  "separate-pull-requests": true,
+  "packages": {
+    ".": { "release-type": "node", "include-component-in-tag": false },
+    "packages/cli": {
+      "release-type": "node",
+      "component": "cli",
+      "extra-files": [
+        "/packages/plugin/.claude-plugin/plugin.json",
+        "/packages/plugin/.codex-plugin/plugin.json"
+      ]
+    }
+  }
+}
