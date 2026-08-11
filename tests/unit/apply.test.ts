@@ -31,6 +31,10 @@ describe('apply — site.add', () => {
     const result = ok(apply(scoped([]), { cmd: 'site.add', domains: ['api.example.com'] }));
     expect(result.state.profiles[0]!.filter.domains).toEqual(['api.example.com']);
     expect(result.changed).toBe(true);
+    // Nothing to say about a clean add. Removing the `already.length === 0 ?
+    // undefined :` guard that produces this would leave every result carrying
+    // a note, and nothing else in this file checks that a note is ABSENT.
+    expect(result.note).toBeUndefined();
   });
 
   // The stored value IS the value that operates (origins.ts), so a port or a
@@ -65,6 +69,20 @@ describe('apply — site.add', () => {
     const result = ok(apply(scoped(['a.com']), { cmd: 'site.add', domains: ['a.com', 'b.com'] }));
     expect(result.changed).toBe(true);
     expect(result.state.profiles[0]!.filter.domains).toEqual(['a.com', 'b.com']);
+  });
+
+  // `effectiveDomain` hands back an entry it cannot fix verbatim (origins.ts),
+  // and once stored it flips `suppressionReason` to 'unusable-site' — the
+  // whole rule set stops compiling, every good rule along with it. Storing it
+  // without saying so would be exactly the silent suppression "Never
+  // suppress without saying so" forbids; the popup shows the row, the CLI
+  // gets this note.
+  it('says which entry cannot scope anything, rather than reporting plain success', () => {
+    const result = ok(apply(scoped([]), { cmd: 'site.add', domains: ['a b.com'] }));
+    expect(result.state.profiles[0]!.filter.domains).toEqual(['a b.com']);
+    // The unusable host name is interpolated into a longer sentence
+    // explaining the consequence, not just echoed back.
+    expect(result.note).toContain('a b.com');
   });
 
   it('mints the implicit rule set when storage holds none', () => {

@@ -1,5 +1,5 @@
 import { bootstrapProfile, newRule } from '@/lib/model/defaults';
-import { effectiveDomain } from '@/lib/permissions/origins';
+import { effectiveDomain, isValidDomain } from '@/lib/permissions/origins';
 import { parseAppState } from '@/lib/model/schema';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import type { ApplyResult, Command } from '@/lib/bridge/protocol';
@@ -46,6 +46,14 @@ export function apply(state: AppState, command: Command): ApplyResult {
       const existing = new Set(active.filter.domains.map(effectiveDomain));
       const fresh: string[] = [];
       const already: string[] = [];
+      // `effectiveDomain` hands back the input verbatim when nothing usable
+      // could be salvaged from it (origins.ts). Storing it anyway is right —
+      // the row is how the user sees and fixes the mistake — but storing it
+      // *silently* is not: once stored, `suppressionReason` returns
+      // 'unusable-site' and the whole profile stops compiling, every good
+      // rule along with it. "Never suppress without saying so" applies here
+      // exactly as it does to a filter with no usable domain at all.
+      const unusable: string[] = [];
       for (const typed of command.domains) {
         const host = effectiveDomain(typed);
         if (existing.has(host)) {
@@ -54,9 +62,17 @@ export function apply(state: AppState, command: Command): ApplyResult {
         }
         existing.add(host);
         fresh.push(host);
+        if (!isValidDomain(host)) unusable.push(host);
       }
       const domains = [...active.filter.domains, ...fresh];
-      const note = already.length === 0 ? undefined : `already listed: ${already.join(', ')}`;
+      const notes: string[] = [];
+      if (already.length > 0) notes.push(`already listed: ${already.join(', ')}`);
+      if (unusable.length > 0) {
+        notes.push(
+          `cannot scope anything and suppresses the whole rule set until fixed: ${unusable.join(', ')}`,
+        );
+      }
+      const note = notes.length === 0 ? undefined : notes.join('; ');
       return replace(
         base,
         { ...active, filter: { ...active.filter, domains } },
