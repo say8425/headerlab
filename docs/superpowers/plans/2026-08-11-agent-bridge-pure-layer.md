@@ -580,10 +580,16 @@ describe('apply — site.add', () => {
       globalPause: false,
       theme: 'system',
     };
+    // Snapshotted BEFORE the call. `replace()` returns the non-matching
+    // element by reference, so `toEqual(second)` would compare the object to
+    // itself — an in-place mutation would corrupt both sides identically and
+    // the assertion would still pass. Comparing against a pre-call copy is
+    // what makes this line carry weight rather than merely look like it does.
+    const expectedSecond = structuredClone(second);
     const result = ok(apply(before, { cmd: 'site.add', domains: ['a.com'] }));
     expect(result.state.profiles).toHaveLength(2);
     expect(result.state.profiles[0]!.filter.domains).toEqual(['a.com']);
-    expect(result.state.profiles[1]).toEqual(second);
+    expect(result.state.profiles[1]).toEqual(expectedSecond);
   });
 });
 
