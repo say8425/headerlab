@@ -510,7 +510,10 @@ that no longer renders, passing while describing nothing.
 
 ## Conventions
 
-- Commits: `<type>: <description>`, Korean subject line. Types: feat, fix, refactor,
+- Commits and pull requests: **English**, as of 2026-08-11. Everything before commit
+  `49f7804` is Korean and stays that way — history is a record, not a style guide, and
+  rewriting it would break every SHA this file cites. `<type>: <description>`. Types: feat,
+  fix, refactor,
   docs, test, chore, perf, ci.
 - The repo allows **squash merges only**.
 - Design docs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`,
