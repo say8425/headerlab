@@ -6,6 +6,14 @@ import { describe, expect, it } from 'vitest';
  * The extension bundle's guard bans every network primitive. This one cannot:
  * a unix socket IS `node:net`. So it bans the ones that leave the machine and
  * pins `net` to its path form.
+ *
+ * **What it does not catch, measured rather than assumed:** the port pattern
+ * matches a literal digit, so `server.listen(8080)` is caught and
+ * `server.listen(tcpPort)` is not. That is inherent to grepping source rather
+ * than a bug to fix here — a guard that reads text cannot know what a name
+ * holds. It is written down because a guard that stays silent about its blind
+ * spot is worse than no guard: it makes a green run mean more than it does.
+ * The verified positives and negatives below are the whole of what is claimed.
  */
 const FORBIDDEN = [
   /require\(['"]node:https?['"]\)|from\s+['"]node:https?['"]/,
