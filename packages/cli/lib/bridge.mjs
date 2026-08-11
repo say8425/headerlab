@@ -85,9 +85,9 @@ export async function findLiveBridges(dir) {
  * waiting for one to appear accomplishes nothing (design doc §1).
  *
  * More than one live bridge is also refused rather than picked for the
- * caller — the design's own words are "조용히 지는 쪽이 없다" (nobody loses
- * silently) — so this lists every candidate with its pid and origin and
- * points at `--bridge <pid>` rather than guessing.
+ * caller — the design is explicit that nobody loses silently — so this
+ * lists every candidate with its pid and origin and points at
+ * `--bridge <pid>` rather than guessing.
  */
 export async function resolveTarget(dir, bridgePid) {
   const live = await findLiveBridges(dir);

@@ -174,7 +174,7 @@ describe('resolveTarget', () => {
 
   // A wrong implementation that just returns live[0] would pass every test
   // above and fail only this one — silently picking a bridge is exactly
-  // what the design forbids ("조용히 지는 쪽이 없다").
+  // what the design forbids: nobody loses silently.
   test('more than one live bridge is refused, listing both, not picked', async () => {
     const dir = freshDir();
     const [pidA, pidB] = [freshPid(), freshPid()];
