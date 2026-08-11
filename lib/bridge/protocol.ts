@@ -20,6 +20,11 @@ export const commandSchema = z.discriminatedUnion('cmd', [
     cmd: z.literal('rule.add'),
     target: z.enum(['request', 'response']),
     operation: z.enum(['set', 'append', 'remove']),
+    // `.min(1)` 이 없는 게 일부러다 — `id`·`domains` 등 다른 필드들과 다르게
+    // 보이지만, 이 저장소에서 규칙은 이름 없이 태어나는 게 정상이다
+    // (defaults.ts 의 `newRule`). `incomplete-header` 가 `invalid-header-name`
+    // 과 별개의 진단으로 존재하는 이유가 그것이고, 팝업이 매번 만드는 빈
+    // 규칙을 이 스키마가 거절하면 안 된다.
     name: z.string(),
     // `remove` 는 값을 갖지 않는다(types.ts). 생략을 허용하되 빈 문자열로
     // 정규화해, 저장되는 모양이 늘 하나가 되게 한다.
