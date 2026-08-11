@@ -34,6 +34,7 @@ const EXPLICIT = [
   // 갖게 되므로 디렉터리 모양의 규칙이 있을 수 없다. 이름으로 적지 않으면
   // 가드가 없다.
   'lib/bridge/protocol.ts',
+  'lib/bridge/apply.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -88,6 +89,7 @@ describe('the pure layer stays pure', () => {
       'lib/model/migrate.ts',
       'lib/model/defaults.ts',
       'lib/bridge/protocol.ts',
+      'lib/bridge/apply.ts',
     ]);
   });
 
