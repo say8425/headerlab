@@ -559,6 +559,10 @@ that no longer renders, passing while describing nothing.
   every check in that file, and correspond to nothing on screen. `--pending-border` and
   `--live-bg` were exactly this: zero consumers in `components/`/`entrypoints/` and zero
   `var(--pending-border)`/`var(--live-bg)` in the built CSS, found by grepping for them
-  by hand and removed (`git log --oneline -- entrypoints/popup/style.css` around
-  "아무것도 칠하지 않는 토큰 둘과 그 가드를 걷어낸다"). Nothing runs that grep
-  automatically; finding the next one means doing it again.
+  by hand and removed, under the subject "아무것도 칠하지 않는 토큰 둘과 그 가드를
+  걷어낸다". **Search that with `--grep`, not by reading a log.** This repo squash-merges,
+  so that subject is a line inside `5b99d40`'s *body* rather than a subject of its own,
+  and the commit that carried it is unreachable from `main` — measured, `git log
+  --oneline -- entrypoints/popup/style.css` prints 16 commits and none of them is it.
+  Every branch commit this file cites by subject is in the same position. Nothing runs
+  that grep automatically; finding the next one means doing it again.
