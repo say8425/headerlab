@@ -30,6 +30,10 @@ const EXPLICIT = [
   // 가드는 파일 자기 소스만 훑으므로, 가드된 `apply.ts` 가 가드 안 된 이
   // 파일을 임포트하면 브라우저 의존성이 한 칸 건너 들어와도 아무도 못 잡는다.
   'lib/model/defaults.ts',
+  // lib/permissions/ 와 같은 사정이다: 이 디렉터리는 곧 어댑터(port.ts)도
+  // 갖게 되므로 디렉터리 모양의 규칙이 있을 수 없다. 이름으로 적지 않으면
+  // 가드가 없다.
+  'lib/bridge/protocol.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -83,6 +87,7 @@ describe('the pure layer stays pure', () => {
       'lib/permissions/audit.ts',
       'lib/model/migrate.ts',
       'lib/model/defaults.ts',
+      'lib/bridge/protocol.ts',
     ]);
   });
 
