@@ -810,9 +810,16 @@ import type { AppState, HeaderRule, Profile } from '@/lib/model/types';
 그다음 파일 끝에 붙인다. 위쪽의 `stateWith`·`scoped`·`ok` 헬퍼를 그대로 쓴다.
 
 ```ts
+// Elements copied, not just the array. `AUTH` below is a module-level const
+// and `seed()` hands `profiles[0]` back by reference, so without this an
+// in-place-mutation regression corrupts the shared fixture itself — and the
+// *next* test to call `ruled(AUTH)` fails for a reason that has nothing to do
+// with what it is testing. Measured: a planted `h.enabled = next` took down
+// two tests, and the second one reported a wrong `changed` value.
+// `HeaderRule` is flat, so a shallow copy is enough.
 function ruled(...headers: HeaderRule[]): AppState {
   const profile = bootstrapProfile();
-  return stateWith({ ...profile, headers });
+  return stateWith({ ...profile, headers: headers.map((h) => ({ ...h })) });
 }
 
 const AUTH: HeaderRule = {
@@ -1001,7 +1008,7 @@ Expected: FAIL — 새 describe 블록들이 `invalid-command` 를 받는다(아
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 25 tests.
+Expected: PASS, 27 tests.
 
 - [ ] **Step 5: 커밋**
 
@@ -1144,7 +1151,7 @@ Expected: FAIL — 새 케이스들이 `invalid-command` 로 떨어진다.
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 34 tests.
+Expected: PASS, 36 tests.
 
 **"says which field was wrong" 이 실패하면** zod 의 기본 메시지가 경로를 안 담은 것이다. 계약은 메시지가 필드 이름을 담는다는 것이므로, 메시지를 zod 에 맡기지 말고 직접 만든다. `apply.ts` 의 `catch` 를 이렇게 바꾼다:
 
