@@ -6,18 +6,6 @@ import type { ApplyResult, Command } from '@/lib/bridge/protocol';
 import type { AppState, Profile } from '@/lib/model/types';
 
 /**
- * Turns one bridge command into a state change. Pure.
- *
- * **Touches only the one rule set this screen shows.** When storage holds
- * more than one, `resolveSingleProfile` picks the first and leaves the rest
- * alone. The truncation is the popup's write (App.tsx); implementing that
- * judgment a second time here is how the two diverge.
- *
- * When storage is empty, it mints the **same** implicit rule set the popup
- * opens on — it calls `bootstrapProfile()` rather than writing that shape
- * again.
- */
-/**
  * Returns the rule set to touch, together with the state it actually lives
  * in.
  *
@@ -46,6 +34,18 @@ function replace(base: AppState, next: Profile, changed: boolean, note?: string)
   };
 }
 
+/**
+ * Turns one bridge command into a state change. Pure.
+ *
+ * **Touches only the one rule set this screen shows.** When storage holds
+ * more than one, `resolveSingleProfile` picks the first and leaves the rest
+ * alone. The truncation is the popup's write (App.tsx); implementing that
+ * judgment a second time here is how the two diverge.
+ *
+ * When storage is empty, it mints the **same** implicit rule set the popup
+ * opens on — it calls `bootstrapProfile()` rather than writing that shape
+ * again.
+ */
 export function apply(state: AppState, command: Command): ApplyResult {
   switch (command.cmd) {
     case 'site.add': {

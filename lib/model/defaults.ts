@@ -91,8 +91,10 @@ export function newRule(): HeaderRule {
  * rule set.
  *
  * The popup (App.tsx) and the bridge (lib/bridge/apply.ts) **both call this.**
- * Do not write a second copy — a diverged definition is the most expensive
- * defect this repository has had.
+ * Do not write a second copy. Same shape as SELECTABLE_COLORS above, and as
+ * the aliveness predicate that was implemented four times before landing in
+ * lib/compile/suppression.ts — a second statement of one fact eventually
+ * disagrees with the first.
  */
 export function bootstrapProfile(): Profile {
   return { ...createProfile('Default', 0), headers: [newRule()] };
