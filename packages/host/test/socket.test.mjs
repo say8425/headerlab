@@ -253,6 +253,31 @@ test('removeStaleSocket is a no-op when nothing is there', async () => {
   assert.equal(await removeStaleSocket(dir, freshPid()), false);
 });
 
+// The race the review found: two hosts starting near-simultaneously (a
+// crash burst is a plausible trigger) can both pass the liveness check on
+// the same dead socket and both reach the unlink. Calling removeStaleSocket
+// twice concurrently on one dead socket reproduces exactly that — one call
+// wins the unlink, the other's own existsSync() had already returned true,
+// so without ENOENT-tolerance its unlink throws. The no-op test above does
+// NOT cover this: it calls removeStaleSocket where nothing was ever there,
+// which returns at the earlier `!existsSync` guard and never reaches the
+// unlink line this test is actually about — mutation-verified: reverting
+// the fix to a bare unlinkSync leaves that test green and only this one
+// catches it.
+test('removeStaleSocket does not throw when two calls race to remove the same dead socket', async () => {
+  const dir = freshDir();
+  ensureSocketDir(dir);
+  const pid = freshPid();
+  writeFileSync(socketPathFor(dir, pid), '');
+
+  const results = await Promise.all([removeStaleSocket(dir, pid), removeStaleSocket(dir, pid)]);
+
+  assert.equal(existsSync(socketPathFor(dir, pid)), false);
+  // At least one of the two racing calls did the actual removal; which one
+  // is not the point — that neither threw is.
+  assert.ok(results.includes(true));
+});
+
 test('sweepStaleSockets removes only the dead entries, and reports their pids', async () => {
   const dir = freshDir();
   ensureSocketDir(dir);
