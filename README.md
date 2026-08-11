@@ -18,6 +18,14 @@ row is amber and says so:
 
 ![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
 
+Anything that would stop a rule going out is said on that rule's own row, and
+counted in the rail. Here the second rule asks Chrome to `append` a request
+header it will not append — the row says which and what to do instead, the
+readout reads **2 of 4 rules live · 1 off · 1 blocked**, and nothing moves to
+make room for the message:
+
+![The rules list with the second row showing "Use Set. Chrome does not append request headers." in red where its value would be, and the rail reading 2 of 4 rules live, 1 off, 1 blocked](docs/screenshots/popup-blocked.png)
+
 <sub>Captured from the real production build loaded in Chrome. Only the manifest
 was patched, to pre-grant the two example hosts so the granted state could be
 photographed without a native permission dialog.</sub>
@@ -36,7 +44,7 @@ photographed without a native permission dialog.</sub>
   yourself rather than believe it:
 
   ```bash
-  npm run build
+  pnpm build
   grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3
   ```
 
@@ -79,15 +87,17 @@ photographed without a native permission dialog.</sub>
 
 ## Install
 
-There is no Chrome Web Store listing. Build it and load it unpacked:
+There is no Chrome Web Store listing. Take the zip attached to the latest
+[release](../../releases) and unpack it, or build it yourself:
 
 ```bash
-npm install
-npm run build            # → .output/chrome-mv3
+corepack enable          # pnpm comes from package.json's packageManager field
+pnpm install
+pnpm build               # → .output/chrome-mv3
 ```
 
 Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
-unpacked**, and select `.output/chrome-mv3`.
+unpacked**, and select the unpacked directory.
 
 Chrome only. Edge is untested — it is the same engine and should work, but no
 one has run the suite against it.
@@ -95,39 +105,44 @@ one has run the suite against it.
 ## Development
 
 ```bash
-npm run dev          # WXT dev server → load .output/chrome-mv3-dev unpacked
-npm run check        # everything CI runs: typecheck · lint · format · unit tests
-npm test             # wxt build && vitest run — unit tests, no browser
-npm run test:e2e     # wxt build --mode e2e && playwright test — real Chrome
-npm run typecheck    # wxt prepare && tsc --noEmit
-npm run lint         # oxlint          (npm run lint:fix to apply fixes)
-npm run format       # oxfmt           (npm run format:check to only report)
-npm run build        # production build → .output/chrome-mv3
-npm run screenshots  # rebuild the images in this README from the real popup
+pnpm dev             # WXT dev server → load .output/chrome-mv3-dev unpacked
+pnpm check           # four of CI's five jobs: typecheck · lint · format · unit tests
+pnpm test            # wxt build && vitest run — unit tests, no browser
+pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # oxlint          (pnpm lint:fix to apply fixes)
+pnpm format          # oxfmt           (pnpm format:check to only report)
+pnpm build           # production build → .output/chrome-mv3
+pnpm screenshots     # rebuild the images in this README from the real popup
 ```
 
-**Run `npm test`, not a bare `npx vitest run`.** Several suites assert against
-*built* output, and the bare tools do not build. A stale artifact has produced
-both a false green that silently disabled a guard and a false red that cost an
-hour, so `tests/support/build.ts` now detects staleness and fails with the
-command to run.
+**pnpm, not npm.** `package.json` names the exact version under
+`packageManager`, so `corepack enable` gives you that one and nothing else needs
+installing. There is no `package-lock.json`; `pnpm-lock.yaml` is the lockfile CI
+installs from with `--frozen-lockfile`.
 
-**`npm install` may not run `postinstall`.** `npm config get ignore-scripts` is
-`true` on some setups (it is a common hardening default), which skips the
-`wxt prepare` that generates `.wxt/` — and `tsconfig.json` extends
-`./.wxt/tsconfig.json`. `npm run typecheck` chains the prepare itself for that
+**Run `pnpm test`, not a bare `pnpm exec vitest run`.** Several suites assert
+against *built* output, and the bare tools do not build. A stale artifact has
+produced both a false green that silently disabled a guard and a false red that
+cost an hour, so `tests/support/build.ts` now detects staleness and fails with
+the command to run.
+
+**`pnpm install` may not run `postinstall`.** `ignore-scripts=true` is a common
+hardening default in a user `.npmrc`, and pnpm reads it — which skips the
+`wxt prepare` that generates `.wxt/`, and `tsconfig.json` extends
+`./.wxt/tsconfig.json`. `pnpm typecheck` chains the prepare itself for that
 reason, so it works on a fresh clone either way.
 
-**Linting and formatting** are [oxlint](https://oxc.rs) and oxfmt. `npm run lint`
-fails on any warning; `npm run format:check` reports files that would change.
+**Linting and formatting** are [oxlint](https://oxc.rs) and oxfmt. `pnpm lint`
+fails on any warning; `pnpm format:check` reports files that would change.
 oxfmt is scoped to code — the hand-tuned `entrypoints/popup/style.css`, the
 design mocks under `docs/` and the Markdown are left alone.
 
-**`npm run test:e2e` and `npm run screenshots` both need a browser Playwright
+**`pnpm test:e2e` and `pnpm screenshots` both need a browser Playwright
 does not install by default:**
 
 ```bash
-npx playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps --no-shell chromium
 ```
 
 `--no-shell` matters. Playwright's default headless download is
@@ -135,16 +150,16 @@ npx playwright install --with-deps --no-shell chromium
 both of those commands exist to load one. Without the full binary they fail in a
 way that looks like a code problem rather than a missing dependency.
 
-`npm run screenshots` overwrites the tracked PNGs under `docs/screenshots/`.
+`pnpm screenshots` overwrites the tracked PNGs under `docs/screenshots/`.
 That is its job, but it means a run leaves changes in `git status`; commit them
 only when the UI actually changed.
 
-`npm run test:e2e` builds into `.output/chrome-mv3-e2e`, a second output
+`pnpm test:e2e` builds into `.output/chrome-mv3-e2e`, a second output
 directory beside the production one. That build carries a loopback host
 permission (`http://127.0.0.1/*`) the shipped build does not, so the suite can
 drive a local echo server without a runtime prompt Playwright cannot click.
 `tests/unit/manifest.test.ts` asserts it never reaches production. Running the
-e2e suite does not touch `.output/chrome-mv3` — run `npm run build` for a fresh
+e2e suite does not touch `.output/chrome-mv3` — run `pnpm build` for a fresh
 production build.
 
 ## Architecture
@@ -182,11 +197,11 @@ constraints behind them in `docs/research/`.
 ## Testing
 
 Three layers: pure logic with no browser, adapters driven by hand-planted spies,
-and end-to-end against a genuinely loaded extension. Two of the five e2e tests
+and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 583 unit tests across 28 files, plus 5 e2e tests.
+At the time of writing: 639 unit tests across 30 files, plus 11 e2e tests.
 
 ## Status
 

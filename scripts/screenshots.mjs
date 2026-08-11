@@ -1,6 +1,6 @@
 /**
  * Captures the README screenshots from the real, built extension.
- * `npm run screenshots` builds first. See CLAUDE.md, Conventions.
+ * `pnpm screenshots` builds first. See CLAUDE.md, Conventions.
  *
  * The loaded directory is the production build with one edit —
  * `host_permissions` for the example hosts — because `permissions.request()`
@@ -46,7 +46,22 @@ function rule(over) {
   };
 }
 
-function profile(domains) {
+/** Built fresh per call: `rule()` mints an id, so a shared array would repeat ids. */
+const headers = (debugUserOperation = 'set') => [
+  rule({ name: 'Authorization', value: 'Bearer dev-eyJhbGciOiJIUzI1NiJ9' }),
+  rule({ operation: debugUserOperation, name: 'X-Debug-User', value: 'qa@example.com' }),
+  rule({ target: 'response', operation: 'remove', name: 'Content-Security-Policy' }),
+  // Switched off, so the readout has an "off" count to show.
+  rule({
+    enabled: false,
+    target: 'response',
+    operation: 'set',
+    name: 'Cache-Control',
+    value: 'no-store',
+  }),
+];
+
+function profile(domains, rows) {
   return {
     id: 'screenshot-profile',
     name: 'Default',
@@ -61,48 +76,56 @@ function profile(domains) {
       resourceTypes: ['xmlhttprequest', 'main_frame', 'sub_frame'],
     },
     tabLock: { enabled: false, tabId: null, tabTitle: null },
-    headers: [
-      rule({ name: 'Authorization', value: 'Bearer dev-eyJhbGciOiJIUzI1NiJ9' }),
-      rule({ name: 'X-Debug-User', value: 'qa@example.com' }),
-      rule({ target: 'response', operation: 'remove', name: 'Content-Security-Policy' }),
-      // Switched off, so the readout has an "off" count to show.
-      rule({
-        enabled: false,
-        target: 'response',
-        operation: 'set',
-        name: 'Cache-Control',
-        value: 'no-store',
-      }),
-    ],
+    headers: rows,
   };
 }
 
 /** WXT stores the item's version beside the value; seed both (CLAUDE.md, WXT specifics). */
-const state = (domains) => ({
+const state = (domains, rows = headers()) => ({
   version: 2,
   globalPause: false,
   theme: 'system',
-  profiles: [profile(domains)],
+  profiles: [profile(domains, rows)],
 });
 
+/**
+ * `problems` is asserted on every shot, not only the one that has one. Three
+ * zeroes are what make the fourth shot's `1` mean anything: without them a
+ * screenshot set that rendered an error on every row would pass, and the shot
+ * whose whole subject is one row failing would be photographing noise.
+ */
 const SHOTS = [
   {
     file: 'popup-light.png',
     colorScheme: 'light',
     state: state(['api.example.com', 'staging.example.com']),
     expect: ['granted', 'granted'],
+    problems: 0,
   },
   {
     file: 'popup-dark.png',
     colorScheme: 'dark',
     state: state(['api.example.com', 'staging.example.com']),
     expect: ['granted', 'granted'],
+    problems: 0,
   },
   {
     file: 'popup-permission.png',
     colorScheme: 'light',
     state: state(['api.example.com', 'internal.example.com']),
     expect: ['granted', 'pending'],
+    problems: 0,
+  },
+  {
+    // `append` on a request header outside Chrome's 21-name allowlist. The
+    // README claims nothing fails quietly; this is the picture of it, and it is
+    // the case that costs the most when it *is* quiet — Chrome rejects a
+    // ruleset whole, so this row takes the other three down with it.
+    file: 'popup-blocked.png',
+    colorScheme: 'light',
+    state: state(['api.example.com', 'staging.example.com'], headers('append')),
+    expect: ['granted', 'granted'],
+    problems: 1,
   },
 ];
 
@@ -114,7 +137,7 @@ const SHOTS = [
 function assertBuildFresh() {
   if (!existsSync(BUILD)) {
     throw new Error(
-      `no build at ${path.relative(ROOT, BUILD)} — run \`npm run screenshots\`, which builds first.`,
+      `no build at ${path.relative(ROOT, BUILD)} — run \`pnpm screenshots\`, which builds first.`,
     );
   }
   const newestSource = execFileSync(
@@ -148,7 +171,7 @@ function assertBuildFresh() {
   if (newestSource.mtimeMs > oldestOutput) {
     throw new Error(
       `${path.relative(ROOT, BUILD)} is stale: ${newestSource.file} was modified after it was built. ` +
-        'These screenshots would show the previous UI — run `npm run screenshots`, which builds first.',
+        'These screenshots would show the previous UI — run `pnpm screenshots`, which builds first.',
     );
   }
 }
@@ -204,24 +227,35 @@ try {
       // taken later, against a different frame. Holding across frames rules
       // that frame out; the re-check afterwards is what speaks about the frame
       // actually captured.
-      const matches = (want) => {
-        const rows = [...document.querySelectorAll('[data-testid="site"]')];
-        return (
-          rows.length === want.length &&
-          rows.every((row, i) => row.getAttribute('data-state') === want[i])
-        );
-      };
+      const read = () => ({
+        sites: [...document.querySelectorAll('[data-testid="site"]')].map((row) =>
+          row.getAttribute('data-state'),
+        ),
+        problems: document.querySelectorAll('[data-testid="rule-problem"]').length,
+      });
+
+      const want = { sites: shot.expect, problems: shot.problems };
+      const same = (a, b) =>
+        a.problems === b.problems &&
+        a.sites.length === b.sites.length &&
+        a.sites.every((state, i) => state === b.sites[i]);
 
       await page.waitForFunction(
         ({ want, frames }) => {
-          const rows = [...document.querySelectorAll('[data-testid="site"]')];
+          const now = {
+            sites: [...document.querySelectorAll('[data-testid="site"]')].map((row) =>
+              row.getAttribute('data-state'),
+            ),
+            problems: document.querySelectorAll('[data-testid="rule-problem"]').length,
+          };
           const ok =
-            rows.length === want.length &&
-            rows.every((row, i) => row.getAttribute('data-state') === want[i]);
+            now.problems === want.problems &&
+            now.sites.length === want.sites.length &&
+            now.sites.every((state, i) => state === want.sites[i]);
           globalThis.__hlHeld = ok ? (globalThis.__hlHeld ?? 0) + 1 : 0;
           return globalThis.__hlHeld >= frames;
         },
-        { want: shot.expect, frames: 20 },
+        { want, frames: 20 },
         { timeout: 10_000 },
       );
 
@@ -230,16 +264,11 @@ try {
         clip: { x: 0, y: 0, ...VIEWPORT },
       });
 
-      const stillMatches = await page.evaluate(matches, shot.expect);
-      if (!stillMatches) {
-        const actual = await page.evaluate(() =>
-          [...document.querySelectorAll('[data-testid="site"]')].map((r) =>
-            r.getAttribute('data-state'),
-          ),
-        );
+      const actual = await page.evaluate(read);
+      if (!same(actual, want)) {
         throw new Error(
           `${shot.file}: the popup changed between the wait and the shot — ` +
-            `expected ${JSON.stringify(shot.expect)}, captured ${JSON.stringify(actual)}.`,
+            `expected ${JSON.stringify(want)}, captured ${JSON.stringify(actual)}.`,
         );
       }
     }

@@ -1,0 +1,53 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # First and unconditional, though release-please itself works off the API
+      # and needs no worktree: `./.github/actions/setup` below is a *local*
+      # action, and a local action with no checkout is the "Can't find
+      # action.yml" failure. Making it depend on a conditional step to have run
+      # is a way to discover that on a release rather than on a push.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # SHA-pinned, unlike the GitHub-published actions elsewhere: this is the
+      # one third-party action here and the only job that holds write scopes.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          release-type: node
+
+      - uses: ./.github/actions/setup
+        if: ${{ steps.release.outputs.release_created }}
+
+      # The release PR is opened with the default GITHUB_TOKEN, which by
+      # GitHub's own loop-prevention rule does not trigger `ci.yml` — so the
+      # commit being released is the one commit that reaches `main` unchecked.
+      - run: pnpm check
+        if: ${{ steps.release.outputs.release_created }}
+
+      # `wxt zip` builds first, so there is no separate build step.
+      - run: pnpm zip
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Attach the unpacked-loadable build to the release
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release upload "$TAG" .output/*.zip

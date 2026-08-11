@@ -23,3 +23,8 @@ coverage/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# npm is not this project's package manager, and a stray `npm install` writing
+# one of these is easy to commit without noticing. pnpm-lock.yaml is the lockfile.
+package-lock.json
+yarn.lock

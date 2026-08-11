@@ -1,0 +1,18 @@
+# pnpm 10 and later refuse to run a dependency's install-time build script until
+# it is named here, and `pnpm install` *fails* rather than warns while one is
+# unanswered. One package in this tree asks: `spawn-sync`, reached only through
+# `wxt → web-ext-run → fx-runner`, which is WXT's Firefox runner. This extension
+# is Chrome-only and never invokes it.
+#
+# Denied rather than approved, and the two are not equally safe defaults:
+# `spawn-sync` polyfills `child_process.spawnSync` for Node before 0.12 and
+# compiles a native helper to do it. On the Node this repo pins that function has
+# been built in for a decade, so approving it would be running a compiler at
+# install time for a call that resolves to the standard library anyway.
+#
+# Written by `pnpm approve-builds '!spawn-sync'`, which is also how to answer the
+# next one — do not hand-write the key. It is `allowBuilds` in pnpm 11 and was
+# `ignoredBuiltDependencies` in 10; both spellings are silently ignored by the
+# version that does not own them, so a guess reads as working and is not.
+allowBuilds:
+  spawn-sync: false

@@ -19,7 +19,7 @@
     "lint:fix": "wxt prepare && oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "screenshots": "wxt build && node scripts/screenshots.mjs",
     "test:e2e": "wxt build --mode e2e && playwright test",
     "postinstall": "wxt prepare"
@@ -54,5 +54,6 @@
     "typescript": "7.0.2",
     "vitest": "4.1.10",
     "wxt": "0.21.1"
-  }
+  },
+  "packageManager": "pnpm@11.20.0"
 }

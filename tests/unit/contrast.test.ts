@@ -46,7 +46,7 @@ import { describe, expect, it } from 'vitest';
  * `playwright.config.ts`). The `color: 'green'` strings in that file are profile
  * colours being seeded into a fixture, not a colour being read back.
  *
- * The only output with pixels in it is `npm run screenshots`, and **a human is what
+ * The only output with pixels in it is `pnpm screenshots`, and **a human is what
  * reads it.** That is not a figure of speech: it is how the grey box above was
  * actually found. A colour born of alpha or of merge order is, today, caught by
  * someone looking at the dark screenshot and noticing.
