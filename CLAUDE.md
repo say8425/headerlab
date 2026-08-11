@@ -564,5 +564,7 @@ that no longer renders, passing while describing nothing.
   so that subject is a line inside `5b99d40`'s *body* rather than a subject of its own,
   and the commit that carried it is unreachable from `main` — measured, `git log
   --oneline -- entrypoints/popup/style.css` prints 16 commits and none of them is it.
-  Every branch commit this file cites by subject is in the same position. Nothing runs
-  that grep automatically; finding the next one means doing it again.
+  It is the only subject this file cites — the three other commit citations are hashes,
+  which squashing does not touch — so what carries forward is the mechanism, not this
+  instance: a subject from inside a squashed branch is never a subject on `main`. Nothing
+  runs that grep automatically; finding the next one means doing it again.
