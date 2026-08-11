@@ -173,7 +173,11 @@ export function apply(state: AppState, command: Command): ApplyResult {
       // `command` 는 `never` 로 좁혀진다. 그래도 지우지 않는다: `parseCommand`
       // 를 거치지 않고 부른 호출이 타입을 우회해 들어오면 여기가 마지막
       // 방어선이다. 그 값을 읽으려면 좁혀진 타입을 다시 넓혀야 한다.
-      const unexpected = command as Command;
+      // `never` 를 거쳐 넓히는 것이 요점이다. `command` 에서 곧장 캐스트하면
+      // 열 번째 명령이 case 없이 추가돼도 그대로 컴파일되어, 빠진 case 가
+      // 런타임 invalid-command 로 조용히 나간다. 측정된 차이다.
+      const exhaustive: never = command;
+      const unexpected = exhaustive as Command;
       return {
         ok: false,
         error: { code: 'invalid-command', message: `unhandled command: ${unexpected.cmd}` },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { apply } from '@/lib/bridge/apply';
 import { bootstrapProfile, newRule, STATE_VERSION } from '@/lib/model/defaults';
+import type { Command } from '@/lib/bridge/protocol';
 import type { AppState, HeaderRule, Profile } from '@/lib/model/types';
 
 function stateWith(profile: Profile): AppState {
@@ -338,6 +339,10 @@ describe('apply — pause and resume', () => {
     expect(result.changed).toBe(true);
   });
 
+  it('reports no change when already running', () => {
+    expect(ok(apply(scoped([]), { cmd: 'resume' })).changed).toBe(false);
+  });
+
   // globalPause is a top-level key. Minting a rule set as a side effect of
   // pausing would write a profile nobody asked for onto an empty store.
   it('does not mint a rule set on an empty store', () => {
@@ -369,6 +374,8 @@ describe('apply — state.set', () => {
   it('refuses a payload that is not an object at all', () => {
     const result = apply(scoped([]), { cmd: 'state.set', state: 'wat' });
     expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.code).toBe('invalid-state');
   });
 
   // The message has to name the field. A caller three processes away cannot
@@ -383,5 +390,17 @@ describe('apply — state.set', () => {
   it('accepts a state with no profiles without minting one', () => {
     const result = ok(apply(scoped(['a.com']), { cmd: 'state.set', state: EMPTY }));
     expect(result.state.profiles).toEqual([]);
+  });
+});
+
+describe('apply — an unknown command', () => {
+  // Reachable only by a caller that bypassed `parseCommand`, which is exactly
+  // why the arm exists. The cast is the test's way of being that caller.
+  it('names the command it could not handle', () => {
+    const result = apply(scoped([]), { cmd: 'bogus' } as unknown as Command);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.code).toBe('invalid-command');
+    expect(result.error.message).toContain('bogus');
   });
 });
