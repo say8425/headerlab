@@ -284,5 +284,30 @@ describe('apply — rule.toggle', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.code).toBe('unknown-rule');
+    expect(result.error.message).toContain('nope');
+  });
+});
+
+describe('apply — rule commands leave their input alone', () => {
+  // The INPUT state, not the returned one. Every other rule test asserts on
+  // what came back, and the result is a fresh array either way — so an
+  // in-place `active.headers.push(rule)` or `.splice()` would pass all of
+  // them. One body covers add and remove because both are array-level writes.
+  it('does not mutate the state it was given — add and remove', () => {
+    const before = ruled(AUTH);
+    const snapshot = structuredClone(before);
+    apply(before, { cmd: 'rule.add', target: 'request', operation: 'set', name: 'X', value: '1' });
+    apply(before, { cmd: 'rule.remove', id: 'r-auth' });
+    expect(before).toEqual(snapshot);
+  });
+
+  // Toggle's risk is element-level rather than array-level: `h.enabled = next;
+  // return h;` inside the map leaves the array new and the header the same
+  // object, which the array-level test above cannot see.
+  it('does not mutate the state it was given — toggle', () => {
+    const before = ruled(AUTH);
+    const snapshot = structuredClone(before);
+    apply(before, { cmd: 'rule.toggle', id: 'r-auth' });
+    expect(before).toEqual(snapshot);
   });
 });
