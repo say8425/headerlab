@@ -68,7 +68,12 @@ import { describe, expect, it } from 'vitest';
 /** Everything `pnpm-workspace.yaml` declares must actually be there. */
 function declaredPackages(): string[] {
   const yaml = readFileSync('pnpm-workspace.yaml', 'utf8');
-  const block = /^packages:\s*$([\s\S]*?)(?=^\S|\Z)/m.exec(yaml);
+  // `(?![\s\S])` rather than `\Z`: JS has no `\Z` anchor and parses it as
+  // the literal character. With the block at the end of the file that
+  // lookahead can never be satisfied, so the regex returned null against a
+  // correct file — an assertion that could not pass rather than one that
+  // could not fail.
+  const block = /^packages:\s*$([\s\S]*?)(?=^\S|(?![\s\S]))/m.exec(yaml);
   if (!block) throw new Error('pnpm-workspace.yaml declares no `packages:` key');
   return [...block[1]!.matchAll(/^\s*-\s*(.+?)\s*$/gm)].map((m) => m[1]!);
 }
