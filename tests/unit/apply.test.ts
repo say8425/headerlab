@@ -157,9 +157,16 @@ describe('apply — site.allSites', () => {
   });
 });
 
+// Elements copied, not just the array. `AUTH` below is a module-level const
+// and `seed()` hands `profiles[0]` back by reference, so without this an
+// in-place-mutation regression corrupts the shared fixture itself — and the
+// *next* test to call `ruled(AUTH)` fails for a reason that has nothing to do
+// with what it is testing. Measured: a planted `h.enabled = next` took down
+// two tests, and the second one reported a wrong `changed` value.
+// `HeaderRule` is flat, so a shallow copy is enough.
 function ruled(...headers: HeaderRule[]): AppState {
   const profile = bootstrapProfile();
-  return stateWith({ ...profile, headers });
+  return stateWith({ ...profile, headers: headers.map((h) => ({ ...h })) });
 }
 
 const AUTH: HeaderRule = {
