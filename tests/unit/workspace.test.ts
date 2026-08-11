@@ -57,12 +57,37 @@ describe('the workspace', () => {
   // CLAUDE.md, measured: without `wxt prepare` oxlint resolves no `@/…` alias
   // and exits 0 having checked nothing across 141 imports. A root `lint` that
   // skips it reads as passing and is not.
+  // `startsWith`, not `toContain`. The point is that `wxt prepare` runs FIRST —
+  // a script rewritten as `oxlint --deny-warnings && wxt prepare` still
+  // contains the string while defeating the guard entirely, and oxlint would
+  // once again exit 0 having resolved no `@/…` alias at all.
   it('keeps wxt prepare in front of lint and typecheck', () => {
     const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<
       string,
       string
     >;
-    expect(scripts.lint).toContain('wxt prepare');
-    expect(scripts.typecheck).toContain('wxt prepare');
+    expect(scripts.lint?.startsWith('wxt prepare')).toBe(true);
+    expect(scripts.typecheck?.startsWith('wxt prepare')).toBe(true);
+  });
+
+  /**
+   * Measured, because a review predicted the opposite and the prediction was
+   * worth settling rather than arguing: `pnpm install --frozen-lockfile` does
+   * NOT fail when a declared workspace project is missing from `importers:`.
+   * It succeeds — and writes the missing entries into the lockfile, despite
+   * the flag. So the failure this guards is not a red CI job; it is CI
+   * quietly modifying a committed file, which is worse for being silent.
+   *
+   * The entries are empty (`{}`) because these packages have no dependencies,
+   * so adding them re-resolves nothing. That is what makes this safe to write
+   * by hand here, unlike the `pnpm import` loop CLAUDE.md warns about.
+   */
+  it('gives every declared package an entry in the lockfile', () => {
+    const lock = readFileSync('pnpm-lock.yaml', 'utf8');
+    const importers = /^importers:\s*$([\s\S]*?)^packages:/m.exec(lock);
+    expect(importers, 'pnpm-lock.yaml has no importers block').not.toBeNull();
+    for (const pkg of declaredPackages()) {
+      expect(importers![1], `${pkg} is declared but absent from importers`).toContain(`${pkg}:`);
+    }
   });
 });
