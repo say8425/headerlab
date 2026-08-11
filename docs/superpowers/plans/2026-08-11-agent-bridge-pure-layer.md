@@ -563,6 +563,28 @@ describe('apply — site.add', () => {
     apply(before, { cmd: 'site.add', domains: ['a.com'] });
     expect(before.profiles[0]!.filter.domains).toEqual([]);
   });
+
+  // `replace()` maps by id rather than writing `[next]`, and that is the whole
+  // of "operate on the one rule set the popup shows, leave the ones it cannot
+  // show alone". A regression to `profiles: [next]` would silently delete a
+  // stored rule set that goes on modifying headers with nothing able to show
+  // it. One test covers all three commands because all three write through
+  // `replace()` — three copies of it would be the duplication this file is
+  // trying to prevent.
+  it('leaves a second stored rule set untouched', () => {
+    const first = bootstrapProfile();
+    const second = { ...bootstrapProfile(), name: 'Legacy', order: 1 };
+    const before: AppState = {
+      version: STATE_VERSION,
+      profiles: [first, second],
+      globalPause: false,
+      theme: 'system',
+    };
+    const result = ok(apply(before, { cmd: 'site.add', domains: ['a.com'] }));
+    expect(result.state.profiles).toHaveLength(2);
+    expect(result.state.profiles[0]!.filter.domains).toEqual(['a.com']);
+    expect(result.state.profiles[1]).toEqual(second);
+  });
 });
 
 describe('apply — site.remove', () => {
@@ -725,7 +747,7 @@ export function apply(state: AppState, command: Command): ApplyResult {
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 14 tests.
+Expected: PASS, 15 tests.
 
 - [ ] **Step 5: 순수 가드에 넣는다**
 
@@ -973,7 +995,7 @@ Expected: FAIL — 새 describe 블록들이 `invalid-command` 를 받는다(아
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 24 tests.
+Expected: PASS, 25 tests.
 
 - [ ] **Step 5: 커밋**
 
@@ -1116,7 +1138,7 @@ Expected: FAIL — 새 케이스들이 `invalid-command` 로 떨어진다.
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `pnpm test tests/unit/apply.test.ts`
-Expected: PASS, 33 tests.
+Expected: PASS, 34 tests.
 
 **"says which field was wrong" 이 실패하면** zod 의 기본 메시지가 경로를 안 담은 것이다. 계약은 메시지가 필드 이름을 담는다는 것이므로, 메시지를 zod 에 맡기지 말고 직접 만든다. `apply.ts` 의 `catch` 를 이렇게 바꾼다:
 
