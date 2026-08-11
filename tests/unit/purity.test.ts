@@ -35,6 +35,12 @@ const EXPLICIT = [
   // 가드가 없다.
   'lib/bridge/protocol.ts',
   'lib/bridge/apply.ts',
+  // `apply.ts` 가 `parseAppState` 를 **값으로** 임포트한다(타입이 아니라 런타임
+  // 호출). `types.ts` 의 `import type` 은 컴파일 시 지워지지만 이건 지워지지
+  // 않으므로, 가드된 `apply.ts` 가 가드 안 된 이 파일을 부르면 브라우저
+  // 의존성이 한 칸 건너 들어와도 아무도 못 잡는다 — defaults.ts 를 여기 올린
+  // 것과 같은 이유다.
+  'lib/model/schema.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -90,6 +96,7 @@ describe('the pure layer stays pure', () => {
       'lib/model/defaults.ts',
       'lib/bridge/protocol.ts',
       'lib/bridge/apply.ts',
+      'lib/model/schema.ts',
     ]);
   });
 
