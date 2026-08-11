@@ -6,27 +6,29 @@ import type { ApplyResult, Command } from '@/lib/bridge/protocol';
 import type { AppState, Profile } from '@/lib/model/types';
 
 /**
- * 브리지 명령 하나를 상태 변경으로 바꾼다. 순수.
+ * Turns one bridge command into a state change. Pure.
  *
- * **이 화면이 보여주는 하나의 규칙 세트에만 손댄다.** 저장소가 여럿을 들고
- * 있으면 `resolveSingleProfile` 이 고르는 첫 번째만 바꾸고 나머지는 건드리지
- * 않는다. 잘라내는 것은 팝업의 쓰기이고(App.tsx), 그 판단을 여기서 두 번째로
- * 구현하면 갈라진다.
+ * **Touches only the one rule set this screen shows.** When storage holds
+ * more than one, `resolveSingleProfile` picks the first and leaves the rest
+ * alone. The truncation is the popup's write (App.tsx); implementing that
+ * judgment a second time here is how the two diverge.
  *
- * 저장소가 비어 있으면 팝업이 여는 것과 **같은** 암묵적 규칙 세트를 만든다 —
- * `bootstrapProfile()` 을 부르지, 그 모양을 다시 적지 않는다.
+ * When storage is empty, it mints the **same** implicit rule set the popup
+ * opens on — it calls `bootstrapProfile()` rather than writing that shape
+ * again.
  */
 /**
- * 손댈 규칙 세트와, 그것이 실제로 들어있는 상태를 함께 돌려준다.
+ * Returns the rule set to touch, together with the state it actually lives
+ * in.
  *
- * **게으르게 부른다.** `pause` 는 최상위 키만 건드리므로 이걸 부르면 안 된다 —
- * 부르면 빈 저장소에 아무도 요청하지 않은 규칙 세트가 생긴다. 규칙 세트를
- * 건드리는 case 안에서만 부른다.
+ * **Call it lazily.** `pause` only touches the top-level key, so it must not
+ * call this — calling it would mint a rule set nobody asked for on an empty
+ * store. Call it only inside a case that actually touches the rule set.
  *
- * `minted` 는 이번 호출이 방금 `bootstrapProfile()` 을 불렀는지를 말한다.
- * `rule.add` 가 그 이름 없는 첫 규칙을 지울지 말지 판단하는 데 쓴다 — 기존
- * 규칙 세트가 우연히 빈 규칙 하나뿐인 경우와 갈라야 하므로 `active.headers`
- * 만 보고는 알 수 없다.
+ * `minted` says whether this call just invoked `bootstrapProfile()`. `rule.add`
+ * uses it to decide whether to delete that nameless first rule — it has to be
+ * distinguished from an existing rule set that happens to hold exactly one
+ * blank rule, which `active.headers` alone cannot tell apart.
  */
 function seed(state: AppState): { base: AppState; active: Profile; minted: boolean } {
   const { profile } = resolveSingleProfile(state.profiles);
@@ -88,8 +90,9 @@ export function apply(state: AppState, command: Command): ApplyResult {
 
     case 'site.remove': {
       const { base, active } = seed(state);
-      // 전부 있는지 먼저 확인하고, 하나라도 없으면 아무것도 지우지 않는다.
-      // 부분 적용은 "무엇이 지워졌는지" 를 되물어야만 알 수 있게 만든다.
+      // Check that all of them are present first, and remove nothing at all
+      // if even one is missing. A partial apply would make "what got
+      // removed" a question the caller has to ask back.
       const wanted = command.domains.map(effectiveDomain);
       const present = new Set(active.filter.domains.map(effectiveDomain));
       const missing = wanted.filter((host) => !present.has(host));
@@ -107,16 +110,16 @@ export function apply(state: AppState, command: Command): ApplyResult {
     case 'site.allSites': {
       const { base, active } = seed(state);
       if (active.filter.allSites === command.on) return replace(base, active, false);
-      // 목록은 남긴다. 그게 스위치를 되돌릴 수 있게 하는 것이고, 끄면 사용자가
-      // 쌓아둔 스코프가 돌아온다.
+      // Keep the list. That is what makes the switch reversible — turning it
+      // off brings back the scope the user built up.
       return replace(base, { ...active, filter: { ...active.filter, allSites: command.on } }, true);
     }
 
     case 'rule.add': {
       const { base, active, minted } = seed(state);
-      // `remove` 는 값을 갖지 않는다(types.ts). 여기서 떨어뜨려, 저장되는
-      // 모양이 늘 하나가 되게 한다 — 죽은 값이 의미 있는 것처럼 읽히는 일이
-      // 없도록.
+      // `remove` carries no value (types.ts). Drop it here so the stored
+      // shape is always one shape — so a dead value never reads as if it
+      // meant something.
       const value = command.operation === 'remove' ? '' : command.value;
       const rule = {
         ...newRule(),
@@ -125,12 +128,14 @@ export function apply(state: AppState, command: Command): ApplyResult {
         name: command.name,
         value,
       };
-      // `bootstrapProfile()` 은 이름도 값도 없는 규칙 하나를 함께 만든다. 방금
-      // 그걸로 태어난 저장소에 이걸 그대로 둔 채 요청받은 규칙을 덧붙이면, 새
-      // 설치에서 `rule add` 한 번이 규칙 둘 — 요청한 것과, 아무도 청하지 않고
-      // 영원히 `incomplete-header` 로 남는 것 — 을 낳는다. `site.add` 가 빈
-      // 저장소에 이미 갖고 있는 경계 처리와 같은 자리. `minted` 로 가른다 —
-      // 기존 규칙 세트가 우연히 빈 규칙 하나뿐인 경우까지 덮어쓰면 안 된다.
+      // `bootstrapProfile()` mints one rule with neither a name nor a value
+      // alongside it. Leaving that in place and appending the requested rule
+      // onto a store that was just born from it would turn a single `rule
+      // add` on a fresh install into two rules — the one asked for, and one
+      // nobody requested that sits forever as `incomplete-header`. This is
+      // the same boundary case `site.add` already handles for an empty
+      // store. `minted` is what draws the line — it must not overwrite an
+      // existing rule set that happens to hold exactly one blank rule.
       const blank =
         active.headers.length === 1 &&
         active.headers[0]!.name === '' &&
@@ -178,16 +183,17 @@ export function apply(state: AppState, command: Command): ApplyResult {
     case 'pause':
     case 'resume': {
       const paused = command.cmd === 'pause';
-      // `seeded` 가 아니라 `state`. 일시정지는 최상위 키이고, 그것 때문에
-      // 규칙 세트가 생겨서는 안 된다.
+      // `state`, not `seeded`. Pause is a top-level key, and it must not
+      // cause a rule set to be minted.
       if (state.globalPause === paused) return { ok: true, state, changed: false };
       return { ok: true, state: { ...state, globalPause: paused }, changed: true };
     }
 
     case 'state.set': {
       try {
-        // 검증을 통과하지 못한 저장소는 컴파일되지 않으므로 중화할 것도 없고,
-        // 남의 바이트를 덮어쓸 근거도 없다. 거절하고 그대로 둔다.
+        // A store that fails validation is never compiled, so there is
+        // nothing to neutralize and no grounds for overwriting someone
+        // else's bytes. Refuse it and leave the state alone.
         return { ok: true, state: parseAppState(command.state), changed: true };
       } catch (error) {
         return {
@@ -201,13 +207,14 @@ export function apply(state: AppState, command: Command): ApplyResult {
     }
 
     default: {
-      // 위 아홉 case 가 `Command` 의 전부라서 타입 위에서는 여기 닿지 않는다 —
-      // `command` 는 `never` 로 좁혀진다. 그래도 지우지 않는다: `parseCommand`
-      // 를 거치지 않고 부른 호출이 타입을 우회해 들어오면 여기가 마지막
-      // 방어선이다. 그 값을 읽으려면 좁혀진 타입을 다시 넓혀야 한다.
-      // `never` 를 거쳐 넓히는 것이 요점이다. `command` 에서 곧장 캐스트하면
-      // 열 번째 명령이 case 없이 추가돼도 그대로 컴파일되어, 빠진 case 가
-      // 런타임 invalid-command 로 조용히 나간다. 측정된 차이다.
+      // The nine cases above are the whole of `Command`, so type-wise this is
+      // unreachable — `command` narrows to `never`. It is not deleted anyway:
+      // this is the last line of defense when a call bypasses `parseCommand`
+      // and gets in around the type. Reading that value means widening the
+      // narrowed type back out. Widening it *through* `never` is the point —
+      // casting straight from `command` would let a tenth command get added
+      // with no case and still compile, so the missing case would leave
+      // silently as a runtime `invalid-command`. A measured difference.
       const exhaustive: never = command;
       const unexpected = exhaustive as Command;
       return {

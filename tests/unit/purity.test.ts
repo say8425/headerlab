@@ -26,20 +26,21 @@ const EXPLICIT = [
   // migration is the code that gets one attempt — by the time it runs, the
   // bytes it was supposed to preserve are already gone.
   'lib/model/migrate.ts',
-  // `apply.ts` 와 `App.tsx` 가 둘 다 부트스트랩 규칙 세트를 여기서 가져간다.
-  // 가드는 파일 자기 소스만 훑으므로, 가드된 `apply.ts` 가 가드 안 된 이
-  // 파일을 임포트하면 브라우저 의존성이 한 칸 건너 들어와도 아무도 못 잡는다.
+  // Both `apply.ts` and `App.tsx` pull the bootstrap rule set from here. The
+  // guard only scans a file's own source, so if guarded `apply.ts` imports
+  // this unguarded file, a browser dependency arriving one hop away would
+  // slip past unnoticed.
   'lib/model/defaults.ts',
-  // lib/permissions/ 와 같은 사정이다: 이 디렉터리는 곧 어댑터(port.ts)도
-  // 갖게 되므로 디렉터리 모양의 규칙이 있을 수 없다. 이름으로 적지 않으면
-  // 가드가 없다.
+  // Same situation as lib/permissions/: this directory will soon also hold
+  // an adapter (port.ts), so there can be no directory-shaped rule here.
+  // Without naming it explicitly, there is no guard.
   'lib/bridge/protocol.ts',
   'lib/bridge/apply.ts',
-  // `apply.ts` 가 `parseAppState` 를 **값으로** 임포트한다(타입이 아니라 런타임
-  // 호출). `types.ts` 의 `import type` 은 컴파일 시 지워지지만 이건 지워지지
-  // 않으므로, 가드된 `apply.ts` 가 가드 안 된 이 파일을 부르면 브라우저
-  // 의존성이 한 칸 건너 들어와도 아무도 못 잡는다 — defaults.ts 를 여기 올린
-  // 것과 같은 이유다.
+  // `apply.ts` imports `parseAppState` **as a value** (a runtime call, not a
+  // type). `types.ts`'s `import type` is erased at compile time, but this one
+  // is not — so if guarded `apply.ts` calls this unguarded file, a browser
+  // dependency arriving one hop away would slip past unnoticed, the same
+  // reason `defaults.ts` is listed here.
   'lib/model/schema.ts',
 ];
 
