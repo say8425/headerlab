@@ -273,9 +273,14 @@ test('removeStaleSocket does not throw when two calls race to remove the same de
   const results = await Promise.all([removeStaleSocket(dir, pid), removeStaleSocket(dir, pid)]);
 
   assert.equal(existsSync(socketPathFor(dir, pid)), false);
-  // At least one of the two racing calls did the actual removal; which one
-  // is not the point — that neither threw is.
-  assert.ok(results.includes(true));
+  // Both calls report `true`, not just "at least one" — removeStaleSocket
+  // does not distinguish "I actually removed it" from "it was already gone
+  // by the time I got past the liveness check", so the loser also reaches
+  // its own unlinkIfExists/removeRegistryEntry calls and returns `true`
+  // same as the winner. `deepEqual([true, true])` says what is actually
+  // guaranteed here; `results.includes(true)` would also pass if a bug made
+  // the loser wrongly report `false`.
+  assert.deepEqual(results, [true, true]);
 });
 
 test('sweepStaleSockets removes only the dead entries, and reports their pids', async () => {
