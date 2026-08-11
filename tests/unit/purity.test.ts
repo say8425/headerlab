@@ -26,6 +26,10 @@ const EXPLICIT = [
   // migration is the code that gets one attempt — by the time it runs, the
   // bytes it was supposed to preserve are already gone.
   'lib/model/migrate.ts',
+  // `apply.ts` 와 `App.tsx` 가 둘 다 부트스트랩 규칙 세트를 여기서 가져간다.
+  // 가드는 파일 자기 소스만 훑으므로, 가드된 `apply.ts` 가 가드 안 된 이
+  // 파일을 임포트하면 브라우저 의존성이 한 칸 건너 들어와도 아무도 못 잡는다.
+  'lib/model/defaults.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -78,6 +82,7 @@ describe('the pure layer stays pure', () => {
       'lib/permissions/origins.ts',
       'lib/permissions/audit.ts',
       'lib/model/migrate.ts',
+      'lib/model/defaults.ts',
     ]);
   });
 

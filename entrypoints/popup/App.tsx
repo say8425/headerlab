@@ -9,40 +9,9 @@ import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
 import { effectiveDomain } from '@/lib/permissions/origins';
 import { probeAllSites, probeGrants, requestAllSites, requestHost } from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
-import { createProfile } from '@/lib/model/defaults';
+import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { Diagnostic, HeaderRule, Profile, ResourceType } from '@/lib/model/types';
-
-function newRule(): HeaderRule {
-  return {
-    id: crypto.randomUUID(),
-    enabled: true,
-    target: 'request',
-    operation: 'set',
-    name: '',
-    value: '',
-  };
-}
-
-/**
- * The implicit rule set, minted the first time the popup opens on empty
- * storage.
- *
- * `lib/model/defaults.ts` ships `profiles: []`, and a fresh install used to
- * open on a single "Create profile" button — a wall between the user and the
- * one thing this extension does. It starts with a rule already in it, because
- * the state worth opening on is one where a header name can be typed
- * immediately.
- *
- * Made **lazily, here**, rather than as a module constant. A constant would
- * have to call `crypto.randomUUID()` at import time, which mints an id on
- * every page that loads this module whether or not one is ever needed, and
- * gives the background and the popup different ids for what is supposed to be
- * the same rule set.
- */
-function bootstrapProfile(): Profile {
-  return { ...createProfile('Default', 0), headers: [newRule()] };
-}
 
 export default function App() {
   const { state, valid, patch } = useAppState();
