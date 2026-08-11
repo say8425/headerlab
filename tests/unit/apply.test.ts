@@ -309,6 +309,26 @@ describe('apply — rule.add', () => {
     );
     expect(result.state.profiles[0]!.headers[0]!.value).toBe('');
   });
+
+  // The overwrite is for the rule `bootstrapProfile()` mints, not for one the
+  // user is halfway through typing. `minted` is only true when storage held no
+  // profile at all, so this appends — and if that condition ever loosens to
+  // "the profile has one blank rule", this is what goes red.
+  it('appends rather than replacing a blank rule in an established profile', () => {
+    const blank = { ...newRule(), id: 'r-blank' };
+    const result = ok(
+      apply(ruled(blank), {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'X-Added',
+        value: '1',
+      }),
+    );
+    const rules = result.state.profiles[0]!.headers;
+    expect(rules).toHaveLength(2);
+    expect(rules.map((h) => h.name)).toEqual(['', 'X-Added']);
+  });
 });
 
 describe('apply — rule.remove', () => {
