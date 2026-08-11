@@ -22,12 +22,17 @@ import type { AppState, Profile } from '@/lib/model/types';
  * **게으르게 부른다.** `pause` 는 최상위 키만 건드리므로 이걸 부르면 안 된다 —
  * 부르면 빈 저장소에 아무도 요청하지 않은 규칙 세트가 생긴다. 규칙 세트를
  * 건드리는 case 안에서만 부른다.
+ *
+ * `minted` 는 이번 호출이 방금 `bootstrapProfile()` 을 불렀는지를 말한다.
+ * `rule.add` 가 그 이름 없는 첫 규칙을 지울지 말지 판단하는 데 쓴다 — 기존
+ * 규칙 세트가 우연히 빈 규칙 하나뿐인 경우와 갈라야 하므로 `active.headers`
+ * 만 보고는 알 수 없다.
  */
-function seed(state: AppState): { base: AppState; active: Profile } {
+function seed(state: AppState): { base: AppState; active: Profile; minted: boolean } {
   const { profile } = resolveSingleProfile(state.profiles);
-  if (profile) return { base: state, active: profile };
-  const minted = bootstrapProfile();
-  return { base: { ...state, profiles: [minted] }, active: minted };
+  if (profile) return { base: state, active: profile, minted: false };
+  const bootstrapped = bootstrapProfile();
+  return { base: { ...state, profiles: [bootstrapped] }, active: bootstrapped, minted: true };
 }
 
 function replace(base: AppState, next: Profile, changed: boolean, note?: string): ApplyResult {
@@ -108,7 +113,7 @@ export function apply(state: AppState, command: Command): ApplyResult {
     }
 
     case 'rule.add': {
-      const { base, active } = seed(state);
+      const { base, active, minted } = seed(state);
       // `remove` 는 값을 갖지 않는다(types.ts). 여기서 떨어뜨려, 저장되는
       // 모양이 늘 하나가 되게 한다 — 죽은 값이 의미 있는 것처럼 읽히는 일이
       // 없도록.
@@ -120,7 +125,18 @@ export function apply(state: AppState, command: Command): ApplyResult {
         name: command.name,
         value,
       };
-      return replace(base, { ...active, headers: [...active.headers, rule] }, true);
+      // `bootstrapProfile()` 은 이름도 값도 없는 규칙 하나를 함께 만든다. 방금
+      // 그걸로 태어난 저장소에 이걸 그대로 둔 채 요청받은 규칙을 덧붙이면, 새
+      // 설치에서 `rule add` 한 번이 규칙 둘 — 요청한 것과, 아무도 청하지 않고
+      // 영원히 `incomplete-header` 로 남는 것 — 을 낳는다. `site.add` 가 빈
+      // 저장소에 이미 갖고 있는 경계 처리와 같은 자리. `minted` 로 가른다 —
+      // 기존 규칙 세트가 우연히 빈 규칙 하나뿐인 경우까지 덮어쓰면 안 된다.
+      const blank =
+        active.headers.length === 1 &&
+        active.headers[0]!.name === '' &&
+        active.headers[0]!.value === '';
+      const headers = minted && blank ? [rule] : [...active.headers, rule];
+      return replace(base, { ...active, headers }, true);
     }
 
     case 'rule.remove': {

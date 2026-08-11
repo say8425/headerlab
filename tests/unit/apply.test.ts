@@ -219,6 +219,26 @@ describe('apply — rule.add', () => {
     expect(rules[0]!.enabled).toBe(true);
   });
 
+  // bootstrapProfile() mints a blank rule alongside a fresh profile. Left in
+  // place, a single `headerlab rule add --name X` on a brand new install
+  // would produce two rules: the one asked for, and a permanent
+  // `incomplete-header` nobody asked for. site.add already has this same
+  // empty-store boundary test.
+  it('does not leave the bootstrapped blank rule behind on a fresh store', () => {
+    const result = ok(
+      apply(EMPTY, {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'X-Debug',
+        value: '1',
+      }),
+    );
+    const rules = result.state.profiles[0]!.headers;
+    expect(rules).toHaveLength(1);
+    expect(rules[0]!.name).toBe('X-Debug');
+  });
+
   it('appends after the rules already there', () => {
     const result = ok(
       apply(ruled(AUTH), {
