@@ -242,15 +242,16 @@ CLI 가 보내는 것은 신뢰 경계 너머의 바이트다. zod 가 그 경�
 
 ```ts
 import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 import { parseCommand } from '@/lib/bridge/protocol';
 
 describe('parseCommand', () => {
   it('rejects a command it does not know', () => {
-    expect(() => parseCommand({ cmd: 'rm -rf' })).toThrow();
+    expect(() => parseCommand({ cmd: 'rm -rf' })).toThrow(ZodError);
   });
 
   it('rejects a payload with no cmd at all', () => {
-    expect(() => parseCommand({ domains: ['example.com'] })).toThrow();
+    expect(() => parseCommand({ domains: ['example.com'] })).toThrow(ZodError);
   });
 
   it('reads site.add with its domains', () => {
@@ -264,11 +265,11 @@ describe('parseCommand', () => {
   // no-op worth accepting: the caller asked for something and nothing would
   // happen, with nothing said.
   it('rejects site.add with an empty domain list', () => {
-    expect(() => parseCommand({ cmd: 'site.add', domains: [] })).toThrow();
+    expect(() => parseCommand({ cmd: 'site.add', domains: [] })).toThrow(ZodError);
   });
 
   it('rejects site.add with an empty string as a domain', () => {
-    expect(() => parseCommand({ cmd: 'site.add', domains: [''] })).toThrow();
+    expect(() => parseCommand({ cmd: 'site.add', domains: [''] })).toThrow(ZodError);
   });
 
   it('defaults rule.add value to the empty string', () => {
@@ -286,7 +287,7 @@ describe('parseCommand', () => {
   it('rejects a target the model does not have', () => {
     expect(() =>
       parseCommand({ cmd: 'rule.add', target: 'trailer', operation: 'set', name: 'X', value: '1' }),
-    ).toThrow();
+    ).toThrow(ZodError);
   });
 
   // Omitted `on` means "flip it", which apply() resolves against the current
