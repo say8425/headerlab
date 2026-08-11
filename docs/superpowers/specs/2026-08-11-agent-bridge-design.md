@@ -103,6 +103,30 @@ headerlab pause | resume                    globalPause
 거절한다** — 조용히 잘린 JSON 은 zod 를 통과하지 못하겠지만, 실패 지점이 세 프로세스
 건너에서 나면 진단이 불가능해진다.
 
+### 3.1 `state set` 은 아직 없는 정규식 UI 로 가는 통로다
+
+CLAUDE.md 가 이미 적어 둔 것: "import 가 언젠가 만들어지면, 검증이 먼저다 — import 가 정규식
+표면을 닿을 수 있게 만드는 것이다." 검증은 이미 먼저 온다(`state.set` 은 `parseAppState` 를
+거친다). 하지만 `appStateSchema` 는 `filter.mode: 'regex'` 와 임의의 `regex` 문자열을 그대로
+통과시키고, `filterToCondition` 은 검사 없이 그 값을 곧장 `regexFilter` 로 컴파일한다. RE2
+유효성의 유일한 권위는 `chrome.declarativeNetRequest.isRegexSupported()` 이고, 그건 어댑터가
+아직 부르지 않는다 — 팝업에는 정규식 편집기 자체가 없다.
+
+**결정, 지금 적어 둔다: 정규식 UI 가 생기기 전까지 어댑터는 `filter.mode` 가 `regex` 인
+`state.set` 페이로드를 거절한다.** 이건 순수 층이 지는 책임이 아니다 — `apply()` 는
+`parseAppState` 를 통과하는 모든 것을 계속 받아들이고, 거절은 CLI/호스트 경계, 즉 phase 4 에
+놓인다. 순수 층에 넣으면 정규식 UI 가 나중에 생겼을 때 그 판단이 또 다른 파일에 두 번째로
+적히게 된다.
+
+### 3.2 `site.add` 는 못 쓰는 항목도 저장하고, 그 사실을 말한다
+
+`effectiveDomain('a b.com')` 은 쓸 수 없는 입력을 고치지 못하면 그대로 돌려준다(origins.ts).
+그 값이 일단 저장되면 `suppressionReason` 이 `'unusable-site'` 를 돌려주고 **프로필 전체가
+컴파일을 멈춘다** — 함께 저장된 멀쩡한 규칙까지. "말없이 억제하지 않는다" 는 이 저장소의
+비타협 조건이므로 `apply()` 는 이 항목을 거절하지 않되(그 행이 사용자가 실수를 보고 고치는
+방법이다) 반환하는 `note` 에 그 호스트를 이름으로 적는다 — §9 가 요구하는 "잘못된 구현이
+통과할 수 있는가" 를 site.add 에도 적용한 결과다.
+
 ---
 
 ## 4. 모듈 배치
