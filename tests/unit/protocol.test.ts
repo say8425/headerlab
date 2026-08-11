@@ -29,6 +29,34 @@ describe('parseCommand', () => {
     expect(() => parseCommand({ cmd: 'site.add', domains: [''] })).toThrow(ZodError);
   });
 
+  it('reads site.remove with its domains', () => {
+    expect(parseCommand({ cmd: 'site.remove', domains: ['a.example.com'] })).toEqual({
+      cmd: 'site.remove',
+      domains: ['a.example.com'],
+    });
+  });
+
+  it('rejects site.remove with an empty domain list', () => {
+    expect(() => parseCommand({ cmd: 'site.remove', domains: [] })).toThrow(ZodError);
+  });
+
+  it('reads site.allSites in both directions', () => {
+    expect(parseCommand({ cmd: 'site.allSites', on: true })).toEqual({
+      cmd: 'site.allSites',
+      on: true,
+    });
+    expect(parseCommand({ cmd: 'site.allSites', on: false })).toEqual({
+      cmd: 'site.allSites',
+      on: false,
+    });
+  });
+
+  // The mode is never inferred. Defaulting it would let a malformed command
+  // silently turn all-sites off, which is a scope change nobody asked for.
+  it('rejects site.allSites without an explicit on', () => {
+    expect(() => parseCommand({ cmd: 'site.allSites' })).toThrow(ZodError);
+  });
+
   it('defaults rule.add value to the empty string', () => {
     expect(
       parseCommand({ cmd: 'rule.add', target: 'request', operation: 'remove', name: 'X-Trace' }),
@@ -62,6 +90,17 @@ describe('parseCommand', () => {
       id: 'r1',
       on: false,
     });
+  });
+
+  it('reads rule.remove with its id', () => {
+    expect(parseCommand({ cmd: 'rule.remove', id: 'r1' })).toEqual({
+      cmd: 'rule.remove',
+      id: 'r1',
+    });
+  });
+
+  it('rejects rule.remove with an empty id', () => {
+    expect(() => parseCommand({ cmd: 'rule.remove', id: '' })).toThrow(ZodError);
   });
 
   it('reads pause and resume, which carry nothing', () => {
