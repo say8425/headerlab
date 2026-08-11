@@ -151,6 +151,8 @@ describe('apply — site.remove', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.code).toBe('unknown-domain');
+    // Partial match: the host name is interpolated into a longer sentence
+    // ("not in the site list: ...").
     expect(result.error.message).toContain('b.com');
   });
 
@@ -250,6 +252,28 @@ describe('apply — rule.add', () => {
     expect(first!.id).not.toBe(second!.id);
   });
 
+  // `append` on a request header outside Chrome's 21-header allowlist
+  // invalidates the whole updateDynamicRules batch (CLAUDE.md's "Platform
+  // traps"). apply() is not where that gets judged — it is the reducer, not
+  // the compiler — so it stores whatever operation it was given and leaves
+  // validate.ts to decide, at compile time, whether this particular append is
+  // allowed. This only pins that the reducer itself does not lose or
+  // rewrite the value on the way in.
+  it('stores an append rule with its value, leaving compile-time validity to the compiler', () => {
+    const result = ok(
+      apply(ruled(), {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'append',
+        name: 'X-Forwarded-For',
+        value: '203.0.113.1',
+      }),
+    );
+    const rule = result.state.profiles[0]!.headers[0]!;
+    expect(rule.operation).toBe('append');
+    expect(rule.value).toBe('203.0.113.1');
+  });
+
   // types.ts: "Empty string when operation is 'remove'. The compiler drops the
   // field entirely." A value carried on a remove would be dead data that reads
   // as meaningful.
@@ -280,6 +304,8 @@ describe('apply — rule.remove', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.code).toBe('unknown-rule');
+    // Partial match: the id is interpolated into a longer error message
+    // ("no rule with id ...").
     expect(result.error.message).toContain('nope');
   });
 });
@@ -310,6 +336,8 @@ describe('apply — rule.toggle', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.code).toBe('unknown-rule');
+    // Partial match: the id is interpolated into a longer error message
+    // ("no rule with id ...").
     expect(result.error.message).toContain('nope');
   });
 
@@ -428,6 +456,8 @@ describe('apply — an unknown command', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.code).toBe('invalid-command');
+    // Partial match: the command name is interpolated into a longer error
+    // message ("unhandled command: ...").
     expect(result.error.message).toContain('bogus');
   });
 });
