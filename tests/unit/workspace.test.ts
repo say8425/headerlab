@@ -145,8 +145,13 @@ describe('the release configuration', () => {
   // fixed list of known keys and discards the rest without a log line, so a
   // per-package typo is invisible in the editor AND at runtime — the plugin
   // version would silently stop tracking and the first symptom is a report.
+  // `component` is asserted by name and not just by existing: a
+  // `"componant": "cli"` typo used to pass this test silently, dropping the
+  // CLI's component so its tag would collide with the extension's bare
+  // namespace.
   it('configures exactly the packages that exist', () => {
     expect(Object.keys(config.packages)).toEqual(['.', 'packages/cli']);
+    expect(config.packages['packages/cli'].component).toBe('cli');
     for (const path of Object.keys(config.packages)) {
       expect(existsSync(path === '.' ? 'package.json' : `${path}/package.json`)).toBe(true);
     }
@@ -194,11 +199,29 @@ describe('the release configuration', () => {
 
   // All eleven extraFileUpdates sites set createIfMissing: false. A wrong
   // path produces no error and no diff — the version just stops tracking.
+  // `toEqual` on the exact two paths rather than iterating whatever the array
+  // holds: iterating passes if one of the two entries is simply deleted, and
+  // passes if either is repointed at a manifest that exists but nothing
+  // reads — /packages/plugin/package.json, for instance, which would be
+  // bumped and would track nothing.
   it('points extra-files at manifests that exist', () => {
-    for (const entry of config.packages['packages/cli']['extra-files']) {
-      const path = typeof entry === 'string' ? entry : entry.path;
+    const entries = config.packages['packages/cli']['extra-files'].map((entry: unknown) =>
+      typeof entry === 'string' ? entry : (entry as { path: string }).path,
+    );
+    expect(entries).toEqual([
+      '/packages/plugin/.claude-plugin/plugin.json',
+      '/packages/plugin/.codex-plugin/plugin.json',
+    ]);
+    for (const path of entries) {
       expect(existsSync(path.replace(/^\//, ''))).toBe(true);
     }
+  });
+
+  // The setting that delivers the independent releases the owner asked for.
+  // Deleting it merges the extension's and the CLI's release PRs into one,
+  // with nothing else in this file failing.
+  it('delivers independent releases per package', () => {
+    expect(config['separate-pull-requests']).toBe(true);
   });
 
   // The workflow reads unprefixed outputs, which only exist while the
