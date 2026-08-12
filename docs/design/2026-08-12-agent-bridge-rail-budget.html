@@ -1,0 +1,1254 @@
+<title>HeaderLab — 브리지 줄을 넣을 21px 을 어디서 찾는가</title>
+<style>
+/*
+ * 안 A(리드아웃 카드의 넷째 줄)를 고를 때의 근거는 "레일 여유 28px 에 정확히
+ * 들어간다"였다. 그 28px 은 소스에서 읽은 값이고, 빌드된 팝업에서 다시 재니
+ * 7px 이다. 이 문서는 나머지 21px 을 어디서 가져올지 세 가지로 그린다.
+ *
+ * 레일은 실척 224x600 이고 모든 치수는 entrypoints/popup/style.css 와
+ * components/ScopeRail.tsx 에서 그대로 옮겼다. 페이지는 로드 후 자기가 그린
+ * 박스를 실제로 재서 치수선과 예산표를 채운다 — 손으로 적은 숫자가 아니다.
+ *
+ * docs/ 아래이므로 Tailwind 의 @source not 과 oxfmt 의 ignorePatterns 에
+ * 이미 걸려 있다. 새 예외를 만들지 않는다.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 페이지 크롬 — 제도용지. 중성색은 지면의 파랑 쪽으로 살짝 치우쳐 있다. */
+  --ink: #1b1f27;
+  --ink-2: #4a525f;
+  --ink-3: #6d7684;
+  --paper: #eef1f4;
+  --sheet: #ffffff;
+  --hair: #ccd3db;
+  --dim: #1a56c4;
+  --over: #b3261e;
+  --under: #0d6b41;
+  --warn: #8a5200;
+  --chip-over: #fadedb;
+  --chip-under: #dff0e6;
+  --chip-warn: #fbefdb;
+
+  /* HeaderLab 팝업의 라이트 팔레트. style.css 에서 그대로. */
+  --background: #ffffff;
+  --foreground: #14161c;
+  --foreground-2: #454b57;
+  --muted-foreground: #5c6371;
+  --card: #ffffff;
+  --tray: #e9ecf1;
+  --rail: #f0f1f4;
+  --rail-border: #d5d9e1;
+  --input: #7a8593;
+  --boundary: #767d8c;
+  --live: #0d6b41;
+  --pending: #8a5200;
+  --pending-bg: #fbefdb;
+  --shadow: 0 1px 2px rgb(20 22 28 / 0.06), 0 1px 1px rgb(20 22 28 / 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --ink: #e7eef6;
+    --ink-2: #a6b3c1;
+    --ink-3: #8b98a6;
+    --paper: #0d1116;
+    --sheet: #161d25;
+    --hair: #2b3540;
+    --dim: #7fb8f0;
+    --over: #f08c7c;
+    --under: #4cde84;
+    --warn: #f0b45c;
+    --chip-over: #3a1d18;
+    --chip-under: #10301f;
+    --chip-warn: #2c2113;
+
+    /* HeaderLab 팝업의 다크 팔레트. */
+    --background: #0b0f14;
+    --foreground: #e7eef6;
+    --foreground-2: #a6b3c1;
+    --muted-foreground: #8b98a6;
+    --card: #161d25;
+    --tray: #0e1319;
+    --rail: #141a21;
+    --rail-border: #232b36;
+    --input: #5f6b79;
+    --boundary: #7b8694;
+    --live: #4cde84;
+    --pending: #f0b45c;
+    --pending-bg: #2c2113;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink: #e7eef6;
+  --ink-2: #a6b3c1;
+  --ink-3: #8b98a6;
+  --paper: #0d1116;
+  --sheet: #161d25;
+  --hair: #2b3540;
+  --dim: #7fb8f0;
+  --over: #f08c7c;
+  --under: #4cde84;
+  --warn: #f0b45c;
+  --chip-over: #3a1d18;
+  --chip-under: #10301f;
+  --chip-warn: #2c2113;
+
+  --background: #0b0f14;
+  --foreground: #e7eef6;
+  --foreground-2: #a6b3c1;
+  --muted-foreground: #8b98a6;
+  --card: #161d25;
+  --tray: #0e1319;
+  --rail: #141a21;
+  --rail-border: #232b36;
+  --input: #5f6b79;
+  --boundary: #7b8694;
+  --live: #4cde84;
+  --pending: #f0b45c;
+  --pending-bg: #2c2113;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 40px 32px 96px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 78ch;
+}
+
+.eyebrow {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+h1 {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 27px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.68;
+  color: var(--ink-2);
+}
+
+.lede b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.lede code,
+.prose code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--hair) 45%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* The measured fact the whole page turns on. */
+.finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 22px;
+  margin-top: 26px;
+  padding: 16px 20px;
+  background: var(--sheet);
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--dim);
+  border-radius: 4px;
+  max-width: 78ch;
+}
+
+.finding dt {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.finding dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.finding dd.over {
+  color: var(--over);
+}
+
+.finding dd.under {
+  color: var(--under);
+}
+
+.finding .pair {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ---------- the comparison strip ---------- */
+
+.strip {
+  margin-top: 44px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.strip-inner {
+  display: flex;
+  gap: 26px;
+  align-items: flex-start;
+  min-width: min-content;
+}
+
+.opt {
+  margin: 0;
+  width: 316px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.opt-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 62px;
+}
+
+.opt-name {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.opt-name h2 {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.verdict {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.verdict.baseline {
+  background: color-mix(in srgb, var(--hair) 55%, transparent);
+  color: var(--ink-3);
+}
+
+.verdict.fits {
+  background: var(--chip-under);
+  color: var(--under);
+}
+
+.verdict.costly {
+  background: var(--chip-over);
+  color: var(--over);
+}
+
+.verdict.tight {
+  background: var(--chip-warn);
+  color: var(--warn);
+}
+
+.opt-sub {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* stage = rail + its dimension gutter */
+
+.stage {
+  position: relative;
+  display: flex;
+  gap: 0;
+}
+
+.rail {
+  position: relative;
+  width: 224px;
+  height: 600px;
+  flex: 0 0 auto;
+  background: var(--rail);
+  /* `outline`, not `border`: the real rail carries only a right border, and a
+     border here would shrink clientHeight by 2px — which would put every
+     number on this page 2px away from the popup it claims to reproduce. An
+     outline draws the same line and occupies no layout. */
+  outline: 1px solid var(--rail-border);
+  border-radius: 5px;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--foreground);
+}
+
+/* Everything below is the popup's own geometry, value for value. */
+
+.brand {
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--foreground);
+  color: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.brandname {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+.card {
+  margin: 0 12px;
+  margin-top: var(--card-mt, 16px);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 12px;
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+}
+
+.count {
+  display: flex;
+  height: 28px;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.count b {
+  font-size: 24px;
+  line-height: 28px;
+  letter-spacing: -0.03em;
+  font-weight: 650;
+}
+
+.count span {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--foreground-2);
+}
+
+.sub {
+  margin-top: 4px;
+  display: flex;
+  height: 16px;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--foreground-2);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dot.off {
+  background: var(--input);
+}
+.dot.live {
+  background: var(--live);
+}
+.dot.mute {
+  background: var(--muted-foreground);
+}
+
+.statusrow {
+  margin-top: 12px;
+  display: flex;
+  height: 20px;
+  align-items: center;
+  gap: 7px;
+}
+
+.statusrow .label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.bridgerow {
+  margin-top: var(--bridge-mt, 8px);
+  display: flex;
+  height: 20px;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+}
+
+.bridgerow .label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.sw {
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--live);
+}
+
+.sw::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 16px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  border: 1px solid var(--boundary);
+  background: var(--card);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+/* the sites section — the only child allowed to give way */
+
+.sites {
+  margin-top: var(--section-mt, 16px);
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.head {
+  display: flex;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--foreground-2);
+}
+
+.head .n {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.allsites {
+  margin: 0 12px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 10px;
+}
+
+.list {
+  max-height: var(--list-cap, 132px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+  padding-left: 12px;
+  overflow: hidden;
+}
+
+.siterow {
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 10px;
+}
+
+.siterow .col,
+.allsites .col {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.l1 {
+  display: flex;
+  height: 16px;
+  align-items: center;
+  gap: 6px;
+}
+
+.name {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.l2 {
+  display: flex;
+  height: 20px;
+  align-items: center;
+  padding-left: 20px;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.ok {
+  color: var(--live);
+  font-weight: 600;
+}
+
+.glyph {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 2px solid var(--live);
+}
+
+.addwrap {
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+
+.addfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addinput {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px dashed var(--boundary);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* The 15px nobody could see from the source: reserved for a duplicate-site
+   note that is not showing. Marked, because it is why 28 was really 7. */
+.addnote {
+  height: 15px;
+  border-radius: 2px;
+}
+
+.rail[data-mark='addnote'] .addnote {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--pending) 26%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+.types {
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: var(--types-pt, 12px);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+  row-gap: var(--check-gap, 4px);
+  padding: 6px 12px 0;
+}
+
+.chk {
+  display: flex;
+  height: var(--check-h, 22px);
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--foreground-2);
+}
+
+.box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid var(--boundary);
+  flex-shrink: 0;
+}
+
+.box.on {
+  background: var(--foreground);
+  border-color: var(--foreground);
+}
+
+/* the element under discussion, outlined so it reads at a glance */
+.isnew::before {
+  content: '';
+  position: absolute;
+  inset: -3px -4px;
+  border-radius: 6px;
+  border: 1.5px dashed var(--dim);
+  pointer-events: none;
+}
+
+/* ---------- the dimension gutter ---------- */
+
+.dims {
+  position: relative;
+  width: 92px;
+  height: 600px;
+  flex: 0 0 auto;
+}
+
+.dim {
+  position: absolute;
+  left: 0;
+  width: 92px;
+  border-top: 1px solid color-mix(in srgb, var(--dim) 42%, transparent);
+}
+
+.dim::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 1px;
+  height: 6px;
+  background: var(--dim);
+}
+
+.dim > span {
+  position: absolute;
+  left: 6px;
+  top: -7px;
+  background: var(--paper);
+  padding: 0 4px;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.dim.slack {
+  border-top-style: dashed;
+}
+
+.dim.slack > span {
+  color: var(--under);
+}
+
+.dim.slack::before {
+  background: var(--under);
+}
+
+/* the vertical extent bar that spans a block */
+.span {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--dim) 42%, transparent);
+}
+
+/* ---------- budget table ---------- */
+
+.budget {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.budget caption {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 6px;
+}
+
+.budget th,
+.budget td {
+  text-align: left;
+  padding: 3.5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--hair) 60%, transparent);
+}
+
+.budget td.n {
+  text-align: right;
+  width: 62px;
+  font-weight: 600;
+}
+
+.budget tr.total th,
+.budget tr.total td {
+  border-bottom: none;
+  border-top: 1.5px solid var(--hair);
+  padding-top: 6px;
+  font-weight: 700;
+}
+
+.budget td.n.over {
+  color: var(--over);
+}
+
+.budget td.n.under {
+  color: var(--under);
+}
+
+.budget td.n.zero {
+  color: var(--ink-3);
+}
+
+.cost {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  border-top: 1px solid var(--hair);
+  padding-top: 10px;
+}
+
+.cost b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.cost .flag {
+  color: var(--over);
+  font-weight: 650;
+}
+
+/* ---------- closing prose ---------- */
+
+.prose {
+  margin-top: 56px;
+  max-width: 78ch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--hair);
+  padding-top: 28px;
+}
+
+.prose h2 {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.prose p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.prose p b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.swatch {
+  width: 22px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.swatch.outline {
+  border: 1.5px dashed var(--dim);
+  height: 12px;
+}
+
+.swatch.hatch {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--pending) 26%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+  border: 1px solid var(--hair);
+  height: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+</style>
+
+<header class="masthead">
+  <div class="eyebrow">HeaderLab · agent bridge · 팝업 기하</div>
+  <h1>브리지 줄을 넣을 21px 을 어디서 찾는가</h1>
+  <p class="lede">
+    설계 §5 가 안 A(리드아웃 카드의 넷째 줄)를 고른 근거는 <b>"레일 여유 28px 에 정확히
+    들어간다"</b>였다. 그 28px 은 소스를 읽어 더한 값이고, 문서에도 "구현 시 빌드된 팝업에서 다시
+    잰다"고 단서가 달려 있었다. 실제 Chrome 에 프로덕션 번들을 올려 재니 여유는 <b>7px</b> 이다.
+    선택의 전제가 틀렸으므로 선택을 다시 한다.
+  </p>
+  <p class="lede">
+    21px 이 놀고 있는 곳은 없다. 레일의 예약 공간은 전부 리플로우를 막으려고 일부러 잡은 것이고
+    — 리드아웃의 서브카운트 <code>h-4</code>, 애드필드 아래의 <code>h-[15px]</code> — 큰 블록
+    둘은 각자 값을 한다. 그래서 셋 다 무언가를 내준다. 무엇을 내줄지가 질문이다.
+  </p>
+</header>
+
+<dl class="finding">
+  <div class="pair">
+    <dt>레일 예산</dt>
+    <dd class="mono" data-fill="budget">–</dd>
+  </div>
+  <div class="pair">
+    <dt>현재 사용</dt>
+    <dd class="mono" data-fill="used">–</dd>
+  </div>
+  <div class="pair">
+    <dt>남는 여유</dt>
+    <dd class="mono under" data-fill="slack">–</dd>
+  </div>
+  <div class="pair">
+    <dt>브리지 줄</dt>
+    <dd class="mono">28px</dd>
+  </div>
+  <div class="pair">
+    <dt>부족</dt>
+    <dd class="mono over" data-fill="deficit">–</dd>
+  </div>
+</dl>
+
+<div class="legend">
+  <span><i class="swatch outline"></i> 논의 중인 새 줄</span>
+  <span><i class="swatch hatch"></i> 소스에서 안 보이던 15px — 애드필드가 중복 알림용으로 상시 예약</span>
+  <span><i class="swatch" style="background: var(--dim); opacity: 0.45"></i> 실측 치수선 (페이지가 자기를 잰 값)</span>
+</div>
+
+<div class="strip">
+  <div class="strip-inner" id="strip"></div>
+</div>
+
+<section class="prose">
+  <h2>읽는 법</h2>
+  <p>
+    치수선의 숫자는 <b>이 페이지가 로드 후 자기가 그린 박스를 실제로 재서</b> 쓴 것이다. 손으로
+    적은 값이 아니므로 시안이 자기 기하에 대해 거짓말을 할 수 없고, 기준선의 숫자가 실제 팝업을
+    잰 값(예산 576 · 사용 569 · 여유 7)과 일치하는지가 이 시안이 믿을 만한지의 검사다.
+  </p>
+  <p>
+    <b>셋째 행 노출</b>이 반복해서 나오는 이유는 그것이 사이트 목록 <code>max-h-[132px]</code>
+    의 존재 이유이기 때문이다. 행 하나가 48px 이고 사이 간격이 6px 이라 두 행과 그 뒤 간격이
+    108px, 세 행이면 156px 이다. 132 는 어느 쪽 배수도 아니게 일부러 고른 값이라 셋째 행이
+    <b>정확히 절반인 24px</b> 만 보이고, 그 잘린 행이 "아래에 더 있다"고 말하는 유일한 신호다.
+    스크롤바는 macOS 에서 오버레이라 평소에 보이지 않으므로 그 역할을 대신하지 못한다.
+  </p>
+  <p>
+    안 2 가 목록을 111px 로 만들면 셋째 행은 <b>3px</b> 남는다. 24 에서 3 으로 가는 것은 신호가
+    약해지는 게 아니라 사라지는 것에 가깝다 — 3px 짜리 조각은 잘린 행이라기보다 렌더링 오차처럼
+    보인다.
+  </p>
+</section>
+
+<script>
+  /*
+   * 네 가지 변형을 같은 마크업으로 그리고, 그린 뒤에 실제로 잰다.
+   * 손으로 적은 치수가 하나도 없어야 시안이 자기 기하에 대해 틀릴 수 없다.
+   */
+  const SITES = ['api.example.com', 'staging.example.com', 'internal.example.com', 'cdn.example.com', 'auth.example.com', 'ws.example.com'];
+
+  const VARIANTS = [
+    {
+      id: 'baseline',
+      name: '기준선',
+      verdict: 'baseline',
+      verdictLabel: '지금',
+      sub: '브리지 줄이 없는 현재 화면. 여기서 남는 것이 전부다.',
+      bridge: false,
+      vars: {},
+      cost: '<b>내주는 것 없음.</b> 대신 브리지를 켤 방법이 화면에 없다 — 3차가 존재하는 이유다.',
+    },
+    {
+      id: 'rhythm',
+      name: '안 1 · 여백 + 목록 5px',
+      verdict: 'fits',
+      verdictLabel: '권장',
+      sub: '카드·섹션·타입 여백을 4px 씩, 브리지 줄 자체도 4px 줄이고 나머지 5px 만 목록에서.',
+      bridge: true,
+      vars: {
+        '--card-mt': '12px',
+        '--section-mt': '12px',
+        '--types-pt': '8px',
+        '--bridge-mt': '4px',
+        '--list-cap': '127px',
+      },
+      cost:
+        '<b>목록 132 → 127.</b> 셋째 행이 24 → 19px 로, 잘린 행은 여전히 잘린 행으로 읽힌다. 대신 <span class="flag">남는 여유가 0</span> 이 되어, 다음에 무엇이든 한 줄 더하면 이 대화를 다시 한다.',
+    },
+    {
+      id: 'listonly',
+      name: '안 2 · 목록만 양보',
+      verdict: 'costly',
+      verdictLabel: '구현됨',
+      sub: '이미 커밋된 상태. 다른 것은 하나도 안 건드리고 목록이 전부 흡수한다.',
+      bridge: true,
+      vars: { '--list-cap': '111px' },
+      cost:
+        '<b>목록 132 → 111.</b> 셋째 행이 <span class="flag">24 → 3px</span>. 3px 은 잘린 행이 아니라 렌더링 오차로 보인다 — <code>max-h-[132px]</code> 가 그 숫자인 이유가 사라진다.',
+    },
+    {
+      id: 'checklist',
+      name: '안 3 · 체크리스트 축소',
+      verdict: 'tight',
+      verdictLabel: '목록 유지',
+      sub: '요청 타입 여덟 행을 22 → 20px 로, 행 간격 4px 을 없앤다. 목록은 132 그대로.',
+      bridge: true,
+      vars: { '--check-h': '20px', '--check-gap': '0px', '--bridge-mt': '6px' },
+      cost:
+        '<b>목록과 셋째 행 24px 을 온전히 지킨다.</b> 대신 체크박스 여덟 개가 서로 붙고 터치 타깃이 2px 씩 작아진다. ScopeRail 은 이 컨트롤을 "화면에서 가장 덜 만지는 것"이라 적어두었다.',
+    },
+  ];
+
+  const TYPES = [
+    ['main_frame', true],
+    ['sub_frame', true],
+    ['xhr', true],
+    ['script', false],
+    ['stylesheet', false],
+    ['image', false],
+    ['font', false],
+    ['media', false],
+  ];
+
+  function railMarkup(v) {
+    const sites = SITES.map(
+      (host) => `
+      <div class="siterow" data-block="siterow">
+        <div class="col">
+          <div class="l1"><i class="glyph"></i><span class="name">${host}</span></div>
+          <div class="l2"><span class="ok">Access granted</span></div>
+        </div>
+      </div>`,
+    ).join('');
+
+    const types = TYPES.map(
+      ([label, on]) =>
+        `<label class="chk"><i class="box${on ? ' on' : ''}"></i>${label}</label>`,
+    ).join('');
+
+    const bridge = v.bridge
+      ? `<div class="bridgerow isnew" data-block="bridge">
+           <i class="dot live"></i><span class="label">Bridge live</span>
+           <span class="spacer"></span><span class="btn">Disable</span>
+         </div>`
+      : '';
+
+    return `
+      <div class="brand" data-block="brand">
+        <span class="logo">⇅</span><span class="brandname">HeaderLab</span>
+      </div>
+
+      <div class="card" data-block="card">
+        <div class="count"><b>3</b><span>of 4 rules live</span></div>
+        <div class="sub"><i class="dot off"></i>1 off</div>
+        <div class="statusrow">
+          <i class="dot live"></i><span class="label">Active</span>
+          <span class="spacer"></span><i class="sw"></i>
+        </div>
+        ${bridge}
+      </div>
+
+      <div class="sites" data-block="sites">
+        <div class="head">Sites <span class="n">6</span></div>
+        <div class="allsites">
+          <div class="col">
+            <div class="l1"><i class="glyph" style="border-color: var(--muted-foreground)"></i><span class="name">All sites</span></div>
+            <div class="l2"><span style="color: var(--muted-foreground); font-weight: 500">The list below applies</span></div>
+          </div>
+          <i class="sw" style="background: var(--input)"></i>
+        </div>
+        <div class="list" data-block="list">${sites}</div>
+        <div class="addwrap">
+          <div class="addfield">
+            <div class="addinput">사이트 추가…</div>
+            <div class="addnote" data-block="addnote"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="types" data-block="types" data-auto-margin>
+        <div class="head">Request types <span class="n">3 of 8</span></div>
+        <div class="grid">${types}</div>
+      </div>`;
+  }
+
+  const strip = document.getElementById('strip');
+
+  for (const v of VARIANTS) {
+    const fig = document.createElement('figure');
+    fig.className = 'opt';
+    fig.innerHTML = `
+      <div class="opt-head">
+        <div class="opt-name">
+          <h2>${v.name}</h2>
+          <span class="verdict ${v.verdict}">${v.verdictLabel}</span>
+        </div>
+        <p class="opt-sub">${v.sub}</p>
+      </div>
+      <div class="stage">
+        <div class="rail" data-variant="${v.id}" data-mark="addnote"></div>
+        <div class="dims"></div>
+      </div>
+      <table class="budget">
+        <caption>실측 예산</caption>
+        <tbody></tbody>
+      </table>
+      <p class="cost">${v.cost}</p>`;
+
+    const rail = fig.querySelector('.rail');
+    for (const [prop, value] of Object.entries(v.vars)) rail.style.setProperty(prop, value);
+    rail.innerHTML = railMarkup(v);
+    strip.append(fig);
+    v.el = { fig, rail, dims: fig.querySelector('.dims'), body: fig.querySelector('tbody') };
+  }
+
+  /** Rounded, because sub-pixel noise in a dimension label is worse than useless. */
+  const h = (el) => Math.round(el.getBoundingClientRect().height);
+
+  function measure(v) {
+    const { rail, dims, body } = v.el;
+    const railBox = rail.getBoundingClientRect();
+    const railStyle = getComputedStyle(rail);
+    const budget =
+      rail.clientHeight -
+      Math.round(Number.parseFloat(railStyle.paddingTop)) -
+      Math.round(Number.parseFloat(railStyle.paddingBottom));
+
+    const pick = (name) => rail.querySelector(`[data-block="${name}"]`);
+    const blocks = [
+      { name: 'brand', label: '브랜드', el: pick('brand') },
+      { name: 'card', label: '리드아웃 카드', el: pick('card') },
+      { name: 'sites', label: '사이트 섹션', el: pick('sites') },
+      { name: 'types', label: '요청 타입', el: pick('types') },
+    ];
+
+    /*
+     * What has to be measured is the height the rail is *asked* for, which is
+     * not the height it renders. Two things make those differ, and both of
+     * them defeated an earlier attempt at this measurement:
+     *
+     * `mt-auto` on the request-types block resolves to whatever is left over,
+     * so reading its computed margin counts the free space twice — once as a
+     * margin and once as slack — and the answer comes out 0 every time, for
+     * every variant, which is exactly what a broken instrument looks like when
+     * it looks like a result.
+     *
+     * And the site list is the one child allowed to shrink, so it silently
+     * absorbs any deficit before the rail can overflow. Its rendered height
+     * therefore says nothing; what it *wanted* is `min(cap, content)`.
+     */
+    const list = pick('list');
+    const listCap = Math.round(Number.parseFloat(getComputedStyle(list).maxHeight));
+    const listWanted = Math.min(listCap, list.scrollHeight);
+    const listH = h(list);
+    const shrunkBy = Math.max(0, listWanted - listH);
+
+    let used = 0;
+    const rows = [];
+    for (const b of blocks) {
+      const mt = b.el.hasAttribute('data-auto-margin')
+        ? 0
+        : Math.round(Number.parseFloat(getComputedStyle(b.el).marginTop) || 0);
+      const own = h(b.el) + (b.name === 'sites' ? shrunkBy : 0);
+      used += mt + own;
+      rows.push({ label: b.label, mt, own, total: mt + own, el: b.el });
+    }
+
+    const slack = budget - used;
+    /* Two rows plus the gap after them is 108px; the rest is the third row. */
+    const thirdRow = Math.max(0, listWanted - 108);
+
+    /* ----- dimension gutter, drawn from what was just measured ----- */
+    dims.replaceChildren();
+    const railTop = railBox.top;
+    for (const r of rows) {
+      const box = r.el.getBoundingClientRect();
+      const line = document.createElement('div');
+      line.className = 'dim';
+      line.style.top = `${Math.round(box.top - railTop)}px`;
+      line.innerHTML = `<span>${r.label} ${r.own}</span>`;
+      dims.append(line);
+
+      const bar = document.createElement('div');
+      bar.className = 'span';
+      bar.style.top = `${Math.round(box.top - railTop)}px`;
+      bar.style.height = `${r.own}px`;
+      dims.append(bar);
+    }
+    const foot = document.createElement('div');
+    foot.className = 'dim slack';
+    foot.style.top = `${Math.round(railBox.height)}px`;
+    foot.innerHTML = `<span>여유 ${slack}</span>`;
+    dims.append(foot);
+
+    /* ----- budget table ----- */
+    body.replaceChildren();
+    const addRow = (label, value, cls = '', total = false) => {
+      const tr = document.createElement('tr');
+      if (total) tr.className = 'total';
+      tr.innerHTML = `<th scope="row">${label}</th><td class="n ${cls}">${value}</td>`;
+      body.append(tr);
+    };
+    for (const r of rows) addRow(r.label, `${r.total}`);
+    addRow('사용 합계', `${used}`, '', true);
+    addRow('예산', `${budget}`);
+    addRow('여유', `${slack}`, slack === 0 ? 'zero' : slack > 0 ? 'under' : 'over');
+    addRow('사이트 목록', `${listWanted}`);
+    addRow(
+      '셋째 행 노출',
+      `${thirdRow} / 48`,
+      thirdRow >= 19 ? 'under' : thirdRow >= 10 ? '' : 'over',
+    );
+
+    return { budget, used, slack, listH, thirdRow };
+  }
+
+  /* Fonts settle after first paint; measuring before that reports the wrong box. */
+  const run = () => {
+    const results = VARIANTS.map((v) => ({ v, m: measure(v) }));
+    const base = results.find((r) => r.v.id === 'baseline').m;
+    const fill = (key, text) => {
+      for (const el of document.querySelectorAll(`[data-fill="${key}"]`)) el.textContent = text;
+    };
+    fill('budget', `${base.budget}px`);
+    fill('used', `${base.used}px`);
+    fill('slack', `${base.slack}px`);
+    fill('deficit', `${28 - base.slack}px`);
+  };
+
+  if (document.fonts?.ready) document.fonts.ready.then(run);
+  else window.addEventListener('load', run);
+  window.addEventListener('resize', run);
+</script>
