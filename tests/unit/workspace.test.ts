@@ -99,9 +99,14 @@ describe('the workspace', () => {
 // argv grammar and id-correlation suites all merged green whether they
 // passed or not, because nothing ever executed them.
 describe('the CI workflow', () => {
+  // The obvious form of this — `toContain('pnpm test:packages')` — passes
+  // against a commented-out step, because the phrase is still in the file.
+  // That is the defect this whole guard exists to prevent, one level up: a
+  // check that reports the suites are covered when nothing runs them. The
+  // pattern requires an active `- run:` line, so `# - run: …` fails it.
   it('runs pnpm test:packages as its own job', () => {
     const ciYml = readFileSync('.github/workflows/ci.yml', 'utf8');
-    expect(ciYml).toContain('pnpm test:packages');
+    expect(ciYml).toMatch(/^\s*-\s+run:\s+pnpm test:packages\s*$/m);
   });
 
   // The next check treats "declared in the workspace" as equivalent to
