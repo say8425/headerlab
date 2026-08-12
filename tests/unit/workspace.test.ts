@@ -160,11 +160,36 @@ describe('the release configuration', () => {
     expect(config.packages['packages/cli']['include-component-in-tag']).toBeUndefined();
   });
 
-  // A never-released package must be seeded exactly "0.0.0" or the backfill
-  // makes its first changelog cover the entire history.
-  it('seeds the unreleased package at exactly 0.0.0', () => {
-    expect(manifest['.']).toBe('1.0.0');
-    expect(manifest['packages/cli']).toBe('0.0.0');
+  /**
+   * The old form of this test pinned `manifest['.']` to `'1.0.0'` and
+   * `manifest['packages/cli']` to `'0.0.0'` — true only of the manifest's
+   * *initial* seed. `.release-please-manifest.json` IS release-please's
+   * state: merging the first release PR writes the bumped versions straight
+   * into this file. On that push `pnpm check` runs, this pin would go red,
+   * and the job dies BEFORE `pnpm zip` and `gh release upload` — after the
+   * tag and GitHub release already exist, in the one job holding
+   * `contents: write`. A published release with no artifact, and a red
+   * `main`, from a guard that was only ever true once.
+   *
+   * What is durably true instead: every manifest entry is strict semver and
+   * matches exactly the packages release-please-config.json configures, plus
+   * — for the CLI specifically — its manifest entry tracks its own
+   * package.json, which is the invariant release-please actually maintains
+   * (mirrors `tests/unit/plugin.test.ts`'s "carries one version across both
+   * manifests"). The next person to touch this file will be tempted to
+   * re-pin it after a release changes the numbers; don't — re-pinning is
+   * exactly what breaks on the release after that one.
+   */
+  it('keeps the manifest in strict semver, one entry per configured package', () => {
+    expect(Object.keys(manifest).sort()).toEqual(Object.keys(config.packages).sort());
+    for (const version of Object.values(manifest)) {
+      expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    }
+  });
+
+  it("tracks the CLI package's own version", () => {
+    const cliPackage = JSON.parse(readFileSync('packages/cli/package.json', 'utf8'));
+    expect(manifest['packages/cli']).toBe(cliPackage.version);
   });
 
   // All eleven extraFileUpdates sites set createIfMissing: false. A wrong
