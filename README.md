@@ -106,8 +106,11 @@ one has run the suite against it.
 
 ```bash
 pnpm dev             # WXT dev server → load .output/chrome-mv3-dev unpacked
-pnpm check           # four of CI's five jobs: typecheck · lint · format · unit tests
+pnpm check           # four of CI's six jobs: typecheck · lint · format · unit tests
 pnpm test            # wxt build && vitest run — unit tests, no browser
+pnpm test:packages   # the agent-bridge packages, under node:test — vitest's
+                     # glob does not reach them, so this is its own CI job
+pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # oxlint          (pnpm lint:fix to apply fixes)
