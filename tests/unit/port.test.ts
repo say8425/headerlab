@@ -1,7 +1,7 @@
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { declaresRegexMode, disconnectBridge, refreshBridge } from '@/lib/bridge/port';
-import { getBridgeStatus } from '@/lib/storage/session';
+import { bridgeStatusItem, getBridgeStatus } from '@/lib/storage/session';
 import { setState } from '@/lib/storage/state';
 import { bootstrapProfile, DEFAULT_STATE } from '@/lib/model/defaults';
 import type { AppState } from '@/lib/model/types';
@@ -321,6 +321,55 @@ describe('the two refusals', () => {
     await settle();
 
     expect(port.messages[0]).toMatchObject({ id: '1', ok: true });
+  });
+});
+
+describe('a bridge-status write can fail without breaking the bridge', () => {
+  it('still answers the command when only the lastCommandAt write fails', async () => {
+    // patchBridgeStatus's own promise can now reject (round 1 serialized it),
+    // and the lastCommandAt write sits between the state write that already
+    // succeeded and the reply that tells the caller so. An implementation
+    // that lets this `await` throw past the reply is plausible-looking and
+    // wrong: setState already landed, so the reply is the truthful thing and
+    // must go out regardless of whether the timestamp made it.
+    await refreshBridge();
+    const port = ports[0]!;
+    // connect()'s own `{connected: true}` write is fire-and-forget, so
+    // `refreshBridge()` resolving does not guarantee it has already reached
+    // `setValue()` — settle first, so the mock below targets the
+    // lastCommandAt write the `pause` command triggers, not that earlier one.
+    await settle();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(bridgeStatusItem, 'setValue').mockRejectedValueOnce(new Error('disk full'));
+
+    port.send({ id: '1', command: { cmd: 'pause' } });
+    await settle();
+
+    // The reply, not just "no throw" — an implementation that dropped the
+    // reply entirely would also leave nothing to assert against, which is
+    // why this checks the message actually arrived.
+    expect(port.messages).toHaveLength(1);
+    expect(port.messages[0]).toMatchObject({ id: '1', ok: true, changed: true });
+    expect(console.error).toHaveBeenCalledWith(expect.any(String), expect.any(Error));
+    const [, loggedError] = (console.error as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect((loggedError as Error).message).toBe('disk full');
+  });
+
+  it('reports a failed connect-time status write instead of leaving it an unhandled rejection', async () => {
+    // connect() fires `{connected: true}` without awaiting it. Before round
+    // 1, patchBridgeStatus's internal read+write could still reject, but
+    // nothing there changes: this asserts the *fire-and-forget* call sites
+    // report a failure the same way the awaited one does, rather than one
+    // being caught and the others left as unhandled rejections.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(bridgeStatusItem, 'setValue').mockRejectedValueOnce(new Error('disk full'));
+
+    await refreshBridge();
+    await settle();
+
+    expect(console.error).toHaveBeenCalledWith(expect.any(String), expect.any(Error));
+    const [, loggedError] = (console.error as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect((loggedError as Error).message).toBe('disk full');
   });
 });
 

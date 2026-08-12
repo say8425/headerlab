@@ -115,10 +115,12 @@ function connect(): void {
     current = chrome.runtime.connectNative(NATIVE_HOST_NAME);
   } catch (error) {
     port = null;
-    void patchBridgeStatus({
-      connected: false,
-      lastError: error instanceof Error ? error.message : String(error),
-    });
+    reportStatusFailure(
+      patchBridgeStatus({
+        connected: false,
+        lastError: error instanceof Error ? error.message : String(error),
+      }),
+    );
     return;
   }
   port = current;
@@ -133,7 +135,7 @@ function connect(): void {
     const message = chrome.runtime.lastError?.message ?? null;
     if (port !== current) return;
     port = null;
-    void patchBridgeStatus({ connected: false, lastError: message });
+    reportStatusFailure(patchBridgeStatus({ connected: false, lastError: message }));
     if (attempts < MAX_CONNECT_ATTEMPTS) connect();
   });
 
@@ -141,7 +143,24 @@ function connect(): void {
   // host is not really there. The alternative — waiting for a round trip
   // before saying so — would leave the popup showing `idle` for every healthy
   // bridge until someone happened to run a command.
-  void patchBridgeStatus({ connected: true, lastError: null });
+  reportStatusFailure(patchBridgeStatus({ connected: true, lastError: null }));
+}
+
+/**
+ * Every caller here is fire-and-forget — `void patchBridgeStatus(...)`, on an
+ * event chain nothing else awaits. Round 1 made `patchBridgeStatus`'s own
+ * promise able to reject (it no longer poisons the *next* call, but it still
+ * carries its own outcome), so an unattached rejection here would surface
+ * only as an unhandled rejection in the service worker — not silently
+ * swallowed, but not reported anywhere anyone could act on either. Same
+ * shape as `recordStatus`/`recordIcon` in lib/sync/ruleSync.ts: a side
+ * record's failure must not become the caller's failure, and must not go
+ * unreported.
+ */
+function reportStatusFailure(result: Promise<void>): void {
+  result.catch((error) => {
+    console.error('[HeaderLab] failed to record bridge status', error);
+  });
 }
 
 function reply(current: chrome.runtime.Port, id: string, result: ApplyResult): void {
@@ -200,7 +219,16 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
   const result = apply(state, command);
   if (result.ok && result.changed) {
     await setState(result.state);
-    await patchBridgeStatus({ lastCommandAt: new Date().toISOString() });
+    // The state write above already succeeded — the reply below is the
+    // truthful thing regardless of whether this purely informational
+    // timestamp lands. Awaited rather than fire-and-forget (unlike connect()'s
+    // writes) specifically so its own `.catch` runs *before* `reply()`, not
+    // racing it: letting the rejection propagate past this point would skip
+    // `reply()` entirely, leaving the CLI to wait out its timeout for an
+    // answer to a command that already applied.
+    await patchBridgeStatus({ lastCommandAt: new Date().toISOString() }).catch((error) => {
+      console.error('[HeaderLab] failed to record bridge status', error);
+    });
   }
   reply(current, id, result);
 }
