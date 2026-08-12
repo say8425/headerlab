@@ -68,6 +68,12 @@ function unlinkIfExists(targetPath) {
  * disagree the two halves would silently look in different directories with
  * nothing failing to show it.
  *
+ * Called by absolute path, `/usr/bin/getconf`, rather than by name: this
+ * process is launched by Chrome, which — same trap this file's own history
+ * has already hit once, in `bin/headerlab-host.mjs`'s `#!/usr/bin/env node`
+ * comment — gives native messaging hosts an environment with no `PATH` a
+ * bare `execFileSync('getconf', …)` could resolve through.
+ *
  * Falls back to `os.tmpdir()` when `getconf` is unavailable (not Darwin, or
  * the binary is missing) — that fallback IS the case where the two halves
  * can diverge, since it reads whichever `$TMPDIR` each process happened to
@@ -76,7 +82,7 @@ function unlinkIfExists(targetPath) {
 export function socketDir() {
   let base = '';
   try {
-    base = execFileSync('getconf', ['DARWIN_USER_TEMP_DIR'], {
+    base = execFileSync('/usr/bin/getconf', ['DARWIN_USER_TEMP_DIR'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
