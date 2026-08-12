@@ -295,7 +295,10 @@ and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 639 unit tests across 30 files, plus 11 e2e tests.
+At the time of writing: 750 unit tests across 36 files, plus 11 e2e tests. The
+host and the CLI carry their own, run by Node's built-in test runner rather
+than vitest, because neither has a dependency and neither should acquire one:
+35 and 54 respectively.
 
 ## Status
 
