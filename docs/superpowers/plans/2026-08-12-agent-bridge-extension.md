@@ -222,7 +222,6 @@ PATH="$PWD/.superpowers/sdd/2026-08-12-agent-bridge-packaging:$PATH" pnpm test m
 
 ```ts
 import {
-  probeAllSites,
   probeGrants,
   probeNativeMessaging,
   removeNativeMessaging,
@@ -231,7 +230,9 @@ import {
 } from '@/lib/permissions/probe';
 ```
 
-(기존 임포트 목록에 맞춰 정렬만 유지한다. 기존에 없던 이름만 더한다.)
+(기존 임포트 목록에 맞춰 정렬만 유지한다. 기존에 없던 이름만 더한다. `probeAllSites` 는
+이 파일에서 **호출되지 않는다** — 주석 안에만 나온다 — 므로 임포트하면
+`--deny-warnings` 아래 oxlint 의 no-unused-vars 에 걸린다.)
 
 ```ts
 type PermissionsArg = { permissions?: string[]; origins?: string[] };
