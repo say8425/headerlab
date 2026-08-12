@@ -89,7 +89,20 @@ export async function getBridgeStatus(): Promise<BridgeStatus> {
  * whole-record write from any of them would erase what the other two said,
  * which is how `lastCommandAt` would vanish every time the port blinked.
  */
-export async function patchBridgeStatus(patch: Partial<BridgeStatus>): Promise<void> {
-  const current = await getBridgeStatus();
-  await bridgeStatusItem.setValue({ ...current, ...patch });
+let pending: Promise<void> = Promise.resolve();
+
+export function patchBridgeStatus(patch: Partial<BridgeStatus>): Promise<void> {
+  const result = pending.then(async () => {
+    const current = await getBridgeStatus();
+    await bridgeStatusItem.setValue({ ...current, ...patch });
+  });
+  // `pending` is the shared baton, and it must never reject — chaining the
+  // next call onto a rejected promise would skip that call's own read/write
+  // entirely (a `.then` with no rejection handler propagates the rejection
+  // instead of running), silently stopping the bridge status from updating
+  // for the rest of the session over one storage failure. `result`, handed
+  // back to *this* call's caller, is left alone — it still reflects this
+  // patch's own outcome.
+  pending = result.catch(() => {});
+  return result;
 }

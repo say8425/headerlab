@@ -97,10 +97,10 @@ export async function refreshBridge(): Promise<void> {
 /**
  * Closes the port without arming a retry.
  *
- * Chrome does not fire `onDisconnect` on the side that called `disconnect()`,
- * but the listener guards on identity anyway — a port superseded by a later
- * connect must not be able to reset the newer one's state from its own
- * teardown.
+ * The `onDisconnect` listener guards on identity (`if (port !== current)
+ * return`) regardless of which side triggers it: a port superseded by a
+ * later connect must not be able to reset the newer one's state from its own
+ * teardown, whether or not this call itself also fires that listener.
  */
 export function disconnectBridge(): void {
   const closing = port;
