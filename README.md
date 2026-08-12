@@ -102,6 +102,26 @@ unpacked**, and select the unpacked directory.
 Chrome only. Edge is untested — it is the same engine and should work, but no
 one has run the suite against it.
 
+### The agent skill
+
+`packages/plugin` packages the CLI as a skill for Claude Code and for Codex,
+from one `skills/` tree under two manifests. Neither is published to a
+directory, so both install from this repository:
+
+```bash
+# Claude Code
+claude plugin marketplace add say8425/headerlab
+claude plugin install headerlab@headerlab
+
+# Codex
+codex plugin marketplace add say8425/headerlab
+```
+
+The skill runs `command -v headerlab` before its own content reaches the model,
+so a missing CLI arrives as a fact rather than as a surprise mid-task. **It will
+report `bridge-off` until the extension side exists** — see *Not wired up yet*
+below.
+
 ## Development
 
 ```bash
@@ -172,10 +192,13 @@ lib/model/       types, zod schema, defaults, migrations   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts calls the browser
 lib/view/        popup view models                         pure
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer)   pure
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      popup UI
 entrypoints/     background.ts, popup/
+packages/        the agent bridge, outside the extension bundle — cli, host,
+                 plugin. Zero deps, node:test, their own CI job
 ```
 
 **All correctness lives in a pure layer that never imports `chrome.*`.**
@@ -298,10 +321,13 @@ and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 750 unit tests across 36 files, plus 11 e2e tests. The
-host and the CLI carry their own, run by Node's built-in test runner rather
-than vitest, because neither has a dependency and neither should acquire one:
-35 and 54 respectively.
+At the time of writing: 755 unit tests across 36 files, plus 11 e2e tests. The
+host and the CLI carry their own — 43 and 54 — run by Node's built-in test
+runner rather than vitest, because neither package has a dependency and
+neither should acquire one. `vitest.config.ts`'s glob cannot reach them, which
+is why they get a CI job of their own rather than riding `pnpm test`: for a
+while they were merging unexecuted, and a suite nothing runs is worse than one
+that does not exist, because it reports success.
 
 ## Status
 
@@ -318,8 +344,15 @@ Deliberately not built yet, and worth knowing before you look for them:
   first — import is what makes the unvalidated surfaces reachable.
 - **No tab lock UI.** The compile path exists and is tested; nothing can turn it
   on.
-- **No regex scoping UI**, and no RE2 validation to go with it.
+- **No regex scoping UI**, and no RE2 validation to go with it. The adapter
+  therefore has to refuse a `state set` payload in regex mode until that UI
+  exists — otherwise the bridge becomes the way an unvalidated pattern reaches
+  `regexFilter`, which is precisely the surface import was always going to open.
 - **No manual theme toggle.** The theme follows the OS.
+- **The agent bridge is half-built, deliberately.** The CLI, the host and the
+  decision layer are done and tested; the extension cannot open the port yet, so
+  nothing connects. See *Agent bridge* above for what exists, and what the
+  remaining three pieces are.
 
 ## License
 
