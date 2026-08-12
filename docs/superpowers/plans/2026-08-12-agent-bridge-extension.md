@@ -28,8 +28,16 @@
 ## 실측으로 확정된 사실
 
 - **`browser.runtime.connectNative` 는 함수가 아니다.** WXT 래퍼가 노출하지 않는다.
-  `chrome.runtime.connectNative` 를 직접 부른다. `@types/chrome` 이 설치돼 있어
-  `chrome.runtime.Port` 타입은 그냥 쓸 수 있다(`node_modules/@types/chrome/index.d.ts:9600`).
+  `chrome.runtime.connectNative` 를 직접 부른다.
+- **`@types/chrome` 은 설치돼 있지만 자동으로 딸려오지 않는다.** 이 계획의 초판은 "설치돼
+  있으니 그냥 쓸 수 있다" 고 적었고 **그것은 틀렸다** — Task 2 구현자가 재현에 실패해 멈췄고,
+  나도 따로 확인했다. 이 저장소는 `typescript@7.0.2`(네이티브 tsgo)를 핀하는데 그 아래에서는
+  ambient 타입 자동 포함이 `@types/chrome` 을 집지 않는다. `chrome.*` 를 만지는 파일은 첫 줄에
+  `/// <reference types="chrome" />` 를 단다. `tsconfig.json` 의 `types` 를 건드리지 않는다 —
+  그 키는 자동 목록을 **확장하는 게 아니라 대체한다.** 확인법: 디렉티브를 지우고
+  `pnpm typecheck` → `TS2503: Cannot find namespace 'chrome'` 다섯 개.
+  (`@types/react` 가 영향을 안 받는 이유는 그쪽이 자동 포함이 아니라 평범한 임포트 해석으로
+  풀리기 때문이다.)
 - **`@webext-core/fake-browser` 의 `runtime.connectNative` 는 던지는 스텁**이다
   (`notMockedFunction("runtime.connectNative")`). 설계 §9 는 "정의하지 않는다"고 적었는데
   실제로는 정의돼 있고 던진다 — 효과는 같다. 테스트는 `browser` 가 아니라
@@ -931,6 +939,7 @@ PATH="$PWD/.superpowers/sdd/2026-08-12-agent-bridge-packaging:$PATH" pnpm test p
 `lib/bridge/port.ts` 를 새로 만든다:
 
 ```ts
+/// <reference types="chrome" />
 import { apply } from '@/lib/bridge/apply';
 import { parseCommand } from '@/lib/bridge/protocol';
 import { probeNativeMessaging } from '@/lib/permissions/probe';
