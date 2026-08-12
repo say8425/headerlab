@@ -205,18 +205,18 @@ Code / Codex plugin that packages the CLI as a skill). All three have zero
 runtime dependencies.
 
 ```
-CLI (headerlab)                  Native host              Extension (SW)
-node, zero deps                   node, zero deps          lib/bridge/
-   │                                  │                        │
-   │  unix socket                     │  stdio                 │
-   │  $TMPDIR/headerlab/<n>.sock      │  (4-byte length + JSON)│
-   └──────── one JSON line ──────────►├───────────────────────►│
-            request/response          │                    apply()
-   ◄──────────────────────────────────┤◄───────────────────────┤
-                                       │                   local:state
-                                       │                        ▼
-                                    Chrome launches           reconcile()
-                                    and kills it            (existing single loop)
+CLI (headerlab)                      Native host              Extension (SW)
+node, zero deps                       node, zero deps          lib/bridge/
+   │                                      │                        │
+   │  unix socket                         │  stdio                 │
+   │  $TMPDIR/headerlab/bridge-<pid>.sock │  (4-byte length + JSON)│
+   └──────── one JSON line ──────────────►├───────────────────────►│
+            request/response              │                    apply()
+   ◄──────────────────────────────────────┤◄───────────────────────┤
+                                           │                   local:state
+                                           │                        ▼
+                                        Chrome launches       reconcile()
+                                        and kills it        (existing single loop)
 ```
 
 The direction is the one fact this diagram exists to carry: the host cannot
