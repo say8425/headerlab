@@ -11,9 +11,11 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
-pnpm check           # typecheck · lint · format:check · test — four of CI's five jobs, in one command
+pnpm check           # typecheck · lint · format:check · test — four of CI's six jobs, in one command
 pnpm test            # wxt build && vitest run  — the build is not optional, see below
 pnpm test:e2e        # wxt build --mode e2e && playwright test
+pnpm test:packages   # pnpm -r test — the agent-bridge packages, node:test, invisible to vitest
+pnpm check:all       # pnpm check && pnpm -r test — everything above, in one command
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 pnpm format:check    # oxfmt --check            (pnpm format to write)
@@ -42,6 +44,7 @@ lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer)   pure
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
 lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
@@ -54,6 +57,10 @@ entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
                  that exposes them as utilities, and the shadcn data-* variants
 public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
+packages/        the agent-bridge pnpm workspace — cli (the `headerlab`
+                 command), host (native-messaging relay), plugin (Claude
+                 Code / Codex skill). Zero runtime deps, node:test, own
+                 CI job. See README's "Agent bridge" section for the design.
 ```
 
 **Decision logic lives in a pure layer; browser calls live in one thin adapter each.**
@@ -65,12 +72,18 @@ constraint produced.
 `tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
 above calls pure.** Two directories are auto-discovered, so a new file in either is
 guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
-of exactly three files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts` and
-`lib/model/migrate.ts` — because `lib/permissions/` also holds the adapter (`probe.ts`)
-that must *not* be guarded, so there is no directory-shaped rule to apply. `schema.ts`,
-`defaults.ts`, `types.ts` and `lib/utils.ts` are pure by convention and unguarded in
-fact. A new pure file outside those two directories is unguarded until someone adds it
-by name.
+of exactly seven files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
+`lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
+`lib/bridge/apply.ts` and `lib/model/schema.ts`. `lib/permissions/` and `lib/bridge/`
+each also hold (or will hold) an adapter that must *not* be guarded — `probe.ts` already,
+`port.ts` soon — so neither directory has a directory-shaped rule to apply. `defaults.ts`
+and `schema.ts` are named individually for the same one-hop reason: the guard only scans
+a file's own source, so if guarded `lib/bridge/apply.ts` imports either as a runtime
+value — `bootstrapProfile`/`newRule` from `defaults.ts`, `parseAppState` from `schema.ts`
+(a value import, not the `import type` that would be erased) — a browser dependency
+arriving through it would slip past unnoticed. `types.ts` and `lib/utils.ts` are pure by
+convention and unguarded in fact. A new pure file outside those two directories is
+unguarded until someone adds it by name.
 
 **One reconcile loop.** Every trigger — storage change, worker startup, permission
 grant or revoke — funnels into `reconcile()` in `lib/sync/ruleSync.ts`. It recompiles
@@ -132,6 +145,17 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
   10, and the version that does not own a spelling ignores it in silence.
+  **`pnpm-workspace.yaml` also declares `packages:`** — `packages/cli`, `packages/host`,
+  `packages/plugin`, named rather than globbed, so a directory joining the release surface
+  shows up as a diff instead of silently matching a glob (`tests/unit/workspace.test.ts`
+  pins the exact three, and the same file guards CI actually running their tests — see
+  the CI section below). The extension itself stays at the repository root, and that is
+  load-bearing rather than tidy: release-please prefixes every output with the package
+  path once that path is not `.`, which would leave conditions in `release-please.yml`
+  evaluating false — tagging a release with no check, no zip and no attached artifact, in
+  the one job holding `contents: write`, with nothing going red. That reasoning otherwise
+  lives only in a YAML comment; `docs/superpowers/specs/2026-08-11-agent-bridge-design.md`
+  §6.1 has the fuller version.
   **`npm_config_ignore_scripts=false` does not override pnpm's `.npmrc`.
   `--ignore-scripts=false` does**, and the gap between them is why CI found this rather
   than this machine: the first form was measured here, reported nothing blocked, and this
@@ -287,16 +311,18 @@ a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`
 Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
 there is no dependabot here yet.
 
-**CI is five jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
+**CI is six jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
 Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
 each so a push reported every failure instead of one per round trip. Separate jobs do the
 same thing without the trick, and name the failing check in the PR's check list rather
-than burying it in one job's log. The cost is honest and small: each job installs
-dependencies again, and `format:check` takes 82ms against a setup measured in seconds. It
-buys per-check status, and it is what was asked for.
+than burying it in one job's log. `packages` joined later as a sixth, for the
+`packages/*/test/*.mjs` suites `vitest.config.ts`'s glob does not reach — see Commands'
+`test:packages` line. The cost is honest and small: each job installs dependencies again,
+and `format:check` takes 82ms against a setup measured in seconds. It buys per-check
+status, and it is what was asked for.
 
 **The setup those jobs share is a local composite action, `.github/actions/setup`.**
-Five copies of the same six steps is the shape that drifts. Two things in it are surprising
+Six copies of the same six steps is the shape that drifts. Two things in it are surprising
 at the point of use and carry a comment there: `corepack enable` runs *after* setup-node so
 the shims land in the Node the job will use, and `cache: pnpm` is therefore unusable
 because setup-node resolves the store before pnpm exists — hence the explicit
