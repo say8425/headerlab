@@ -240,36 +240,12 @@ export function writeRegistryEntry(dir, pid, { origin, startedAt }) {
  * function exists to close, since `unlinkSync` alone already reports "not
  * there" via ENOENT.
  *
- * WHAT IS ACTUALLY PROVEN HERE, AND BY WHAT — this is deliberately precise
- * rather than implying the same coverage `removeStaleSocket`'s test has:
- *
- * - In-process concurrency cannot reach this race. This function has no
- *   `await` anywhere in it, so run-to-completion guarantees `Promise.all([
- *   removeRegistryEntry(...), removeRegistryEntry(...)])` runs the first
- *   call to full completion before the second one starts — there is no
- *   interleaving to test. `socket.test.mjs`'s "idempotent when there is
- *   nothing to remove" test covers the resulting shape (unlink a path that
- *   is not there) but proves nothing about concurrency, only about ENOENT
- *   tolerance in isolation.
- * - The real race is cross-process (two hosts sweeping the same dead entry
- *   at once), and a cross-process test WAS attempted here and abandoned as
- *   unreliable — measured, not assumed. Two separate `node` child processes
- *   racing a real `unlinkSync` on one shared path, mutation-verified against
- *   both this fix and its removal, both inside and outside this
- *   environment's sandbox: roughly 15–20% of trials saw BOTH processes'
- *   `unlinkSync` report success even with the ENOENT-catch removed — i.e.
- *   `unlink()` on this filesystem does not reliably give exactly one caller
- *   ENOENT when two processes race it closely enough, contrary to the
- *   textbook POSIX-atomicity assumption. A test built on "both processes
- *   must not throw" would therefore sometimes pass by luck on a reverted
- *   fix — exactly the "timing-dependent test that passes by luck is worse
- *   than none" case, so no such test is committed.
- * - What actually holds, and does not need a race to demonstrate it:
- *   catching ENOENT is unconditionally correct for a delete-if-present
- *   operation regardless of *why* the target is missing — never created,
- *   removed by an earlier call in this process, or removed by a concurrent
- *   process. The guarantee here rests on that being true by inspection of
- *   `unlinkIfExists`, not on reproducing a specific interleaving.
+ * In-process concurrency cannot reach the race this guards against — this
+ * function has no `await`, so run-to-completion means there is no
+ * interleaving to test in a single process. The real, cross-process race
+ * was measured rather than assumed, and deliberately has no test committed
+ * for it: the measurement and the reasoning live in
+ * docs/research/2026-08-11-native-messaging-spike.md rather than here.
  */
 export function removeRegistryEntry(dir, pid) {
   unlinkIfExists(registryPathFor(dir, pid));
