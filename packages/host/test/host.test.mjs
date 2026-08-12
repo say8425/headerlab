@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { tmpdir } from 'node:os';
+import { endianness, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, test } from 'node:test';
-import { decode, encode } from '../lib/framing.mjs';
+import { MAX_INCOMING, decode, encode } from '../lib/framing.mjs';
 import { startHost } from '../lib/host.mjs';
 import { ensureSocketDir, socketPathFor } from '../lib/socket.mjs';
 
@@ -54,6 +54,17 @@ function connectClient(socketPath) {
     client.once('connect', () => resolve(client));
     client.once('error', reject);
   });
+}
+
+// Hand-frames a body that is not necessarily valid JSON — encode() refuses
+// to build a frame around anything it can't JSON.stringify, so the malformed
+// bodies these tests need have to be assembled the same way framing.mjs
+// itself would, header endianness included.
+function frameOf(bodyBuffer) {
+  const header = Buffer.alloc(4);
+  if (endianness() === 'LE') header.writeUInt32LE(bodyBuffer.length, 0);
+  else header.writeUInt32BE(bodyBuffer.length, 0);
+  return Buffer.concat([header, bodyBuffer]);
 }
 
 const liveServers = [];
@@ -226,4 +237,94 @@ test('a framed message on stdin reaches every connected socket client as one JSO
   const expected = [`${JSON.stringify({ cmd: 'diagnostics' })}\n`];
   assert.deepEqual(receivedA, expected);
   assert.deepEqual(receivedB, expected);
+});
+
+// --- a malformed frame must not crash the process ---------------------------
+
+test('a malformed JSON frame on stdin is logged, does not crash the host, and normal shutdown still cleans up', async () => {
+  const dir = freshDir();
+  ensureSocketDir(dir);
+  const pid = freshPid();
+  const { stdin, stdout } = fakeStreams();
+  const { log, calls: logCalls } = spyLog();
+  const { exit, calls: exitCalls } = spyExit();
+
+  const { server } = await startHost({
+    dir,
+    extensionOrigin: 'chrome-extension://host-malformed-json-test/',
+    pid,
+    stdin,
+    stdout,
+    log,
+    exit,
+  });
+  liveServers.push(server);
+
+  // decode() runs synchronously inside the 'data' handler with nothing
+  // between it and Node's event loop, so an uncaught throw here would take
+  // down this whole test process, not just fail an assertion — the mutation
+  // this test exists to catch (host.mjs's try/catch removed) fails LOUDLY
+  // rather than red, which is worth knowing going in.
+  stdin.write(frameOf(Buffer.from('{not json', 'utf8')));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(exitCalls, [], 'a malformed frame must not trigger shutdown');
+  assert.ok(
+    logCalls.some((args) => String(args[0]).includes('malformed frame')),
+    'the malformed frame must be logged to stderr via the injected log',
+  );
+
+  // Still alive, not just "didn't crash yet": a subsequent well-formed frame
+  // must still reach connected clients.
+  const client = await connectClient(socketPathFor(dir, pid));
+  liveClients.push(client);
+  const received = [];
+  client.on('data', (chunk) => received.push(chunk.toString('utf8')));
+
+  stdin.write(encode({ cmd: 'status' }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(received, [`${JSON.stringify({ cmd: 'status' })}\n`]);
+
+  // And still cleans up normally afterward — the socket and registry entry
+  // must not be orphaned by having survived a malformed frame.
+  stdin.end();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(exitCalls, [0]);
+  assert.equal(existsSync(socketPathFor(dir, pid)), false);
+});
+
+test('a declared length over the incoming protocol cap is logged and does not crash the host', async () => {
+  const dir = freshDir();
+  ensureSocketDir(dir);
+  const pid = freshPid();
+  const { stdin, stdout } = fakeStreams();
+  const { log, calls: logCalls } = spyLog();
+  const { exit, calls: exitCalls } = spyExit();
+
+  const { server } = await startHost({
+    dir,
+    extensionOrigin: 'chrome-extension://host-oversized-length-test/',
+    pid,
+    stdin,
+    stdout,
+    log,
+    exit,
+  });
+  liveServers.push(server);
+
+  // Only the 4-byte header matters — decode() must reject the declared
+  // length before it would ever wait for a body this large to arrive.
+  const oversizedHeader = Buffer.alloc(4);
+  if (endianness() === 'LE') oversizedHeader.writeUInt32LE(MAX_INCOMING + 1, 0);
+  else oversizedHeader.writeUInt32BE(MAX_INCOMING + 1, 0);
+  stdin.write(oversizedHeader);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(exitCalls, []);
+  assert.ok(logCalls.some((args) => String(args[0]).includes('malformed frame')));
+
+  stdin.end();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(exitCalls, [0]);
+  assert.equal(existsSync(socketPathFor(dir, pid)), false);
 });

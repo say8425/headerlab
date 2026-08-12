@@ -90,7 +90,26 @@ export async function startHost({ dir, extensionOrigin, pid, stdin, stdout, log,
   let stdinBuffer = Buffer.alloc(0);
   stdin.on('data', (chunk) => {
     stdinBuffer = Buffer.concat([stdinBuffer, chunk]);
-    const { messages, rest } = decode(stdinBuffer);
+    let messages, rest;
+    try {
+      ({ messages, rest } = decode(stdinBuffer));
+    } catch (error) {
+      // A malformed frame — corrupt JSON inside an otherwise well-framed
+      // message, or a declared length over framing.mjs's MAX_INCOMING —
+      // must not reach an uncaught exception here. `decode()` runs inside
+      // this 'data' handler with no promise or callback between it and
+      // Node's event loop, so an uncaught throw here crashes the whole
+      // process before `cleanup()` ever runs, orphaning the socket and
+      // registry entry exactly like the gap this module's own docblock
+      // describes for a post-bind server fault. `relayLineToExtension`
+      // already treats the outbound direction's JSON.parse failure this
+      // way; this is the same discipline for the inbound one. The buffered
+      // bytes are dropped rather than salvaged, since a boundary `decode()`
+      // itself rejected is not one this handler can trust either.
+      log('malformed frame from stdin:', error.message);
+      stdinBuffer = Buffer.alloc(0);
+      return;
+    }
     stdinBuffer = rest;
     for (const message of messages) {
       const line = `${JSON.stringify(message)}\n`;
