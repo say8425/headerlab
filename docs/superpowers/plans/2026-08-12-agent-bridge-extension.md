@@ -1736,12 +1736,62 @@ describe('the bridge row', () => {
 `tests/e2e/header-modification.spec.ts` 에 하나 더한다 (그 파일의 기존 레이아웃 가드들과 같은
 모양으로):
 
+이 파일에는 팝업을 여는 헬퍼가 없다 — 모든 테스트가 `serviceWorker.evaluate` 로 저장소를
+시드하고, `context.newPage()` 로 페이지를 만든 뒤 `page.goto(...popup.html)` 를 직접 한다.
+그 방식을 그대로 따른다. 이 파일 위쪽의 `declare const chrome` 선언에 이미
+`storage.local.set` 이 있으므로 새 선언은 필요 없다.
+
 ```ts
-test('the bridge row does not push the rail past its column', async ({ page, extensionId }) => {
+test('the bridge row does not push the rail past its column', async ({
+  context,
+  serviceWorker,
+  extensionId,
+}) => {
+  // Four sites so the list is actually at its cap — with one or two it is
+  // shorter than 132px and the affordance assertion below would pass while
+  // describing nothing.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 0,
+          enabled: true,
+          filter: {
+            mode: 'domains',
+            allSites: false,
+            domains: ['a.example.com', 'b.example.com', 'c.example.com', 'd.example.com'],
+            resourceTypes: ['xmlhttprequest', 'main_frame'],
+            regex: null,
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-A',
+              value: '1',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.getByTestId('bridgestate')).toBeVisible();
+
   // The rail had 28px of slack and this row spends all of it. Measured here
-  // rather than asserted from the source, because the source figure is what
-  // the design doc warned would be stale.
-  await openPopup(page, extensionId); // 이 파일의 기존 헬퍼를 쓴다
+  // rather than taken from the source, because the source figure is exactly
+  // what the design doc warned would go stale.
   const rail = page.locator('aside').first();
   const { scrollHeight, clientHeight } = await rail.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
@@ -1749,12 +1799,16 @@ test('the bridge row does not push the rail past its column', async ({ page, ext
   }));
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
-  // And the affordance the slack was protecting is still there: the site list
-  // stops mid-row, not on one.
+  // And the affordance that slack was protecting is still there: the list
+  // stops mid-row rather than on one, which is what says it continues.
   const list = page.getByTestId('site-list');
   expect(await list.evaluate((el) => el.clientHeight)).toEqual(132);
 });
 ```
+
+**시드하는 프로필 모양은 이 파일의 기존 테스트에서 복사한다** — 위 리터럴의 필드는 그
+파일이 이미 쓰는 것과 같아야 하고, 다르면 `parseAppState` 가 거절해 팝업이 "Saved rules could
+not be read" 를 그린다. 그 화면에는 `aside` 자체가 없다.
 
 - [ ] **Step 9: 전체 검사**
 
