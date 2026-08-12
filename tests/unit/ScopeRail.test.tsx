@@ -43,6 +43,15 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     onRemoveDomain: vi.fn(),
     onToggleType: vi.fn(),
     onGrant: vi.fn(),
+    // `unknown` would make every existing test render a row with no control,
+    // which is not what those tests are about. `off` is the state a fresh
+    // install actually opens in, so it is the honest default here — and the
+    // tests that are about the other three opt into them by name.
+    bridge: 'off',
+    bridgeLastCommandAt: null,
+    bridgeError: null,
+    onEnableBridge: vi.fn(),
+    onDisableBridge: vi.fn(),
     ...over,
   };
 }
@@ -787,5 +796,93 @@ describe('scope notes', () => {
       'Rules not registeredRule 3 is invalid',
     );
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
+  });
+});
+
+describe('the bridge row', () => {
+  it.each([
+    ['off', 'Bridge off', 'Enable'],
+    ['idle', 'Bridge idle', 'Disable'],
+    ['live', 'Bridge live', 'Disable'],
+  ])('%s reads "%s" with a %s button', (mode, label, button) => {
+    render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual(`${label}${button}`);
+  });
+
+  it('says nothing and offers no control while the probe is still out', () => {
+    // Same rule as the all-sites row's `allSitesGranted: null`: a popup that
+    // showed "Bridge off" with an Enable button for a tenth of a second and
+    // then withdrew it is the flicker that teaches people to distrust the
+    // screen. Absence asserted before presence — an "always renders Enable"
+    // implementation would pass a presence-only check.
+    render(<ScopeRail {...props({ bridge: 'unknown' })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual('Bridge');
+    expect(row.querySelector('button')).toBeNull();
+  });
+
+  it('keeps the row the same height in every state', () => {
+    // State changes appearance, not geometry (CLAUDE.md, Interface). The
+    // class list is what the e2e measures; here it is enough that all four
+    // states render the same box classes.
+    const heights = new Set(
+      (['unknown', 'off', 'idle', 'live'] as const).map((bridge) => {
+        const { unmount } = render(<ScopeRail {...props({ bridge })} />);
+        const cls = screen.getByTestId('bridgestate').className;
+        unmount();
+        return cls;
+      }),
+    );
+    expect(heights.size).toEqual(1);
+  });
+
+  it('carries the last external write in a title rather than a second line', () => {
+    render(
+      <ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: '2026-08-12T09:30:00.000Z' })} />,
+    );
+    const label = screen.getByTestId('bridge-label');
+    // The exact string, not "contains a date": the rail has 28px and this is
+    // the only place the fact is stated, so a title that dropped the value and
+    // kept the prefix would look right and say nothing.
+    expect(label.getAttribute('title')).toEqual(
+      `Last change through the bridge: ${new Date('2026-08-12T09:30:00.000Z').toLocaleString()}`,
+    );
+  });
+
+  it('has no title at all when nothing has come through', () => {
+    render(<ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: null })} />);
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
+  });
+
+  it('names the connect failure and what to run, without guessing at the cause', () => {
+    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+    const note = screen.getByTestId('bridge-error');
+    expect(note.textContent).toContain('headerlab bridge install');
+    // Chrome's own words, kept verbatim. A note that translated them into one
+    // of the three possible causes would be a guess presented as a diagnosis —
+    // Chrome gives the same message for all three (measured).
+    expect(note.textContent).toContain('Native host has exited.');
+  });
+
+  it('shows no note when the bridge is simply off', () => {
+    // A stale error from before the permission was withdrawn must not sit on
+    // screen accusing a bridge nobody has turned on.
+    render(<ScopeRail {...props({ bridge: 'off', bridgeError: 'Native host has exited.' })} />);
+    expect(screen.queryByTestId('bridge-error')).toBeNull();
+  });
+
+  it('calls enable from the off state and disable from the others', () => {
+    const onEnableBridge = vi.fn();
+    const onDisableBridge = vi.fn();
+    for (const bridge of ['off', 'idle', 'live'] as const) {
+      const { unmount } = render(
+        <ScopeRail {...props({ bridge, onEnableBridge, onDisableBridge })} />,
+      );
+      screen.getByTestId('bridgestate').querySelector('button')!.click();
+      unmount();
+    }
+    expect(onEnableBridge).toHaveBeenCalledTimes(1);
+    expect(onDisableBridge).toHaveBeenCalledTimes(2);
   });
 });

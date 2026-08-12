@@ -54,6 +54,29 @@ export interface ScopeRailProps {
   onRemoveDomain: (domain: string) => void;
   onToggleType: (type: ResourceType) => void;
   onGrant: (host: string) => void;
+  /**
+   * What the agent bridge is doing.
+   *
+   * `unknown` is not `off`. The permission probe has not answered yet, and a
+   * row that offered Enable before the browser had been asked is the same
+   * flicker `allSitesGranted: null` exists to prevent — so that state carries
+   * no colour and no control, only the word.
+   *
+   * `idle` means the permission is held and no port is open. That is not the
+   * design's original wording ("a CLI is not attached"), and the change is
+   * deliberate: the extension cannot see the host's socket clients, and making
+   * the host tell it would turn a relay into a protocol participant — the
+   * thing packages/cli/lib/bridge.mjs argues against by name. What `idle`
+   * actually points at is the state a user really lands in: Enable pressed,
+   * `headerlab bridge install` never run.
+   */
+  bridge: 'unknown' | 'off' | 'idle' | 'live';
+  /** ISO timestamp of the last command applied through the bridge, or null. */
+  bridgeLastCommandAt: string | null;
+  /** Chrome's own message from the last failed connect, or null. */
+  bridgeError: string | null;
+  onEnableBridge: () => void;
+  onDisableBridge: () => void;
 }
 
 /** A rail section's heading: "Sites 2", "Request types 3 of 8". */
@@ -74,6 +97,21 @@ const NOTE_CLASS =
   'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
 /** The two switches in the rail are one control in two places. */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
+
+/**
+ * Disable is not a request — it hands a permission back — so it does not
+ * borrow the amber Grant palette. Enable does: it opens Chrome's consent
+ * dialog, which is exactly what GRANT_BUTTON_CLASS already means everywhere
+ * else on this screen.
+ */
+const BRIDGE_OFF_BUTTON_CLASS = 'h-5 rounded-[4px]';
+
+const BRIDGE_LABEL = {
+  unknown: 'Bridge',
+  off: 'Bridge off',
+  idle: 'Bridge idle',
+  live: 'Bridge live',
+} as const;
 
 /**
  * The left rail: where does this apply, and is it working.
@@ -119,6 +157,11 @@ export function ScopeRail({
   onRemoveDomain,
   onToggleType,
   onGrant,
+  bridge,
+  bridgeLastCommandAt,
+  bridgeError,
+  onEnableBridge,
+  onDisableBridge,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
 
@@ -280,6 +323,71 @@ export function ScopeRail({
             className={SWITCH_CLASS}
           />
         </div>
+
+        {/* The fourth line of the readout card, and the whole of the 28px of
+            slack the rail had left — measured in the built popup, not read off
+            the source. The site list's max-height stays at 132px so the third
+            row is still cut across the middle, which is the affordance that
+            says the list continues.
+
+            Shaped exactly like the run state above it because it is the same
+            kind of fact: a thing that is either happening or not, with one
+            control. The control is a button and not a switch for the reason
+            the all-sites switch stopped calling `permissions.request()` — a
+            consent dialog must follow a button that asks for consent, never a
+            control that merely moved. */}
+        <div
+          className="mt-2 flex h-5 items-center gap-[7px]"
+          data-testid="bridgestate"
+          data-bridge={bridge}
+        >
+          {/* Colour only when a port is actually open. `unknown` gets the slot
+              with no fill at all — reserving the space must not put a phantom
+              state on screen, the same bargain the all-sites glyph makes. */}
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${
+              bridge === 'live'
+                ? 'bg-live'
+                : bridge === 'unknown'
+                  ? 'bg-transparent'
+                  : 'bg-muted-foreground'
+            }`}
+            aria-hidden="true"
+          />
+          <span
+            className="text-[12px] leading-4 font-semibold text-foreground"
+            data-testid="bridge-label"
+            {...(bridgeLastCommandAt === null
+              ? {}
+              : {
+                  title: `Last change through the bridge: ${new Date(
+                    bridgeLastCommandAt,
+                  ).toLocaleString()}`,
+                })}
+          >
+            {BRIDGE_LABEL[bridge]}
+          </span>
+          <span className="flex-1" />
+          {bridge === 'unknown' ? null : bridge === 'off' ? (
+            <Button
+              size="xs"
+              variant="secondary"
+              className={GRANT_BUTTON_CLASS}
+              onClick={onEnableBridge}
+            >
+              Enable
+            </Button>
+          ) : (
+            <Button
+              size="xs"
+              variant="secondary"
+              className={BRIDGE_OFF_BUTTON_CLASS}
+              onClick={onDisableBridge}
+            >
+              Disable
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* A failed reconcile means nothing is applying, which contradicts the
@@ -300,6 +408,24 @@ export function ScopeRail({
         <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="icon-error">
           <b className="mb-0.5 block font-bold text-destructive">Toolbar icon out of date</b>
           The icon may not match the run state above. {iconError}
+        </div>
+      )}
+
+      {/* Amber, not red: the permission is held and the bridge simply is not
+          reachable — incomplete rather than wrong, the same reading that keeps
+          a pending site row out of the error palette.
+
+          Chrome's message is repeated verbatim and not interpreted. It is
+          identical for a missing manifest, a manifest naming a different
+          extension, and an interpreter that cannot start (measured), so any
+          sentence here that picked one would be a guess wearing a diagnosis's
+          clothes. What *is* actionable is the command, so that is what leads. */}
+      {bridge === 'idle' && bridgeError !== null && (
+        <div className={`${NOTE_CLASS} border-l-pending`} data-testid="bridge-error">
+          <b className="mb-0.5 block font-bold text-foreground">Bridge not connected</b>
+          Run <code className="font-mono text-[10px]">headerlab bridge install</code>. Chrome
+          reports the same message for a missing host manifest, one naming a different extension,
+          and an interpreter it cannot start. {bridgeError}
         </div>
       )}
 

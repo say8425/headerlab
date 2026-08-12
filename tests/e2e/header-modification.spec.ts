@@ -1733,3 +1733,76 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
 
   await page.close();
 });
+
+test('the bridge row does not push the rail past its column', async ({
+  context,
+  serviceWorker,
+  extensionId,
+}) => {
+  // Four sites so the list is actually at its cap — with one or two it is
+  // shorter than 132px and the affordance assertion below would pass while
+  // describing nothing.
+  //
+  // The brief's own fixture literal for this test used `filter.mode: 'domains'`,
+  // a numeric `color: 0` and a `regex: null` field with no `excludedDomains` —
+  // none of which match lib/model/schema.ts (`mode` is `'structured' | 'regex'`,
+  // `color` is a string enum, `excludedDomains` is required, there is no `regex`
+  // field at all). That shape fails `parseAppState` and the popup renders "Saved
+  // rules could not be read" instead, which has no `aside` at all — this fixture
+  // copies the shape every other test in this file actually uses instead, per the
+  // brief's own warning one paragraph below its snippet.
+  await serviceWorker.evaluate(async () => {
+    const state = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'Local',
+          color: 'green',
+          enabled: true,
+          order: 0,
+          filter: {
+            mode: 'structured',
+            allSites: false,
+            domains: ['a.example.com', 'b.example.com', 'c.example.com', 'd.example.com'],
+            excludedDomains: [],
+            resourceTypes: ['xmlhttprequest', 'main_frame'],
+          },
+          tabLock: { enabled: false, tabId: null, tabTitle: null },
+          headers: [
+            {
+              id: 'h1',
+              enabled: true,
+              target: 'request',
+              operation: 'set',
+              name: 'X-A',
+              value: '1',
+            },
+          ],
+        },
+      ],
+    };
+    await chrome.storage.local.set({ state, state$: { v: 2 } });
+  });
+
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.getByTestId('bridgestate')).toBeVisible();
+
+  // The rail had 28px of slack and this row spends all of it. Measured here
+  // rather than taken from the source, because the source figure is exactly
+  // what the design doc warned would go stale.
+  const rail = page.locator('aside').first();
+  const { scrollHeight, clientHeight } = await rail.evaluate((el) => ({
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+  }));
+  expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
+
+  // And the affordance that slack was protecting is still there: the list
+  // stops mid-row rather than on one, which is what says it continues.
+  const list = page.getByTestId('site-list');
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(132);
+});
