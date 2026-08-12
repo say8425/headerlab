@@ -194,6 +194,100 @@ logic is the response.
 Design documents live in `docs/superpowers/specs/`, and the measured platform
 constraints behind them in `docs/research/`.
 
+## Agent bridge
+
+An AI agent can drive HeaderLab from a terminal instead of a person clicking
+through the popup — turning "add a Bearer token to staging" into one command
+instead of six manual clicks. It ships as a three-package pnpm workspace:
+`packages/cli` (the `headerlab` command), `packages/host` (a native-messaging
+relay that Chrome itself launches and kills), and `packages/plugin` (a Claude
+Code / Codex plugin that packages the CLI as a skill). All three have zero
+runtime dependencies.
+
+```
+CLI (headerlab)                  Native host              Extension (SW)
+node, zero deps                   node, zero deps          lib/bridge/
+   │                                  │                        │
+   │  unix socket                     │  stdio                 │
+   │  $TMPDIR/headerlab/<n>.sock      │  (4-byte length + JSON)│
+   └──────── one JSON line ──────────►├───────────────────────►│
+            request/response          │                    apply()
+   ◄──────────────────────────────────┤◄───────────────────────┤
+                                       │                   local:state
+                                       │                        ▼
+                                    Chrome launches           reconcile()
+                                    and kills it            (existing single loop)
+```
+
+The direction is the one fact this diagram exists to carry: the host cannot
+speak to the extension first. Chromium does have a native-initiated
+connection path, but it sits behind a flag that ships off by default, so the
+design treats the extension as the only initiator. It opens the port, Chrome
+starts the host process as a side effect of that, the host listens on a unix
+socket, and the CLI is what attaches to it — never the other way around. A
+write travels in as one JSON line over that socket, crosses to the extension
+framed over stdio, gets applied to `local:state`, and is picked up by the
+same `reconcile()` every other trigger already funnels into: a new trigger,
+not a new writer.
+
+**What the CLI does.** `headerlab` is nine commands: scope a rule to sites
+(`site add` / `site rm` / `site all-sites on|off`), edit header rules
+(`rule add` / `rule rm` / `rule toggle`), pause or resume the whole rule set
+(`pause` / `resume`), and replace the stored state wholesale
+(`state set <file|->`). Every reply is one JSON object on stdout — success or
+failure — with the exit code following it; there is no human-readable output
+to parse instead. For example:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+The full reference lives in `packages/plugin/skills/headerlab/SKILL.md`,
+shared unchanged between the Claude Code and Codex plugin manifests.
+
+Three things about this design a reader must not come away misled about —
+they are the product's own claims, and getting them wrong here would be
+worse than leaving this section out:
+
+- **The bridge is off until a human turns it on.** It rides `nativeMessaging`
+  as an optional permission, requested from a button in the popup, behind
+  Chrome's own consent dialog — the install-time `permissions` list above
+  does not change. Measured, not assumed:
+  `docs/research/2026-08-11-native-messaging-spike.md` records the grant
+  dialog actually firing, and the grant surviving a second connection with
+  no dialog at all.
+- **The CLI cannot grant site permissions.** `site add` and
+  `site all-sites on` only change what a rule is *scoped* to — the row still
+  sits pending until a person clicks **Grant** in the popup, same as a site
+  added by hand. Chrome requires a user gesture for a permission grant, and
+  that limit is kept here rather than worked around.
+- **Nothing leaves the machine.** CLI, host and extension only ever talk over
+  a unix domain socket in a permission-restricted, per-user directory
+  (`$TMPDIR/headerlab/`) — never a network socket.
+  `tests/unit/outbound.test.ts` bans outbound primitives — `fetch`,
+  `WebSocket`, `node:https`, a `.listen(<port-number>)` call — from
+  everything under `packages/`, and its own docblock says what it can't see:
+  the port check matches a literal digit in source, so `server.listen(8080)`
+  is caught and `server.listen(tcpPort)` would not be. That is written down
+  rather than left implied, because overstating a security guarantee is the
+  one thing this repository would rather not do.
+
+**Not wired up yet.** `packages/cli` and `packages/host` work today and are
+tested down to the socket, but the extension side does not exist:
+`lib/bridge/port.ts` — the one file allowed to call
+`chrome.runtime.connectNative` — has not been written, the manifest does not
+yet declare `nativeMessaging`, and there is no popup button to grant it. So
+nothing ever calls `connectNative`, Chrome never launches the host, and
+`headerlab` today can only ever report `bridge-off`. There is also no
+installer: the native-messaging host manifest has to be placed by hand, and
+pointing it at the shipped `packages/host/bin/headerlab-host.mjs` will not
+work as-is — its `#!/usr/bin/env node` shebang cannot resolve in the minimal
+environment Chrome launches native hosts in, measured, and the only symptom
+visible from the extension side is `{"message":"Native host has exited."}`
+with an empty host log. An installer that rewrites that line to an absolute
+interpreter path and self-verifies the result is designed but not built.
+
 ## Testing
 
 Three layers: pure logic with no browser, adapters driven by hand-planted spies,
