@@ -148,12 +148,25 @@ function connect(): void {
 
 /**
  * Every caller here is fire-and-forget — `void patchBridgeStatus(...)`, on an
- * event chain nothing else awaits. Round 1 made `patchBridgeStatus`'s own
- * promise able to reject (it no longer poisons the *next* call, but it still
- * carries its own outcome), so an unattached rejection here would surface
- * only as an unhandled rejection in the service worker — not silently
- * swallowed, but not reported anywhere anyone could act on either. Same
- * shape as `recordStatus`/`recordIcon` in lib/sync/ruleSync.ts: a side
+ * event chain nothing else awaits. Without this wrapper such a failure is
+ * **silent**: not merely unreported, but invisible.
+ *
+ * That is worth stating precisely, because the obvious guess is wrong and the
+ * wrong guess is the dangerous one. `patchBridgeStatus` keeps its queue alive
+ * by chaining `pending = result.catch(() => {})` (lib/storage/session.ts), and
+ * attaching *any* rejection handler marks a promise handled for V8's
+ * unhandled-rejection tracking — regardless of what becomes of the derived
+ * promise, and regardless of whether anyone ever touches the original. So a
+ * dropped rejection here does not even produce the console noise someone
+ * skipping this wrapper would be counting on noticing.
+ *
+ * Measured rather than reasoned: the same chain shape called fire-and-forget
+ * emits nothing and fires no `unhandledRejection`, while the identical
+ * rejection with no split baton fires it. Do not add a fire-and-forget
+ * `patchBridgeStatus(...)` call site without this wrapper on the theory that
+ * a failure would announce itself — it would not.
+ *
+ * Same shape as `recordStatus`/`recordIcon` in lib/sync/ruleSync.ts: a side
  * record's failure must not become the caller's failure, and must not go
  * unreported.
  */
