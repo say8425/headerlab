@@ -51,6 +51,26 @@ describe('production manifest', () => {
     // permission along with it.
     expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
   });
+
+  it('declares nativeMessaging as optional, exactly — the bridge asks for it at runtime', () => {
+    // §8.1: `permissions_parser.cc` drops an optional-ineligible permission
+    // from the list and leaves only an install warning, and the one
+    // consistency check is a DCHECK compiled out of release builds. So a
+    // Chrome change that made this permission non-optional would fail
+    // *silently*: the key would still be here and the request would never
+    // succeed. Pinning the exact value is what makes the e2e in Task 6 —
+    // which drives a real request through a real Chrome — the thing that
+    // would notice.
+    expect(readManifest().optional_permissions).toEqual(['nativeMessaging']);
+  });
+
+  it('keeps the install-time permission list byte-identical after adding it', () => {
+    // The whole point of the optional route. This assertion is the one that
+    // fails if someone "fixes" a connect error by moving the permission into
+    // `permissions` — which would work, and would silently trade away the
+    // zero-permission install posture this product is built on.
+    expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
+  });
 });
 
 describe('the toolbar icon', () => {

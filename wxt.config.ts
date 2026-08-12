@@ -8,6 +8,13 @@ export default defineConfig({
     description: 'Add, modify and remove HTTP request and response headers.',
     permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
+    // Requested at runtime from the popup's Enable button, never at install.
+    // `extensions_api_permissions.cc:113-114` carries no `kFlagCannotBeOptional`
+    // for this one (declarativeNetRequest does, at :57-59), and the runtime
+    // grant was measured rather than inferred — the consent dialog appeared,
+    // allowing it worked, and a second click went straight to connectNative
+    // (docs/research/2026-08-11-native-messaging-spike.md).
+    optional_permissions: ['nativeMessaging'],
     // Icons need no permission — the manifest declares files, it does not ask
     // for a capability. tests/unit/manifest.test.ts pins the permission list
     // unchanged so that stays true rather than being assumed.
