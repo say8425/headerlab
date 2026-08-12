@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /** Everything `pnpm-workspace.yaml` declares must actually be there. */
@@ -88,6 +88,51 @@ describe('the workspace', () => {
     expect(importers, 'pnpm-lock.yaml has no importers block').not.toBeNull();
     for (const pkg of declaredPackages()) {
       expect(importers![1], `${pkg} is declared but absent from importers`).toContain(`${pkg}:`);
+    }
+  });
+});
+
+// Root vitest only sees `tests/unit/**/*.test.{ts,tsx}` (vitest.config.ts),
+// and `packages/*/test/*.mjs` runs under `node:test`, outside that glob and
+// outside every job `ci.yml` had before this describe block existed. Nothing
+// ran the 89 tests those packages wrote — the socket, framing, lifecycle,
+// argv grammar and id-correlation suites all merged green whether they
+// passed or not, because nothing ever executed them.
+describe('the CI workflow', () => {
+  it('runs pnpm test:packages as its own job', () => {
+    const ciYml = readFileSync('.github/workflows/ci.yml', 'utf8');
+    expect(ciYml).toContain('pnpm test:packages');
+  });
+
+  // The next check treats "declared in the workspace" as equivalent to
+  // "actually executed by CI" — that equivalence only holds while this
+  // script stays a recursive `-r` run.
+  it('test:packages recurses across the workspace', () => {
+    const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<
+      string,
+      string
+    >;
+    expect(scripts['test:packages']).toBe('pnpm -r test');
+  });
+
+  // The regression this closes: a package added under packages/ with its own
+  // `test` script, but never added to pnpm-workspace.yaml's `packages:` list.
+  // `pnpm -r test` silently skips anything the workspace does not declare, so
+  // that package's tests would never run anywhere — not in this job, not in
+  // `pnpm check`, not in `check:all`. Naming it here is what turns that gap
+  // into a failing assertion instead of silence.
+  it('every package with a test script is declared in the workspace', () => {
+    const declared = new Set(declaredPackages());
+    for (const name of readdirSync('packages')) {
+      const dir = `packages/${name}`;
+      const pkgJsonPath = `${dir}/package.json`;
+      if (!existsSync(pkgJsonPath)) continue;
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
+      if (typeof pkg.scripts?.test !== 'string') continue;
+      expect(
+        declared.has(dir),
+        `${dir} declares a test script but is absent from pnpm-workspace.yaml`,
+      ).toBe(true);
     }
   });
 });
