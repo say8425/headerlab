@@ -56,7 +56,20 @@ export type ApplyErrorCode =
   | 'invalid-command'
   | 'invalid-state'
   | 'unknown-rule'
-  | 'unknown-domain';
+  | 'unknown-domain'
+  // The stored bytes failed validation. Distinct from `invalid-state`, which
+  // is about the payload the caller sent: this one says the caller's command
+  // was fine and there is nothing safe to apply it to. Applying onto the
+  // fallback and writing the result would overwrite whatever was really on
+  // disk — the defect App.tsx already paid for once (`if (!valid) return`).
+  | 'store-unreadable'
+  // Refused rather than failed. `state.set` can carry `filter.mode: 'regex'`,
+  // which `appStateSchema` accepts and `filterToCondition` compiles straight
+  // into `regexFilter` with nothing having asked
+  // `chrome.declarativeNetRequest.isRegexSupported()`. The popup has no regex
+  // editor, so a payload that sets one produces a rule nobody can see or fix.
+  // Design §3.1 puts this refusal at the adapter, not in the pure layer.
+  | 'unsupported';
 
 export interface ApplyError {
   code: ApplyErrorCode;

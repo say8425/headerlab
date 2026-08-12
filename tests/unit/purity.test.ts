@@ -31,9 +31,9 @@ const EXPLICIT = [
   // this unguarded file, a browser dependency arriving one hop away would
   // slip past unnoticed.
   'lib/model/defaults.ts',
-  // Same situation as lib/permissions/: this directory will soon also hold
-  // an adapter (port.ts), so there can be no directory-shaped rule here.
-  // Without naming it explicitly, there is no guard.
+  // Same situation as lib/permissions/: this directory also holds an adapter
+  // (port.ts), so there can be no directory-shaped rule here. Without naming
+  // each pure file explicitly, there is no guard.
   'lib/bridge/protocol.ts',
   'lib/bridge/apply.ts',
   // `apply.ts` imports `parseAppState` **as a value** (a runtime call, not a

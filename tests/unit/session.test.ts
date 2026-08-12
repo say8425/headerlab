@@ -1,6 +1,11 @@
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getSyncStatus, setSyncStatus } from '@/lib/storage/session';
+import {
+  getBridgeStatus,
+  getSyncStatus,
+  patchBridgeStatus,
+  setSyncStatus,
+} from '@/lib/storage/session';
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -38,5 +43,44 @@ describe('sync status', () => {
       syncStatus: { lastError: 'boom', ruleCount: 0, iconError: null },
     });
     expect(await fakeBrowser.storage.local.get(null)).toEqual({});
+  });
+});
+
+describe('bridge status', () => {
+  it('defaults to disconnected with nothing said about it', async () => {
+    // Not "connected: false plus a stale error from a previous session" — the
+    // fallback is what a popup opening on a fresh worker renders, and an error
+    // string in it would put a note on screen about something that never
+    // happened.
+    expect(await getBridgeStatus()).toEqual({
+      connected: false,
+      lastCommandAt: null,
+      lastError: null,
+    });
+  });
+
+  it('patches one field and leaves the rest of the record alone', async () => {
+    // The whole reason a patch helper exists. `connect` writes `connected`,
+    // an applied command writes `lastCommandAt`, and a disconnect writes
+    // `lastError` — three writers, and a full-record write from any of them
+    // erases what the other two said.
+    await patchBridgeStatus({ lastCommandAt: '2026-08-12T00:00:00.000Z' });
+    await patchBridgeStatus({ connected: true });
+
+    expect(await getBridgeStatus()).toEqual({
+      connected: true,
+      lastCommandAt: '2026-08-12T00:00:00.000Z',
+      lastError: null,
+    });
+  });
+
+  it('can clear a field back to null', async () => {
+    // `{lastError: null}` must not be read as "no change" by a merge that
+    // filters undefined the wrong way — clearing the error on a successful
+    // reconnect is the only way the note ever comes off the screen.
+    await patchBridgeStatus({ lastError: 'Native host has exited.' });
+    await patchBridgeStatus({ lastError: null });
+
+    expect((await getBridgeStatus()).lastError).toBeNull();
   });
 });
