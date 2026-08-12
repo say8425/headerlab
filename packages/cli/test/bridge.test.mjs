@@ -312,7 +312,14 @@ describe('sendCommand', () => {
       // just also broadcasting a second, catch-all-shaped line the caller
       // still must not accept without a real id match.
     });
-    await assert.rejects(sendCommand(socketPath, { cmd: 'pause' }, { timeoutMs: 30 }), (error) => {
+    // 250ms, not the 30ms the test above uses: this one only proves anything
+    // if a wrong-id reply is correctly rejected AND the timeout still fires —
+    // a regression that dropped the id filter would complete the round trip
+    // well inside 30ms, the same order as this machine's own noise, so a
+    // short timeout risked passing for the wrong reason rather than catching
+    // the regression it exists to catch. The test above has no reply written
+    // at all, so 30ms there is measuring something else and stays as-is.
+    await assert.rejects(sendCommand(socketPath, { cmd: 'pause' }, { timeoutMs: 250 }), (error) => {
       assert.equal(error.code, 'timeout');
       return true;
     });
