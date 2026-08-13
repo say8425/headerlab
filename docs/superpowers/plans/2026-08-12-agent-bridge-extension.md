@@ -1253,36 +1253,58 @@ git commit -m "feat: connect the bridge port and apply commands from it"
 - Produces: `ScopeRailProps` 에 `bridge`, `bridgeLastCommandAt`, `bridgeError`,
   `onEnableBridge`, `onDisableBridge`.
 
-- [ ] **Step 1: 빌드된 팝업에서 레일의 여유를 다시 잰다**
+> **이 태스크는 실행 중에 뒤집혔다. 아래 Step 1 은 실패한 측정이고, 그 아래 Step 2–12 의
+> 코드는 그대로 유효하되 여백 값 다섯 개가 바뀐다. 먼저 이 블록을 읽는다.**
+>
+> **여유는 28px 이 아니라 7px 이었다.** 안 A 를 고른 근거가 "레일 여유 28px 에 정확히
+> 들어간다"였는데 그 28 은 소스를 읽어 더한 값이었고, `AddSiteField` 가 자기 박스 **밖에**
+> 중복 알림용 15px 을 상시 예약하는 것이 셈에서 빠져 있었다(그 15px 은 조건부가 아니다 —
+> 래퍼는 항상 렌더되고 안의 `<p>` 만 조건부이며, 그 파일의 독블록이 이유를 이미 적어두었다).
+> 실측: 예산 576 · 사용 569 · **여유 7**. 28px 짜리 줄은 21px 모자란다.
+>
+> **소유자 결정(2026-08-13): 여백을 줄이고 목록에서 5px 만 가져온다.** 실척 시안
+> `docs/design/2026-08-12-agent-bridge-rail-budget.html`(커밋 `89400f4`)에서 세 안을 비교해
+> 고른 것이다. 그 시안은 자기가 그린 박스를 실측해 숫자를 채우므로, 기준선이 실제 팝업과
+> 일치한다는 것이 그 시안을 믿을 근거다.
+>
+> | 곳 | 전 | 후 |
+> |---|---|---|
+> | 리드아웃 카드 | `mt-4` | `mt-3` |
+> | 사이트 섹션 | `mt-4` | `mt-3` |
+> | 타입 섹션 | `pt-3` | `pt-2` |
+> | 브리지 줄 | `mt-2` | `mt-1` |
+> | 사이트 목록 | `max-h-[132px]` | `max-h-[127px]` |
+>
+> 결과: 예산 576 · 사용 576 · **여유 0** · 목록 127 · 셋째 행 노출 **19px of 48**.
+> 아래 Step 4 의 마크업과 Step 8 의 e2e 는 이 값으로 읽는다.
+>
+> **여유 0 이라는 사실이 `ScopeRail.tsx` 의 주석으로 남아야 한다.** 다음에 무엇이든 한 줄
+> 더하면 맞는 게 아니라 이 질문이 다시 열린다.
 
-**이것이 첫 단계다.** 28px 은 소스에서 읽은 값이고, 설계 문서가 직접 "구현 시 빌드된 팝업에서
-다시 잰다" 고 적어 두었다.
+- [ ] **Step 1: ~~빌드된 팝업에서 레일의 여유를 다시 잰다~~ — 아래 스크립트는 틀렸다**
 
-```
-PATH="$PWD/.superpowers/sdd/2026-08-12-agent-bridge-packaging:$PATH" pnpm build
-```
-
-스크래치에 `measure-rail.mjs` 를 쓴다. `scripts/screenshots.mjs` 를 읽고 그 파일이 확장을
-로드하는 방식(`launchPersistentContext` 인자와 팝업 URL 조립)을 **그대로** 베낀다 — 그 파일이
-이 저장소에서 프로덕션 번들을 실제 Chrome 에 띄우는 유일한 코드다. 측정 부분만 이것으로
-바꾼다:
+**이 계기는 네 변형 모두에 대해 여유 0 을 보고한다. 쓰지 말 것.** 기록으로 남긴다:
 
 ```js
-const rail = page.locator('aside').first();
-console.log(
-  JSON.stringify(
-    await rail.evaluate((el) => ({
-      scrollHeight: el.scrollHeight,
-      clientHeight: el.clientHeight,
-      slack: el.clientHeight - el.scrollHeight,
-    })),
-  ),
-);
+// 틀렸다. 두 가지 이유로 이 값은 언제나 0 이다.
+await rail.evaluate((el) => el.clientHeight - el.scrollHeight);
 ```
 
-**측정값을 보고서에 적는다.** `slack >= 28` 이면 계획대로 간다. `slack < 28` 이면 **멈추고
-보고한다** — 사이트 목록의 `max-h-[132px]` 를 줄이는 것은 셋째 행을 반쯤 자르는 affordance 를
-깨는 일이라 임의로 할 수 없다.
+**첫째, 사이트 목록이 `flex-shrink: 1` 이라 레일이 넘치기 전에 먼저 줄어든다.** 레일은 절대
+스크롤하지 않으므로 그 차이는 구조적으로 0 이다. **둘째, 타입 섹션의 `mt-auto` 는 남는 공간을
+자기 margin 으로 먹는다** — 계산된 margin 을 더해 사용량을 구하면 여유를 margin 으로 한 번,
+여유로 또 한 번 세게 되어 역시 0 이 나온다.
+
+**요청된 높이를 재야 한다. 렌더된 높이가 아니다.**
+
+- 목록의 기여분은 `min(max-height, scrollHeight)` 로 보정한다 (줄어든 만큼을 되돌려 더한다)
+- `mt-auto` 를 다는 자식의 margin 은 세지 않는다
+- 예산은 `clientHeight - paddingTop - paddingBottom`
+
+동작하는 구현은 시안 파일 `docs/design/2026-08-12-agent-bridge-rail-budget.html` 의
+`measure()` 에 있고, 그 주석이 이 두 함정을 다시 적어두었다. 확장을 실제 Chrome 에 띄우는
+부분은 `scripts/screenshots.mjs` 를 그대로 베낀다 — 이 저장소에서 프로덕션 번들을 진짜
+브라우저에 올리는 유일한 코드다.
 
 - [ ] **Step 2: ScopeRail 테스트를 쓴다 (실패하는 테스트)**
 
