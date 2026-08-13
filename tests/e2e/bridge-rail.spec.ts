@@ -212,6 +212,23 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
   expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
 
+  // Every probe must resolve to a real box before the comparison below can
+  // mean anything — the same guard header-modification.spec.ts's own
+  // `boxes()` uses on this exact selector-collection shape, for the exact
+  // reason its comment gives: two records of empty arrays compare equal, so
+  // a selector that stopped matching in *both* scenarios at once (a rename,
+  // say) would silently drop that box from Assertion 1 below rather than
+  // failing it.
+  for (const [label, boxes] of Object.entries({
+    idle: idleMeasurement.boxes,
+    live: liveMeasurement.boxes,
+  })) {
+    expect(
+      Object.values(boxes).filter((b) => b.length !== 4),
+      `every probe must match an element in the ${label} measurement`,
+    ).toEqual([]);
+  }
+
   // Assertion 1: every box below and around the bridge row sits at the same
   // coordinates whether the bridge answered or not — the family this test
   // belongs to, for this element.

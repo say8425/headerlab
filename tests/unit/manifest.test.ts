@@ -69,30 +69,28 @@ describe('production manifest', () => {
     // fails if someone "fixes" a connect error by moving the permission into
     // `permissions` — which would work, and would silently trade away the
     // zero-permission install posture this product is built on.
-    expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
-  });
-
-  it('does not carry the bridge-e2e build’s nativeMessaging grant', () => {
-    // bridge-e2e (tests/e2e/bridge.spec.ts's own build, wxt.config.ts's
-    // `mode === 'bridge-e2e'` branch) hands it out at install so Playwright
-    // never meets a consent dialog. It is a separate mode from the shared
-    // 'e2e' build precisely so this permission cannot leak into either that
-    // build or production without a test noticing — a production build
-    // carrying it would give away the zero-permission posture without anyone
-    // noticing, since the manifest would still look small.
     //
-    // Asserted against the production build here rather than by reading the
-    // bridge-e2e build directly: this file runs under `pnpm test`
-    // (`wxt build && vitest run`, production mode only), and CI's `unit` job
-    // never builds bridge-e2e — reading it here would throw "build not
-    // found" on every clean checkout. tests/e2e/bridge.spec.ts's own tests
-    // are the ones that prove the bridge-e2e manifest is right, functionally
-    // rather than by reading JSON: a wrong manifest there fails to connect at
-    // all. And if this permission ever leaked into the plain 'e2e' build
-    // instead, tests/e2e/header-modification.spec.ts's two rail layout
-    // guards would catch it — that leak is exactly what pushed the site list
-    // to 0 before this mode split existed.
-    expect(readManifest().permissions).not.toContain('nativeMessaging');
+    // The same exact-equality catches a second leak this array must never
+    // carry: bridge-e2e (tests/e2e/bridge.spec.ts's own build,
+    // wxt.config.ts's `mode === 'bridge-e2e'` branch) hands out
+    // nativeMessaging outright so Playwright never meets a consent dialog.
+    // It is a separate mode from the shared 'e2e' build and from production
+    // precisely so that grant cannot leak into either without a test
+    // noticing — a production build carrying it would give away the
+    // zero-permission posture without anyone noticing, since the manifest
+    // would still look small. A dedicated `not.toContain('nativeMessaging')`
+    // assertion was tried here and dropped: this array is already pinned
+    // exactly, twice, above (lines 44 and 52), so a third exact-equality
+    // check and a `not.toContain` on the same value catch identically the
+    // same mutation — the extra assertion documented the reasoning but added
+    // no catching power of its own. tests/e2e/bridge.spec.ts's own tests are
+    // what prove the bridge-e2e manifest is right, functionally rather than
+    // by reading JSON — a wrong manifest there fails to connect at all — and
+    // if this permission ever leaked into the plain 'e2e' build instead,
+    // tests/e2e/header-modification.spec.ts's two rail layout guards would
+    // catch it: that leak is exactly what pushed the site list to 0 before
+    // the bridge-e2e mode split existed.
+    expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
   });
 });
 

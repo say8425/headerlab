@@ -1,7 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { expect, test } from './bridge-fixtures';
+import { expect, findBridgePid, test } from './bridge-fixtures';
 
 /**
  * The only test in this repository that exercises the whole bridge: a real
@@ -80,18 +78,3 @@ test('the popup says the bridge is live', async ({ context, extensionId, bridgeS
   // that an agent could. `toHaveAttribute` retries, so this is not a race.
   await expect(page.getByTestId('bridgestate')).toHaveAttribute('data-bridge', 'live');
 });
-
-/** The registry is what makes a specific bridge addressable — see §8.6. */
-function findBridgePid(dir: string, origin: string): number | null {
-  for (const name of readdirSync(dir)) {
-    const match = /^(\d+)\.json$/.exec(name);
-    if (!match) continue;
-    try {
-      const entry = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
-      if (entry.origin === origin) return Number(match[1]);
-    } catch {
-      // A half-written entry is not this test's bridge.
-    }
-  }
-  return null;
-}
