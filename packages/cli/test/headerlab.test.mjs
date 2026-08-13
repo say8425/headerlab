@@ -194,6 +194,29 @@ const cleanEnv = { ...process.env, HEADERLAB_SOCKET_DIR: scratchSocketDir };
 // below never touches the developer's real Chrome profile.
 const scratchProfile = mkdtempSync(path.join(tmpdir(), 'hl-cli-bridge-profile-'));
 
+/**
+ * Registers teardown via `t.after`, not a call at the end of the test body.
+ * A cleanup call written as the last line of a linear test is skipped by
+ * any assertion above it that throws — and this is not hypothetical: two
+ * separate mutation-verification rounds during this task hit exactly that,
+ * each leaving a real launcher (and once a real manifest, under Chrome's
+ * actual NativeMessagingHosts directory) on the machine that ran them,
+ * found and removed by hand afterward. `t.after` runs regardless of how the
+ * test body finishes. Registered before the install call even executes, so
+ * it also covers the case where `runCli` itself throws. Safe to register
+ * unconditionally: `uninstallBridge` is idempotent — "removing what is not
+ * there is success" (install.mjs) — so this is a no-op if install never
+ * wrote anything.
+ */
+function cleanUpBridgeInstall(t) {
+  t.after(async () => {
+    const cleanup = await runCli(['bridge', 'uninstall', '--user-data-dir', scratchProfile], {
+      env: cleanEnv,
+    });
+    assert.equal(JSON.parse(cleanup.stdout).ok, true);
+  });
+}
+
 test('bridge status answers without a live bridge — it never touches a socket', async () => {
   // The whole point of the branch. `bridge install` on a machine with no
   // bridge running must not fail with `bridge-off`: there is no bridge yet,
@@ -204,7 +227,9 @@ test('bridge status answers without a live bridge — it never touches a socket'
   assert.equal(code, 0);
 });
 
-test('bridge install computes the id from a load path and says which one it used', async () => {
+test('bridge install computes the id from a load path and says which one it used', async (t) => {
+  cleanUpBridgeInstall(t);
+
   // The id is the one value nobody can verify from inside this process, so
   // it is reported rather than kept — the person compares it against
   // chrome://extensions, which is the only ground truth there is. The path
@@ -226,23 +251,11 @@ test('bridge install computes the id from a load path and says which one it used
   assert.equal(payload.ok, true);
   assert.equal(payload.extensionId, expectedId);
   assert.match(payload.note, /computed from/);
-
-  // Tears down what this test wrote, `--user-data-dir` and all: `uninstall`
-  // now takes the same --user-data-dir/--browser pair `install` does (see
-  // the describe('bridge', ...) tests in args.test.mjs — this used to be
-  // impossible, which was the bug the team lead flagged). `launcherDir`
-  // itself still isn't scoped by --user-data-dir (`defaultInstallPaths()`
-  // always puts it under the real homedir, deliberately — install.mjs's
-  // docblock), but it lives at the same default location every install
-  // writes to, so this one call still finds and removes both files. Running
-  // it here, rather than a raw rmSync, also proves the round trip works.
-  const cleanup = await runCli(['bridge', 'uninstall', '--user-data-dir', scratchProfile], {
-    env: cleanEnv,
-  });
-  assert.equal(JSON.parse(cleanup.stdout).ok, true);
 });
 
-test('bridge install with an explicit --extension-id trusts it, and reports no note', async () => {
+test('bridge install with an explicit --extension-id trusts it, and reports no note', async (t) => {
+  cleanUpBridgeInstall(t);
+
   // The mirror image of the test above. Nothing was computed here — the id
   // came verbatim off the command line — so there is nothing to double-check
   // against chrome://extensions, and the reply must not claim otherwise. A
@@ -260,17 +273,11 @@ test('bridge install with an explicit --extension-id trusts it, and reports no n
   assert.equal(payload.ok, true);
   assert.equal(payload.extensionId, extensionId);
   assert.equal('note' in payload, false);
-
-  // `--user-data-dir` on the cleanup call too, now that `uninstall` accepts
-  // it — the manifest under scratchProfile gets removed explicitly rather
-  // than left for the OS to eventually reclaim the scratch directory.
-  const cleanup = await runCli(['bridge', 'uninstall', '--user-data-dir', scratchProfile], {
-    env: cleanEnv,
-  });
-  assert.equal(JSON.parse(cleanup.stdout).ok, true);
 });
 
-test('bridge status finds what bridge install wrote to a non-default --user-data-dir', async () => {
+test('bridge status finds what bridge install wrote to a non-default --user-data-dir', async (t) => {
+  cleanUpBridgeInstall(t);
+
   // This is the assertion that would have caught the whole gap: before this
   // fix, `status` (like `uninstall`) took no flags at all, so it could only
   // ever look at the default chrome/homedir location. A bridge installed
@@ -294,9 +301,4 @@ test('bridge status finds what bridge install wrote to a non-default --user-data
   // Names which of the now-three reachable locations it looked in, rather
   // than leaving a bare `installed: true` for the reader to guess at.
   assert.equal(payload.manifestPath.startsWith(scratchProfile), true);
-
-  const cleanup = await runCli(['bridge', 'uninstall', '--user-data-dir', scratchProfile], {
-    env: cleanEnv,
-  });
-  assert.equal(JSON.parse(cleanup.stdout).ok, true);
 });

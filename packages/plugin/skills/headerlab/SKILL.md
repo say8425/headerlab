@@ -28,13 +28,19 @@ person you're working with, say it yourself, not by relaying raw JSON.
 
 ## `bridge-off` is a state, not a retry loop
 
-Every command can fail with `{"ok":false,"error":{"code":"bridge-off",...}}`.
+Every command that reaches the socket — `site`/`rule`/`pause`/`resume`/
+`state set` — can fail with `{"ok":false,"error":{"code":"bridge-off",...}}`.
 That means no HeaderLab bridge is currently running — not that this attempt
 was unlucky. The host cannot be started from outside; there is nothing to
 wait for. Report it as "the bridge is not running" and stop, the same way
 you would report `MISSING-CLI` above. If more than one bridge is running,
 the error code is `multiple-bridges` instead, and its message lists each
 candidate's pid — rerun with `--bridge <pid>` naming one of them.
+
+`bridge install|uninstall|status` cannot fail this way — never reaching the
+socket in the first place is the entire reason those three exist (see
+below), so `bridge-off`/`multiple-bridges` are not answers you will ever see
+from them.
 
 The most common reason no bridge is running is that the native messaging
 host manifest was never installed — `headerlab bridge install` writes that
@@ -104,21 +110,26 @@ command with a bad shape), `invalid-command` (a `state set` source that
 could not be read, was too large, or was not valid JSON), `bridge-off`,
 `multiple-bridges`, `timeout` (the bridge accepted the connection but never
 replied), `bridge-error`/`bridge-closed` for other transport failures, and
-three more:
+three more — but which commands can produce which is not uniform, because
+`bridge install|uninstall|status` never reach the socket at all (see
+above), while every other command does:
 
-- `store-unreadable` — the extension's stored state does not match the
-  format this version expects, so nothing was applied and nothing was
-  overwritten. Can come back from any write, not just `bridge install`. Tell
-  the person to open the popup and check it themselves, then stop — this is
-  not something to retry or work around.
-- `unsupported` — this build refuses the request outright (currently: a
-  `state set` payload with a regex filter — there is no regex editor in the
-  popup and nothing validates the pattern). Do not look for a workaround;
-  report it as a hard no.
-- `install-failed` — `bridge install` specifically: the manifest was written
-  but failed its own verification and was rolled back, so nothing was left
-  behind. Relay the message as given; it already says what Chrome would have
-  said.
+- `store-unreadable` and `unsupported` come from the extension itself, only
+  ever in reply to a command that actually reached it over the socket —
+  `site`/`rule`/`pause`/`resume`/`state set`. `bridge install|uninstall|status`
+  cannot produce either one; do not go looking for them there.
+  - `store-unreadable` — the extension's stored state does not match the
+    format this version expects, so nothing was applied and nothing was
+    overwritten. Tell the person to open the popup and check it themselves,
+    then stop — this is not something to retry or work around.
+  - `unsupported` — this build refuses the request outright (currently: a
+    `state set` payload with a regex filter — there is no regex editor in
+    the popup and nothing validates the pattern). Do not look for a
+    workaround; report it as a hard no.
+- `install-failed` — the mirror image: only `bridge install` can produce it,
+  never the socket-borne commands. The manifest was written but failed its
+  own verification and was rolled back, so nothing was left behind. Relay
+  the message as given; it already says what Chrome would have said.
 
 None of these are worth retrying automatically — each names a specific,
 stable condition to report as-is.
