@@ -13,6 +13,7 @@
     "dev": "wxt",
     "build": "wxt build",
     "build:e2e": "wxt build --mode e2e",
+    "build:bridge-e2e": "wxt build --mode bridge-e2e",
     "zip": "wxt zip",
     "typecheck": "wxt prepare && tsc --noEmit",
     "lint": "wxt prepare && oxlint --deny-warnings",
@@ -21,7 +22,7 @@
     "format:check": "oxfmt --check",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "screenshots": "wxt build && node scripts/screenshots.mjs",
-    "test:e2e": "wxt build --mode e2e && playwright test",
+    "test:e2e": "wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test",
     "test:packages": "pnpm -r test",
     "check:all": "pnpm check && pnpm -r test",
     "postinstall": "wxt prepare"

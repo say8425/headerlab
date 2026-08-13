@@ -39,8 +39,32 @@ export default defineConfig({
     },
     // e2e builds only: lets the E2E suite modify headers on the loopback echo
     // server without a runtime permission prompt Playwright cannot click.
-    // Task 14 Step 3 asserts this never reaches a production build.
+    // tests/unit/manifest.test.ts asserts this never reaches a production build.
     ...(mode === 'e2e' ? { host_permissions: ['http://127.0.0.1/*'] } : {}),
+    // bridge-e2e builds only, and deliberately its own mode rather than a third
+    // thing bolted onto 'e2e' above. Two things Playwright cannot do: click
+    // Chrome's consent dialog for a runtime permission, and click the popup's
+    // Enable button before the worker has started — so this build grants
+    // nativeMessaging at install, the same bargain the loopback host permission
+    // above already makes for the header-modification suite.
+    //
+    // A single shared e2e manifest granting this outright was tried first and
+    // reverted: `probeNativeMessaging()` reads the permission itself, so every
+    // popup in the plain e2e suite — not just the bridge tests — would land on
+    // `bridge: 'idle'` with a real connect error the instant nativeMessaging
+    // was held but no host manifest existed for that test's throwaway profile.
+    // That mounts ScopeRail.tsx's `bridge-error` note, which is not part of the
+    // rail's already-zero-slack layout budget (see the `site-list` docblock
+    // there) — measured against the built popup, the site list collapsed from
+    // its 127px cap to 0, failing two pre-existing layout guards in
+    // tests/e2e/header-modification.spec.ts. Keeping the plain 'e2e' manifest
+    // exactly as it was before this bridge work — no nativeMessaging in it at
+    // all — means every test that does not care about the bridge sees exactly
+    // the popup it always has. Only tests/e2e/bridge.spec.ts, via
+    // tests/e2e/bridge-fixtures.ts, builds and loads this mode.
+    ...(mode === 'bridge-e2e'
+      ? { permissions: ['storage', 'declarativeNetRequestWithHostAccess', 'nativeMessaging'] }
+      : {}),
   }),
   vite: () => ({
     plugins: [tailwindcss()],
