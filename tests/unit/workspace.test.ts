@@ -279,12 +279,40 @@ describe('the release configuration', () => {
     expect(config['separate-pull-requests']).toBe(true);
   });
 
-  // The workflow reads unprefixed outputs, which only exist while the
-  // extension sits at `.`.
+  // The workflow now reads three different output shapes, not one: the
+  // root-only singular `release_created` (still correct for the extension's
+  // own `pnpm zip`/`gh release upload` — the root component, path `.`, is
+  // the extension), the plural `releases_created` (deliberately widened so
+  // `./.github/actions/setup` and `pnpm check` still run on a CLI-only
+  // release, where the root output is unset), and the CLI's own prefixed
+  // `packages/headerlab--release_created` (the npm publish step and the
+  // setup-node step ahead of it). This assertion pins only the first of
+  // those, because it's the one a careless refactor is likeliest to delete
+  // outright rather than merely misname. The publish step's prefixed gate is
+  // pinned on its own below, tied to the step itself.
   it('keeps the workflow reading output names its packages can produce', () => {
     const workflow = readFileSync('.github/workflows/release-please.yml', 'utf8');
     expect(workflow).toContain('steps.release.outputs.release_created');
     expect(workflow).not.toContain('release-type: node');
+  });
+
+  // Tied to the publish step itself, not "does this string appear anywhere
+  // in the file" — a bare `toContain` on the whole file would pass just as
+  // well with the right-looking string sitting in a comment, or attached to
+  // a different step's `if:`. The bare `release_created` this replaced is
+  // the root component's own output (the extension, path `.`); gating the
+  // CLI's publish on it fails in two directions — a CLI-only release leaves
+  // it unset and publishes nothing, an extension-only release leaves it true
+  // and publishes the CLI unchanged at whatever version its package.json
+  // still holds, claiming that version on npm for the 72-hour unpublish
+  // window and permanently after.
+  it("gates the npm publish step on the CLI package's own release output", () => {
+    const lines = readFileSync('.github/workflows/release-please.yml', 'utf8').split('\n');
+    const publishIndex = lines.findIndex((line) => line.includes('npm publish --provenance'));
+    expect(publishIndex).toBeGreaterThan(-1);
+    expect(lines[publishIndex + 1]).toContain(
+      "steps.release.outputs['packages/headerlab--release_created']",
+    );
   });
 
   // The absence assertion above passes against a step that is malformed in

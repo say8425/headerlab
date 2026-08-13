@@ -35,14 +35,23 @@ jobs:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
 
+      # `releases_created` (plural), not `release_created`: the unprefixed
+      # singular output only exists for the root component (path `.`, the
+      # extension) — see the path-outputs comment further down. This repo
+      # runs `separate-pull-requests: true`, so a CLI-only change produces a
+      # CLI-only release PR with the root output unset; gating setup on the
+      # singular would skip it, and skip the check below with it.
       - uses: ./.github/actions/setup
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.releases_created }}
 
       # The release PR is opened with the default GITHUB_TOKEN, which by
       # GitHub's own loop-prevention rule does not trigger `ci.yml` — so the
-      # commit being released is the one commit that reaches `main` unchecked.
+      # commit being released is the one commit that reaches `main`
+      # unchecked, extension or CLI alike. Same `releases_created` gate as
+      # setup above, and for the same reason: a CLI-only release must not
+      # skip this just because the root component didn't release.
       - run: pnpm check
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.releases_created }}
 
       # `wxt zip` builds first, so there is no separate build step.
       - run: pnpm zip
@@ -55,8 +64,19 @@ jobs:
           TAG: ${{ steps.release.outputs.tag_name }}
         run: gh release upload "$TAG" .output/*.zip
 
+      # Gated on the CLI's own prefixed output, not the bare `release_created`
+      # the two steps above use — that one only exists for the root
+      # component (path `.`, the extension). release-please-action prefixes
+      # every output with the package path once that path isn't `.`, so the
+      # CLI's is `packages/headerlab--release_created` (accessed with
+      # bracket syntax because the key contains `/`). Getting this wrong
+      # fails in two different directions: the bare form skips this step on
+      # a CLI-only release (tagged, released, nothing published), or fires it
+      # on an extension-only release and publishes the CLI unchanged at
+      # whatever version its package.json already holds — claiming that
+      # version on npm permanently, since the unpublish window is 72 hours.
       - uses: actions/setup-node@v6
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         with:
           # Without a registry-url, setup-node writes no .npmrc and
           # NODE_AUTH_TOKEN is never consulted — the publish fails
@@ -68,7 +88,7 @@ jobs:
       # setup-node just installed. No `--access` flag: `headerlab` is unscoped
       # and therefore public by default.
       - run: npm publish --provenance
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         working-directory: packages/headerlab
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
