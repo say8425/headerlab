@@ -652,10 +652,12 @@ export function ScopeRail({
             needed 28px and the rail had 7 genuinely free — measured in the
             built popup, not read off the source; see
             docs/design/2026-08-12-agent-bridge-rail-budget.html for the
-            arithmetic. Four other margins each gave up 1px (the readout
-            card's and this section's own `mt-4`→`mt-3`, the types section's
-            `pt-3`→`pt-2`, the bridge row's own `mt-2`→`mt-1`), closing 16 of
-            the 21px shortfall; the list gave up the remaining 5, 132→127.
+            arithmetic. Four other margins each gave up one notch on
+            Tailwind's 4px spacing scale (the readout card's and this
+            section's own `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`,
+            the bridge row's own `mt-2`→`mt-1` — 16px→12px is 4px, not 1),
+            closing 16 of the 21px shortfall; the list gave up the remaining
+            5, 132→127.
 
             **The rail now carries zero slack.** Every other margin in this
             card was already load-bearing rhythm, not spare space, so the next
