@@ -181,7 +181,7 @@ describe('applying a command', () => {
     // The host broadcasts every extension reply to every connected socket
     // client with no pairing of its own, so two concurrent `headerlab`
     // invocations would each read the other's answer. The contract is written
-    // down in packages/cli/lib/bridge.mjs's sendCommand docblock; this is the
+    // down in packages/headerlab/lib/bridge.mjs's sendCommand docblock; this is the
     // assertion that holds the extension's half of it.
     await refreshBridge();
     const port = ports[0]!;

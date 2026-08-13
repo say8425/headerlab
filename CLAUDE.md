@@ -153,10 +153,10 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
   10, and the version that does not own a spelling ignores it in silence.
-  **`pnpm-workspace.yaml` also declares `packages:`** — `packages/cli`, `packages/host`,
+  **`pnpm-workspace.yaml` also declares `packages:`** — `packages/headerlab`,
   `packages/plugin`, named rather than globbed, so a directory joining the release surface
   shows up as a diff instead of silently matching a glob (`tests/unit/workspace.test.ts`
-  pins the exact three, and the same file guards CI actually running their tests — see
+  pins the exact two, and the same file guards CI actually running their tests — see
   the CI section below). The extension itself stays at the repository root, and that is
   load-bearing rather than tidy: release-please prefixes every output with the package
   path once that path is not `.`, which would leave conditions in `release-please.yml`
@@ -410,7 +410,7 @@ into the bridge's error state; `wxt.config.ts`'s `bridge-e2e` branch carries the
 reasoning at the point of use.
 
 **The host and the CLI must never resolve `HEADERLAB_SOCKET_DIR` — or any socket
-directory — independently.** `socketDir()` in `packages/host/lib/socket.mjs` reads the
+directory — independently.** `socketDir()` in `packages/headerlab/lib/socket.mjs` reads the
 override once, inside itself, rather than trusting either call site to apply it the same
 way. The host inherits Chrome's environment and the CLI inherits the terminal's, so if
 either half applied an override — or fell back to `$TMPDIR` — on its own, the two could
@@ -591,7 +591,7 @@ the install runs, not a cleanup call at the end of the test), and check
 `~/.headerlab/bin` and the real per-user socket directory by hand afterward regardless.
 
 **One flaky test, pre-existing, not from the bridge work.**
-`packages/host/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
+`packages/headerlab/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
 under the two-second SIGKILL budget, with everything cleaned up" failed once under
 concurrent load and passed both in isolation and on re-run.
 
@@ -674,14 +674,14 @@ that no longer renders, passing while describing nothing.
   folded into an existing fixed-height row; these are multi-line prose with no existing
   row to fold into), so it needs its own design pass rather than a while-we-are-here
   patch.
-- **Three hand-written declaration files exist** — `packages/host/lib/manifest.d.mts`,
-  `packages/host/lib/socket.d.mts`, `packages/cli/lib/install.d.mts` — because `tests/`
+- **Three hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
+  `packages/headerlab/lib/socket.d.mts`, `packages/headerlab/lib/install.d.mts` — because `tests/`
   and `tests/e2e/` import `.mjs` modules from TypeScript and `allowJs` is off. Nothing
   checks that any of them still matches its implementation.
 - **The bridge's `idle` state means "the permission is held and no port is open," not
   "a CLI is not attached."** The extension has no way to see the host's socket clients —
   it can only see its own `connectNative` port — and giving it that visibility would turn
-  the host from a dumb relay into a protocol participant, which `packages/cli/lib/bridge.mjs`
+  the host from a dumb relay into a protocol participant, which `packages/headerlab/lib/bridge.mjs`
   argues against by name. So `idle` in practice names the state most people land in first:
   **Enable** pressed, `headerlab bridge install` never run.
 - **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which

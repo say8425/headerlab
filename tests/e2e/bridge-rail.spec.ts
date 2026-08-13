@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { assertBuildFresh } from '../support/build';
-import { unpackedExtensionId } from '../../packages/host/lib/manifest.mjs';
-import { installBridge, uninstallBridge } from '../../packages/cli/lib/install.mjs';
-import { socketDir } from '../../packages/host/lib/socket.mjs';
+import { unpackedExtensionId } from '../../packages/headerlab/lib/manifest.mjs';
+import { installBridge, uninstallBridge } from '../../packages/headerlab/lib/install.mjs';
+import { socketDir } from '../../packages/headerlab/lib/socket.mjs';
 
 /**
  * The rail-layout side of the bridge feature, exercised the way
@@ -137,7 +137,7 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   const paths = {
     manifestDir: path.join(liveProfile, 'NativeMessagingHosts'),
     launcherDir: path.join(liveProfile, 'bin'),
-    entryPath: path.resolve('packages/host/bin/headerlab-host.mjs'),
+    entryPath: path.resolve('packages/headerlab/bin/headerlab-host.mjs'),
     nodePath: process.execPath,
     extensionId: unpackedExtensionId(liveExtensionPath),
     socketDirPath: socketDir(),

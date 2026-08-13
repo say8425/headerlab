@@ -15,8 +15,8 @@ function declaredPackages(): string[] {
 }
 
 describe('the workspace', () => {
-  it('declares the three packages', () => {
-    expect(declaredPackages()).toEqual(['packages/cli', 'packages/host', 'packages/plugin']);
+  it('declares the two packages', () => {
+    expect(declaredPackages()).toEqual(['packages/headerlab', 'packages/plugin']);
   });
 
   // A glob would let a directory be added without anyone noticing it joined
@@ -25,12 +25,9 @@ describe('the workspace', () => {
     expect(declaredPackages().some((p) => p.includes('*'))).toBe(false);
   });
 
-  it.each(['packages/cli', 'packages/host', 'packages/plugin'])(
-    '%s exists and has a package.json',
-    (dir) => {
-      expect(existsSync(`${dir}/package.json`)).toBe(true);
-    },
-  );
+  it.each(['packages/headerlab', 'packages/plugin'])('%s exists and has a package.json', (dir) => {
+    expect(existsSync(`${dir}/package.json`)).toBe(true);
+  });
 
   // Measured: `allowBuilds` is pnpm 11's spelling and pnpm 10 ignores it in
   // silence. Adding `packages:` must not disturb the answer already recorded

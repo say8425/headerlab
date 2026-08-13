@@ -66,7 +66,7 @@ export interface ScopeRailProps {
    * design's original wording ("a CLI is not attached"), and the change is
    * deliberate: the extension cannot see the host's socket clients, and making
    * the host tell it would turn a relay into a protocol participant — the
-   * thing packages/cli/lib/bridge.mjs argues against by name. What `idle`
+   * thing packages/headerlab/lib/bridge.mjs argues against by name. What `idle`
    * actually points at is the state a user really lands in: Enable pressed,
    * `headerlab bridge install` never run.
    */

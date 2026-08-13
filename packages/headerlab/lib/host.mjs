@@ -18,7 +18,7 @@ import {
  * stdin, and a post-bind server fault — to the same cleanup.
  *
  * Every I/O dependency is a parameter rather than this module reaching for
- * `process.*` itself, the same reason `packages/cli/lib/bridge.mjs` takes a
+ * `process.*` itself, the same reason `packages/headerlab/lib/bridge.mjs` takes a
  * directory rather than calling `socketDir()`: `bin/headerlab-host.mjs` runs
  * this as a side effect of being imported (it has to — Chrome execs it
  * directly), so nothing inside a bin file is ever reachable from

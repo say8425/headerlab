@@ -18,7 +18,7 @@ import { extractBridgeFlag, findLiveBridges, resolveTarget, sendCommand } from '
 // it as a subprocess. lib/bridge.mjs has no such side effect, and none of
 // what it does needs Chrome or the real extension: enumerating a directory
 // and speaking newline-JSON over a real unix socket is exactly what
-// packages/host/test/socket.test.mjs already proves is testable without a
+// packages/headerlab/test/socket.test.mjs already proves is testable without a
 // browser. A fake socket server standing in for the host is what makes the
 // request/response correlation test below possible at all — it is the one
 // design decision this task exists to solve, and it deserves more than a
@@ -249,7 +249,7 @@ describe('sendCommand', () => {
           if (line.trim() === '') continue;
           const envelope = JSON.parse(line);
           // Broadcast to every connected client, exactly like
-          // packages/host/bin/headerlab-host.mjs does — the reply for A
+          // packages/headerlab/bin/headerlab-host.mjs does — the reply for A
           // reaches B's socket too, and vice versa.
           const reply = `${JSON.stringify({ id: envelope.id, ok: true, echo: envelope.command.name })}\n`;
           for (const client of clients) client.write(reply);

@@ -14,6 +14,11 @@ import { describe, expect, it } from 'vitest';
  * holds. It is written down because a guard that stays silent about its blind
  * spot is worse than no guard: it makes a green run mean more than it does.
  * The verified positives and negatives below are the whole of what is claimed.
+ *
+ * **This glob is path-bound.** If the package moves, this becomes an empty
+ * list and the whole guard passes silently — the first test below exists to
+ * catch exactly that. It fired for real on 2026-08-14, when
+ * `packages/{cli,host}` merged into `packages/headerlab`.
  */
 const FORBIDDEN = [
   /require\(['"]node:https?['"]\)|from\s+['"]node:https?['"]/,
@@ -26,7 +31,7 @@ const FORBIDDEN = [
   /\.(connect|listen)\s*\(\s*\d/,
 ];
 
-const SOURCES = globSync('packages/{cli,host}/**/*.mjs');
+const SOURCES = globSync('packages/headerlab/**/*.mjs');
 
 describe('nothing under packages/ can leave this machine', () => {
   it('finds sources to check — an empty glob would pass vacuously', () => {

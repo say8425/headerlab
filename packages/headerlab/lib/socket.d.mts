@@ -4,7 +4,7 @@
  * the same per-user socket directory a real Chrome-launched host resolves.
  * Without this file, `tsc --noEmit` fails that import with TS7016
  * (`allowJs` is off, so a plain `.mjs` has no inferred shape) — the same gap
- * `packages/host/lib/manifest.d.mts` closes for `manifest.mjs`.
+ * `packages/headerlab/lib/manifest.d.mts` closes for `manifest.mjs`.
  */
 
 export declare function socketDir(): string;

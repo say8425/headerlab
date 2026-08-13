@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Unlike packages/host/bin/headerlab-host.mjs, this shebang never needs
+// Unlike headerlab-host.mjs (this file's sibling in bin/), this shebang never needs
 // rewriting: Chrome never launches this file — a person's shell does, and
 // the shell's own PATH already has node on it (nvm, homebrew, or whatever
 // put `pnpm`/`node` there in the first place). The env-resolution trap

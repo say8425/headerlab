@@ -82,7 +82,7 @@ describe('installBridge', () => {
     // Task 4 review, promoted from Minor: verifyLauncher used to SIGKILL the
     // verification host immediately after closing its stdin, with no gap
     // between them, so the host's own cleanup() in
-    // packages/host/lib/host.mjs — unlink the socket, remove the registry
+    // packages/headerlab/lib/host.mjs — unlink the socket, remove the registry
     // entry — never got to run. In production socketDirPath is the real
     // per-user directory (defaultInstallPaths() sets it to socketDir()), so
     // every install left a dead bridge-<pid>.sock and <pid>.json behind in

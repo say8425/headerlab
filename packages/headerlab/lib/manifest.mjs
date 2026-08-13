@@ -3,10 +3,8 @@ import path from 'node:path';
 
 /**
  * Everything the installer needs to know about *what* a native messaging host
- * manifest is, with no filesystem in it. It lives in `packages/host` rather
- * than `packages/cli` because it describes this host — the name Chrome looks
- * up and the shape of the file that points at it — and `packages/cli` already
- * imports from here for the socket paths.
+ * manifest is, with no filesystem in it — `install.mjs`, alongside it in this
+ * `lib/`, imports it for the manifest shape and reuses `socket.mjs`'s paths.
  */
 
 /**

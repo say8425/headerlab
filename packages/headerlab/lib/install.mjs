@@ -37,7 +37,7 @@ const VERIFY_POLL_MS = 50;
 /**
  * How long the verification host gets to exit on its own after stdin
  * closes, before this resorts to SIGKILL. Chrome itself waits up to two
- * seconds for a real host to exit the same way — `packages/host/lib/host.mjs`'s
+ * seconds for a real host to exit the same way — `packages/headerlab/lib/host.mjs`'s
  * docblock records that its cleanup (unlinking the socket, removing the
  * registry entry) "finishes well under that two-second budget" — so this
  * gives the verification host the same courtesy Chrome does, rather than
@@ -141,7 +141,7 @@ export async function installBridge({
  *
  * `HEADERLAB_SOCKET_DIR` is set on the child's environment only, not argv:
  * Chrome invokes the launcher with exactly the one origin argument, and this
- * spawn call must exercise that same real path. `packages/host/lib/socket.mjs`'s
+ * spawn call must exercise that same real path. `packages/headerlab/lib/socket.mjs`'s
  * `socketDir()` reads the variable, which is what keeps this verification run
  * from binding into the developer's own per-user socket directory — Chrome
  * itself never sets it, so production is unaffected.
@@ -214,7 +214,7 @@ async function verifyLauncher(launcherPath, extensionId, socketDirPath) {
  * `SHUTDOWN_GRACE_MS` to act on it before falling back to SIGKILL.
  *
  * An unconditional SIGKILL right after `stdin.end()`, with no gap between
- * them, never gave `cleanup()` in `packages/host/lib/host.mjs` a chance to
+ * them, never gave `cleanup()` in `packages/headerlab/lib/host.mjs` a chance to
  * run — so the verification host's socket and registry entry were left
  * behind in whatever directory `HEADERLAB_SOCKET_DIR` named. In production
  * that is the real per-user socket directory (`defaultInstallPaths()` sets

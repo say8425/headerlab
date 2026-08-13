@@ -26,7 +26,7 @@ import type { LoadedState } from '@/lib/storage/state';
 
 /**
  * The name Chrome looks up in NativeMessagingHosts. The installer writes a
- * manifest under exactly this name — `packages/host/lib/manifest.mjs` holds
+ * manifest under exactly this name — `packages/headerlab/lib/manifest.mjs` holds
  * the other spelling, and tests/unit/bridgeName.test.ts pins the two together
  * because nothing else can: one is TypeScript bundled into the extension and
  * the other is Node the extension must never import.

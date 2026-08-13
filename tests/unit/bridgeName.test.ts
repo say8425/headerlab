@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { HOST_NAME } from '../../packages/host/lib/manifest.mjs';
+import { HOST_NAME } from '../../packages/headerlab/lib/manifest.mjs';
 
 /**
  * The native host name exists twice and cannot exist once.
  *
- * `packages/host/lib/manifest.mjs` is Node, and the extension bundle must
+ * `packages/headerlab/lib/manifest.mjs` is Node, and the extension bundle must
  * never import it — the bundle guard forbids exactly that kind of reach, and a
  * Node import would drag `node:crypto` into a service worker. `lib/bridge/port.ts`
  * is TypeScript compiled into the extension. So the two spellings are

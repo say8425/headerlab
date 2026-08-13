@@ -45,7 +45,7 @@ test('a CLI command reaches storage through the bridge', async ({
 
   const stdout = execFileSync(
     process.execPath,
-    ['packages/cli/bin/headerlab.mjs', '--bridge', String(pid), 'site', 'add', 'example.com'],
+    ['packages/headerlab/bin/headerlab.mjs', '--bridge', String(pid), 'site', 'add', 'example.com'],
     { encoding: 'utf8' },
   );
   const reply = JSON.parse(stdout);

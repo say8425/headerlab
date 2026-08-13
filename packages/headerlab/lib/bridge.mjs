@@ -13,7 +13,7 @@ import { isSocketAlive, registryPathFor, socketPathFor } from './socket.mjs';
  * takes its I/O dependencies (a directory, a socket path) as arguments
  * rather than reaching for `socketDir()` itself, so tests can point it at a
  * scratch directory instead of the real `$TMPDIR/headerlab` — the same
- * reason `packages/host/lib/socket.mjs` takes `dir` as a parameter.
+ * reason `packages/headerlab/lib/socket.mjs` takes `dir` as a parameter.
  */
 
 export function withCode(error, code) {
@@ -42,7 +42,7 @@ export function extractBridgeFlag(argv) {
 const REGISTRY_FILE = /^(\d+)\.json$/;
 
 /**
- * Enumerates the registry directory `packages/host/lib/socket.mjs` writes
+ * Enumerates the registry directory `packages/headerlab/lib/socket.mjs` writes
  * (`<pid>.json` beside `bridge-<pid>.sock`) and returns only the entries
  * whose socket actually answers — a registry file can outlive its host if
  * the process was SIGKILLed past its two-second cleanup budget (see that
@@ -135,7 +135,7 @@ export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  *
  * The host is a dumb relay: it broadcasts every extension reply to every
  * connected socket client with no request/response pairing of its own (by
- * design — see packages/host's task report, "no correlation" was flagged
+ * design — see the host's task report, "no correlation" was flagged
  * there deliberately rather than solved there). Two concurrent `headerlab`
  * invocations against the same bridge would otherwise each read the
  * other's reply. Solving it here, with a per-command `id`, keeps the host a
@@ -205,7 +205,7 @@ export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIM
 
     // A connection that closes before delivering a matching reply is its
     // own case, distinct from "no socket file at all" — flagged in
-    // packages/host's task report as something this file would need to
+    // the host's task report as something this file would need to
     // handle once it existed.
     socket.on('close', () => {
       settle(

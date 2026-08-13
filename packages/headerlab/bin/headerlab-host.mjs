@@ -11,7 +11,7 @@
 // `{"message":"Native host has exited."}`, with an empty host log
 // (docs/research/2026-08-11-native-messaging-spike.md). A machine-specific
 // absolute path is not hardcoded here instead: that would break `node
-// bin/headerlab-host.mjs`, `node --test packages/host`, and CI on every
+// bin/headerlab-host.mjs`, `node --test packages/headerlab`, and CI on every
 // machine but the one that wrote it. The `env` form stays for those; only
 // the copy Chrome actually invokes needs the rewrite.
 

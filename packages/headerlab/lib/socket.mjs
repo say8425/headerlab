@@ -65,7 +65,7 @@ function unlinkIfExists(targetPath) {
  *
  * 1. `HEADERLAB_SOCKET_DIR`, an explicit override, read here rather than at
  *    either call site — the installer's self-verification (`installBridge`
- *    in `packages/cli/lib/install.mjs`) spawns a **real** host to confirm it
+ *    in `packages/headerlab/lib/install.mjs`) spawns a **real** host to confirm it
  *    starts, and that host must not bind into the developer's own per-user
  *    directory, where a concurrent `headerlab` command would find the
  *    verification host and mistake it for a live bridge. Reading the

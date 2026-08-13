@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test as base, chromium, type BrowserContext, type Worker } from '@playwright/test';
 import { assertBuildFresh } from '../support/build';
-import { unpackedExtensionId } from '../../packages/host/lib/manifest.mjs';
-import { installBridge, uninstallBridge } from '../../packages/cli/lib/install.mjs';
-import { socketDir } from '../../packages/host/lib/socket.mjs';
+import { unpackedExtensionId } from '../../packages/headerlab/lib/manifest.mjs';
+import { installBridge, uninstallBridge } from '../../packages/headerlab/lib/install.mjs';
+import { socketDir } from '../../packages/headerlab/lib/socket.mjs';
 
 /**
  * The registry is what makes a specific bridge addressable — see §8.6. Lives
@@ -31,8 +31,8 @@ export function findBridgePid(dir: string, origin: string): number | null {
  * How long to wait, after asking the bridge to shut down, for its registry
  * entry to actually disappear before treating that as a leak. Chrome gives a
  * native-messaging host up to two seconds to exit on closed stdin
- * (`packages/host/lib/host.mjs`'s docblock, and
- * `packages/cli/lib/install.mjs`'s own `SHUTDOWN_GRACE_MS`); this adds a
+ * (`packages/headerlab/lib/host.mjs`'s docblock, and
+ * `packages/headerlab/lib/install.mjs`'s own `SHUTDOWN_GRACE_MS`); this adds a
  * margin over that rather than reusing the exact number, since this is
  * measuring the same shutdown through one more layer — `context.close()`
  * tearing down the whole browser, not a single spawned child directly.
@@ -92,7 +92,7 @@ export const test = base.extend<{
     const paths = {
       manifestDir: path.join(profile, 'NativeMessagingHosts'),
       launcherDir: path.join(profile, 'bin'),
-      entryPath: path.resolve('packages/host/bin/headerlab-host.mjs'),
+      entryPath: path.resolve('packages/headerlab/bin/headerlab-host.mjs'),
       nodePath: process.execPath,
       extensionId: unpackedExtensionId(extensionPath),
       socketDirPath: socketDir(),

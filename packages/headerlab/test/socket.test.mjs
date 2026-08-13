@@ -112,7 +112,7 @@ test('socketDir is stable across calls (same process, same answer)', () => {
   assert.equal(socketDir(), socketDir());
 });
 
-// The installer's self-verification (packages/cli/lib/install.mjs) spawns a
+// The installer's self-verification (packages/headerlab/lib/install.mjs) spawns a
 // real host and must not let it bind into the developer's own per-user
 // directory, where a concurrent `headerlab` command would find it and
 // mistake it for a live bridge. This is what makes that isolation possible —
