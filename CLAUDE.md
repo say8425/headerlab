@@ -58,10 +58,11 @@ entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
                  that exposes them as utilities, and the shadcn data-* variants
 public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
-packages/        the agent-bridge pnpm workspace — cli (the `headerlab`
-                 command), host (native-messaging relay), plugin (Claude
-                 Code / Codex skill). Zero runtime deps, node:test, own
-                 CI job. See README's "Agent bridge" section for the design.
+packages/        the agent-bridge pnpm workspace — headerlab (the `headerlab`
+                 CLI plus the native-messaging host it installs, published to
+                 npm), plugin (Claude Code / Codex skill, not published).
+                 Zero runtime deps, node:test, own CI job. See README's
+                 "Agent bridge" section for the design.
 ```
 
 **Decision logic lives in a pure layer; browser calls live in one thin adapter each.**
@@ -170,6 +171,39 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   file was written to say "no package in this tree declares a build script at all". All
   five jobs failed on the first push. To reproduce what CI does, run
   `rm -rf node_modules && pnpm install --frozen-lockfile --ignore-scripts=false`.
+- **`packages/headerlab` is published. The extension and the plugin are not.**
+  That package carries no `private: true`, and that flag's absence is the whole
+  safety switch — with it gone, npm no longer rejects an accidental `npm
+  publish` with `EPRIVATE`. What actually reaches the tarball is decided by
+  `package.json`'s `files` field, and *believing* `files` is not the same as
+  *checking* it: run `npm pack --dry-run` from `packages/headerlab` and read
+  the listing. Measured this way: 13 files, `bin/` and `lib/` plus
+  `package.json`, with `test/` sitting beside them on disk and correctly
+  absent from the tarball (`cd packages/headerlab && npm pack --dry-run`).
+  Publishing itself happens only from `release-please.yml`'s `npm publish
+  --provenance` step, on a release; it is never run by hand, and this
+  repository's own pnpm cannot do it anyway — see "Never write the lockfile on
+  this machine" below.
+  **One package rather than two, and it is not tidiness.** `bridge install`
+  writes a launcher that names the native-messaging host's entry file by
+  absolute path (`lib/manifest.mjs`'s `launcherScript`). A CLI published
+  without that host would still write the launcher — the install step cannot
+  see that the file it is naming does not exist on the target machine — and
+  Chrome would report the resulting failure with the same message it uses for
+  a rejected manifest or a mismatched extension id, indistinguishable without
+  reading the log by hand. Shipping both from the one tarball `bridge install`
+  reads makes that failure mode structurally impossible rather than merely
+  documented.
+  **The publish direction has been measured separately from the install
+  direction, and it does not hit the same proxy.** `npm config get registry`
+  here resolves to `https://registry.npmjs.org/`, unrewritten — every proxy
+  incident this file records elsewhere (the `nexus.mng.musinsa.io` rewrite,
+  the dropped platform bindings) is from *installing*, and this is the first
+  time the *publish* direction has been checked at all. `npm publish
+  --dry-run` from `packages/headerlab` passes clean (`+ headerlab@0.0.0`, no
+  name rejection), and separately `npm whoami` returns 401 here — confirming
+  the clean dry-run is dry-run behaviour and not a stray local credential
+  standing in for CI's.
 
 ## Toolchain
 
@@ -298,6 +332,24 @@ everything, uploaded as an artifact. **That is the loop to re-run** whenever a d
 changes, and the diff proves it converts rather than drifts — 188 insertions, **zero**
 deletions, all 18 of them the missing bindings. `pnpm install --frozen-lockfile`
 re-resolves nothing and is the everyday command.
+
+**A prediction about `--frozen-lockfile` and a missing workspace importer was made twice,
+and both times the answer was already sitting in this repository, unread.** Two reviews,
+two days apart, predicted that the install fails outright when `pnpm-workspace.yaml`
+declares a package the lockfile's `importers:` block has no entry for. Neither is what
+happens: commit `6220afe` reproduced it in a scratch copy and found the install
+*succeeds*, silently writing the missing entries into the committed file — worse than a
+red job, because nothing says it happened. That commit's own message carries the caveat
+that got lost when the reasoning was later copied into `tests/unit/workspace.test.ts`'s
+docblock: it was measured on **pnpm 10.33.0**, the version this machine's broken pnpm
+resolves to, and CI pins **11.20.0** — so neither "it fails" nor "it silently rewrites" has
+ever been reproduced on the pnpm that actually runs the workflow. `1b89b45` restored the
+caveat to the docblock rather than picking a side. `.github/actions/setup/action.yml` runs
+`git diff --exit-code pnpm-lock.yaml` immediately after the install for exactly this
+reason — it is the right guard under either resolution, since a silent rewrite shows up as
+an uncommitted diff and a hard failure never reaches that step at all. The lesson worth
+keeping is not which way the flag behaves; it is to run `git log -S` against a tooling
+claim before restating it a third time — the answer was already here twice.
 
 **corepack cannot fetch pnpm through the proxy**, so `corepack enable` is a CI-only
 instruction. It builds the tarball URL as `<registry>/pnpm-11.20.0/-/pnpm-11.20.0.tgz`,

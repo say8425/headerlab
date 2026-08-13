@@ -102,6 +102,19 @@ unpacked**, and select the unpacked directory.
 Chrome only. Edge is untested — it is the same engine and should work, but no
 one has run the suite against it.
 
+### The CLI
+
+```bash
+npm i -g headerlab
+```
+
+That puts `headerlab` on your PATH — see *Agent bridge* below for what it
+does. It runs straight from a clone too, with no install step at all, because
+the package has zero runtime dependencies: `node
+packages/headerlab/bin/headerlab.mjs`. But the line above is how a person uses
+this; the clone is what a contributor does, and the two are ordered that way
+on purpose.
+
 ### The agent skill
 
 `packages/plugin` packages the CLI as a skill for Claude Code and for Codex,
@@ -121,6 +134,12 @@ The skill runs `command -v headerlab` before its own content reaches the model,
 so a missing CLI arrives as a fact rather than as a surprise mid-task. **It
 reports `bridge-off` until the bridge is turned on** — see *Agent bridge*
 below for the three steps that do it.
+
+Installing the CLI globally is not a prerequisite for this: the plugin carries
+its own shim to `packages/headerlab`, so `command -v headerlab` succeeds from
+the plugin install alone. Running `npm i -g headerlab` as well is not a
+conflict either — PATH resolves the global copy first, and the two install
+paths are not exclusive.
 
 ## Development
 
@@ -197,7 +216,8 @@ lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      popup UI
 entrypoints/     background.ts, popup/
-packages/        the agent bridge, outside the extension bundle — cli, host,
+packages/        the agent bridge, outside the extension bundle — headerlab
+                 (the CLI plus the native-messaging host, published to npm),
                  plugin. Zero deps, node:test, their own CI job
 ```
 
@@ -224,11 +244,14 @@ constraints behind them in `docs/research/`.
 
 An AI agent can drive HeaderLab from a terminal instead of a person clicking
 through the popup — turning "add a Bearer token to staging" into one command
-instead of six manual clicks. It ships as a three-package pnpm workspace:
-`packages/cli` (the `headerlab` command), `packages/host` (a native-messaging
-relay that Chrome itself launches and kills), and `packages/plugin` (a Claude
-Code / Codex plugin that packages the CLI as a skill). All three have zero
-runtime dependencies.
+instead of six manual clicks. It ships as a two-package pnpm workspace:
+`packages/headerlab` (the `headerlab` command and the native-messaging host
+that Chrome itself launches and kills, one package rather than two because
+`bridge install` writes a launcher naming the host's entry file by absolute
+path — a CLI published without the host would point that launcher at a file
+that does not exist) and `packages/plugin` (a Claude Code / Codex plugin that
+packages the CLI as a skill). Both have zero runtime dependencies, and
+`packages/headerlab` is the one published to npm — see *Install* above.
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -340,16 +363,17 @@ and end-to-end against a genuinely loaded extension. Two of the sixteen e2e test
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 815 unit tests across 38 files, plus 16 e2e tests —
+At the time of writing: 817 unit tests across 38 files, plus 16 e2e tests —
 four of those are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`, including one that drives a real
 `headerlab site add` through a real installed host, through the socket, and
-into real storage. The host and the CLI carry their own — 59 and 81 — run by
-Node's built-in test runner rather than vitest, because neither package has a
-dependency and neither should acquire one. `vitest.config.ts`'s glob cannot
-reach them, which is why they get a CI job of their own rather than riding
-`pnpm test`: for a while they were merging unexecuted, and a suite nothing
-runs is worse than one that does not exist, because it reports success.
+into real storage. `packages/headerlab` carries its own — 140, the CLI's and
+the former `packages/host`'s combined — run by Node's built-in test runner
+rather than vitest, because the package has no dependency and should not
+acquire one. `vitest.config.ts`'s glob cannot reach them, which is why they
+get a CI job of their own rather than riding `pnpm test`: for a while they
+were merging unexecuted, and a suite nothing runs is worse than one that does
+not exist, because it reports success.
 
 ## Status
 

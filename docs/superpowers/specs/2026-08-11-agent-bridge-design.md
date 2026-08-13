@@ -346,6 +346,16 @@ packages/plugin/        .claude-plugin/ + .codex-plugin/ + skills/
 문제가 그대로 걸리므로 별도 결정이 필요하다(§10, Q5). 그때까지 CLI 도 `private: true` 로
 두고 플러그인에 번들한다.
 
+**2026-08-14 결정됨.** 위 문단은 그 시점의 기록으로 남기고, 무엇이 정해졌는지는 옆에
+적는다: 사람이 직접 설치해 쓸 수 있어야 한다는 소유자 결정에 따라 CLI 는 발행된다.
+`packages/cli` 와 `packages/host` 를 `packages/headerlab` 한 패키지로 합쳐 `private: true`
+를 뺐고(그 플래그가 지금까지의 안전장치였다), `--provenance` 를 붙여 `release-please.yml`
+의 `release_created` 분기에서 발행한다. 프록시 문제는 설치 방향에서만 실측되어 있었고
+발행 방향은 이 결정 전에는 시도된 적이 없었다 — 시도해보니 이 기계의 레지스트리는
+프록시 없이 `registry.npmjs.org` 로 그대로 풀렸다. 근거와 확인 방법 전부는
+`docs/superpowers/specs/2026-08-14-cli-npm-publication-design.md` 에 있고, §10 의 Q5 가
+그 문서를 가리킨다.
+
 ---
 
 ## 7. 스킬 플러그인
@@ -581,7 +591,7 @@ Node 에 native-order 32비트 쓰기 헬퍼는 없다. `os.endianness()` 로 �
 | ~~Q10~~ | ~~런타임 승인이 실제로 떨어지는가~~ | **답함 — 떨어진다.** §8.1, 스파이크 문서 |
 | ~~Q11~~ | ~~관측되는 keepalive 는 얼마인가~~ | **답함 — 포트만으로 7분+ 산다.** §8.4, 스파이크 문서 |
 | Q12 | 호스트가 포트가 닫힌 *이유*(비활성화/종료/권한 해제)를 구분할 수 있는가 | 값이 내려갔다. Q11 이 "유휴로는 안 죽는다"로 답하면서 네 경우 중 하나가 사라졌고, 나머지를 가르는 것은 UI 가 이유를 말해야 할 때만 필요하다. 필요해지면 확장이 끊기 전에 이유를 포트로 내려보내는 것이 유일한 방법이다. **구현 완료 시점에도 필요하지 않았다** — `idle` 을 "포트가 안 열림"으로 재정의해 §5 가 그 이유를 흡수했고, 팝업은 `bridgeError` (Chrome 이 준 마지막 연결 실패 메시지)만으로 "Bridge down" 행을 채운다 |
-| Q5 | CLI 를 npm 에 올리는가, 어느 레지스트리로 | CLAUDE.md 의 프록시 문제가 걸린다. 별도 결정 |
+| ~~Q5~~ | ~~CLI 를 npm 에 올리는가, 어느 레지스트리로~~ | **답함 — 올린다, 스코프 없는 `headerlab` 하나로, `registry.npmjs.org`.** §6.5, `docs/superpowers/specs/2026-08-14-cli-npm-publication-design.md` |
 | Q13 | Codex 의 `.claude-plugin` 폴백이 0.145.0 에서 실제로 도는가 | 스크래치 마켓플레이스로 확인. 단 `~/.codex/config.toml` 을 건드린다 |
 | Q9 | 이관이 Tailwind 스캔 집합과 팝업 CSS 바이트 수를 바꾸는가 | 전후 빌드하고 `wc -c` 비교 |
 
