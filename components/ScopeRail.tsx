@@ -221,6 +221,19 @@ export function ScopeRail({
         ? 'granted'
         : 'pending';
 
+  /**
+   * `idle` covers two states that look identical to the extension but must
+   * not look identical to a person: "Enable pressed, `headerlab bridge
+   * install` never run" and "was live, the host just died". Both used to get
+   * a second box below the row this constant now feeds — deleted, because
+   * the rail has zero slack (see the site-list docblock below) and a box
+   * that only appears on error collapsed the site list to nothing under
+   * real content pressure, in production as much as in a test with enough
+   * sites to reach the cap. The error is folded into the row that already
+   * exists instead: see the `bridgestate` block for where this is read.
+   */
+  const bridgeUnreachable = bridge === 'idle' && bridgeError !== null;
+
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
       <div className="flex h-6 shrink-0 items-center gap-2 px-3">
@@ -345,31 +358,62 @@ export function ScopeRail({
           data-testid="bridgestate"
           data-bridge={bridge}
         >
-          {/* Colour only when a port is actually open. `unknown` gets the slot
-              with no fill at all — reserving the space must not put a phantom
-              state on screen, the same bargain the all-sites glyph makes. */}
+          {/* Colour only when a port is actually open, plus the pending
+              (amber) borrow below for `bridgeUnreachable` — incomplete
+              rather than wrong, the same reading that keeps a pending site
+              row out of the error palette. `unknown` gets the slot with no
+              fill at all — reserving the space must not put a phantom state
+              on screen, the same bargain the all-sites glyph makes. */}
           <span
             className={`size-1.5 shrink-0 rounded-full ${
               bridge === 'live'
                 ? 'bg-live'
                 : bridge === 'unknown'
                   ? 'bg-transparent'
-                  : 'bg-muted-foreground'
+                  : bridgeUnreachable
+                    ? 'bg-pending'
+                    : 'bg-muted-foreground'
             }`}
             aria-hidden="true"
           />
+          {/* `title` is where the detail goes, not a second box: Chrome
+              reports the identical string for a missing host manifest, a
+              manifest naming a different extension, and an interpreter it
+              cannot start (measured) — the string is the least actionable
+              part of the message, so the label names the state in words a
+              person can act on and the remedy leads the title, with Chrome's
+              string trailing it. Mutually exclusive with the last-command
+              title below: a bridge that cannot be reached is not a bridge to
+              report a last command for.
+
+              "Bridge down", not "Bridge unreachable": this row has 87.15625px
+              for the label (measured against the built popup — the dot, the
+              gaps and the Disable button already spend the rest of the
+              row's fixed `h-5`), and "Bridge unreachable" measures 115px in
+              this exact font and weight — 28px over, so it wraps to two
+              lines and blows the row's height, the same reflow this whole
+              fix exists to remove. "Bridge down" measures 73.98px, 13px of
+              real margin. Two other candidates were measured and rejected:
+              "Not connected" is 86.89px — 0.27px of margin is not margin,
+              and CI renders this stack under different font metrics (see
+              the readout's own comment on that). "Bridge lost" fits at
+              64.05px but asserts prior possession; the common path into
+              this state is Enable pressed and `headerlab bridge install`
+              never run, where nothing was ever had. */}
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
             data-testid="bridge-label"
-            {...(bridgeLastCommandAt === null
-              ? {}
-              : {
-                  title: `Last change through the bridge: ${new Date(
-                    bridgeLastCommandAt,
-                  ).toLocaleString()}`,
-                })}
+            {...(bridgeUnreachable
+              ? { title: `Run headerlab bridge install. ${bridgeError}` }
+              : bridgeLastCommandAt === null
+                ? {}
+                : {
+                    title: `Last change through the bridge: ${new Date(
+                      bridgeLastCommandAt,
+                    ).toLocaleString()}`,
+                  })}
           >
-            {BRIDGE_LABEL[bridge]}
+            {bridgeUnreachable ? 'Bridge down' : BRIDGE_LABEL[bridge]}
           </span>
           <span className="flex-1" />
           {bridge === 'unknown' ? null : bridge === 'off' ? (
@@ -412,24 +456,6 @@ export function ScopeRail({
         <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="icon-error">
           <b className="mb-0.5 block font-bold text-destructive">Toolbar icon out of date</b>
           The icon may not match the run state above. {iconError}
-        </div>
-      )}
-
-      {/* Amber, not red: the permission is held and the bridge simply is not
-          reachable — incomplete rather than wrong, the same reading that keeps
-          a pending site row out of the error palette.
-
-          Chrome's message is repeated verbatim and not interpreted. It is
-          identical for a missing manifest, a manifest naming a different
-          extension, and an interpreter that cannot start (measured), so any
-          sentence here that picked one would be a guess wearing a diagnosis's
-          clothes. What *is* actionable is the command, so that is what leads. */}
-      {bridge === 'idle' && bridgeError !== null && (
-        <div className={`${NOTE_CLASS} border-l-pending`} data-testid="bridge-error">
-          <b className="mb-0.5 block font-bold text-foreground">Bridge not connected</b>
-          Run <code className="font-mono text-[10px]">headerlab bridge install</code>. Chrome
-          reports the same message for a missing host manifest, one naming a different extension,
-          and an interpreter it cannot start. {bridgeError}
         </div>
       )}
 
@@ -666,6 +692,24 @@ export function ScopeRail({
             of 0, and adding it without shrinking this list further means
             finding room somewhere else in the rail on purpose, not by
             spending what is left here.
+
+            This is not hypothetical: a bridge-connect-error note briefly
+            lived here as its own box, conditionally rendered below the
+            bridgestate row. It was deleted rather than budgeted, because
+            "budgeted" was not available — measured against the built popup
+            with that note present and a full 4-site list, this element's
+            `clientHeight` went to 0, not merely smaller: the note's own
+            height alone exceeded everything zero slack had left to give,
+            taking the entire site list off the screen (CLAUDE.md's "Never
+            show something the user cannot reach", of a list of the user's
+            own configured sites). `ScopeRail.tsx`'s `bridgeUnreachable`
+            folds that error into the row that already exists — a colour and
+            a `title`, no new box — instead. A future note belongs in a
+            fixed-height reserved slot sized against a real measurement of
+            this list's actual floor, the same way the bridge row itself was
+            budgeted; it does not belong as a conditional box added here on
+            the assumption that "zero slack" still means "close, but it
+            fits".
 
             The scrollbar is not assumed to be visible: on macOS it is an
             overlay that paints over the content and vanishes. `scroll-list`

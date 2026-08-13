@@ -855,19 +855,81 @@ describe('the bridge row', () => {
     expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
   });
 
-  it('names the connect failure and what to run, without guessing at the cause', () => {
-    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
-    const note = screen.getByTestId('bridge-error');
-    expect(note.textContent).toContain('headerlab bridge install');
-    // Chrome's own words, kept verbatim. A note that translated them into one
-    // of the three possible causes would be a guess presented as a diagnosis —
-    // Chrome gives the same message for all three (measured).
-    expect(note.textContent).toContain('Native host has exited.');
+  // A separate box for this state used to live here — deleted (see
+  // ScopeRail.tsx's `bridgeUnreachable` docblock and the site-list docblock's
+  // "not hypothetical" paragraph) because the rail has no free height for a
+  // box that only sometimes exists, and it collapsed the site list to
+  // nothing under real content pressure. The error now folds into the row
+  // that already exists, so these tests replace the two above rather than
+  // testing a `bridge-error` element that no longer renders.
+  describe('an unreachable bridge (idle, with an error)', () => {
+    it('keeps the row the exact same box as every other bridge state', () => {
+      // Assertion 1 at the unit level: geometry must not depend on whether
+      // there is an error. The e2e suite (bridge-rail.spec.ts) makes the same
+      // check against real layout; this is the fast, always-run half of it.
+      const withError = render(
+        <ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />,
+      );
+      const errorClass = screen.getByTestId('bridgestate').className;
+      withError.unmount();
+
+      const withoutError = render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
+      const plainClass = screen.getByTestId('bridgestate').className;
+      withoutError.unmount();
+
+      expect(errorClass).toEqual(plainClass);
+    });
+
+    it('swaps the dot to the pending colour and the label to "Bridge down"', () => {
+      render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+      const row = screen.getByTestId('bridgestate');
+      expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
+      // "Bridge down", not "Bridge unreachable" — the latter measured 115px
+      // against this row's 87.15625px label budget and wrapped to two
+      // lines. ScopeRail.tsx's `bridge-label` docblock has the full
+      // measurement and the two other candidates rejected on it.
+      expect(screen.getByTestId('bridge-label').textContent).toEqual('Bridge down');
+    });
+
+    it('carries the command and Chrome’s own words in title, not on the row', () => {
+      render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+      const row = screen.getByTestId('bridgestate');
+      const label = screen.getByTestId('bridge-label');
+      // What to run is on screen only via title — the row's own text is
+      // exactly assertion 4's "Bridge down", checked above.
+      expect(row.textContent).toEqual('Bridge downDisable');
+      const title = label.getAttribute('title');
+      // The remedy leads; Chrome's string trails it — checked as two
+      // separate assertions rather than one exact string so the order is
+      // pinned without also pinning incidental punctuation between them.
+      expect(title).toContain('headerlab bridge install');
+      expect(title!.indexOf('headerlab bridge install')).toBeLessThan(
+        title!.indexOf('Native host has exited.'),
+      );
+      // Chrome's own words, kept verbatim. A title that translated them into
+      // one of the three possible causes would be a guess presented as a
+      // diagnosis — Chrome gives the same message for all three (measured,
+      // see ScopeRail.tsx's `bridge-label` docblock).
+      expect(title).toContain('Native host has exited.');
+    });
   });
 
-  it('shows no note when the bridge is simply off', () => {
-    // A stale error from before the permission was withdrawn must not sit on
-    // screen accusing a bridge nobody has turned on.
+  // Assertion 4, absence before presence: the ordinary idle state — the one
+  // every install passes through between Enable and running the installer,
+  // with no error yet reported — must not borrow any part of the error
+  // treatment above.
+  it('reads plain "Bridge idle" with no title when idle and not (yet) an error', () => {
+    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual('Bridge idleDisable');
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
+    expect(row.querySelector('[aria-hidden="true"]')!.className).not.toContain('bg-pending');
+  });
+
+  it('shows no bridge-error element at all — its subject is gone', () => {
+    // The old note's testid must not resurrect itself under a different code
+    // path. A stale error from before the permission was withdrawn must also
+    // not accuse a bridge nobody has turned on.
     render(<ScopeRail {...props({ bridge: 'off', bridgeError: 'Native host has exited.' })} />);
     expect(screen.queryByTestId('bridge-error')).toBeNull();
   });
