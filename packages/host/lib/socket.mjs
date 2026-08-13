@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSyn
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 
 /**
  * macOS's usable `sun_path` length, measured rather than guessed: binding a
@@ -60,26 +61,43 @@ function unlinkIfExists(targetPath) {
 }
 
 /**
- * Resolves the per-user socket directory.
+ * Resolves the per-user socket directory. Three branches, in order:
  *
- * `getconf DARWIN_USER_TEMP_DIR` asks the OS directly rather than trusting
- * either inherited copy of `$TMPDIR` — the host inherits Chrome's
- * environment and the CLI inherits the terminal's, so if those two ever
- * disagree the two halves would silently look in different directories with
- * nothing failing to show it.
+ * 1. `HEADERLAB_SOCKET_DIR`, an explicit override, read here rather than at
+ *    either call site — the installer's self-verification (`installBridge`
+ *    in `packages/cli/lib/install.mjs`) spawns a **real** host to confirm it
+ *    starts, and that host must not bind into the developer's own per-user
+ *    directory, where a concurrent `headerlab` command would find the
+ *    verification host and mistake it for a live bridge. Reading the
+ *    override inside this function, rather than having the host and the CLI
+ *    each apply it independently, is what keeps the two from ever resolving
+ *    to different directories on their own — the same reason branch 2 below
+ *    shells out instead of trusting either inherited `$TMPDIR`. Returned
+ *    exactly as given, not joined with `'headerlab'`: the caller names a full
+ *    directory, and joining would silently relocate it one level down.
+ *    Chrome never sets this variable, so the production path (Chrome
+ *    launching the real host) is unaffected.
+ * 2. `getconf DARWIN_USER_TEMP_DIR` asks the OS directly rather than trusting
+ *    either inherited copy of `$TMPDIR` — the host inherits Chrome's
+ *    environment and the CLI inherits the terminal's, so if those two ever
+ *    disagree the two halves would silently look in different directories
+ *    with nothing failing to show it.
  *
- * Called by absolute path, `/usr/bin/getconf`, rather than by name: this
- * process is launched by Chrome, which — same trap this file's own history
- * has already hit once, in `bin/headerlab-host.mjs`'s `#!/usr/bin/env node`
- * comment — gives native messaging hosts an environment with no `PATH` a
- * bare `execFileSync('getconf', …)` could resolve through.
- *
- * Falls back to `os.tmpdir()` when `getconf` is unavailable (not Darwin, or
- * the binary is missing) — that fallback IS the case where the two halves
- * can diverge, since it reads whichever `$TMPDIR` each process happened to
- * be launched with.
+ *    Called by absolute path, `/usr/bin/getconf`, rather than by name: this
+ *    process is launched by Chrome, which — same trap this file's own
+ *    history has already hit once, in `bin/headerlab-host.mjs`'s
+ *    `#!/usr/bin/env node` comment — gives native messaging hosts an
+ *    environment with no `PATH` a bare `execFileSync('getconf', …)` could
+ *    resolve through.
+ * 3. Falls back to `os.tmpdir()` when `getconf` is unavailable (not Darwin,
+ *    or the binary is missing) — that fallback IS the case where the two
+ *    halves can diverge, since it reads whichever `$TMPDIR` each process
+ *    happened to be launched with.
  */
 export function socketDir() {
+  const override = process.env.HEADERLAB_SOCKET_DIR;
+  if (override) return override;
+
   let base = '';
   try {
     base = execFileSync('/usr/bin/getconf', ['DARWIN_USER_TEMP_DIR'], {

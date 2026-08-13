@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 import { after, test } from 'node:test';
 import {
   SUN_PATH_MAX,
@@ -109,6 +110,41 @@ test('socketDir returns an absolute path under a headerlab subdirectory', () => 
 
 test('socketDir is stable across calls (same process, same answer)', () => {
   assert.equal(socketDir(), socketDir());
+});
+
+// The installer's self-verification (packages/cli/lib/install.mjs) spawns a
+// real host and must not let it bind into the developer's own per-user
+// directory, where a concurrent `headerlab` command would find it and
+// mistake it for a live bridge. This is what makes that isolation possible —
+// and it must fail an "always return the override" implementation just as
+// surely as it fails an "ignore the override" one, so this and the test
+// below are paired.
+test('HEADERLAB_SOCKET_DIR overrides socketDir(), returned exactly as given', () => {
+  const previous = process.env.HEADERLAB_SOCKET_DIR;
+  process.env.HEADERLAB_SOCKET_DIR = '/scratch/wherever';
+  try {
+    // Not joined with 'headerlab' — the caller already named the full
+    // directory, and joining would silently relocate it one level down.
+    assert.equal(socketDir(), '/scratch/wherever');
+  } finally {
+    if (previous === undefined) delete process.env.HEADERLAB_SOCKET_DIR;
+    else process.env.HEADERLAB_SOCKET_DIR = previous;
+  }
+});
+
+// Absence must leave the ordinary computed path intact. An implementation
+// that always returns the override — regardless of whether it was set —
+// would pass the test above and fail only this one.
+test('without HEADERLAB_SOCKET_DIR, socketDir() falls back to its normal computed path', () => {
+  const previous = process.env.HEADERLAB_SOCKET_DIR;
+  delete process.env.HEADERLAB_SOCKET_DIR;
+  try {
+    const dir = socketDir();
+    assert.ok(path.isAbsolute(dir));
+    assert.equal(path.basename(dir), 'headerlab');
+  } finally {
+    if (previous !== undefined) process.env.HEADERLAB_SOCKET_DIR = previous;
+  }
 });
 
 test('ensureSocketDir creates a fresh directory at exactly 0700', () => {
