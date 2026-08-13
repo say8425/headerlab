@@ -83,9 +83,21 @@ describe('installBridge', () => {
   });
 
   it('reports the interpreter it could not use rather than a generic failure', async () => {
-    const result = await installBridge({ ...options, nodePath: path.join(root, 'no-node') });
+    const broken = { ...options, nodePath: path.join(root, 'no-node') };
+    const result = await installBridge(broken);
     assert.equal(result.ok, false);
     assert.match(result.error.message, /no-node/);
+
+    // This is the case "leaves nothing behind when verification fails" does
+    // not actually cover: that test's fixture has a missing *entry* path, so
+    // installBridge returns before ever calling verifyLauncher, and a
+    // verifyLauncher that always reported success would still pass it. Here
+    // the entry is real and verification genuinely runs and genuinely
+    // fails — mutation-verified: an unconditional `return { ok: true }` in
+    // verifyLauncher turns this test red (result.ok becomes true), where it
+    // leaves the other test green.
+    assert.equal(existsSync(path.join(broken.manifestDir, MANIFEST_FILE_NAME)), false);
+    assert.equal(existsSync(path.join(broken.launcherDir, 'headerlab-host')), false);
   });
 });
 
