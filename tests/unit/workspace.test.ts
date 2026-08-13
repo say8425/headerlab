@@ -92,6 +92,30 @@ describe('the workspace', () => {
    * the flag. So the failure this guards is not a red CI job; it is CI
    * quietly modifying a committed file, which is worse for being silent.
    *
+   * **Measured on pnpm 10.33.0, which is what runs here. CI pins 11.20.0 and
+   * this has never been reproduced there** — the caveat is in `6220afe`'s
+   * commit message and was dropped when the reasoning was copied into this
+   * file. Lockfile-validation strictness is exactly the kind of thing that
+   * changes between majors, so the honest claim is narrower than it reads: on
+   * 11, neither outcome has been observed. `.github/actions/setup` therefore
+   * runs `git diff --exit-code pnpm-lock.yaml` after installing, which is
+   * correct whichever way that resolves.
+   *
+   * The same prediction was made twice, two days apart, by two different
+   * reviews — and both times the answer was already in this repository. If a
+   * third one arrives, read `6220afe` before acting on it.
+   *
+   * **Scope of that measurement: pnpm 10.33.0, the version the wrapper at
+   * .superpowers/sdd/2026-08-12-agent-bridge-packaging/pnpm runs, which is
+   * what this repo's own machine is limited to (CLAUDE.md — corepack cannot
+   * fetch 11.20.0 through this office's proxy). CI pins 11.20.0 and this was
+   * not reproduced there.** Lockfile-validation strictness is exactly the
+   * kind of behaviour a major version can change, so treat "does not fail"
+   * as true for 10 and open for 11 — which is why `.github/actions/setup`
+   * does not rely on this alone: `git diff --exit-code pnpm-lock.yaml` right
+   * after install catches a silent rewrite under either version, and would
+   * cost nothing extra if 11 turns out to fail outright instead.
+   *
    * The entries are empty (`{}`) because these packages have no dependencies,
    * so adding them re-resolves nothing. That is what makes this safe to write
    * by hand here, unlike the `pnpm import` loop CLAUDE.md warns about.
