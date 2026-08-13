@@ -64,8 +64,20 @@ one is live; omit it when only one is running.
 | `headerlab resume` | Resume after a pause. |
 | `headerlab state set <file\|->` | Replace the extension's entire stored state with the JSON at `<file>`, or from stdin when the argument is `-`. This is a full overwrite, not a merge — read the current state back from a prior reply before doing this if anything in it needs to survive. |
 | `headerlab bridge install --extension-id <id>\|--load-path <dir> [--user-data-dir <dir>] [--browser chrome\|chromium]` | Install the native messaging host manifest that makes a bridge possible. Never touches a socket — see below. |
-| `headerlab bridge uninstall` | Remove the manifest and launcher this installed. Idempotent: removing what is not there is success. |
-| `headerlab bridge status` | Report what is installed and what is live, without requiring a bridge to be running. |
+| `headerlab bridge uninstall [--user-data-dir <dir>] [--browser chrome\|chromium]` | Remove the manifest this installed. Idempotent: removing what is not there is success. |
+| `headerlab bridge status [--user-data-dir <dir>] [--browser chrome\|chromium]` | Report what is installed and what is live, without requiring a bridge to be running. |
+
+`--user-data-dir`/`--browser` pick *where* `uninstall`/`status` look, and they
+must match whatever `install` was given — the manifest lives wherever
+`install` wrote it, not at a fixed default. This is a real trap: `status`
+after `bridge install --browser chromium` will answer `installed: false` if
+asked without `--browser chromium`, because it looked at Chrome's default
+location, not Chromium's. That is a wrong answer about the wrong place, not
+evidence nothing is installed — if `install` was given either flag, pass the
+same value to every later `uninstall`/`status` call. `status`'s reply always
+names the exact `manifestPath`/`launcherPath` it looked at, so when in doubt,
+compare that path against what `--user-data-dir`/`--browser` should have
+produced rather than trusting `installed: false` alone.
 
 There is currently no dedicated read-only command. Every **successful**
 write's reply carries the resulting state in full (`{"ok":true,"state":

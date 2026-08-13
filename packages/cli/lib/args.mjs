@@ -203,16 +203,64 @@ const BRIDGE_BROWSERS = ['chrome', 'chromium'];
 function parseBridge(args) {
   const [sub, ...rest] = args;
   if (sub === 'uninstall' || sub === 'status') {
-    return parseNullary(rest, `bridge.${sub}`, `bridge ${sub}`);
+    return parseBridgeLocation(rest, `bridge.${sub}`, `bridge ${sub}`);
   }
   if (sub !== 'install') {
     return invalidArgs(`unknown bridge command: ${sub ?? '(nothing)'}`);
   }
+  return parseBridgeInstall(rest);
+}
 
+/**
+ * Refused rather than accepted-and-ignored: an unsupported `--browser` here
+ * is the same mistake `bridge install` refuses, and letting it through
+ * silently on `uninstall`/`status` would mean each learns the allowlist on
+ * its own, out of step with `install`'s.
+ */
+function validateBrowser(browser, display) {
+  if (!BRIDGE_BROWSERS.includes(browser)) {
+    return invalidArgs(`${display} needs --browser ${BRIDGE_BROWSERS.join('|')}, got: ${browser}`);
+  }
+  return null;
+}
+
+/**
+ * `bridge uninstall` and `bridge status` — no extension id, no load path,
+ * but the same `--user-data-dir`/`--browser` pair `bridge install` takes,
+ * because both read back exactly what `install` wrote *to* that pair.
+ * Without this, `status` could only ever answer for the default
+ * chrome/homedir location: a status command that silently under-reports a
+ * bridge installed to a different `--browser` or `--user-data-dir` is
+ * wrong, not merely incomplete — the one direction this repo does not
+ * forgive (see CLAUDE.md's "no silent failures").
+ */
+function parseBridgeLocation(args, cmd, display) {
   let values;
   try {
     ({ values } = parseArgs({
-      args: rest,
+      args,
+      options: {
+        'user-data-dir': { type: 'string' },
+        browser: { type: 'string' },
+      },
+      allowPositionals: false,
+    }));
+  } catch (error) {
+    return invalidArgs(`${display}: ${error.message}`);
+  }
+
+  const browser = values.browser ?? 'chrome';
+  const browserError = validateBrowser(browser, display);
+  if (browserError) return browserError;
+
+  return ok({ cmd, userDataDir: values['user-data-dir'] ?? null, browser });
+}
+
+function parseBridgeInstall(args) {
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args,
       options: {
         'extension-id': { type: 'string' },
         'load-path': { type: 'string' },
@@ -242,11 +290,8 @@ function parseBridge(args) {
   }
 
   const browser = values.browser ?? 'chrome';
-  if (!BRIDGE_BROWSERS.includes(browser)) {
-    return invalidArgs(
-      `bridge install needs --browser ${BRIDGE_BROWSERS.join('|')}, got: ${browser}`,
-    );
-  }
+  const browserError = validateBrowser(browser, 'bridge install');
+  if (browserError) return browserError;
 
   return ok({
     cmd: 'bridge.install',

@@ -266,20 +266,53 @@ describe('bridge', () => {
     assert.match(result.error.message, /firefox/);
   });
 
-  it('parses uninstall and status with no arguments', () => {
-    assert.deepEqual(parse(['bridge', 'uninstall']).command.cmd, 'bridge.uninstall');
-    assert.deepEqual(parse(['bridge', 'status']).command.cmd, 'bridge.status');
+  it('parses uninstall and status with no arguments, defaulting the same as install', () => {
+    assert.deepEqual(parse(['bridge', 'uninstall']), {
+      ok: true,
+      command: { cmd: 'bridge.uninstall', userDataDir: null, browser: 'chrome' },
+    });
+    assert.deepEqual(parse(['bridge', 'status']), {
+      ok: true,
+      command: { cmd: 'bridge.status', userDataDir: null, browser: 'chrome' },
+    });
   });
 
-  // parseNullary's third argument exists so this message reads as what a
-  // person actually typed ("bridge uninstall"), not the internal command
-  // name ("bridge.uninstall") pause/resume's two-argument callers still get.
-  // A regression back to the two-argument call would still pass every other
-  // test in this describe block, since none of them inspect this message.
-  it('names the error after what was typed, not the internal command name', () => {
+  // The gap the team lead flagged: uninstall/status could only ever look at
+  // the default chrome/homedir location, so a bridge installed with
+  // --browser chromium was invisible to both — status answering "not
+  // installed" about a directory it never looked in, not merely an
+  // incomplete answer. A wrong implementation that accepts the flag and
+  // drops it would pass a presence-only check; only a full deepEqual on the
+  // command, matching what --browser was actually given, catches that.
+  it('takes --user-data-dir and --browser on uninstall and status too, not just install', () => {
+    assert.deepEqual(parse(['bridge', 'status', '--browser', 'chromium']), {
+      ok: true,
+      command: { cmd: 'bridge.status', userDataDir: null, browser: 'chromium' },
+    });
+    assert.deepEqual(parse(['bridge', 'uninstall', '--user-data-dir', '/tmp/profile']), {
+      ok: true,
+      command: { cmd: 'bridge.uninstall', userDataDir: '/tmp/profile', browser: 'chrome' },
+    });
+  });
+
+  it('refuses a browser it has no directory for on uninstall and status too', () => {
+    const status = parse(['bridge', 'status', '--browser', 'firefox']);
+    assert.equal(status.ok, false);
+    assert.match(status.error.message, /firefox/);
+
+    const uninstall = parse(['bridge', 'uninstall', '--browser', 'firefox']);
+    assert.equal(uninstall.ok, false);
+    assert.match(uninstall.error.message, /firefox/);
+  });
+
+  // uninstall/status take no positionals — neither has anything left over
+  // for one to name — and the message must still read as what was typed
+  // ("bridge uninstall"), not the internal command name ("bridge.uninstall").
+  it('names the error after what was typed when a stray positional sneaks in', () => {
     const result = parse(['bridge', 'uninstall', 'extra']);
     assert.equal(result.ok, false);
-    assert.match(result.error.message, /^bridge uninstall takes no arguments/);
+    assert.match(result.error.message, /^bridge uninstall:/);
+    assert.match(result.error.message, /extra/);
   });
 
   it('names the unknown subcommand rather than the group', () => {
