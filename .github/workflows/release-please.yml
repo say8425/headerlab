@@ -7,6 +7,11 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # npm's provenance attestation is signed with the workflow's OIDC token, so
+  # the package page can show which commit and which workflow produced the
+  # tarball. For an extension that exists because a hidden tracker was found in
+  # its predecessor, that is worth one permission.
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}
@@ -49,3 +54,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag_name }}
         run: gh release upload "$TAG" .output/*.zip
+
+      - uses: actions/setup-node@v6
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          # Without a registry-url, setup-node writes no .npmrc and
+          # NODE_AUTH_TOKEN is never consulted — the publish fails
+          # authentication with a token that is present and correct.
+          registry-url: https://registry.npmjs.org
+
+      # `npm`, not `pnpm`: pnpm is broken on the developer's machine (CLAUDE.md)
+      # and publishing only ever happens here, where npm ships with the Node
+      # setup-node just installed. No `--access` flag: `headerlab` is unscoped
+      # and therefore public by default.
+      - run: npm publish --provenance
+        if: ${{ steps.release.outputs.release_created }}
+        working-directory: packages/headerlab
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
