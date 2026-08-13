@@ -13,7 +13,7 @@ product. When a change trades either away for convenience, the change is wrong.
 ```bash
 pnpm check           # typecheck · lint · format:check · test — four of CI's six jobs, in one command
 pnpm test            # wxt build && vitest run  — the build is not optional, see below
-pnpm test:e2e        # wxt build --mode e2e && playwright test
+pnpm test:e2e        # wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test
 pnpm test:packages   # pnpm -r test — the agent-bridge packages, node:test, invisible to vitest
 pnpm check:all       # pnpm check && pnpm -r test — everything above, in one command
 pnpm typecheck       # wxt prepare && tsc --noEmit
@@ -44,7 +44,8 @@ lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
-lib/bridge/      protocol.ts (command schema), apply.ts (reducer)   pure
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer) pure ·
+                 port.ts is its one browser caller
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
 lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
@@ -75,8 +76,8 @@ guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-writ
 of exactly seven files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
 `lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
 `lib/bridge/apply.ts` and `lib/model/schema.ts`. `lib/permissions/` and `lib/bridge/`
-each also hold (or will hold) an adapter that must *not* be guarded — `probe.ts` already,
-`port.ts` soon — so neither directory has a directory-shaped rule to apply. `defaults.ts`
+each also hold an adapter that must *not* be guarded — `probe.ts` and `port.ts` — so
+neither directory has a directory-shaped rule to apply. `defaults.ts`
 and `schema.ts` are named individually for the same one-hop reason: the guard only scans
 a file's own source, so if guarded `lib/bridge/apply.ts` imports either as a runtime
 value — `bootstrapProfile`/`newRule` from `defaults.ts`, `parseAppState` from `schema.ts`
@@ -101,6 +102,13 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   did not declare as optional — so dropping it leaves the all-sites switch flipping into
   a mode whose grant can never be obtained, with nothing failing until somebody clicks
   Grant. The same test pins the value, not merely the key.
+  **`optional_permissions` is `["nativeMessaging"]`, and the install-time `permissions`
+  list is still exactly the same two strings.** `manifest.test.ts` pins all three arrays.
+  If Chrome ever makes this particular permission optional-ineligible, the failure is
+  silent by construction: `permissions_parser.cc` drops it from the list and leaves only
+  an install warning, and the one consistency check (a `DCHECK_EQ`) is compiled out of
+  release builds — so the manifest string alone proves nothing. The real guard is the
+  runtime grant actually succeeding, and only `tests/e2e/bridge.spec.ts` exercises that.
 - **No network primitives in the shipped bundle** — no `fetch`, `XMLHttpRequest`,
   `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` with no
   exception list, which is the point: the claim is verifiable by a stranger who trusts
@@ -183,6 +191,14 @@ Reproduced both ways with a one-line probe importing a non-existent default: an 
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
 deliberately *not* chained — oxfmt reads no tsconfig and resolves nothing.
+
+**`@types/chrome` is installed but not auto-included, under this repo's `typescript@7.0.2`
+(tsgo).** Ambient auto-inclusion does not pick it up, so a file that touches `chrome.*`
+needs `/// <reference types="chrome" />` as its literal first line — `lib/bridge/port.ts`
+carries one for exactly this reason. Reproduced by deleting the directive: five
+`TS2503`/`TS2304` errors. **Do not fix this in `tsconfig.json`'s `types` key** — that array
+*replaces* tsgo's auto-list rather than extending it, so naming `chrome` there would drop
+whatever tsgo would otherwise have included on its own.
 
 **`coverage/` is gitignored on purpose.** `@vitest/coverage-v8` is installed, so
 `--coverage` is one flag away, and its output is untracked — which puts it in
@@ -388,7 +404,19 @@ looping would reduce `example.com:80:90` to a plausible-looking host.
 (`local:`, `session:`). `public/` is copied to the output root. Output directories are
 mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding storage
 must also seed the companion version key at the **current** `STATE_VERSION`:
-`{ state, state$: { v: 2 } }`.
+`{ state, state$: { v: 2 } }`. **Two e2e modes exist — `e2e` and `bridge-e2e`** —
+because granting `nativeMessaging` outright in the shared build put every popup test
+into the bridge's error state; `wxt.config.ts`'s `bridge-e2e` branch carries the full
+reasoning at the point of use.
+
+**The host and the CLI must never resolve `HEADERLAB_SOCKET_DIR` — or any socket
+directory — independently.** `socketDir()` in `packages/host/lib/socket.mjs` reads the
+override once, inside itself, rather than trusting either call site to apply it the same
+way. The host inherits Chrome's environment and the CLI inherits the terminal's, so if
+either half applied an override — or fell back to `$TMPDIR` — on its own, the two could
+silently resolve to different directories with nothing failing to show it. Same reasoning
+as branch 2 of that function shelling out to `getconf DARWIN_USER_TEMP_DIR` by absolute
+path instead of trusting either inherited `$TMPDIR` copy.
 
 **`cn` is `twMerge(clsx(…))`, and tailwind-merge groups by variant, not by property.**
 So `bg-transparent` passed to a shadcn primitive does **not** displace that primitive's
@@ -481,19 +509,49 @@ own sub-line. When adding one, ask what its absence looks like — if the answer
 **State changes appearance, not geometry.** Colour, weight, opacity and content may
 follow state freely; box dimensions and positions should not.
 
+**The rail now carries zero slack, measured.** Adding the bridge row cost 21px the
+layout did not have to spare: `docs/design/2026-08-12-agent-bridge-rail-budget.html`
+measured the *built* popup and found 7px genuinely free, not the 28px a source-level
+reading of the Tailwind classes suggested. The remaining 21px came from four existing
+margins each giving up one notch on Tailwind's 4px scale (the readout card's and the
+sites section's own `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`, the bridge row's
+own `mt-2`→`mt-1` — 16px) plus the site list's `max-height` dropping `132px`→`127px`
+(5px). Budget 576px, used 576px, slack 0 — the next row added to this rail reopens that
+accounting from zero rather than finding space waiting for it.
+
+**Measuring "is this rail full" has two traps that both silently report "no
+problem."** `clientHeight − scrollHeight` is structurally always 0 here: the site list
+is `flex-shrink: 1`, so it absorbs any deficit before the rail itself can overflow, and
+the request-types section's `mt-auto` eats the leftover as margin — summing computed
+margins then counts that same free space a second time. Measure the height the rail
+was *asked* for instead: correct the list's contribution to `min(max-height,
+scrollHeight)` and skip auto margins entirely. A working implementation is `measure()`
+in the rail-budget design file above.
+
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the eleven e2e tests drive a real request through the
+against a loaded extension. Two of the sixteen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
-never reaches declarativeNetRequest while its sibling still does. The other eight cover
-the popup rendering from stored state and seven layout guards: nothing wider than what
+never reaches declarativeNetRequest while its sibling still does. Nine more cover
+the popup rendering from stored state and eight layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
 when toggled off (one test, not two), the ghost row at the end matches a minimum rule
-row's height, the badge and the chip each keep a focus ring that reaches the screen, and
-an error diagnostic replacing a value never resizes the row or moves the rows below it.
+row's height, the badge and the chip each keep a focus ring that reaches the screen, an
+error diagnostic replacing a value never resizes the row or moves the rows below it, and
+the bridge row does not push the rail past its own column.
+
+The remaining four are the bridge's own, in `tests/e2e/bridge.spec.ts` and
+`tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
+`--load-path` is byte-for-byte the id Chrome actually assigned the loaded extension —
+design §8.3's self-verification, performed against a running browser rather than argued
+for. One drives a real `headerlab site add` through a real installed host, through the
+socket, into real storage, and reads the result back off `chrome.storage` rather than off
+the CLI's own reply. One confirms the popup reads "Bridge live" once that command has
+landed. The fourth is a layout guard in the same family as the eight above: an
+unreachable bridge leaves the rail exactly where a live one leaves it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -524,6 +582,18 @@ survives an "always rendered" mutation.
 **Mutation-verify.** Break the implementation, watch that specific test go red, restore.
 Do this on uncommitted work at your peril: a `git checkout --` revert has discarded real
 edits here. Commit first.
+
+**Mutation-testing an installer writes to real user directories.** The mutations that
+disable a test's own scratch-path isolation are, by definition, exactly the ones that
+escape it — and an assertion failing partway through skips whatever cleanup sat after it
+in the test body. Register teardown so it cannot be skipped (`t.after`, registered before
+the install runs, not a cleanup call at the end of the test), and check
+`~/.headerlab/bin` and the real per-user socket directory by hand afterward regardless.
+
+**One flaky test, pre-existing, not from the bridge work.**
+`packages/host/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
+under the two-second SIGKILL budget, with everything cleaned up" failed once under
+concurrent load and passed both in isolation and on re-run.
 
 **jsdom** needs a per-file `// @vitest-environment jsdom` docblock; the global
 environment is `node`. **`@testing-library/jest-dom` is not installed** — plain vitest
@@ -594,3 +664,33 @@ that no longer renders, passing while describing nothing.
   which squashing does not touch — so what carries forward is the mechanism, not this
   instance: a subject from inside a squashed branch is never a subject on `main`. Nothing
   runs that grep automatically; finding the next one means doing it again.
+- **A note that appears cannot live in this rail, and two pre-existing ones already
+  break it.** `sync-error` and `icon-error` are plain conditional blocks, and the rail
+  has carried zero slack since the bridge row landed (see Interface). Measured at four
+  saved sites: the site list's cap is 127px with neither note showing, 65px with only
+  `sync-error`, 34px with only `icon-error`, and 0px with both — the user's saved sites
+  pushed off screen by an error message about something else. This predates the bridge
+  work entirely, and it is not the same fix shape as the bridge row's own note (that one
+  folded into an existing fixed-height row; these are multi-line prose with no existing
+  row to fold into), so it needs its own design pass rather than a while-we-are-here
+  patch.
+- **Three hand-written declaration files exist** — `packages/host/lib/manifest.d.mts`,
+  `packages/host/lib/socket.d.mts`, `packages/cli/lib/install.d.mts` — because `tests/`
+  and `tests/e2e/` import `.mjs` modules from TypeScript and `allowJs` is off. Nothing
+  checks that any of them still matches its implementation.
+- **The bridge's `idle` state means "the permission is held and no port is open," not
+  "a CLI is not attached."** The extension has no way to see the host's socket clients —
+  it can only see its own `connectNative` port — and giving it that visibility would turn
+  the host from a dumb relay into a protocol participant, which `packages/cli/lib/bridge.mjs`
+  argues against by name. So `idle` in practice names the state most people land in first:
+  **Enable** pressed, `headerlab bridge install` never run.
+- **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which
+  execs the entry path under this repository.** Move or delete the repo and that entry
+  disappears; nothing in Chrome or the extension will ever say so — `headerlab bridge
+  status` is the only thing that reads the launcher back and reports `entryMissing`.
+- **`headerlab status`, `diagnostics`, `state get` and `rule ls` are not built.** Only
+  `state.set` exists on the `state` group. §2 and §3 of the design spec promise a
+  snapshot taken before every raw `state set` write, with `state snapshots`/`state
+  restore <id>` to read it back — none of that exists either; `state.set` passes zod
+  validation and nothing else. The README makes no such promise, so nothing false has
+  shipped publicly, but the design spec did until this note.

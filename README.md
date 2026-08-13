@@ -256,13 +256,16 @@ framed over stdio, gets applied to `local:state`, and is picked up by the
 same `reconcile()` every other trigger already funnels into: a new trigger,
 not a new writer.
 
-**What the CLI does.** `headerlab` is nine commands: scope a rule to sites
-(`site add` / `site rm` / `site all-sites on|off`), edit header rules
-(`rule add` / `rule rm` / `rule toggle`), pause or resume the whole rule set
-(`pause` / `resume`), and replace the stored state wholesale
-(`state set <file|->`). Every reply is one JSON object on stdout — success or
-failure — with the exit code following it; there is no human-readable output
-to parse instead. For example:
+**What the CLI does.** `headerlab` is nine commands over the bridge socket:
+scope a rule to sites (`site add` / `site rm` / `site all-sites on|off`), edit
+header rules (`rule add` / `rule rm` / `rule toggle`), pause or resume the
+whole rule set (`pause` / `resume`), and replace the stored state wholesale
+(`state set <file|->`). Three more — `bridge install` / `bridge uninstall` /
+`bridge status` — never touch that socket at all: they manage the native
+messaging host manifest and the launcher script Chrome runs, which is what
+makes a socket possible in the first place. Every reply is one JSON object on
+stdout — success or failure — with the exit code following it; there is no
+human-readable output to parse instead. For example:
 
 ```bash
 headerlab site add staging.example.com
@@ -272,7 +275,7 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 The full reference lives in `packages/plugin/skills/headerlab/SKILL.md`,
 shared unchanged between the Claude Code and Codex plugin manifests.
 
-Three things about this design a reader must not come away misled about —
+Five things about this design a reader must not come away misled about —
 they are the product's own claims, and getting them wrong here would be
 worse than leaving this section out:
 
@@ -298,21 +301,37 @@ worse than leaving this section out:
   is caught and `server.listen(tcpPort)` would not be. That is written down
   rather than left implied, because overstating a security guarantee is the
   one thing this repository would rather not do.
+- **The CLI cannot turn the bridge on.** `chrome.permissions.request()`
+  requires a user gesture to resolve — Chrome enforces this, HeaderLab does
+  not choose it — so there is no `headerlab bridge enable`, and there will
+  not be one that works: `bridge install` beside a bridge nobody has pressed
+  **Enable** for just writes files that never connect.
+- **This build refuses a regex filter.** `state set` validates the payload,
+  but the popup has no regex editor and nothing here calls
+  `chrome.declarativeNetRequest.isRegexSupported()` — the only authority on
+  whether a pattern is valid RE2 — so a `filter.mode: 'regex'` rule would
+  apply invisibly, headers changing with no screen able to show the pattern
+  responsible for it. `lib/bridge/port.ts` rejects such a payload outright,
+  with the error code `unsupported`, until a regex editor exists to go with
+  it.
 
-**Not wired up yet.** `packages/cli` and `packages/host` work today and are
-tested down to the socket, but the extension side does not exist:
-`lib/bridge/port.ts` — the one file allowed to call
-`chrome.runtime.connectNative` — has not been written, the manifest does not
-yet declare `nativeMessaging`, and there is no popup button to grant it. So
-nothing ever calls `connectNative`, Chrome never launches the host, and
-`headerlab` today can only ever report `bridge-off`. There is also no
-installer: the native-messaging host manifest has to be placed by hand, and
-pointing it at the shipped `packages/host/bin/headerlab-host.mjs` will not
-work as-is — its `#!/usr/bin/env node` shebang cannot resolve in the minimal
-environment Chrome launches native hosts in, measured, and the only symptom
-visible from the extension side is `{"message":"Native host has exited."}`
-with an empty host log. An installer that rewrites that line to an absolute
-interpreter path and self-verifies the result is designed but not built.
+**Turning it on.** Three steps: press **Enable** on the popup's bridge row —
+it reads "Bridge off" until then — which asks Chrome for the
+`nativeMessaging` permission through its own consent dialog; then run
+
+```bash
+headerlab bridge install --load-path <the unpacked extension directory>
+```
+
+pointing `--load-path` at the same directory `chrome://extensions` has
+loaded (`.output/chrome-mv3` for a production build, `.output/chrome-mv3-dev`
+under `pnpm dev`); the popup then reads **Bridge live**. `--extension-id <id>`
+is the alternative when the id is already known — copy it from
+`chrome://extensions` — and either way the installer reports back exactly
+which id it used, because nothing inside the CLI can check that against what
+Chrome actually loaded: a symlink, a trailing slash, or a differently spelled
+path to the same directory each hash to a different id, and a mismatched
+manifest installs cleanly and simply never connects.
 
 ## Testing
 
@@ -321,13 +340,16 @@ and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
-At the time of writing: 755 unit tests across 36 files, plus 11 e2e tests. The
-host and the CLI carry their own — 43 and 54 — run by Node's built-in test
-runner rather than vitest, because neither package has a dependency and
-neither should acquire one. `vitest.config.ts`'s glob cannot reach them, which
-is why they get a CI job of their own rather than riding `pnpm test`: for a
-while they were merging unexecuted, and a suite nothing runs is worse than one
-that does not exist, because it reports success.
+At the time of writing: 815 unit tests across 38 files, plus 16 e2e tests —
+four of those are the bridge's own, in `tests/e2e/bridge.spec.ts` and
+`tests/e2e/bridge-rail.spec.ts`, including one that drives a real
+`headerlab site add` through a real installed host, through the socket, and
+into real storage. The host and the CLI carry their own — 59 and 81 — run by
+Node's built-in test runner rather than vitest, because neither package has a
+dependency and neither should acquire one. `vitest.config.ts`'s glob cannot
+reach them, which is why they get a CI job of their own rather than riding
+`pnpm test`: for a while they were merging unexecuted, and a suite nothing
+runs is worse than one that does not exist, because it reports success.
 
 ## Status
 
@@ -349,10 +371,13 @@ Deliberately not built yet, and worth knowing before you look for them:
   exists — otherwise the bridge becomes the way an unvalidated pattern reaches
   `regexFilter`, which is precisely the surface import was always going to open.
 - **No manual theme toggle.** The theme follows the OS.
-- **The agent bridge is half-built, deliberately.** The CLI, the host and the
-  decision layer are done and tested; the extension cannot open the port yet, so
-  nothing connects. See *Agent bridge* above for what exists, and what the
-  remaining three pieces are.
+- **The agent bridge works end to end, but its command surface is not the
+  whole design.** `headerlab bridge install` plus a running `site add` /
+  `rule add` / … reaches real storage through a real Chrome — see *Agent
+  bridge* above, and `tests/e2e/bridge.spec.ts` for the proof. Not built:
+  `headerlab status`, `diagnostics`, `state get`, `rule ls`, and the
+  snapshot-before-every-raw-write the design describes — `state set` today
+  passes validation and nothing else.
 
 ## License
 

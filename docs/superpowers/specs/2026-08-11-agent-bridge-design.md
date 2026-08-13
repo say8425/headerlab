@@ -74,6 +74,12 @@ loop" 가 유지된다.
 **통째 쓰기는 검증과 스냅샷을 통과한다.** `state set` 은 zod 를 통과하고 1 MB 이하일 때만
 저장되며, 쓰기 직전 상태가 스냅샷으로 남는다. 검증 실패는 저장하지 않고 거절한다.
 
+**구현 결과: 스냅샷 절반은 지어지지 않았다.** `lib/bridge/port.ts` 의 `state.set` 처리는
+`parseAppState` 검증만 거치고 저장한다 — 쓰기 직전 상태를 남기는 스냅샷도, 그것을 되돌리는
+경로도 코드 어디에도 없다(§3 의 `state snapshots | restore <id>` 도 마찬가지로 없다). README
+는 이 약속을 한 적이 없으므로 밖으로 나간 거짓은 없지만, 이 문서는 있었다. 원문을 지우지
+않고 사실만 옆에 적는다 — 이 저장소의 문서는 기록이다.
+
 **소켓은 사용자 전용 디렉터리에 0600.** §8.5.
 
 ---
@@ -98,6 +104,16 @@ headerlab site all-sites on|off
 headerlab rule ls|add|rm|toggle             헤더 규칙
 headerlab pause | resume                    globalPause
 ```
+
+**구현 결과: 이 표의 절반 가까이가 아직 없다.** 실제로 존재하는 것은
+`site add|rm`·`site all-sites on|off`·`rule add|rm|toggle`·`pause`·`resume`·
+`state set` (소켓을 타는 아홉 개)과 `bridge install|uninstall|status` (소켓을 타지 않는
+셋, 매니페스트·런처만 다룬다) 뿐이다. **`headerlab status`, `headerlab diagnostics`,
+`headerlab state get`, `state snapshots | restore`, `headerlab rule ls` 는 하나도 만들어지지
+않았다.** `packages/cli/lib/args.mjs` 의 `parseRule` 은 `add`·`rm`·`toggle` 만 분기하고
+`ls` 는 없다. 이름이 `bridge status`
+와 겹치는 `headerlab status` 를 만들 때는 그 둘이 서로 다른 것을 답한다는 점 — 하나는 매니페스트
+설치 상태, 하나는 브리지·프로필·진단 요약 — 을 헷갈리지 않게 짚어야 한다.
 
 `state set` 의 1 MB 는 프로토콜 상한이지 정책이 아니다. CLI 는 **넘기면 잘리는 대신 먼저
 거절한다** — 조용히 잘린 JSON 은 zod 를 통과하지 못하겠지만, 실패 지점이 세 프로세스
@@ -193,6 +209,15 @@ CLI 와 호스트에는 **별도의, 더 좁은** 가드를 쓴다 — 유닉스
 | 권한 있음, CLI 안 붙음 | `muted-foreground` | Bridge idle | `Disable` 버튼 |
 | CLI 붙음 | `live` | Bridge live | `Disable` 버튼 |
 
+**구현 후: `idle` 의 뜻이 위 표의 "CLI 안 붙음"과 다르게 굳어졌다 — 이유가 있어서다.**
+확장은 호스트가 유닉스 소켓에 붙인 클라이언트를 볼 방법이 없다 — 보이는 것은 자기가 연
+`connectNative` 포트 하나뿐이다. 호스트가 그 클라이언트 목록을 확장에 알리게 만드는 것은
+가능하지만, 그러면 지금 "멍청한 릴레이"인 호스트가 프로토콜 참여자가 된다 —
+`packages/cli/lib/bridge.mjs` 가 이름으로 반대해 둔 바로 그것이다. 그래서 구현된 `idle` 은
+**권한이 있고 포트가 안 열린 상태**를 뜻하고, 실제로 이 상태에 놓이는 흔한 경로는 "CLI가
+안 붙었다"가 아니라 "`Enable` 은 눌렀지만 `headerlab bridge install` 을 아직 안 돌린" 것이다.
+위 표의 원문은 그대로 남긴다 — 이 저장소의 문서는 기록이다.
+
 **컨트롤은 스위치가 아니라 버튼이다.** all-sites 스위치가 `permissions.request()` 를
 부르지 않도록 이미 고쳐졌고 그 이유가 그대로 적용된다 — "컨트롤이 움직였다는 이유로 권한
 대화상자를 띄우는 것".
@@ -202,6 +227,17 @@ CLI 와 호스트에는 **별도의, 더 좁은** 가드를 쓴다 — 유닉스
 **28px 은 소스에서 읽은 값이다. 구현 시 빌드된 팝업에서 다시 잰다.** 사이트 목록의
 `max-height:132px` 는 일부러 행 피치의 배수가 아니게 잡혀 셋째 행을 반쯤 자르는데, 그
 affordance 가 살아있는지가 합격 조건이다.
+
+**실측 결과: 28px 이 아니라 7px 이었다.** `docs/design/2026-08-12-agent-bridge-rail-budget.html`
+이 빌드된 팝업 치수로 다시 쟀다 — 레일 예산 576px 에 기존 네 블록(브랜드·리드아웃 카드·
+사이트 섹션·요청 타입)이 이미 569px 을 쓰고 있어 진짜 여유는 7px 뿐이었다. 나머지 21px 은
+넷째 줄 자신이 줄어들어 나온 것이 아니라, 기존 마진 다섯 곳에서 한 단계씩 덜어내 만들었다:
+리드아웃 카드와 사이트 섹션 자신의 `mt-4`→`mt-3`, 요청 타입 섹션의 `pt-3`→`pt-2`, 브리지
+줄 자신의 `mt-2`→`mt-1`(Tailwind 한 단계 4px, 넷이므로 16px), 그리고 사이트 목록
+`max-height` 를 `132px`→`127px`(5px). 16 + 5 = 21. 결과: 예산 576 / 사용 576 / 여유 0 —
+이 레일에 더 넣을 다음 줄은 여기서부터 다시 계산해야 한다. 자세한 수치는
+`components/ScopeRail.tsx`의 사이트 목록 docblock과
+`docs/superpowers/sdd/2026-08-12-agent-bridge-extension/progress.md`의 Task 3 항목에 있다.
 
 ---
 
@@ -544,7 +580,7 @@ Node 에 native-order 32비트 쓰기 헬퍼는 없다. `os.endianness()` 로 �
 |---|---|---|
 | ~~Q10~~ | ~~런타임 승인이 실제로 떨어지는가~~ | **답함 — 떨어진다.** §8.1, 스파이크 문서 |
 | ~~Q11~~ | ~~관측되는 keepalive 는 얼마인가~~ | **답함 — 포트만으로 7분+ 산다.** §8.4, 스파이크 문서 |
-| Q12 | 호스트가 포트가 닫힌 *이유*(비활성화/종료/권한 해제)를 구분할 수 있는가 | 값이 내려갔다. Q11 이 "유휴로는 안 죽는다"로 답하면서 네 경우 중 하나가 사라졌고, 나머지를 가르는 것은 UI 가 이유를 말해야 할 때만 필요하다. 필요해지면 확장이 끊기 전에 이유를 포트로 내려보내는 것이 유일한 방법이다 |
+| Q12 | 호스트가 포트가 닫힌 *이유*(비활성화/종료/권한 해제)를 구분할 수 있는가 | 값이 내려갔다. Q11 이 "유휴로는 안 죽는다"로 답하면서 네 경우 중 하나가 사라졌고, 나머지를 가르는 것은 UI 가 이유를 말해야 할 때만 필요하다. 필요해지면 확장이 끊기 전에 이유를 포트로 내려보내는 것이 유일한 방법이다. **구현 완료 시점에도 필요하지 않았다** — `idle` 을 "포트가 안 열림"으로 재정의해 §5 가 그 이유를 흡수했고, 팝업은 `bridgeError` (Chrome 이 준 마지막 연결 실패 메시지)만으로 "Bridge down" 행을 채운다 |
 | Q5 | CLI 를 npm 에 올리는가, 어느 레지스트리로 | CLAUDE.md 의 프록시 문제가 걸린다. 별도 결정 |
 | Q13 | Codex 의 `.claude-plugin` 폴백이 0.145.0 에서 실제로 도는가 | 스크래치 마켓플레이스로 확인. 단 `~/.codex/config.toml` 을 건드린다 |
 | Q9 | 이관이 Tailwind 스캔 집합과 팝업 CSS 바이트 수를 바꾸는가 | 전후 빌드하고 `wc -c` 비교 |
@@ -559,8 +595,10 @@ Node 에 native-order 32비트 쓰기 헬퍼는 없다. `os.endianness()` 로 �
 3. **스파이크 Q10·Q11** — 런타임 권한 승인과 packed 빌드 keepalive. 결과를
    `docs/research/` 에 기록한다. **여기서 나온 사실이 4단계를 바꿀 수 있다.**
 4. **호스트와 어댑터** — `headerlab-host.mjs`, `port.ts`, 소켓·프레이밍·종료·다중 인스턴스.
-5. **CLI** — 명령 표면, JSON 출력, `bridge install` 의 자기 검증.
-6. **팝업** — 안 A, 그리고 28px 실측.
+   **완료.**
+5. **CLI** — 명령 표면, JSON 출력, `bridge install` 의 자기 검증. **완료.**
+6. **팝업** — 안 A, 그리고 28px 실측. **완료** — 실측은 28px 이 아니라 7px 이었고, §5 의
+   교정 참고.
 7. **릴리즈** — `release-please-config.json`, 매니페스트, 워크플로 한 줄 삭제, 가드 둘.
 8. **플러그인과 스킬** — 매니페스트 둘, SKILL.md, preflight, `claude plugin validate --strict`.
 9. **README** — §1 모식도와 CLI 사용 예시. 소유자가 명시적으로 요청했다.
