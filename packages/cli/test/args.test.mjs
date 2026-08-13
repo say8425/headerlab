@@ -271,6 +271,17 @@ describe('bridge', () => {
     assert.deepEqual(parse(['bridge', 'status']).command.cmd, 'bridge.status');
   });
 
+  // parseNullary's third argument exists so this message reads as what a
+  // person actually typed ("bridge uninstall"), not the internal command
+  // name ("bridge.uninstall") pause/resume's two-argument callers still get.
+  // A regression back to the two-argument call would still pass every other
+  // test in this describe block, since none of them inspect this message.
+  it('names the error after what was typed, not the internal command name', () => {
+    const result = parse(['bridge', 'uninstall', 'extra']);
+    assert.equal(result.ok, false);
+    assert.match(result.error.message, /^bridge uninstall takes no arguments/);
+  });
+
   it('names the unknown subcommand rather than the group', () => {
     const result = parse(['bridge', 'reinstall']);
     assert.equal(result.ok, false);

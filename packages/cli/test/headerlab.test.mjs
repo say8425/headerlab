@@ -240,3 +240,26 @@ test('bridge install computes the id from a load path and says which one it used
   const cleanup = await runCli(['bridge', 'uninstall'], { env: cleanEnv });
   assert.equal(JSON.parse(cleanup.stdout).ok, true);
 });
+
+test('bridge install with an explicit --extension-id trusts it, and reports no note', async () => {
+  // The mirror image of the test above. Nothing was computed here — the id
+  // came verbatim off the command line — so there is nothing to double-check
+  // against chrome://extensions, and the reply must not claim otherwise. A
+  // wrong implementation that always attaches the "computed from" note would
+  // still pass the load-path test above; only checking its absence here
+  // catches that.
+  const extensionId = 'a'.repeat(32);
+  const { stdout, code } = await runCli(
+    ['bridge', 'install', '--extension-id', extensionId, '--user-data-dir', scratchProfile],
+    { env: cleanEnv },
+  );
+  const payload = JSON.parse(stdout);
+
+  assert.equal(code, 0);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.extensionId, extensionId);
+  assert.equal('note' in payload, false);
+
+  const cleanup = await runCli(['bridge', 'uninstall'], { env: cleanEnv });
+  assert.equal(JSON.parse(cleanup.stdout).ok, true);
+});
