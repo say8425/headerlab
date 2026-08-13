@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { isSocketAlive, registryPathFor, socketPathFor } from '../../host/lib/socket.mjs';
+import { isSocketAlive, registryPathFor, socketPathFor } from './socket.mjs';
 
 /**
  * Everything in this file touches the filesystem or a socket, which is why

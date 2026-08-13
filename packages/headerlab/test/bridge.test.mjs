@@ -9,7 +9,7 @@ import {
   listenWithRestrictedPermissions,
   registryPathFor,
   socketPathFor,
-} from '../../host/lib/socket.mjs';
+} from '../lib/socket.mjs';
 import { extractBridgeFlag, findLiveBridges, resolveTarget, sendCommand } from '../lib/bridge.mjs';
 
 // This file exercises the exact logic bin/headerlab.mjs cannot expose to

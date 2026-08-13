@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { MAX_OUTGOING } from '../../host/lib/framing.mjs';
-import { unpackedExtensionId } from '../../host/lib/manifest.mjs';
+import { MAX_OUTGOING } from '../lib/framing.mjs';
+import { unpackedExtensionId } from '../lib/manifest.mjs';
 import {
   ensureSocketDir,
   listenWithRestrictedPermissions,
@@ -15,7 +15,7 @@ import {
   socketDir,
   socketPathFor,
   writeRegistryEntry,
-} from '../../host/lib/socket.mjs';
+} from '../lib/socket.mjs';
 
 // bin/headerlab.mjs runs main() as a side effect of being imported — the
 // same reason bin/headerlab-host.mjs needed a subprocess-level test in the

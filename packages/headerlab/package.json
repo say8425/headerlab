@@ -1,0 +1,27 @@
+{
+  "name": "headerlab",
+  "version": "0.0.0",
+  "description": "Drive the HeaderLab Chrome extension's header rules from a terminal.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/say8425/headerlab",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/say8425/headerlab.git",
+    "directory": "packages/headerlab"
+  },
+  "keywords": ["headerlab", "http-headers", "chrome-extension", "native-messaging"],
+  "bin": {
+    "headerlab": "bin/headerlab.mjs"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

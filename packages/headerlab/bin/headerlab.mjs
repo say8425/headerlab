@@ -16,9 +16,9 @@ import {
   installBridge,
   uninstallBridge,
 } from '../lib/install.mjs';
-import { socketDir } from '../../host/lib/socket.mjs';
-import { MAX_OUTGOING } from '../../host/lib/framing.mjs';
-import { unpackedExtensionId } from '../../host/lib/manifest.mjs';
+import { socketDir } from '../lib/socket.mjs';
+import { MAX_OUTGOING } from '../lib/framing.mjs';
+import { unpackedExtensionId } from '../lib/manifest.mjs';
 
 // Output is always one JSON object on stdout, success or failure — a human
 // prose default would get parsed by whatever calls this CLI, and the moment

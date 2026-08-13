@@ -14,10 +14,10 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { bridgeStatus, installBridge, uninstallBridge } from '../lib/install.mjs';
-import { MANIFEST_FILE_NAME } from '../../host/lib/manifest.mjs';
+import { MANIFEST_FILE_NAME } from '../lib/manifest.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HOST_ENTRY = path.resolve(HERE, '../../host/bin/headerlab-host.mjs');
+const HOST_ENTRY = path.resolve(HERE, '../bin/headerlab-host.mjs');
 
 let root;
 let options;

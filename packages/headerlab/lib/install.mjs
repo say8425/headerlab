@@ -9,9 +9,9 @@ import {
   hostManifest,
   launcherScript,
   nativeMessagingDir,
-} from '../../host/lib/manifest.mjs';
+} from './manifest.mjs';
 import { findLiveBridges } from './bridge.mjs';
-import { isSocketAlive, socketDir, socketPathFor } from '../../host/lib/socket.mjs';
+import { isSocketAlive, socketDir, socketPathFor } from './socket.mjs';
 
 /**
  * Installs, removes and reports on the native messaging host manifest.
@@ -58,7 +58,7 @@ export function defaultInstallPaths({ userDataDir = null, browser = 'chrome' } =
     // sitting among them is a file nobody expects and uninstall has to reason
     // about separately.
     launcherDir: path.join(homedir(), '.headerlab', 'bin'),
-    entryPath: path.resolve(here, '../../host/bin/headerlab-host.mjs'),
+    entryPath: path.resolve(here, '../bin/headerlab-host.mjs'),
     nodePath: process.execPath,
     socketDirPath: socketDir(),
   };

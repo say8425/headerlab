@@ -27,6 +27,5 @@ allowBuilds:
 # Named, not globbed. A glob lets a directory join the release surface without
 # appearing in a diff.
 packages:
-  - packages/cli
-  - packages/host
+  - packages/headerlab
   - packages/plugin
