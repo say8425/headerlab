@@ -34,6 +34,17 @@ const LAUNCHER_NAME = 'headerlab-host';
 const VERIFY_TIMEOUT_MS = 5000;
 const VERIFY_POLL_MS = 50;
 
+/**
+ * How long the verification host gets to exit on its own after stdin
+ * closes, before this resorts to SIGKILL. Chrome itself waits up to two
+ * seconds for a real host to exit the same way — `packages/host/lib/host.mjs`'s
+ * docblock records that its cleanup (unlinking the socket, removing the
+ * registry entry) "finishes well under that two-second budget" — so this
+ * gives the verification host the same courtesy Chrome does, rather than
+ * killing it before that cleanup can run.
+ */
+const SHUTDOWN_GRACE_MS = 2000;
+
 export function defaultInstallPaths({ userDataDir = null, browser = 'chrome' } = {}) {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return {
@@ -125,8 +136,8 @@ export async function installBridge({
 /**
  * Starts the launcher exactly the way Chrome would — one argv entry, the
  * extension origin — and waits for the socket that proves it got as far as
- * binding. Then closes its stdin, which is the documented shutdown signal, and
- * waits for it to go.
+ * binding. Then closes its stdin, which is the documented shutdown signal,
+ * and gives it `SHUTDOWN_GRACE_MS` to exit on its own before escalating.
  *
  * `HEADERLAB_SOCKET_DIR` is set on the child's environment only, not argv:
  * Chrome invokes the launcher with exactly the one origin argument, and this
@@ -143,6 +154,10 @@ async function verifyLauncher(launcherPath, extensionId, socketDirPath) {
       env: { ...process.env, HEADERLAB_SOCKET_DIR: socketDirPath },
     });
   } catch (error) {
+    // Reachable only for a malformed spawn() call itself — an invalid
+    // options shape, not a bad launcherPath. A missing or non-executable
+    // launcher does not throw here: POSIX reports that asynchronously
+    // through the 'error' event below, which spawnError exists to catch.
     return { ok: false, message: `could not run ${launcherPath}: ${error.message}` };
   }
 
@@ -151,9 +166,19 @@ async function verifyLauncher(launcherPath, extensionId, socketDirPath) {
     stderr += chunk.toString('utf8');
   });
 
+  // Set synchronously by the event, not discovered later: the polling loop
+  // below checks this every iteration, so a spawn error (launcherPath
+  // missing or not executable) fails as soon as Node reports it instead of
+  // sitting out the full VERIFY_TIMEOUT_MS waiting on a process that never
+  // started.
+  let spawnError = null;
+  child.once('error', (error) => {
+    spawnError = error;
+  });
+
   const exited = new Promise((resolve) => {
     child.once('exit', (code) => resolve(code));
-    child.once('error', (error) => resolve(error));
+    child.once('error', () => resolve(null));
   });
 
   const socketPath = socketPathFor(socketDirPath, child.pid);
@@ -164,16 +189,15 @@ async function verifyLauncher(launcherPath, extensionId, socketDirPath) {
       bound = true;
       break;
     }
-    if (child.exitCode !== null) break;
+    if (child.exitCode !== null || spawnError) break;
     await new Promise((resolve) => setTimeout(resolve, VERIFY_POLL_MS));
   }
 
-  child.stdin.end();
-  child.kill('SIGKILL');
-  await exited;
+  await shutdown(child, exited);
 
   if (!bound) {
-    const detail = stderr.trim() === '' ? '' : ` — it said: ${stderr.trim()}`;
+    const reason = spawnError ? spawnError.message : stderr.trim();
+    const detail = reason === '' ? '' : ` — it said: ${reason}`;
     return {
       ok: false,
       message:
@@ -183,6 +207,37 @@ async function verifyLauncher(launcherPath, extensionId, socketDirPath) {
     };
   }
   return { ok: true };
+}
+
+/**
+ * Ends stdin — the host's documented shutdown signal — and gives the child
+ * `SHUTDOWN_GRACE_MS` to act on it before falling back to SIGKILL.
+ *
+ * An unconditional SIGKILL right after `stdin.end()`, with no gap between
+ * them, never gave `cleanup()` in `packages/host/lib/host.mjs` a chance to
+ * run — so the verification host's socket and registry entry were left
+ * behind in whatever directory `HEADERLAB_SOCKET_DIR` named. In production
+ * that is the real per-user socket directory (`defaultInstallPaths()` sets
+ * `socketDirPath: socketDir()`), so every install left litter in the exact
+ * directory the CLI enumerates to find live bridges. It is self-healing —
+ * `findLiveBridges` filters on `isSocketAlive`, and the next host's
+ * `sweepStaleSockets` clears it — but the installer should not be the one
+ * creating it.
+ */
+async function shutdown(child, exited) {
+  // Already gone — a spawn error, or an interpreter/entry that exited on
+  // its own before the polling loop broke out. Nothing to end or kill.
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  child.stdin.end();
+
+  const timedOut = await Promise.race([
+    exited.then(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(true), SHUTDOWN_GRACE_MS)),
+  ]);
+
+  if (timedOut) child.kill('SIGKILL');
+  await exited;
 }
 
 /** Idempotent: removing what is not there is success, not an error. */

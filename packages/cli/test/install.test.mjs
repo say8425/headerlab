@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -70,9 +78,35 @@ describe('installBridge', () => {
     assert.equal(result.verified, true);
   });
 
-  it('leaves nothing behind when verification fails', async () => {
-    // A broken manifest left on disk is worse than no manifest: Chrome finds
-    // it, fails, and says the same thing it says for a missing one.
+  it('leaves no socket or registry entry behind in the scratch socket directory', async () => {
+    // Task 4 review, promoted from Minor: verifyLauncher used to SIGKILL the
+    // verification host immediately after closing its stdin, with no gap
+    // between them, so the host's own cleanup() in
+    // packages/host/lib/host.mjs — unlink the socket, remove the registry
+    // entry — never got to run. In production socketDirPath is the real
+    // per-user directory (defaultInstallPaths() sets it to socketDir()), so
+    // every install left a dead bridge-<pid>.sock and <pid>.json behind in
+    // the one directory findLiveBridges enumerates to find live bridges.
+    // Self-healing — the next host's sweepStaleSockets clears it — but
+    // litter our own installer creates in that directory is still a defect.
+    // Red against the pre-fix code (verified by hand before committing);
+    // green now that shutdown() gives the host SHUTDOWN_GRACE_MS to run its
+    // own cleanup before escalating to SIGKILL.
+    const result = await installBridge(options);
+    assert.equal(result.ok, true);
+
+    const entries = existsSync(options.socketDirPath) ? readdirSync(options.socketDirPath) : [];
+    assert.deepEqual(entries, []);
+  });
+
+  it('does not write files when the entry does not exist', async () => {
+    // Renamed from "leaves nothing behind when verification fails" — that
+    // name overpromised. This fixture's missing entryPath trips
+    // installBridge's very first guard, so it returns before verifyLauncher
+    // is ever called; a verifyLauncher that always reported success would
+    // still pass this test. The fixture below it, "reports the interpreter
+    // it could not use", is the one that genuinely reaches and fails
+    // verification, and it carries the equivalent assertions for that case.
     const broken = { ...options, entryPath: path.join(root, 'does-not-exist.mjs') };
 
     const result = await installBridge(broken);
@@ -88,14 +122,14 @@ describe('installBridge', () => {
     assert.equal(result.ok, false);
     assert.match(result.error.message, /no-node/);
 
-    // This is the case "leaves nothing behind when verification fails" does
-    // not actually cover: that test's fixture has a missing *entry* path, so
-    // installBridge returns before ever calling verifyLauncher, and a
-    // verifyLauncher that always reported success would still pass it. Here
-    // the entry is real and verification genuinely runs and genuinely
-    // fails — mutation-verified: an unconditional `return { ok: true }` in
-    // verifyLauncher turns this test red (result.ok becomes true), where it
-    // leaves the other test green.
+    // This is the case "does not write files when the entry does not exist"
+    // does not actually cover: that test's fixture has a missing *entry*
+    // path, so installBridge returns before ever calling verifyLauncher,
+    // and a verifyLauncher that always reported success would still pass
+    // it. Here the entry is real and verification genuinely runs and
+    // genuinely fails — mutation-verified: an unconditional
+    // `return { ok: true }` in verifyLauncher turns this test red
+    // (result.ok becomes true), where it leaves the other test green.
     assert.equal(existsSync(path.join(broken.manifestDir, MANIFEST_FILE_NAME)), false);
     assert.equal(existsSync(path.join(broken.launcherDir, 'headerlab-host')), false);
   });
