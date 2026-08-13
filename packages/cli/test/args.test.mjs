@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, it, test } from 'node:test';
 import { parse } from '../lib/args.mjs';
 
 // One deepEqual per command name, matching lib/bridge/protocol.ts's
@@ -208,4 +208,72 @@ test('site all-sites rejects a value other than on/off', () => {
   const result = parse(['site', 'all-sites', 'sideways']);
   assert.equal(result.ok, false);
   assert.match(result.error.message, /on.*off|off.*on/);
+});
+
+describe('bridge', () => {
+  it('takes an extension id verbatim', () => {
+    assert.deepEqual(parse(['bridge', 'install', '--extension-id', 'abc']), {
+      ok: true,
+      command: {
+        cmd: 'bridge.install',
+        extensionId: 'abc',
+        loadPath: null,
+        userDataDir: null,
+        browser: 'chrome',
+      },
+    });
+  });
+
+  it('takes a load path instead, to be turned into an id later', () => {
+    // Kept as a path here rather than resolved: this file is pure, and
+    // resolving means hashing the *absolute* path, which needs process.cwd().
+    assert.deepEqual(parse(['bridge', 'install', '--load-path', '.output/chrome-mv3']), {
+      ok: true,
+      command: {
+        cmd: 'bridge.install',
+        extensionId: null,
+        loadPath: '.output/chrome-mv3',
+        userDataDir: null,
+        browser: 'chrome',
+      },
+    });
+  });
+
+  it('refuses install with neither', () => {
+    const result = parse(['bridge', 'install']);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'invalid-args');
+    assert.match(result.error.message, /--extension-id|--load-path/);
+  });
+
+  it('refuses install with both — one of them would silently win', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'abc', '--load-path', '/x']);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'invalid-args');
+  });
+
+  it('accepts the browser it should install for', () => {
+    assert.deepEqual(
+      parse(['bridge', 'install', '--extension-id', 'abc', '--browser', 'chromium']).command
+        .browser,
+      'chromium',
+    );
+  });
+
+  it('refuses a browser it has no directory for', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'abc', '--browser', 'firefox']);
+    assert.equal(result.ok, false);
+    assert.match(result.error.message, /firefox/);
+  });
+
+  it('parses uninstall and status with no arguments', () => {
+    assert.deepEqual(parse(['bridge', 'uninstall']).command.cmd, 'bridge.uninstall');
+    assert.deepEqual(parse(['bridge', 'status']).command.cmd, 'bridge.status');
+  });
+
+  it('names the unknown subcommand rather than the group', () => {
+    const result = parse(['bridge', 'reinstall']);
+    assert.equal(result.ok, false);
+    assert.match(result.error.message, /reinstall/);
+  });
 });

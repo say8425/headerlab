@@ -20,12 +20,14 @@ import { parseArgs } from 'node:util';
 export function parse(argv) {
   if (argv.length === 0) {
     return usageError(
-      'usage: headerlab <site|rule|pause|resume|state> ... — see the plugin skill for the full command list',
+      'usage: headerlab <bridge|site|rule|pause|resume|state> ... — see the plugin skill for the full command list',
     );
   }
 
   const [group, ...rest] = argv;
   switch (group) {
+    case 'bridge':
+      return parseBridge(rest);
     case 'site':
       return parseSite(rest);
     case 'rule':
@@ -60,9 +62,9 @@ function ok(command) {
   return { ok: true, command };
 }
 
-function parseNullary(args, cmd) {
+function parseNullary(args, cmd, display = cmd) {
   if (args.length > 0) {
-    return invalidArgs(`${cmd} takes no arguments, got: ${args.join(' ')}`);
+    return invalidArgs(`${display} takes no arguments, got: ${args.join(' ')}`);
   }
   return ok({ cmd });
 }
@@ -183,4 +185,74 @@ function parseState(args) {
     return invalidArgs('state set needs a file path or "-" for stdin');
   }
   return ok({ cmd: 'state.set', state: { source } });
+}
+
+const BRIDGE_BROWSERS = ['chrome', 'chromium'];
+
+/**
+ * `bridge` is the one group that never reaches a socket — it is what makes a
+ * socket possible. `bin/headerlab.mjs` branches on the `bridge.` prefix before
+ * it resolves a target, because "no bridge is running" is the normal state for
+ * someone typing `bridge install`.
+ *
+ * Stays pure like the rest of this file: `--load-path` is carried through as
+ * the text that was typed, not resolved and hashed here. Turning it into an
+ * extension id means resolving it against `process.cwd()`, which is I/O this
+ * layer does not do.
+ */
+function parseBridge(args) {
+  const [sub, ...rest] = args;
+  if (sub === 'uninstall' || sub === 'status') {
+    return parseNullary(rest, `bridge.${sub}`, `bridge ${sub}`);
+  }
+  if (sub !== 'install') {
+    return invalidArgs(`unknown bridge command: ${sub ?? '(nothing)'}`);
+  }
+
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args: rest,
+      options: {
+        'extension-id': { type: 'string' },
+        'load-path': { type: 'string' },
+        'user-data-dir': { type: 'string' },
+        browser: { type: 'string' },
+      },
+      allowPositionals: false,
+    }));
+  } catch (error) {
+    return invalidArgs(`bridge install: ${error.message}`);
+  }
+
+  const extensionId = values['extension-id'] ?? null;
+  const loadPath = values['load-path'] ?? null;
+  if (extensionId === null && loadPath === null) {
+    return invalidArgs(
+      'bridge install needs --extension-id <id> (copy it from chrome://extensions) or ' +
+        '--load-path <dir> (the unpacked directory Chrome was pointed at)',
+    );
+  }
+  // Refused rather than resolved by precedence. `allowed_origins` takes one
+  // exact origin and no wildcard, so a silent winner between two ids is a
+  // manifest Chrome rejects with the same message it gives for a host that
+  // does not exist.
+  if (extensionId !== null && loadPath !== null) {
+    return invalidArgs('bridge install takes --extension-id or --load-path, not both');
+  }
+
+  const browser = values.browser ?? 'chrome';
+  if (!BRIDGE_BROWSERS.includes(browser)) {
+    return invalidArgs(
+      `bridge install needs --browser ${BRIDGE_BROWSERS.join('|')}, got: ${browser}`,
+    );
+  }
+
+  return ok({
+    cmd: 'bridge.install',
+    extensionId,
+    loadPath,
+    userDataDir: values['user-data-dir'] ?? null,
+    browser,
+  });
 }

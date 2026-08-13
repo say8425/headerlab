@@ -7,6 +7,7 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { MAX_OUTGOING } from '../../host/lib/framing.mjs';
+import { unpackedExtensionId } from '../../host/lib/manifest.mjs';
 import {
   ensureSocketDir,
   listenWithRestrictedPermissions,
@@ -26,10 +27,11 @@ import {
 // reading its stdout and exit code.
 const cliPath = fileURLToPath(new URL('../bin/headerlab.mjs', import.meta.url));
 
-function runCli(args) {
+function runCli(args, { env = process.env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env,
     });
     let stdout = '';
     let stderr = '';
@@ -174,4 +176,67 @@ test('a live bridge replies successfully end to end', async () => {
     true,
     'the fake host is still up; only this test tore it down',
   );
+});
+
+// --- bridge.* commands: install/uninstall/status never touch a socket ------
+
+// `bridge install`'s own verification spawns a real host, and that host must
+// not bind into the developer's real per-user socket directory — a
+// concurrently running `headerlab` command could mistake it for a live
+// bridge. `defaultInstallPaths()` has no flag to point `socketDirPath`
+// elsewhere; `HEADERLAB_SOCKET_DIR` (read by `socketDir()`) is the only
+// lever reachable from outside the CLI process, so every bridge.* test below
+// runs under this override instead of the ambient shell's.
+const scratchSocketDir = mkdtempSync(path.join(tmpdir(), 'hl-cli-bridge-sockets-'));
+const cleanEnv = { ...process.env, HEADERLAB_SOCKET_DIR: scratchSocketDir };
+
+// `--user-data-dir` moves where the manifest is written, so the install test
+// below never touches the developer's real Chrome profile.
+const scratchProfile = mkdtempSync(path.join(tmpdir(), 'hl-cli-bridge-profile-'));
+
+test('bridge status answers without a live bridge — it never touches a socket', async () => {
+  // The whole point of the branch. `bridge install` on a machine with no
+  // bridge running must not fail with `bridge-off`: there is no bridge yet,
+  // which is precisely why someone is running it.
+  const { stdout, code } = await runCli(['bridge', 'status'], { env: cleanEnv });
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, true);
+  assert.equal(code, 0);
+});
+
+test('bridge install computes the id from a load path and says which one it used', async () => {
+  // The id is the one value nobody can verify from inside this process, so
+  // it is reported rather than kept — the person compares it against
+  // chrome://extensions, which is the only ground truth there is. The path
+  // itself is a scratch directory rather than this checkout's real
+  // .output/chrome-mv3: a machine-specific absolute path baked into a
+  // committed test only matches the machine that wrote it, so the expected
+  // id is derived the same way runBridgeCommand derives its own — from the
+  // resolved load path, via the same unpackedExtensionId it calls.
+  const loadPath = mkdtempSync(path.join(tmpdir(), 'hl-cli-bridge-load-path-'));
+  const expectedId = unpackedExtensionId(loadPath);
+
+  const { stdout, code } = await runCli(
+    ['bridge', 'install', '--load-path', loadPath, '--user-data-dir', scratchProfile],
+    { env: cleanEnv },
+  );
+  const payload = JSON.parse(stdout);
+
+  assert.equal(code, 0);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.extensionId, expectedId);
+  assert.match(payload.note, /computed from/);
+
+  // Tears down the one artifact this test cannot scope to a scratch
+  // directory: `defaultInstallPaths()` always puts `launcherDir` under the
+  // real homedir (see install.mjs's docblock — deliberately not Chrome's
+  // directory), and `bridge uninstall` takes no flags at all — it can only
+  // ever target the default browser/homedir pair, never scratchProfile. That
+  // is exactly what is wanted here: the launcher this test just wrote lives
+  // at that same default location regardless of --user-data-dir, so a bare
+  // `bridge uninstall` finds and removes it. Running it here, rather than a
+  // raw rmSync, also proves the round trip works and leaves the machine that
+  // ran this test exactly as it found it.
+  const cleanup = await runCli(['bridge', 'uninstall'], { env: cleanEnv });
+  assert.equal(JSON.parse(cleanup.stdout).ok, true);
 });

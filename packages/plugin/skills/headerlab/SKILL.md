@@ -36,6 +36,16 @@ you would report `MISSING-CLI` above. If more than one bridge is running,
 the error code is `multiple-bridges` instead, and its message lists each
 candidate's pid — rerun with `--bridge <pid>` naming one of them.
 
+The most common reason no bridge is running is that the native messaging
+host manifest was never installed — `headerlab bridge install` writes that
+manifest. But installing it is not the same as turning the bridge on: **it
+only has an effect after a person opens the HeaderLab popup and clicks
+Enable on the bridge row.** The CLI can write the manifest; it cannot grant
+the permission or flip the switch, the same way `site add` cannot click
+Grant (see below). Run `headerlab bridge status` first to see what is
+already installed and what is live before assuming an install is needed at
+all.
+
 ## Commands
 
 All of these are subcommands of `headerlab`. A global `--bridge <pid>` flag
@@ -53,6 +63,9 @@ one is live; omit it when only one is running.
 | `headerlab pause` | Pause header modification entirely, without touching any rule's own on/off state. |
 | `headerlab resume` | Resume after a pause. |
 | `headerlab state set <file\|->` | Replace the extension's entire stored state with the JSON at `<file>`, or from stdin when the argument is `-`. This is a full overwrite, not a merge — read the current state back from a prior reply before doing this if anything in it needs to survive. |
+| `headerlab bridge install --extension-id <id>\|--load-path <dir> [--user-data-dir <dir>] [--browser chrome\|chromium]` | Install the native messaging host manifest that makes a bridge possible. Never touches a socket — see below. |
+| `headerlab bridge uninstall` | Remove the manifest and launcher this installed. Idempotent: removing what is not there is success. |
+| `headerlab bridge status` | Report what is installed and what is live, without requiring a bridge to be running. |
 
 There is currently no dedicated read-only command. Every **successful**
 write's reply carries the resulting state in full (`{"ok":true,"state":
@@ -78,6 +91,22 @@ or malformed global flags), `unknown-command`, `invalid-args` (a known
 command with a bad shape), `invalid-command` (a `state set` source that
 could not be read, was too large, or was not valid JSON), `bridge-off`,
 `multiple-bridges`, `timeout` (the bridge accepted the connection but never
-replied), and `bridge-error`/`bridge-closed` for other transport failures.
+replied), `bridge-error`/`bridge-closed` for other transport failures, and
+three more:
+
+- `store-unreadable` — the extension's stored state does not match the
+  format this version expects, so nothing was applied and nothing was
+  overwritten. Can come back from any write, not just `bridge install`. Tell
+  the person to open the popup and check it themselves, then stop — this is
+  not something to retry or work around.
+- `unsupported` — this build refuses the request outright (currently: a
+  `state set` payload with a regex filter — there is no regex editor in the
+  popup and nothing validates the pattern). Do not look for a workaround;
+  report it as a hard no.
+- `install-failed` — `bridge install` specifically: the manifest was written
+  but failed its own verification and was rolled back, so nothing was left
+  behind. Relay the message as given; it already says what Chrome would have
+  said.
+
 None of these are worth retrying automatically — each names a specific,
 stable condition to report as-is.
