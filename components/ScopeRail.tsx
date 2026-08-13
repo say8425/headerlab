@@ -238,7 +238,7 @@ export function ScopeRail({
       {/* The count and the master switch on one raised surface. They are the
           same question asked twice — how much is going out, and is any of it —
           so they share a card rather than sitting as two bands on the rail. */}
-      <div className="mx-3 mt-4 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
+      <div className="mx-3 mt-3 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
         <div data-testid="readout">
           <div className="flex h-7 items-baseline gap-[7px] tabular-nums">
             {/* No `leading-1`: at this weight macOS's system-ui glyphs have
@@ -324,11 +324,15 @@ export function ScopeRail({
           />
         </div>
 
-        {/* The fourth line of the readout card, and the whole of the 28px of
-            slack the rail had left — measured in the built popup, not read off
-            the source. The site list's max-height stays at 132px so the third
-            row is still cut across the middle, which is the affordance that
-            says the list continues.
+        {/* The fourth line of the readout card. It did not fit inside the 28px
+            the rail's own docblock once claimed — that figure was read off the
+            source, not the built popup, and the real number was 7px once
+            measured correctly (docs/design/2026-08-12-agent-bridge-rail-budget.html).
+            The 21px shortfall is closed by trimming four other margins one
+            notch each (this row's own `mt-1`, the readout card's and sites
+            section's `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`) and
+            taking the remaining 5px from the site list's own cap — see that
+            list's docblock for the accounting.
 
             Shaped exactly like the run state above it because it is the same
             kind of fact: a thing that is either happening or not, with one
@@ -337,7 +341,7 @@ export function ScopeRail({
             consent dialog must follow a button that asks for consent, never a
             control that merely moved. */}
         <div
-          className="mt-2 flex h-5 items-center gap-[7px]"
+          className="mt-1 flex h-5 items-center gap-[7px]"
           data-testid="bridgestate"
           data-bridge={bridge}
         >
@@ -449,7 +453,7 @@ export function ScopeRail({
           down, instead of the site list shrinking from 132 to 48. The e2e
           suite opens exactly that page (a note plus eight sites), so the class
           cannot be dropped in silence. */}
-      <div className="mt-4 flex min-h-0 flex-col gap-1.5">
+      <div className="mt-3 flex min-h-0 flex-col gap-1.5">
         <div className={HEAD_CLASS}>
           Sites{' '}
           <span className={HEAD_COUNT_CLASS} data-testid="site-count">
@@ -628,19 +632,38 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 132px, which is deliberately NOT a multiple of
+            The height stops at 127px, which is deliberately NOT a multiple of
             the 54px row pitch: two rows and the gap after them are 108px and
             three are 156px, so a third site leaves that row cut across the
-            middle — 24px of 48 — and the cut row is the affordance saying the
-            list continues. 156 or 162 would each show a whole number of rows
-            and say nothing. The remaining rail is what caps it: 132 leaves
-            28px of slack under the checklist, and every 48px more would spend
-            a whole row of that. The reference
-            mockup capped the list at a fixed 176px, which this does not copy —
-            a hard cap opens a hole between the last site and everything below
-            it when there are only one or two. `max-height` lets the list be as
-            tall as it has content for, and `mt-auto` on the section below
-            sends the leftover to the foot of the rail instead.
+            middle — now 19px of 48, not the wider 24px an unpressured rail
+            could afford — and the cut row is the affordance saying the list
+            continues regardless of exactly how much of it shows. 156 or 162
+            would each show a whole number of rows and say nothing; nor would
+            108, which is why the cap sits above two full rows rather than at
+            them. The reference mockup capped the list at a fixed 176px, which
+            this does not copy — a hard cap opens a hole between the last site
+            and everything below it when there are only one or two.
+            `max-height` lets the list be as tall as it has content for, and
+            `mt-auto` on the section below sends the leftover to the foot of
+            the rail instead.
+
+            132 was the figure here before the bridge row
+            (components/ScopeRail.tsx's bridgestate block) landed. That row
+            needed 28px and the rail had 7 genuinely free — measured in the
+            built popup, not read off the source; see
+            docs/design/2026-08-12-agent-bridge-rail-budget.html for the
+            arithmetic. Four other margins each gave up 1px (the readout
+            card's and this section's own `mt-4`→`mt-3`, the types section's
+            `pt-3`→`pt-2`, the bridge row's own `mt-2`→`mt-1`), closing 16 of
+            the 21px shortfall; the list gave up the remaining 5, 132→127.
+
+            **The rail now carries zero slack.** Every other margin in this
+            card was already load-bearing rhythm, not spare space, so the next
+            thing added to this rail does not have 7 (or 28) free px waiting
+            for it — it reopens this exact accounting from a starting budget
+            of 0, and adding it without shrinking this list further means
+            finding room somewhere else in the rail on purpose, not by
+            spending what is left here.
 
             The scrollbar is not assumed to be visible: on macOS it is an
             overlay that paints over the content and vanishes. `scroll-list`
@@ -651,7 +674,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[132px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[127px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {
@@ -717,7 +740,7 @@ export function ScopeRail({
           also where the scope notes go — every one of them is about the sites,
           and the checklist is the least-touched control on screen, so it is
           the one that can afford to be the thing you scroll past. */}
-      <div className="mt-auto shrink-0 pt-3" data-testid="rail-section-types">
+      <div className="mt-auto shrink-0 pt-2" data-testid="rail-section-types">
         <div className={HEAD_CLASS}>
           Request types{' '}
           <span className={HEAD_COUNT_CLASS}>

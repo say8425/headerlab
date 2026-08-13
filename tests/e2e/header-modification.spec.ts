@@ -1422,8 +1422,20 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const unusableLines = await measureLines(unusablePage);
 
   // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
-  // 제자리에 있다. 목록의 max-height 는 132px 이므로, 그보다 작아졌다는 것이
+  // 제자리에 있다. 목록의 max-height 는 127px 이므로, 그보다 작아졌다는 것이
   // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
+  //
+  // 36 은 48 에서 다시 잰 값이다(예전에는 132→48 이었다). 브리지 행이 레일에
+  // 더해지면서 예산 자체가 바뀌었기 때문에 움직였다 — 카드가 28px 필요했는데
+  // 진짜 여유는 7px 뿐이었고(docs/design/2026-08-12-agent-bridge-rail-budget.html),
+  // 나머지 21px 중 16px 은 다른 네 여백에서, 5px 는 이 목록의 cap 자체에서
+  // 가져왔다(132→127, ScopeRail.tsx 의 site-list 문서화 참고). 이 페이지는
+  // 그 cap 위에 스코프 노트까지 더해 훨씬 세게 누르므로 같은 21px 압박이
+  // 132→127 보다 여기서 더 크게(48→36) 나타난다. 부등호로 완화하지 않고
+  // 정확한 값으로 다시 고정한다 — 레이아웃이 움직일 때마다 다시 재야 하는
+  // 것이 이 단언의 존재 이유다. 36 은 여전히 목록이 완전히 접히지 않고 한
+  // 행의 일부(48 중 36)를 보여주며 listScrolls: true 로 남아 있어, "목록만
+  // 양보하고 이웃은 그대로"라는 이 단언의 주제를 여전히 보여준다.
   const underPressure = await unusablePage.evaluate(() => {
     const rail = document.querySelector('aside')!;
     const list = document.querySelector('[data-testid="site-list"]')!;
@@ -1437,7 +1449,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   expect(underPressure).toEqual({
     notes: 1,
     railScrolls: false,
-    listHeight: 48,
+    listHeight: 36,
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
@@ -1621,8 +1633,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 25 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
-  //             · Sites 카운트 1 · run state 1("Active") · all-sites 2(라벨, 상태 줄)
+  //   레일 27 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //             · Sites 카운트 1 · run state 1("Active")
+  //             · bridge row 2(라벨 "Bridge off", Enable 버튼)
+  //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
   //   패널 12 = 헤딩 1 · ghost 행 라벨 1 · 규칙 행의 operation 10
@@ -1633,10 +1647,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 자기 span 으로 감쌌더니 잎이 되어 저절로 검사 대상이 됐다. 지표를 넓힌 게
   // 아니라 노드가 지표 안으로 들어온 것이다.
   //
+  // 25 → 27 은 그 사각지대와 다른 종류다: 팝업이 조금 바뀐 게 아니라 레일에
+  // 실제 줄이 하나(bridgestate) 늘었다. 이 시점에 브리지 권한 probe 는 이미
+  // 정착해 있어 `off` 로 읽히므로 라벨 span 과 Enable 버튼 둘 다 텍스트를 가진
+  // 잎이 되어 셈에 들어온다.
+  //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 25,
+    rail: 27,
     panel: 12,
   });
 
@@ -1740,7 +1759,7 @@ test('the bridge row does not push the rail past its column', async ({
   extensionId,
 }) => {
   // Four sites so the list is actually at its cap — with one or two it is
-  // shorter than 132px and the affordance assertion below would pass while
+  // shorter than 127px and the affordance assertion below would pass while
   // describing nothing.
   //
   // The brief's own fixture literal for this test used `filter.mode: 'domains'`,
@@ -1791,9 +1810,14 @@ test('the bridge row does not push the rail past its column', async ({
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page.getByTestId('bridgestate')).toBeVisible();
 
-  // The rail had 28px of slack and this row spends all of it. Measured here
-  // rather than taken from the source, because the source figure is exactly
-  // what the design doc warned would go stale.
+  // The rail had 7px of real slack — not the 28px the source once claimed —
+  // and this row needs 28. The shortfall was closed by trimming four other
+  // margins one notch each and taking 5px from the site list's own cap
+  // (docs/design/2026-08-12-agent-bridge-rail-budget.html has the arithmetic;
+  // ScopeRail.tsx's site-list docblock has the accounting). Still an
+  // inequality here — this assertion's own subject is "does not overflow",
+  // not "spends exactly this much"; the list-height check below is the one
+  // that pins the now-zero-slack budget to an exact number.
   const rail = page.locator('aside').first();
   const { scrollHeight, clientHeight } = await rail.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
@@ -1802,7 +1826,8 @@ test('the bridge row does not push the rail past its column', async ({
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
   // And the affordance that slack was protecting is still there: the list
-  // stops mid-row rather than on one, which is what says it continues.
+  // stops mid-row rather than on one, which is what says it continues — now
+  // at 127px, 19px of the third row's 48 rather than the previous 24.
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(132);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
 });
