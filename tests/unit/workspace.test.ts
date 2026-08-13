@@ -14,6 +14,23 @@ function declaredPackages(): string[] {
   return [...block[1]!.matchAll(/^\s*-\s*(.+?)\s*$/gm)].map((m) => m[1]!);
 }
 
+/**
+ * The lockfile's own list of importers — text, not YAML, for the same reason
+ * `declaredPackages()` above is: no parser is in this dependency tree and
+ * CLAUDE.md forbids adding one. Importer directory keys sit at exactly
+ * 2-space indent (`  packages/headerlab:` or `  .:`); their `dependencies:`/
+ * `devDependencies:` children sit deeper, at 4 spaces or more, where `\S+`
+ * cannot start matching because the two required literal spaces leave it
+ * looking at a third space, not a name. That is what keeps this from
+ * grabbing those instead of the importer keys themselves.
+ */
+function lockfileImporters(): string[] {
+  const lock = readFileSync('pnpm-lock.yaml', 'utf8');
+  const block = /^importers:\s*$([\s\S]*?)^packages:/m.exec(lock);
+  if (!block) throw new Error('pnpm-lock.yaml declares no `importers:` key');
+  return [...block[1]!.matchAll(/^ {2}(\S+):/gm)].map((m) => m[1]!);
+}
+
 describe('the workspace', () => {
   it('declares the two packages', () => {
     expect(declaredPackages()).toEqual(['packages/headerlab', 'packages/plugin']);
@@ -87,6 +104,29 @@ describe('the workspace', () => {
       expect(importers![1], `${pkg} is declared but absent from importers`).toContain(`${pkg}:`);
     }
   });
+
+  /**
+   * The test above only checks containment — every declared package has AN
+   * entry — which passes just as well if the lockfile also carries an entry
+   * nothing declares. That is exactly the shape Task 1's merge left behind
+   * for a moment: pnpm-workspace.yaml said packages/headerlab, the lockfile
+   * still said packages/cli AND packages/host, and every local check
+   * (pnpm check:all, pnpm test:e2e) stayed green regardless, because CI's
+   * `pnpm install --frozen-lockfile` — the step that actually validates the
+   * importer set against the declared packages — never runs here. Set
+   * equality catches that: an extra importer fails this exactly as loudly
+   * as a missing one.
+   *
+   * Normalised by DROPPING `.` from the lockfile's side rather than adding a
+   * synthetic root entry to declaredPackages(): the workspace root is always
+   * an implicit importer and pnpm-workspace.yaml never lists it, so treating
+   * `.` as a package the workspace "declares" would be modelling something
+   * that isn't actually a workspace package.
+   */
+  it('agrees with pnpm-lock.yaml on exactly which packages exist', () => {
+    const fromLockfile = lockfileImporters().filter((importer) => importer !== '.');
+    expect(fromLockfile.sort()).toEqual([...declaredPackages()].sort());
+  });
 });
 
 // Root vitest only sees `tests/unit/**/*.test.{ts,tsx}` (vitest.config.ts),
@@ -152,8 +192,8 @@ describe('the release configuration', () => {
   // CLI's component so its tag would collide with the extension's bare
   // namespace.
   it('configures exactly the packages that exist', () => {
-    expect(Object.keys(config.packages)).toEqual(['.', 'packages/cli']);
-    expect(config.packages['packages/cli'].component).toBe('cli');
+    expect(Object.keys(config.packages)).toEqual(['.', 'packages/headerlab']);
+    expect(config.packages['packages/headerlab'].component).toBe('cli');
     for (const path of Object.keys(config.packages)) {
       expect(existsSync(path === '.' ? 'package.json' : `${path}/package.json`)).toBe(true);
     }
@@ -164,7 +204,7 @@ describe('the release configuration', () => {
   // v<version> namespace, and v1.0.0 already belongs to the extension.
   it('leaves the bare tag namespace to the extension', () => {
     expect(config.packages['.']['include-component-in-tag']).toBe(false);
-    expect(config.packages['packages/cli']['include-component-in-tag']).toBeUndefined();
+    expect(config.packages['packages/headerlab']['include-component-in-tag']).toBeUndefined();
   });
 
   /**
@@ -195,8 +235,8 @@ describe('the release configuration', () => {
   });
 
   it("tracks the CLI package's own version", () => {
-    const cliPackage = JSON.parse(readFileSync('packages/cli/package.json', 'utf8'));
-    expect(manifest['packages/cli']).toBe(cliPackage.version);
+    const cliPackage = JSON.parse(readFileSync('packages/headerlab/package.json', 'utf8'));
+    expect(manifest['packages/headerlab']).toBe(cliPackage.version);
   });
 
   // All eleven extraFileUpdates sites set createIfMissing: false. A wrong
@@ -207,7 +247,7 @@ describe('the release configuration', () => {
   // reads — /packages/plugin/package.json, for instance, which would be
   // bumped and would track nothing.
   it('points extra-files at manifests that exist', () => {
-    const entries = config.packages['packages/cli']['extra-files'].map((entry: unknown) =>
+    const entries = config.packages['packages/headerlab']['extra-files'].map((entry: unknown) =>
       typeof entry === 'string' ? entry : (entry as { path: string }).path,
     );
     expect(entries).toEqual([

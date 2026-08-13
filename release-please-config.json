@@ -3,7 +3,7 @@
   "separate-pull-requests": true,
   "packages": {
     ".": { "release-type": "node", "include-component-in-tag": false },
-    "packages/cli": {
+    "packages/headerlab": {
       "release-type": "node",
       "component": "cli",
       "extra-files": [

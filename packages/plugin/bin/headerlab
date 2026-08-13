@@ -1,15 +1,19 @@
 #!/usr/bin/env sh
 # Thin shim so the plugin's `bin/` — which Claude Code puts on the Bash
 # tool's PATH — resolves to a `headerlab` command at all. Every judgment
-# about argv, the socket, and the reply lives in packages/cli; duplicating
-# any of it here would repeat this repo's most expensive defect (one
-# judgment implemented four times and then diverging — CLAUDE.md, "One
+# about argv, the socket, and the reply lives in packages/headerlab;
+# duplicating any of it here would repeat this repo's most expensive defect
+# (one judgment implemented four times and then diverging — CLAUDE.md, "One
 # predicate, one definition"). This file does nothing but find and exec the
 # real CLI.
 #
+# The CLI being on npm now (`npm i -g headerlab`) does not retire this shim:
+# a plugin user has not necessarily installed it globally, and if they have,
+# PATH resolves that copy first anyway — the two are not exclusive.
+#
 # Resolved relative to this script's own location, not $PWD: Claude Code
 # invokes plugin bin/ entries from whatever directory the session's cwd
-# happens to be, and packages/cli sits beside packages/plugin regardless.
+# happens to be, and packages/headerlab sits beside packages/plugin regardless.
 set -eu
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec node "$dir/../../cli/bin/headerlab.mjs" "$@"
+exec node "$dir/../../headerlab/bin/headerlab.mjs" "$@"
