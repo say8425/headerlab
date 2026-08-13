@@ -27,6 +27,19 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
 
+    # `--frozen-lockfile` does not fail when pnpm-workspace.yaml declares a
+    # package the lockfile's importers block has no entry for — measured on
+    # pnpm 10.33.0: it succeeds and writes the missing entry in. A unit test
+    # (tests/unit/workspace.test.ts, "agrees with pnpm-lock.yaml on exactly
+    # which packages exist") catches the mismatch a commit earlier, on a
+    # developer's own machine, but it reads the lockfile as it was checked
+    # in — it cannot see CI silently rewriting it one step after that test
+    # would have run. This is the step that can: if install just modified the
+    # committed file, the working tree is no longer clean, and that is worth
+    # a red job on its own rather than an unreviewed diff nobody asked for.
+    - run: git diff --exit-code pnpm-lock.yaml
+      shell: bash
+
     # `restore-keys` above means each lockfile change restores the previous
     # store, installs into it, and saves the union — nothing would ever leave.
     # An unpruned store is not just its own cost: the Playwright browser cache
