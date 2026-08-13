@@ -5,6 +5,7 @@ import { probeNativeMessaging } from '@/lib/permissions/probe';
 import { loadState, setState } from '@/lib/storage/state';
 import { patchBridgeStatus } from '@/lib/storage/session';
 import type { ApplyResult } from '@/lib/bridge/protocol';
+import type { LoadedState } from '@/lib/storage/state';
 
 /**
  * The one module permitted to call chrome.runtime.connectNative — and it calls
@@ -215,7 +216,27 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
     return;
   }
 
-  const { state, valid } = await loadState();
+  // loadState() itself can reject — not just answer `valid: false` — when the
+  // underlying stateItem.getValue() throws (a chrome.storage.local read
+  // failure, or the extension torn down mid-read). Unguarded, that rejection
+  // would propagate out of this async function with nobody awaiting it (the
+  // listener above does `void handleMessage(...)`), so reply() below would
+  // never run and the CLI would wait out its ten-second timeout and report
+  // `timeout` — the transport blamed for a failure that was storage.
+  let loaded: LoadedState;
+  try {
+    loaded = await loadState();
+  } catch (error) {
+    reply(current, id, {
+      ok: false,
+      error: {
+        code: 'store-unwritable',
+        message: `the store could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    });
+    return;
+  }
+  const { state, valid } = loaded;
   if (!valid) {
     reply(current, id, {
       ok: false,
@@ -231,7 +252,24 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
 
   const result = apply(state, command);
   if (result.ok && result.changed) {
-    await setState(result.state);
+    // Same shape as the loadState() guard above, for the write side. An
+    // unguarded stateItem.setValue() rejecting here would skip reply()
+    // entirely, for the identical reason patchBridgeStatus's own rejection is
+    // caught a few lines below — except this call is the state write itself,
+    // not an informational timestamp, so its failure has to reach the caller
+    // as an answer rather than be caught and merely logged.
+    try {
+      await setState(result.state);
+    } catch (error) {
+      reply(current, id, {
+        ok: false,
+        error: {
+          code: 'store-unwritable',
+          message: `the applied state could not be written: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      });
+      return;
+    }
     // The state write above already succeeded — the reply below is the
     // truthful thing regardless of whether this purely informational
     // timestamp lands. Awaited rather than fire-and-forget (unlike connect()'s

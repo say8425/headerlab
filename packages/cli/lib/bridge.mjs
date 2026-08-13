@@ -116,13 +116,17 @@ export async function resolveTarget(dir, bridgePid) {
 }
 
 // How long to wait for the extension to answer once a command has actually
-// been written to a live socket. This default is a guess, not a
-// measurement — there is no live host or extension adapter in this
-// environment to time a real round trip against (the extension adapter
-// that would reply doesn't exist yet; it's a later task). It exists so a
-// dead SW or a bridge stuck mid-handshake fails loudly instead of hanging
-// the CLI forever. Callers may override it — the test suite does, to keep
-// its timeout case fast.
+// been written to a live socket. This default is still a guess rather than
+// a measurement, but it is no longer an *unmeasurable* one: the extension
+// adapter this comment used to say did not exist (lib/bridge/port.ts) is
+// written, and tests/e2e/bridge.spec.ts's "a CLI command reaches storage
+// through the bridge" drives a real round trip through a real host into a
+// real Chrome. Nobody has pinned a latency number from it yet — that test
+// proves correctness, not speed — so 10s stays a guess, just a checkable
+// one now rather than an unfalsifiable one. It exists so a dead SW or a
+// bridge stuck mid-handshake fails loudly instead of hanging the CLI
+// forever. Callers may override it — the test suite does, to keep its
+// timeout case fast.
 export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
 
 /**
@@ -139,11 +143,19 @@ export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  * extension echoing an id back regardless, and pushing correlation into a
  * relay would make it a protocol participant instead of a pipe.
  *
- * CONTRACT WITH THE EXTENSION ADAPTER (a later plan, not written yet): the
- * adapter must echo the `id` field of the envelope it receives back
- * unchanged on its reply. Nothing on this side can enforce that — it is
- * invisible from this file alone, which is exactly why it is written down
- * here rather than assumed.
+ * CONTRACT WITH THE EXTENSION ADAPTER, `lib/bridge/port.ts`: the adapter
+ * must echo the `id` field of the envelope it receives back unchanged on
+ * its reply — `reply()` there does exactly that (`{id, ...result}`), and
+ * `handleMessage` drops any message with no string id rather than replying
+ * to nobody who could match it. Nothing on *this* side can enforce that the
+ * other file honours the contract — the two live in different processes and
+ * different languages, and this file still cannot see across that boundary
+ * to check it directly — but it is no longer merely asserted, either:
+ * tests/e2e/bridge.spec.ts drives a real `headerlab --bridge <pid> site add`
+ * through a real host into a real Chrome and only gets back a reply that
+ * correlates because the id actually round-trips. That is the contract
+ * enforced end to end, from outside both files rather than from within
+ * either one.
  */
 export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {

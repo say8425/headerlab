@@ -63,6 +63,15 @@ export type ApplyErrorCode =
   // fallback and writing the result would overwrite whatever was really on
   // disk — the defect App.tsx already paid for once (`if (!valid) return`).
   | 'store-unreadable'
+  // The read or the write itself threw — a chrome.storage.local operation
+  // failing (quota, or the extension torn down mid-write), not the bytes
+  // failing validation. Distinct from `store-unreadable`, which means the
+  // read succeeded and the *content* was unusable; this one means the
+  // storage call never completed at all. Without this code, either failure
+  // was invisible: handleMessage's reply() was never reached and the CLI saw
+  // only `timeout` ten seconds later, pointing at the transport for a cause
+  // that was storage (lib/bridge/port.ts).
+  | 'store-unwritable'
   // Refused rather than failed. `state.set` can carry `filter.mode: 'regex'`,
   // which `appStateSchema` accepts and `filterToCondition` compiles straight
   // into `regexFilter` with nothing having asked

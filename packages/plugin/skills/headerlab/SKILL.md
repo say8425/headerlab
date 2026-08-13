@@ -110,18 +110,24 @@ command with a bad shape), `invalid-command` (a `state set` source that
 could not be read, was too large, or was not valid JSON), `bridge-off`,
 `multiple-bridges`, `timeout` (the bridge accepted the connection but never
 replied), `bridge-error`/`bridge-closed` for other transport failures, and
-three more — but which commands can produce which is not uniform, because
+four more — but which commands can produce which is not uniform, because
 `bridge install|uninstall|status` never reach the socket at all (see
 above), while every other command does:
 
-- `store-unreadable` and `unsupported` come from the extension itself, only
-  ever in reply to a command that actually reached it over the socket —
-  `site`/`rule`/`pause`/`resume`/`state set`. `bridge install|uninstall|status`
-  cannot produce either one; do not go looking for them there.
+- `store-unreadable`, `store-unwritable` and `unsupported` come from the
+  extension itself, only ever in reply to a command that actually reached
+  it over the socket — `site`/`rule`/`pause`/`resume`/`state set`.
+  `bridge install|uninstall|status` cannot produce any of them; do not go
+  looking for them there.
   - `store-unreadable` — the extension's stored state does not match the
     format this version expects, so nothing was applied and nothing was
     overwritten. Tell the person to open the popup and check it themselves,
     then stop — this is not something to retry or work around.
+  - `store-unwritable` — a `chrome.storage.local` read or write itself
+    failed (quota, or the extension torn down mid-operation), as opposed to
+    `store-unreadable`'s "the bytes were read fine but do not validate."
+    Report it and stop; retrying immediately is unlikely to find different
+    storage conditions, and this is not something the CLI can work around.
   - `unsupported` — this build refuses the request outright (currently: a
     `state set` payload with a regex filter — there is no regex editor in
     the popup and nothing validates the pattern). Do not look for a

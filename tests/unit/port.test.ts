@@ -324,6 +324,50 @@ describe('the two refusals', () => {
   });
 });
 
+describe('a storage operation failing produces a reply, not silence', () => {
+  // Both loadState() and setState() are awaited unguarded in handleMessage.
+  // Before this pair of tests, either one rejecting propagated out of the
+  // async function with nobody awaiting it (the listener does
+  // `void handleMessage(...)`) — reply() was never reached, and the CLI
+  // waited out its ten-second timeout to report `timeout`, blaming the
+  // transport for a failure that was storage. `store-unwritable` names this
+  // class; it is distinct from `store-unreadable` (tested above, in "the two
+  // refusals"), which means the read succeeded and the bytes themselves
+  // failed validation.
+
+  it('answers store-unwritable when the applied state fails to write', async () => {
+    await refreshBridge();
+    const port = ports[0]!;
+    const { stateItem } = await import('@/lib/storage/state');
+    vi.spyOn(stateItem, 'setValue').mockRejectedValueOnce(new Error('quota exceeded'));
+
+    port.send({ id: '1', command: { cmd: 'pause' } });
+    await settle();
+
+    expect(port.messages[0]).toMatchObject({
+      id: '1',
+      ok: false,
+      error: { code: 'store-unwritable' },
+    });
+  });
+
+  it('answers store-unwritable when the store fails to read — a different point of failure than a validation refusal', async () => {
+    await refreshBridge();
+    const port = ports[0]!;
+    const { stateItem } = await import('@/lib/storage/state');
+    vi.spyOn(stateItem, 'getValue').mockRejectedValueOnce(new Error('storage unavailable'));
+
+    port.send({ id: '1', command: { cmd: 'pause' } });
+    await settle();
+
+    expect(port.messages[0]).toMatchObject({
+      id: '1',
+      ok: false,
+      error: { code: 'store-unwritable' },
+    });
+  });
+});
+
 describe('a bridge-status write can fail without breaking the bridge', () => {
   it('still answers the command when only the lastCommandAt write fails', async () => {
     // patchBridgeStatus's own promise can now reject (round 1 serialized it),

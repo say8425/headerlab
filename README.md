@@ -118,9 +118,9 @@ codex plugin marketplace add say8425/headerlab
 ```
 
 The skill runs `command -v headerlab` before its own content reaches the model,
-so a missing CLI arrives as a fact rather than as a surprise mid-task. **It will
-report `bridge-off` until the extension side exists** — see *Not wired up yet*
-below.
+so a missing CLI arrives as a fact rather than as a surprise mid-task. **It
+reports `bridge-off` until the bridge is turned on** — see *Agent bridge*
+below for the three steps that do it.
 
 ## Development
 
@@ -336,7 +336,7 @@ manifest installs cleanly and simply never connects.
 ## Testing
 
 Three layers: pure logic with no browser, adapters driven by hand-planted spies,
-and end-to-end against a genuinely loaded extension. Two of the eleven e2e tests
+and end-to-end against a genuinely loaded extension. Two of the sixteen e2e tests
 put a real request on the wire through a local echo server and read the headers
 back off it — those are the strongest evidence in the repo.
 
