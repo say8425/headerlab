@@ -433,12 +433,43 @@ using the same action: tag `diffdeck-v1.3.2`, release titled `diffdeck: v1.3.2`.
 extension held the bare `v<version>` namespace until 2026-08-14, which left its releases
 titled `v1.1.0` with nothing saying what had been released. It now carries
 `"component": "extension"`, so the page reads `extension: v1.1.1` beside `cli: v0.1.1`.
-`v1.0.0` and `v1.1.0` stay in the old shape — history is a record — and
-`extension-v1.1.0` exists as an alias tag on the same commit so release-please can still
-find the previous release when it works out the next changelog's commit range. **Leaving
+**Leaving
 `component` unset does not mean "no component"**: it defaults to the package name, and the
 root's is `headerlab`, which would title the extension's release `headerlab: v1.1.1` and
 make it unreadable beside the CLI's.
+
+**The two bare-namespace tags are gone, and how they went is the reusable part.** `v1.0.0`
+and `v1.1.0` were deleted on 2026-08-15, so every tag here now names its package. They were
+not deleted with their releases: a release carries assets, and `v1.0.0`'s
+`headerlab-1.0.0-chrome.zip` had already been downloaded once — deleting the release
+destroys the artifact and the count with it. **`PATCH /repos/{o}/{r}/releases/{id}` accepts
+`tag_name`, so a release can be moved to a different tag in place** (`gh release edit <old>
+--tag <new> --title …`), keeping its id, its assets and their download counts. The order
+matters and is not recoverable if reversed: create the destination tag, move the release,
+*then* delete the old tag — deleting first orphans the release. `extension-v1.1.0` already
+existed as an alias on the same commit (`6d277c2`) and simply became the real tag;
+`extension-v1.0.0` was created at `dbd1b39` for the move. **A tag that a release does not
+point at can be created by `gh release edit --tag` itself, at `target_commitish`** — which
+is why the destination tag is pushed first and verified rather than left to that fallback.
+The compare links inside the moved bodies were rewritten in the same pass, since
+`compare/v1.0.0...v1.1.0` 404s the moment those tags go; `CHANGELOG.md` carried one copy of
+the same link and was the only file in the tree that did.
+
+**`exclude-paths` on the root package keeps CLI commits out of the extension's changelog,
+and it changes nothing today.** The root's path is the whole repository, so every commit
+under `packages/` is otherwise the extension's too. The schema's wording is the whole
+mechanism — *"if all files from commit belong to one of the paths it will be skipped"* — so
+a commit survives the filter by touching one file outside it, and measured across all 14
+commits from `extension-v1.0.0` to `extension-v1.1.2`, **every one does**. The two entries
+that read as CLI-only (#23, #26) each also edited a root file, so they belong where they
+are and were left alone; hand-editing them out would have been the changelog claiming a
+root file never changed. What the setting buys is the commit that lives entirely under
+`packages/headerlab/`, which is what CLI work looks like once its README stops moving.
+`packages/plugin` is deliberately not on the list: it is not a release-please package — it
+is version-bumped through the CLI's `extra-files` — so excluding it would leave a
+skill-only commit in no changelog at all. `tests/unit/workspace.test.ts` derives the list
+from the configured packages rather than pinning the literal, so a third released package
+added without an exclusion fails there.
 
 **`npm publish --provenance` requires `--access public` even for an unscoped name.** The
 flag is not about the name — unscoped packages are public by default — it is about

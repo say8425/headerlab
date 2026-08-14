@@ -2,7 +2,11 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json",
   "separate-pull-requests": true,
   "packages": {
-    ".": { "release-type": "node", "component": "extension" },
+    ".": {
+      "release-type": "node",
+      "component": "extension",
+      "exclude-paths": ["packages/headerlab"]
+    },
     "packages/headerlab": {
       "release-type": "node",
       "component": "cli",
