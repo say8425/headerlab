@@ -439,7 +439,9 @@ to sign one. Measured on the first real attempt: `EUSAGE / Can't generate proven
 new or private package`. Nothing was uploaded, because the check fires before the tarball
 moves — but the tag and the GitHub release had already been created by the step above, so
 the job went red **after** the irreversible half had happened. That ordering is worth
-remembering for anything else added to this job. Two things to know before wondering why something did not happen. **A release PR
+remembering for anything else added to this job.
+
+Two things to know before wondering why something did not happen. **A release PR
 opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
 loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
 changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the

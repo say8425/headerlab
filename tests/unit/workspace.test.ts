@@ -224,8 +224,10 @@ describe('the release configuration', () => {
   // version would silently stop tracking and the first symptom is a report.
   // `component` is asserted by name and not just by existing: a
   // `"componant": "cli"` typo used to pass this test silently, dropping the
-  // CLI's component so its tag would collide with the extension's bare
-  // namespace.
+  // CLI's component. That used to collide with the extension's bare namespace;
+  // since 2026-08-14 the extension names itself too, so the failure is quieter
+  // and worse — the component falls back to the package name, and both
+  // packages would answer to `headerlab`.
   it('configures exactly the packages that exist', () => {
     expect(Object.keys(config.packages)).toEqual(['.', 'packages/headerlab']);
     expect(config.packages['packages/headerlab'].component).toBe('cli');
