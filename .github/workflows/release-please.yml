@@ -78,27 +78,38 @@ jobs:
       - uses: actions/setup-node@v6
         if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         with:
-          # Without a registry-url, setup-node writes no .npmrc and
-          # NODE_AUTH_TOKEN is never consulted — the publish fails
-          # authentication with a token that is present and correct.
+          # Still required under trusted publishing — npm's own documented
+          # workflow keeps it. It is what points the publish at the registry
+          # the trusted publisher is configured on.
           registry-url: https://registry.npmjs.org
 
       # `npm`, not `pnpm`: pnpm is broken on the developer's machine (CLAUDE.md)
       # and publishing only ever happens here, where npm ships with the Node
-      # setup-node just installed.
+      # setup-node just installed. `.nvmrc` pins 24, whose npm is 11.13.0 —
+      # trusted publishing needs npm 11.5.1 and Node 22.14.0 at minimum.
       #
-      # `--access public` is required by `--provenance`, not by the name.
-      # Unscoped packages are public by default, and an earlier version of this
-      # step left the flag off on exactly that reasoning — which is true of
-      # publishing and false of provenance: npm cannot infer publicity for a
-      # package that does not exist yet, so it refuses to sign one. Measured,
-      # on the first real attempt: `npm error code EUSAGE / Can't generate
-      # provenance for new or private package, you must set access to public.`
-      # Nothing was uploaded — the check fires before the tarball moves — but
-      # the tag and GitHub release had already been created by the step above,
-      # so the job went red after the irreversible half had happened.
-      - run: npm publish --provenance --access public
+      # **No token.** Authentication is OIDC against the trusted publisher
+      # configured on the package (this repository, this workflow file), which
+      # is why the job holds `id-token: write`. `NODE_AUTH_TOKEN` and the
+      # `NPM_TOKEN` secret behind it are gone: npm is retiring the tokens that
+      # publish without a one-time password — account operations already, and
+      # direct publishing around January 2027 — and this repository met that
+      # wall twice, with `EOTP` after the tag and GitHub release had already
+      # been created. Trusted publishing removes the credential rather than
+      # renewing it.
+      #
+      # `--provenance` is redundant here and kept deliberately. npm attaches
+      # provenance automatically when publishing through a trusted publisher,
+      # so the flag changes nothing while the configuration is intact — and
+      # fails the job loudly if it ever is not. The package's own README tells
+      # readers that every release published from CI carries an attestation
+      # and to check with `npm audit signatures`; silently shipping an
+      # unsigned tarball under that promise is the failure this keeps loud.
+      #
+      # `--access public` is gone with the token. It was required by
+      # `--provenance` on a package that did not yet exist — npm cannot infer
+      # publicity for one and refuses to sign it. `headerlab` exists and is
+      # public now, so a publish inherits that.
+      - run: npm publish --provenance
         if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         working-directory: packages/headerlab
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
