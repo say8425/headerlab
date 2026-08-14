@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/say8425/headerlab/compare/v1.0.0...v1.1.0) (2026-08-14)
+
+
+### Features
+
+* the agent bridge — a CLI on npm and a skill that drive HeaderLab ([#17](https://github.com/say8425/headerlab/issues/17)) ([67760be](https://github.com/say8425/headerlab/commit/67760be95aed6853478321ea7f77f53bc872955b))
+
+
+### Bug Fixes
+
+* stop oxfmt owning the files release-please writes ([#20](https://github.com/say8425/headerlab/issues/20)) ([6e597b1](https://github.com/say8425/headerlab/commit/6e597b115579f11a6f5799e5c095ef4e65c5279c))
+
 ## 1.0.0 (2026-08-11)
 
 
