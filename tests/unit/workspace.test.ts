@@ -234,12 +234,32 @@ describe('the release configuration', () => {
     }
   });
 
-  // include-component-in-tag defaults to TRUE in manifest mode — the opposite
-  // of the action input's default. Exactly one package may hold the bare
-  // v<version> namespace, and v1.0.0 already belongs to the extension.
-  it('leaves the bare tag namespace to the extension', () => {
-    expect(config.packages['.']['include-component-in-tag']).toBe(false);
-    expect(config.packages['packages/headerlab']['include-component-in-tag']).toBeUndefined();
+  // Both packages name themselves, in the tag and therefore in the GitHub
+  // release title — release-please builds that title as `<component>: v<x.y.z>`,
+  // and the component reaches it only by being in the tag. Measured on a
+  // sibling repository using the same action: tag `diffdeck-v1.3.2`, release
+  // titled `diffdeck: v1.3.2`.
+  //
+  // The extension used to hold the bare `v<version>` namespace via
+  // `include-component-in-tag: false`, which is why `v1.0.0` and `v1.1.0`
+  // exist under that shape and stay that way — history is a record. From
+  // `extension-v1.1.1` on, a release page reader can tell the two apart
+  // without knowing the convention, which is the whole reason this changed.
+  //
+  // `component` is asserted by value, not just presence: without it the
+  // default comes from the package name, and the root's is `headerlab` — so a
+  // dropped key produces `headerlab: v1.1.1` beside `cli: v0.1.1`, which reads
+  // as though the extension were the CLI.
+  it('makes both packages name themselves in their tags', () => {
+    expect(config.packages['.'].component).toBe('extension');
+    expect(config.packages['packages/headerlab'].component).toBe('cli');
+    // Manifest mode defaults this to TRUE — the opposite of the action input's
+    // default — so leaving it unset is what keeps the component in the tag.
+    // An explicit `false` on either package would silently drop it.
+    const packages = config.packages as Record<string, Record<string, unknown>>;
+    for (const [path, pkg] of Object.entries(packages)) {
+      expect(pkg['include-component-in-tag'], `${path} drops its component`).not.toBe(false);
+    }
   });
 
   /**

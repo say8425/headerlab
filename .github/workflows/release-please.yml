@@ -85,9 +85,19 @@ jobs:
 
       # `npm`, not `pnpm`: pnpm is broken on the developer's machine (CLAUDE.md)
       # and publishing only ever happens here, where npm ships with the Node
-      # setup-node just installed. No `--access` flag: `headerlab` is unscoped
-      # and therefore public by default.
-      - run: npm publish --provenance
+      # setup-node just installed.
+      #
+      # `--access public` is required by `--provenance`, not by the name.
+      # Unscoped packages are public by default, and an earlier version of this
+      # step left the flag off on exactly that reasoning — which is true of
+      # publishing and false of provenance: npm cannot infer publicity for a
+      # package that does not exist yet, so it refuses to sign one. Measured,
+      # on the first real attempt: `npm error code EUSAGE / Can't generate
+      # provenance for new or private package, you must set access to public.`
+      # Nothing was uploaded — the check fires before the tarball moves — but
+      # the tag and GitHub release had already been created by the step above,
+      # so the job went red after the irreversible half had happened.
+      - run: npm publish --provenance --access public
         if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         working-directory: packages/headerlab
         env:

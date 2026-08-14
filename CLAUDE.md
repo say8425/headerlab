@@ -416,7 +416,30 @@ supply-chain surface.
 **Release is `release-please.yml`, on push to `main`.** It opens and grooms a release PR
 from the conventional-commit subjects; merging that PR is what tags, releases, and — only
 then — builds `pnpm zip` and attaches `.output/headerlab-<version>-chrome.zip` to the
-release. Two things to know before wondering why something did not happen. **A release PR
+release.
+
+**Both packages name themselves in their tags, and that is about the release title rather
+than the tag.** release-please builds the GitHub release name as `<component>: v<x.y.z>`,
+and the component reaches it only by being in the tag — measured on a sibling repository
+using the same action: tag `diffdeck-v1.3.2`, release titled `diffdeck: v1.3.2`. The
+extension held the bare `v<version>` namespace until 2026-08-14, which left its releases
+titled `v1.1.0` with nothing saying what had been released. It now carries
+`"component": "extension"`, so the page reads `extension: v1.1.1` beside `cli: v0.1.1`.
+`v1.0.0` and `v1.1.0` stay in the old shape — history is a record — and
+`extension-v1.1.0` exists as an alias tag on the same commit so release-please can still
+find the previous release when it works out the next changelog's commit range. **Leaving
+`component` unset does not mean "no component"**: it defaults to the package name, and the
+root's is `headerlab`, which would title the extension's release `headerlab: v1.1.1` and
+make it unreadable beside the CLI's.
+
+**`npm publish --provenance` requires `--access public` even for an unscoped name.** The
+flag is not about the name — unscoped packages are public by default — it is about
+provenance: npm cannot infer publicity for a package that does not exist yet and refuses
+to sign one. Measured on the first real attempt: `EUSAGE / Can't generate provenance for
+new or private package`. Nothing was uploaded, because the check fires before the tarball
+moves — but the tag and the GitHub release had already been created by the step above, so
+the job went red **after** the irreversible half had happened. That ordering is worth
+remembering for anything else added to this job. Two things to know before wondering why something did not happen. **A release PR
 opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
 loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
 changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the

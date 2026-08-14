@@ -316,6 +316,20 @@ packages/plugin/        .claude-plugin/ + .codex-plugin/ + skills/
 - `include-component-in-tag` 는 **매니페스트 모드에서 기본 true** (`base.ts:152`) — 액션
   입력의 `default: false` 와 반대다. 태그 네임스페이스 `v<version>` 을 지킬 수 있는
   패키지는 **정확히 하나**이고, `v1.0.0` 은 확장의 것이다.
+
+  **2026-08-14 에 뒤집혔다.** 확장에서 그 플래그를 걷고 `"component": "extension"` 을 줬다.
+  이유는 태그가 아니라 **릴리즈 제목**이다 — release-please 는 GitHub 릴리즈 이름을
+  `<component>: v<x.y.z>` 로 짓고, component 는 **태그에 있을 때만** 거기 닿는다. 같은
+  액션을 쓰는 형제 저장소에서 실측: 태그 `diffdeck-v1.3.2`, 이름 `diffdeck: v1.3.2`.
+  bare 네임스페이스를 쥔 채로는 확장의 릴리즈가 `v1.1.0` 이라고만 적혀, 페이지를 여는
+  사람이 무엇이 릴리즈됐는지 알 수 없었다. 이제 `extension: v1.1.1` 과 `cli: v0.1.1` 이
+  나란히 선다.
+
+  **이미 나간 `v1.0.0`·`v1.1.0` 은 그대로 둔다.** 형식이 바뀌면 release-please 가 이전
+  릴리즈를 못 찾을 수 있으므로 `extension-v1.1.0` 을 같은 커밋에 별칭 태그로 얹는다 —
+  버전 자체는 매니페스트가 들고 있어 안전하지만, 변경 내역의 커밋 범위는 태그로 찾는다.
+  **component 를 비워두면 기본값이 패키지 이름에서 온다.** 루트는 `headerlab` 이라
+  `headerlab: v1.1.1` 이 되어 CLI 와 구분이 안 된다. 그래서 값으로 고정한다.
 - 바 문자열 `extra-files` 항목은 **확장자로 디스패치**한다(`base.ts:477-520`). `.json` →
   `$.version`. 그래서 위 두 줄이 이미 원하는 일을 한다.
 - `extra-files` 경로는 `/` 로 시작하면 레포 루트 기준, `..` 는 **throw**. 측정: `../x` throw,
