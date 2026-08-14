@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/say8425/headerlab/compare/cli-v0.1.0...cli-v0.1.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **headerlab:** stop the README sending npm users to files they do not have ([#23](https://github.com/say8425/headerlab/issues/23)) ([8110753](https://github.com/say8425/headerlab/commit/81107532cfabdf2ce5d8c9e8f31481fb974d69ee))
+
 ## 0.1.0 (2026-08-14)
 
 

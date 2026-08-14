@@ -1,6 +1,6 @@
 {
   "name": "headerlab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drive the HeaderLab Chrome extension's header rules from Codex.",
   "author": {
     "name": "HeaderLab"
