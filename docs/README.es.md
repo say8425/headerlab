@@ -223,9 +223,11 @@ sección.
 - **Nada sale de la máquina.** CLI, host y extensión solo hablan por un socket de dominio
   Unix en un directorio por usuario con permisos restringidos — nunca por un socket de red.
   **No `$TMPDIR`**, y la diferencia es deliberada: `socketDir()` le pregunta al sistema
-  operativo (`getconf DARWIN_USER_TEMP_DIR`, por ruta absoluta) en vez de fiarse de una
-  variable de entorno heredada, porque el host hereda el entorno de Chrome y la CLI el de la
-  terminal — dos copias que pueden discrepar sin que nada falle para delatarlo.
+  operativo (`getconf DARWIN_USER_TEMP_DIR`, por ruta absoluta) en vez de leer el `$TMPDIR`
+  que cada proceso haya heredado, porque el host hereda el entorno de Chrome y la CLI el de
+  la terminal — dos copias que pueden discrepar sin que nada falle para delatarlo. Sí hay
+  una variable que lo sobrescribe, `HEADERLAB_SOCKET_DIR`, y se lee una sola vez *dentro* de
+  esa función y no en cada punto de llamada, por la misma razón.
   `tests/unit/outbound.test.ts` prohíbe las primitivas salientes — `fetch`, `WebSocket`,
   `node:https`, una llamada `.listen(<número-de-puerto>)` — en todos los `.mjs` bajo
   `packages/headerlab/`, y su propio docblock dice lo que no puede ver: la comprobación de

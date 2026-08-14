@@ -180,9 +180,12 @@ Chrome 作为副作用启动主机进程，主机在 Unix 套接字上监听，�
   `headerlab bridge enable`，将来也不会有能用的版本：在没人按过 **Enable** 的桥接旁边运行
   `bridge install`，只是写下一些永远不会连上的文件。
 - **没有任何东西离开这台机器。** CLI、主机与扩展只通过位于权限受限的按用户目录中的 Unix 域
-  套接字通信，从不使用网络套接字。**不是 `$TMPDIR`**，这是刻意的：`socketDir()` 不信任继承
-  来的环境变量，而是向操作系统询问（以绝对路径调用 `getconf DARWIN_USER_TEMP_DIR`）。因为
-  主机继承 Chrome 的环境，CLI 继承终端的环境，两份副本若不一致，没有任何失败会把它暴露出来。
+  套接字通信，从不使用网络套接字。**不是 `$TMPDIR`**，这是刻意的：`socketDir()` 不去读各个
+  进程各自继承来的 `$TMPDIR`，而是向操作系统询问（以绝对路径调用
+  `getconf DARWIN_USER_TEMP_DIR`）。因为主机继承 Chrome 的环境，CLI 继承终端的环境，两份
+  副本若不一致，没有任何失败会把它暴露出来。确实有一个变量可以覆盖它
+  （`HEADERLAB_SOCKET_DIR`），而它是在函数*内部*被读取一次，而不是由各个调用点各自读取 ——
+  出于同样的理由。
   `tests/unit/outbound.test.ts` 禁止 `packages/headerlab/` 下每一个 `.mjs` 使用向外的原语
   —— `fetch`、`WebSocket`、`node:https`、`.listen(<端口号>)` 调用 —— 并且它自己的文档注释
   说明了它看不见什么：端口检查匹配的是源码中的字面数字，所以 `server.listen(8080)` 会被抓到，

@@ -208,10 +208,11 @@ Chrome が実行するランチャースクリプトを管理するもので、�
   `bridge install` は、決して接続しないファイルを書くだけです。
 - **マシンの外に出るものはありません。** CLI・ホスト・拡張機能は、権限が制限された
   ユーザーごとのディレクトリにある Unix ドメインソケットだけで会話し、ネットワークソケットは
-  使いません。**`$TMPDIR` ではなく**、それは意図的です: `socketDir()` は継承した環境変数を
-  信用せず OS に尋ねます(`getconf DARWIN_USER_TEMP_DIR` を絶対パスで)。ホストは Chrome の
-  環境を、CLI はターミナルの環境を継承するため、2 つのコピーが食い違ってもそれを示す失敗が
-  ないからです。`tests/unit/outbound.test.ts` が `packages/headerlab/` 配下のすべての `.mjs`
+  使いません。**`$TMPDIR` ではなく**、それは意図的です: `socketDir()` は各プロセスが継承した
+  `$TMPDIR` を読む代わりに OS に尋ねます(`getconf DARWIN_USER_TEMP_DIR` を絶対パスで)。
+  ホストは Chrome の環境を、CLI はターミナルの環境を継承するため、2 つのコピーが食い違っても
+  それを示す失敗がないからです。上書きする変数は 1 つだけあり(`HEADERLAB_SOCKET_DIR`)、
+  それは呼び出し側それぞれではなく関数の*内側*で一度だけ読まれます — 同じ理由でです。`tests/unit/outbound.test.ts` が `packages/headerlab/` 配下のすべての `.mjs`
   から外向きのプリミティブ — `fetch`、`WebSocket`、`node:https`、`.listen(<ポート番号>)`
   呼び出し — を禁じ、自身の docblock が見えないものを自分で述べています: ポート検査は
   ソース中のリテラルな数字に一致するので、`server.listen(8080)` は捕まり

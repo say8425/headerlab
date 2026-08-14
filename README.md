@@ -210,9 +210,11 @@ this section out.
 - **Nothing leaves the machine.** CLI, host and extension only ever talk over a unix domain
   socket in a permission-restricted, per-user directory — never a network socket. **Not
   `$TMPDIR`**, deliberately: `socketDir()` asks the OS (`getconf DARWIN_USER_TEMP_DIR`, by
-  absolute path) rather than trusting an inherited environment variable, because the host
-  inherits Chrome's environment and the CLI inherits the terminal's — two copies that can
-  disagree with nothing failing to show it. `tests/unit/outbound.test.ts` bans outbound
+  absolute path) rather than reading whichever `$TMPDIR` each process happened to inherit,
+  because the host inherits Chrome's environment and the CLI inherits the terminal's — two
+  copies that can disagree with nothing failing to show it. One variable does override it,
+  `HEADERLAB_SOCKET_DIR`, and that is read once *inside* the function rather than by either
+  call site, for the same reason. `tests/unit/outbound.test.ts` bans outbound
   primitives — `fetch`, `WebSocket`, `node:https`, a `.listen(<port-number>)` call — from
   every `.mjs` under `packages/headerlab/`, and its own docblock says what it cannot see:
   the port check matches a literal digit in source, so `server.listen(8080)` is caught and
