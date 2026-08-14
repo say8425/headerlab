@@ -258,6 +258,19 @@ effect in App.tsx. The disable comment must be the line *immediately* before its
 a two-line comment ending in the directive suppresses the second comment line and nothing
 else, which reads as working and is not.
 
+**Three more entries are release-please's output, not ours**, and they are the one group in
+`ignorePatterns` excluded for authorship rather than for content: `.release-please-manifest.json`
+and the two plugin manifests under `packages/plugin/.claude-plugin/` and `.codex-plugin/`.
+release-please regenerates all three wholesale on every release, in compact JSON oxfmt
+rejects — so the `format` job fails on the release PR itself and formatting cannot fix it,
+because the next release rewrites them again. Measured on the first two-package release:
+PR #18 failed on the manifest alone, #19 on the manifest plus both plugin manifests, while
+`main` was clean. **The `package.json` files release-please also touches are deliberately
+not here** — it edits only their `version` line and leaves every other byte alone (verified
+against both PRs' diffs), so they stay ours to format. Re-derive the whole exclusion by
+dropping the three patterns and re-running: the matched-file count moves 129 → 132, and
+that count is what proves a pattern matches rather than merely parses.
+
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
 `**/*.html` are in `ignorePatterns`. The stylesheet is hand-tuned at 4-space indent, and
 taking it off the list rewrites **150 of its 325 lines** — re-measured by dropping the
