@@ -449,6 +449,20 @@ moves — but the tag and the GitHub release had already been created by the ste
 the job went red **after** the irreversible half had happened. That ordering is worth
 remembering for anything else added to this job.
 
+**Publishing is now OIDC, and there is no npm token.** `--access public` went with it:
+it was only ever required because provenance cannot be generated for a package that does
+not exist, and `headerlab` exists. The workflow authenticates against a trusted publisher
+configured on the package — this repository, this workflow file — which is what
+`id-token: write` is for. That replaced a token because npm is retiring the kind that
+publishes without a one-time password, and this repository hit that wall twice with
+`EOTP`. **`--provenance` is redundant under trusted publishing and is kept on purpose**:
+npm attaches an attestation automatically, so the flag changes nothing while the
+configuration holds and fails the job loudly if it ever stops holding. The package README
+tells readers every CI release is signed and to check with `npm audit signatures`;
+shipping an unsigned tarball under that promise is the silent failure the flag prevents.
+Trusted publishing needs npm 11.5.1 and Node 22.14.0 at minimum — `.nvmrc` pins 24, whose
+npm is 11.13.0.
+
 Two things to know before wondering why something did not happen. **A release PR
 opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
 loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
