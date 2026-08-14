@@ -130,12 +130,25 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   that line: one plants each forbidden form and requires the patterns to match, the other
   feeds them the benign substrings and requires they do not.
 - **No new dependencies.** The rule stands; the thing that used to enforce it
-  mechanically is **gone**. npm here ran under a rolling 72-hour publish quarantine, so a
-  recently published package failed with `ETARGET` — and **pnpm does not read it**.
-  Measured: `pnpm config get before` is `undefined` while `npm config list` still shows
-  the resolved timestamp, because `min-release-age`/`before` is an npm setting. pnpm's own
-  equivalent is `minimumReleaseAge`, and it is unset. So a fresh package now installs
-  quietly; a successful install is no longer evidence that anything is old enough.
+  mechanically is **gone**, and as of 2026-08-15 it is gone from npm too. npm here ran
+  under a rolling publish quarantine — `min-release-age=3` in the developer's `~/.npmrc`,
+  which npm resolves into a `before` timestamp — and **pnpm never read it**. Measured:
+  `pnpm config get before` is `undefined` while `npm config list` still showed the
+  resolved timestamp, because `min-release-age`/`before` is an npm setting. pnpm's own
+  equivalent is `minimumReleaseAge`, and it is unset. So a fresh package installs quietly
+  under either tool now; a successful install is not evidence that anything is old enough.
+  **The way that setting announced itself is worth keeping, because the obvious diagnostic
+  lies.** `npm i -g headerlab` failed with `ENOVERSIONS / No versions available` about an
+  hour after `headerlab@0.1.2` was published — not `ETARGET`, which is what a *specific*
+  filtered-out version produces; a package whose only version is inside the window has
+  nothing left after the filter, so npm reports the name as versionless. Meanwhile
+  `npm view headerlab versions` printed `0.1.2` throughout: **`view` does not apply the
+  filter and `install` does**, so the first thing anyone reaches for says the package is
+  fine. `curl https://registry.npmjs.org/<pkg>` is the check that actually settles it.
+  `--before=<date>` is not the override — npm rejects it outright with
+  `--min-release-age cannot be provided when using --before`; `--min-release-age=0` is.
+  npm's own default is `null`, so this was never something every user of a fresh package
+  hits, which is why `packages/headerlab/README.md` says nothing about it.
   **Assume lifecycle scripts do not run.** `ignore-scripts=true` is read by pnpm too —
   measured: `pnpm config get ignore-scripts` is `true`, and `rm -rf .wxt` followed by
   `pnpm install` leaves `.wxt/` absent, so the declared `postinstall: wxt prepare` has
@@ -381,6 +394,8 @@ reporting `9.15.9` while the field still said so. **Do not put a `+sha512…` in
 suffix on that field** — corepack accepts that form, pnpm does not, and 9.15.9 refused
 every command with `Invalid package manager specification … expected a semver version`.
 
+## CI
+
 **CI references actions by floating major — `actions/checkout@v7`, not a SHA and not
 `@v7.0.1`.** This went SHA → exact tag → major, each step trading supply-chain strength
 for legibility, and the trade is worth naming rather than discovering: a moved tag is a
@@ -420,6 +435,8 @@ the shims land in the Node the job will use, and `cache: pnpm` is therefore unus
 because setup-node resolves the store before pnpm exists — hence the explicit
 `pnpm store path` and `actions/cache` pair. A local action is in-repo source, so it adds no
 supply-chain surface.
+
+## Release
 
 **Release is `release-please.yml`, on push to `main`.** It opens and grooms a release PR
 from the conventional-commit subjects; merging that PR is what tags, releases, and — only

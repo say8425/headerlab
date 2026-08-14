@@ -1,89 +1,23 @@
 # HeaderLab
 
-Add, modify and remove HTTP request and response headers, in Chrome, with no
-host access until you grant it.
+English | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-A replacement for ModHeader, which was pulled from the Chrome Web Store in July
-2026 after a hidden tracker was found in it. That is the whole reason this
-exists, and it is why the trust posture below is a hard constraint rather than a
-feature list.
+Add, modify and remove HTTP request and response headers, in Chrome, with no host access
+until you grant it.
+
+[![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
+[![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?style=flat&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](#license)
+
+A replacement for ModHeader, which was pulled from the Chrome Web Store in July 2026 after
+a hidden tracker was found in it. That is the whole reason this exists, and it is why the
+trust posture below is a hard constraint rather than a feature list.
 
 | Light | Dark |
 |---|---|
 | ![The HeaderLab popup in light theme: three of four rules live, two granted sites, four header rules](docs/screenshots/popup-light.png) | ![The same popup in dark theme, which follows the operating system setting](docs/screenshots/popup-dark.png) |
-
-Access is asked for per site, on the row that names the site — never as a side
-effect of typing a hostname or flipping a switch. Until you press **Grant**, the
-row is amber and says so:
-
-![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
-
-Anything that would stop a rule going out is said on that rule's own row, and
-counted in the rail. Here the second rule asks Chrome to `append` a request
-header it will not append — the row says which and what to do instead, the
-readout reads **2 of 4 rules live · 1 off · 1 blocked**, and nothing moves to
-make room for the message:
-
-![The rules list with the second row showing "Use Set. Chrome does not append request headers." in red where its value would be, and the rail reading 2 of 4 rules live, 1 off, 1 blocked](docs/screenshots/popup-blocked.png)
-
-<sub>Captured from the real production build loaded in Chrome. Only the manifest
-was patched, to pre-grant the two example hosts so the granted state could be
-photographed without a native permission dialog.</sub>
-
-## Trust posture
-
-- **No host permissions at install.** The manifest's `permissions` is exactly
-  `storage` and `declarativeNetRequestWithHostAccess`. It also declares
-  `optional_host_permissions: ["<all_urls>"]`, which grants nothing on its own —
-  Chrome refuses to let an extension request an origin it never declared, so
-  that line is what makes the runtime Grant button legal, not what makes it
-  unnecessary. Site access is granted by you, per host, at runtime, and can be
-  revoked from Chrome at any time.
-- **No network calls.** No analytics, telemetry, remote config or update pings.
-  The shipped bundle never *calls* a network primitive, and you can check that
-  yourself rather than believe it:
-
-  ```bash
-  pnpm build
-  grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3
-  ```
-
-  That returns nothing. The pattern matches call and constructor forms on
-  purpose: a bare case-insensitive search for those words does hit the bundle
-  about fourteen times, and every one of them is a string or an identifier
-  rather than a call — React DOM's `prefetchDNS`, `fetchPriority` and
-  `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`, which
-  are two of Chrome's declarativeNetRequest resource-type names and appear
-  because you can filter on them in the popup. Said here so that finding them
-  reads as expected rather than as a caught lie.
-- **No content scripts.** Nothing is injected into any page. Headers are changed
-  by Chrome's `declarativeNetRequest` engine, which never hands request contents
-  to the extension.
-- **No external resources.** No CDN, no web fonts, no remote images.
-- **No silent failures.** Anything that stops a rule going out is stated on
-  screen — a missing permission, an unusable hostname, a header name Chrome will
-  reject. A rule that is not applying always says why.
-
-## What it does
-
-- **Set, append or remove** any header, on the **request** or the **response**
-  side. `append` is limited by Chrome to a 21-header allowlist on requests, and
-  HeaderLab names the rule that falls outside it — which matters more than it
-  sounds, because Chrome rejects a ruleset as a whole rather than per rule, so
-  one such rule stops every other one too. That is reported, not silent: the
-  popup shows the registration failure.
-- **Scope by site.** Sites are matched by host: a port or a path is dropped when
-  you add one, and the stored value is the value that operates, so what the rail
-  shows is what goes on the wire.
-- **Apply everywhere**, as an explicit mode rather than an empty site list. It
-  costs `<all_urls>`, and the switch does not ask for it — the Grant button
-  beside it does.
-- **Filter by request type** — eight of Chrome's resource types, checkable
-  individually. `main_frame` is on by default, because DNR's own default
-  silently excludes it.
-- **Pause everything** with one switch. The toolbar icon greys out to match, and
-  is re-applied when the service worker wakes.
-- **Follows your OS theme**, light or dark, before first paint.
 
 ## Install
 
@@ -96,11 +30,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
-unpacked**, and select the unpacked directory.
-
-Chrome only. Edge is untested — it is the same engine and should work, but no
-one has run the suite against it.
+Then open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked**, and
+select the unpacked directory. Chrome only — see [Limitations](#limitations).
 
 ### The CLI
 
@@ -108,18 +39,17 @@ one has run the suite against it.
 npm i -g headerlab
 ```
 
-That puts `headerlab` on your PATH — see *Agent bridge* below for what it
-does. It runs straight from a clone too, with no install step at all, because
-the package has zero runtime dependencies: `node
-packages/headerlab/bin/headerlab.mjs`. But the line above is how a person uses
-this; the clone is what a contributor does, and the two are ordered that way
-on purpose.
+That puts `headerlab` on your PATH, for driving the extension from a terminal — see
+[Agent bridge](#agent-bridge). It runs straight from a clone too, with no install step at
+all, because the package has zero runtime dependencies:
+`node packages/headerlab/bin/headerlab.mjs`. The line above is how a person uses this; the
+clone is what a contributor does, and the two are ordered that way on purpose.
 
 ### The agent skill
 
-`packages/plugin` packages the CLI as a skill for Claude Code and for Codex,
-from one `skills/` tree under two manifests. Neither is published to a
-directory, so both install from this repository:
+`packages/plugin` packages the CLI as a skill for Claude Code and for Codex, from one
+`skills/` tree under two manifests. Neither is published to a directory, so both install
+from this repository:
 
 ```bash
 # Claude Code
@@ -130,79 +60,104 @@ claude plugin install headerlab@headerlab
 codex plugin marketplace add say8425/headerlab
 ```
 
-The skill runs `command -v headerlab` before its own content reaches the model,
-so a missing CLI arrives as a fact rather than as a surprise mid-task. **It
-reports `bridge-off` until the bridge is turned on** — see *Agent bridge*
-below for the three steps that do it.
+The skill runs `command -v headerlab` before its own content reaches the model, so a
+missing CLI arrives as a fact rather than as a surprise mid-task. **It reports `bridge-off`
+until the bridge is turned on.** Installing the CLI globally is not a prerequisite: the
+plugin carries its own shim to `packages/headerlab`. Running `npm i -g headerlab` as well
+is not a conflict either — PATH resolves the global copy first.
 
-Installing the CLI globally is not a prerequisite for this: the plugin carries
-its own shim to `packages/headerlab`, so `command -v headerlab` succeeds from
-the plugin install alone. Running `npm i -g headerlab` as well is not a
-conflict either — PATH resolves the global copy first, and the two install
-paths are not exclusive.
+## What it does
 
-## Development
+- **Set, append or remove** any header, on the **request** or the **response** side.
+  `append` is limited by Chrome to a 21-header allowlist on requests, and HeaderLab names
+  the rule that falls outside it — which matters more than it sounds, because Chrome
+  rejects a ruleset as a whole rather than per rule, so one such rule stops every other one
+  too.
+- **Scope by site.** Sites are matched by host: a port or a path is dropped when you add
+  one, and the stored value is the value that operates, so what the rail shows is what goes
+  on the wire.
+- **Apply everywhere**, as an explicit mode rather than an empty site list. It costs
+  `<all_urls>`, and the switch does not ask for it — the Grant button beside it does.
+- **Filter by request type** — eight of Chrome's resource types, checkable individually.
+  `main_frame` is on by default, because DNR's own default silently excludes it.
+- **Pause everything** with one switch. The toolbar icon greys out to match, and is
+  re-applied when the service worker wakes.
+- **Follows your OS theme**, light or dark, before first paint.
+
+Access is asked for per site, on the row that names the site — never as a side effect of
+typing a hostname or flipping a switch. Until you press **Grant**, the row is amber and
+says so:
+
+![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
+
+Anything that would stop a rule going out is said on that rule's own row, and counted in
+the rail. Here the second rule asks Chrome to `append` a request header it will not append
+— the row says which and what to do instead, the readout reads **2 of 4 rules live · 1 off
+· 1 blocked**, and nothing moves to make room for the message:
+
+![The rules list with the second row showing "Use Set. Chrome does not append request headers." in red where its value would be, and the rail reading 2 of 4 rules live, 1 off, 1 blocked](docs/screenshots/popup-blocked.png)
+
+<sub>Captured from the real production build loaded in Chrome. Only the manifest was
+patched, to pre-grant the two example hosts so the granted state could be photographed
+without a native permission dialog.</sub>
+
+## Trust posture
+
+- **No host permissions at install.** The manifest's `permissions` is exactly `storage` and
+  `declarativeNetRequestWithHostAccess`. It also declares
+  `optional_host_permissions: ["<all_urls>"]`, which grants nothing on its own — Chrome
+  refuses to let an extension request an origin it never declared, so that line is what
+  makes the runtime Grant button legal, not what makes it unnecessary. Site access is
+  granted by you, per host, at runtime, and can be revoked from Chrome at any time.
+- **No network calls.** No analytics, telemetry, remote config or update pings. The shipped
+  bundle never *calls* a network primitive, and you can check that yourself rather than
+  believe it:
+
+  ```bash
+  pnpm build
+  grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/chrome-mv3
+  ```
+
+  That returns nothing. The pattern matches call and constructor forms on purpose: a bare
+  case-insensitive search for those words does hit the bundle sixteen times, and
+  every one is a string or an identifier rather than a call — React DOM's `prefetchDNS`,
+  `fetchPriority` and `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`,
+  which are two of Chrome's declarativeNetRequest resource-type names and appear because
+  you can filter on them in the popup. Said here so that finding them reads as expected
+  rather than as a caught lie.
+- **No content scripts.** Nothing is injected into any page. Headers are changed by
+  Chrome's `declarativeNetRequest` engine, which never hands request contents to the
+  extension.
+- **No external resources.** No CDN, no web fonts, no remote images.
+- **No silent failures.** Anything that stops a rule going out is stated on screen — a
+  missing permission, an unusable hostname, a header name Chrome will reject. A rule that
+  is not applying always says why.
+
+## Agent bridge
+
+An AI agent can drive HeaderLab from a terminal instead of a person clicking through the
+popup:
 
 ```bash
-pnpm dev             # WXT dev server → load .output/chrome-mv3-dev unpacked
-pnpm check           # four of CI's six jobs: typecheck · lint · format · unit tests
-pnpm test            # wxt build && vitest run — unit tests, no browser
-pnpm test:packages   # the agent-bridge packages, under node:test — vitest's
-                     # glob does not reach them, so this is its own CI job
-pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
-pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # oxlint          (pnpm lint:fix to apply fixes)
-pnpm format          # oxfmt           (pnpm format:check to only report)
-pnpm build           # production build → .output/chrome-mv3
-pnpm screenshots     # rebuild the images in this README from the real popup
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-**pnpm, not npm.** `package.json` names the exact version under
-`packageManager`, so `corepack enable` gives you that one and nothing else needs
-installing. There is no `package-lock.json`; `pnpm-lock.yaml` is the lockfile CI
-installs from with `--frozen-lockfile`.
+Twelve commands in all, every reply one JSON object on stdout with the exit code following
+it. **The bridge is off until a human turns it on** — it rides `nativeMessaging` as an
+optional permission, behind Chrome's own consent dialog, and the CLI cannot turn it on or
+grant a site: Chrome requires a user gesture for both. Nothing leaves the machine; the
+three processes talk over a unix domain socket in a per-user directory, never a network
+socket.
 
-**Run `pnpm test`, not a bare `pnpm exec vitest run`.** Several suites assert
-against *built* output, and the bare tools do not build. A stale artifact has
-produced both a false green that silently disabled a guard and a false red that
-cost an hour, so `tests/support/build.ts` now detects staleness and fails with
-the command to run.
+Turning it on is three steps — press **Enable** on the popup's bridge row, run
+`headerlab bridge install --extension-id <id>`, and the popup reads **Bridge live**.
 
-**`pnpm install` may not run `postinstall`.** `ignore-scripts=true` is a common
-hardening default in a user `.npmrc`, and pnpm reads it — which skips the
-`wxt prepare` that generates `.wxt/`, and `tsconfig.json` extends
-`./.wxt/tsconfig.json`. `pnpm typecheck` chains the prepare itself for that
-reason, so it works on a fresh clone either way.
-
-**Linting and formatting** are [oxlint](https://oxc.rs) and oxfmt. `pnpm lint`
-fails on any warning; `pnpm format:check` reports files that would change.
-oxfmt is scoped to code — the hand-tuned `entrypoints/popup/style.css`, the
-design mocks under `docs/` and the Markdown are left alone.
-
-**`pnpm test:e2e` and `pnpm screenshots` both need a browser Playwright
-does not install by default:**
-
-```bash
-pnpm exec playwright install --with-deps --no-shell chromium
-```
-
-`--no-shell` matters. Playwright's default headless download is
-`chromium-headless-shell`, a stripped build that cannot load extensions — and
-both of those commands exist to load one. Without the full binary they fail in a
-way that looks like a code problem rather than a missing dependency.
-
-`pnpm screenshots` overwrites the tracked PNGs under `docs/screenshots/`.
-That is its job, but it means a run leaves changes in `git status`; commit them
-only when the UI actually changed.
-
-`pnpm test:e2e` builds into `.output/chrome-mv3-e2e`, a second output
-directory beside the production one. That build carries a loopback host
-permission (`http://127.0.0.1/*`) the shipped build does not, so the suite can
-drive a local echo server without a runtime prompt Playwright cannot click.
-`tests/unit/manifest.test.ts` asserts it never reaches production. Running the
-e2e suite does not touch `.output/chrome-mv3` — run `pnpm build` for a fresh
-production build.
+**[→ `docs/agent-bridge.md`](docs/agent-bridge.md)** has the design: the process diagram
+and why the direction is one-way, the full command table, the five claims worth not
+getting wrong, and what to do when an upgrade orphans the launcher. The command reference
+itself lives in
+[`packages/plugin/skills/headerlab/SKILL.md`](packages/plugin/skills/headerlab/SKILL.md).
 
 ## Architecture
 
@@ -221,192 +176,110 @@ packages/        the agent bridge, outside the extension bundle — headerlab
                  plugin. Zero deps, node:test, their own CI job
 ```
 
-**All correctness lives in a pure layer that never imports `chrome.*`.**
-`compile()` turns the whole application state into declarativeNetRequest rules
-plus a list of diagnostics, and the popup runs that same function on that same
-state — so what the screen says and what the browser was told cannot disagree.
+**All correctness lives in a pure layer that never imports `chrome.*`.** `compile()` turns
+the whole application state into declarativeNetRequest rules plus a list of diagnostics,
+and the popup runs that same function on that same state — so what the screen says and what
+the browser was told cannot disagree.
 
-**One reconcile loop.** Every trigger — a storage change, worker startup, a
-permission granted or revoked — funnels into `reconcile()` in
-`lib/sync/ruleSync.ts`, which recompiles from scratch and replaces the ruleset
-wholesale. It is idempotent, and there is no second path by which state can
-drift down.
+**One reconcile loop.** Every trigger — a storage change, worker startup, a permission
+granted or revoked — funnels into `reconcile()` in `lib/sync/ruleSync.ts`, which recompiles
+from scratch and replaces the ruleset wholesale. It is idempotent, and there is no second
+path by which state can drift down.
 
 This shape is forced rather than chosen: `@webext-core/fake-browser` implements
-`declarativeNetRequest` and `permissions.*` as throwing stubs, so
-browser-imitation testing is unavailable. Making the browser irrelevant to the
-logic is the response.
+`declarativeNetRequest` and `permissions.*` as throwing stubs, so browser-imitation testing
+is unavailable. Making the browser irrelevant to the logic is the response.
 
-Design documents live in `docs/superpowers/specs/`, and the measured platform
-constraints behind them in `docs/research/`.
+Design documents live in `docs/superpowers/specs/`, and the measured platform constraints
+behind them in `docs/research/`.
 
-## Agent bridge
+## Limitations
 
-An AI agent can drive HeaderLab from a terminal instead of a person clicking
-through the popup — turning "add a Bearer token to staging" into one command
-instead of six manual clicks. It ships as a two-package pnpm workspace:
-`packages/headerlab` (the `headerlab` command and the native-messaging host
-that Chrome itself launches and kills, one package rather than two because
-`bridge install` writes a launcher naming the host's entry file by absolute
-path — a CLI published without the host would point that launcher at a file
-that does not exist) and `packages/plugin` (a Claude Code / Codex plugin that
-packages the CLI as a skill). Both have zero runtime dependencies, and
-`packages/headerlab` is the one published to npm — see *Install* above.
+**This is a Chrome MV3 build and nothing else.** `wxt.config.ts` declares no other target,
+and no build has been run on another browser. Edge is the same engine and should work, but
+nobody has run the suite against it.
 
-```
-CLI (headerlab)                      Native host              Extension (SW)
-node, zero deps                       node, zero deps          lib/bridge/
-   │                                      │                        │
-   │  unix socket                         │  stdio                 │
-   │  $TMPDIR/headerlab/bridge-<pid>.sock │  (4-byte length + JSON)│
-   └──────── one JSON line ──────────────►├───────────────────────►│
-            request/response              │                    apply()
-   ◄──────────────────────────────────────┤◄───────────────────────┤
-                                           │                   local:state
-                                           │                        ▼
-                                        Chrome launches       reconcile()
-                                        and kills it        (existing single loop)
-```
+The table below is the *platform ceiling a port would meet*, not a support matrix — it is
+[MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for the APIs this
+extension is built on, read at the versions each browser first shipped them:
 
-The direction is the one fact this diagram exists to carry: the host cannot
-speak to the extension first. Chromium does have a native-initiated
-connection path, but it sits behind a flag that ships off by default, so the
-design treats the extension as the only initiator. It opens the port, Chrome
-starts the host process as a side effect of that, the host listens on a unix
-socket, and the CLI is what attaches to it — never the other way around. A
-write travels in as one JSON line over that socket, crosses to the extension
-framed over stdio, gets applied to `local:state`, and is picked up by the
-same `reconcile()` every other trigger already funnels into: a new trigger,
-not a new writer.
+| | Chrome | Edge | Firefox | Safari |
+|---|---|---|---|---|
+| Request headers (`RuleAction.requestHeaders`) | 86 | ✓ | 113 | 16.4 |
+| Response headers (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **none** |
+| Per-site runtime grant (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
+| Tab-scoped rules (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **none** |
+| Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | app container |
 
-**What the CLI does.** `headerlab` is nine commands over the bridge socket:
-scope a rule to sites (`site add` / `site rm` / `site all-sites on|off`), edit
-header rules (`rule add` / `rule rm` / `rule toggle`), pause or resume the
-whole rule set (`pause` / `resume`), and replace the stored state wholesale
-(`state set <file|->`). Three more — `bridge install` / `bridge uninstall` /
-`bridge status` — never touch that socket at all: they manage the native
-messaging host manifest and the launcher script Chrome runs, which is what
-makes a socket possible in the first place. Every reply is one JSON object on
-stdout — success or failure — with the exit code following it; there is no
-human-readable output to parse instead. For example:
+Two of those are worth spelling out:
+
+- **Safari cannot modify response headers at all.** That is half of what this extension
+  does, so a Safari port would be a different, smaller product rather than the same one
+  recompiled.
+- **Safari's native messaging goes to a containing macOS app**, per Apple's documented
+  model, rather than to a host manifest on disk. `headerlab bridge install` writes exactly
+  such a manifest, so the agent bridge has nothing to install into there.
+
+Features deliberately not built yet are tracked as issues:
+[#30](../../issues/30) one rule set · [#31](../../issues/31) JSON import/export ·
+[#32](../../issues/32) tab lock UI · [#33](../../issues/33) regex scoping ·
+[#34](../../issues/34) manual theme toggle · [#35](../../issues/35) the bridge's
+remaining commands.
+
+## Development
 
 ```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+pnpm dev             # WXT dev server → load .output/chrome-mv3-dev unpacked
+pnpm check           # four of CI's six jobs: typecheck · lint · format · unit tests
+pnpm test            # wxt build && vitest run — unit tests, no browser
+pnpm test:packages   # the agent-bridge packages, under node:test — vitest's
+                     # glob does not reach them, so this is its own CI job
+pnpm check:all       # pnpm check && pnpm test:packages
+pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
+pnpm build           # production build → .output/chrome-mv3
+pnpm screenshots     # rebuild the images in this README from the real popup
 ```
 
-The full reference lives in `packages/plugin/skills/headerlab/SKILL.md`,
-shared unchanged between the Claude Code and Codex plugin manifests.
+**pnpm, not npm.** `package.json` names the exact version under `packageManager`, so
+`corepack enable` gives you that one and nothing else needs installing. There is no
+`package-lock.json`; `pnpm-lock.yaml` is the lockfile CI installs from with
+`--frozen-lockfile`.
 
-Five things about this design a reader must not come away misled about —
-they are the product's own claims, and getting them wrong here would be
-worse than leaving this section out:
+**Run `pnpm test`, not a bare `pnpm exec vitest run`.** Several suites assert against
+*built* output, and the bare tools do not build. A stale artifact has produced both a false
+green that silently disabled a guard and a false red that cost an hour, so
+`tests/support/build.ts` detects staleness and fails with the command to run.
 
-- **The bridge is off until a human turns it on.** It rides `nativeMessaging`
-  as an optional permission, requested from a button in the popup, behind
-  Chrome's own consent dialog — the install-time `permissions` list above
-  does not change. Measured, not assumed:
-  `docs/research/2026-08-11-native-messaging-spike.md` records the grant
-  dialog actually firing, and the grant surviving a second connection with
-  no dialog at all.
-- **The CLI cannot grant site permissions.** `site add` and
-  `site all-sites on` only change what a rule is *scoped* to — the row still
-  sits pending until a person clicks **Grant** in the popup, same as a site
-  added by hand. Chrome requires a user gesture for a permission grant, and
-  that limit is kept here rather than worked around.
-- **Nothing leaves the machine.** CLI, host and extension only ever talk over
-  a unix domain socket in a permission-restricted, per-user directory
-  (`$TMPDIR/headerlab/`) — never a network socket.
-  `tests/unit/outbound.test.ts` bans outbound primitives — `fetch`,
-  `WebSocket`, `node:https`, a `.listen(<port-number>)` call — from
-  everything under `packages/`, and its own docblock says what it can't see:
-  the port check matches a literal digit in source, so `server.listen(8080)`
-  is caught and `server.listen(tcpPort)` would not be. That is written down
-  rather than left implied, because overstating a security guarantee is the
-  one thing this repository would rather not do.
-- **The CLI cannot turn the bridge on.** `chrome.permissions.request()`
-  requires a user gesture to resolve — Chrome enforces this, HeaderLab does
-  not choose it — so there is no `headerlab bridge enable`, and there will
-  not be one that works: `bridge install` beside a bridge nobody has pressed
-  **Enable** for just writes files that never connect.
-- **This build refuses a regex filter.** `state set` validates the payload,
-  but the popup has no regex editor and nothing here calls
-  `chrome.declarativeNetRequest.isRegexSupported()` — the only authority on
-  whether a pattern is valid RE2 — so a `filter.mode: 'regex'` rule would
-  apply invisibly, headers changing with no screen able to show the pattern
-  responsible for it. `lib/bridge/port.ts` rejects such a payload outright,
-  with the error code `unsupported`, until a regex editor exists to go with
-  it.
-
-**Turning it on.** Three steps: press **Enable** on the popup's bridge row —
-it reads "Bridge off" until then — which asks Chrome for the
-`nativeMessaging` permission through its own consent dialog; then run
+**`pnpm test:e2e` and `pnpm screenshots` need a browser Playwright does not install by
+default:**
 
 ```bash
-headerlab bridge install --extension-id <id>
+pnpm exec playwright install --with-deps --no-shell chromium
 ```
 
-copying the id from `chrome://extensions`; the popup then reads **Bridge
-live**. That is the instruction the CLI's own README leads with too, because
-it is the one that always applies — someone who installed the CLI from npm
-has no extension directory to point at.
+`--no-shell` matters. Playwright's default headless download is `chromium-headless-shell`,
+a stripped build that cannot load extensions — and both of those commands exist to load
+one. Without the full binary they fail in a way that looks like a code problem rather than
+a missing dependency.
 
-`--load-path <dir>` is the alternative when you are working on a local
-unpacked build and the path is already at hand — `.output/chrome-mv3` for a
-production build, `.output/chrome-mv3-dev` under `pnpm dev`. It computes the
-id from that path rather than being told it, which is a footgun as much as a
-convenience. Either way the installer reports back exactly
-which id it used, because nothing inside the CLI can check that against what
-Chrome actually loaded: a symlink, a trailing slash, or a differently spelled
-path to the same directory each hash to a different id, and a mismatched
-manifest installs cleanly and simply never connects.
+`CLAUDE.md` carries the rest: why `lint` chains `wxt prepare`, why `postinstall` may never
+run, what oxfmt does and does not format, and the platform traps that have already cost
+someone time.
 
 ## Testing
 
-Three layers: pure logic with no browser, adapters driven by hand-planted spies,
-and end-to-end against a genuinely loaded extension. Two of the sixteen e2e tests
-put a real request on the wire through a local echo server and read the headers
-back off it — those are the strongest evidence in the repo.
+Three layers: pure logic with no browser, adapters driven by hand-planted spies, and
+end-to-end against a genuinely loaded extension. Two of the sixteen e2e tests put a real
+request on the wire through a local echo server and read the headers back off it — those
+are the strongest evidence in the repo.
 
-At the time of writing: 817 unit tests across 38 files, plus 16 e2e tests —
-four of those are the bridge's own, in `tests/e2e/bridge.spec.ts` and
-`tests/e2e/bridge-rail.spec.ts`, including one that drives a real
-`headerlab site add` through a real installed host, through the socket, and
-into real storage. `packages/headerlab` carries its own — 140, the CLI's and
-the former `packages/host`'s combined — run by Node's built-in test runner
-rather than vitest, because the package has no dependency and should not
-acquire one. `vitest.config.ts`'s glob cannot reach them, which is why they
-get a CI job of their own rather than riding `pnpm test`: for a while they
-were merging unexecuted, and a suite nothing runs is worse than one that does
-not exist, because it reports success.
-
-## Status
-
-The popup is complete and the extension works: rules compile, sync, and
-demonstrably modify real headers.
-
-Deliberately not built yet, and worth knowing before you look for them:
-
-- **One rule set.** The popup shows a single rule set; the data model carries
-  multiple profiles and the compiler handles them, but there is no UI for
-  switching between them, and storage holding more than one is truncated to what
-  the screen can show rather than left applying invisibly.
-- **No JSON export/import.** If it is ever built, its validation has to come
-  first — import is what makes the unvalidated surfaces reachable.
-- **No tab lock UI.** The compile path exists and is tested; nothing can turn it
-  on.
-- **No regex scoping UI**, and no RE2 validation to go with it. The adapter
-  therefore has to refuse a `state set` payload in regex mode until that UI
-  exists — otherwise the bridge becomes the way an unvalidated pattern reaches
-  `regexFilter`, which is precisely the surface import was always going to open.
-- **No manual theme toggle.** The theme follows the OS.
-- **The agent bridge works end to end, but its command surface is not the
-  whole design.** `headerlab bridge install` plus a running `site add` /
-  `rule add` / … reaches real storage through a real Chrome — see *Agent
-  bridge* above, and `tests/e2e/bridge.spec.ts` for the proof. Not built:
-  `headerlab status`, `diagnostics`, `state get`, `rule ls`, and the
-  snapshot-before-every-raw-write the design describes — `state set` today
-  passes validation and nothing else.
+At the time of writing: 820 unit tests across 38 files, plus 16 e2e tests — four of those
+are the bridge's own, including one that drives a real `headerlab site add` through a real
+installed host, through the socket, and into real storage. `packages/headerlab` carries a
+further 140, run by Node's built-in test runner rather than vitest, because the package has
+no dependency and should not acquire one. `vitest.config.ts`'s glob cannot reach them,
+which is why they get a CI job of their own: for a while they were merging unexecuted, and
+a suite nothing runs is worse than one that does not exist, because it reports success.
 
 ## License
 
