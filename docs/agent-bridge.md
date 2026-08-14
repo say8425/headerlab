@@ -15,7 +15,7 @@ CLI (headerlab)                      Native host              Extension (SW)
 node, zero deps                       node, zero deps          lib/bridge/
    │                                      │                        │
    │  unix socket                         │  stdio                 │
-   │  $TMPDIR/headerlab/bridge-<pid>.sock │  (4-byte length + JSON)│
+   │  <per-user tmp>/headerlab/…sock      │  (4-byte length + JSON)│
    └──────── one JSON line ──────────────►├───────────────────────►│
             request/response              │                    apply()
    ◄──────────────────────────────────────┤◄───────────────────────┤
@@ -107,10 +107,14 @@ that works: `bridge install` beside a bridge nobody has pressed **Enable** for j
 files that never connect.
 
 **Nothing leaves the machine.** CLI, host and extension only ever talk over a unix domain
-socket in a permission-restricted, per-user directory (`$TMPDIR/headerlab/`) — never a
-network socket. `tests/unit/outbound.test.ts` bans outbound primitives — `fetch`,
-`WebSocket`, `node:https`, a `.listen(<port-number>)` call — from everything under
-`packages/`, and its own docblock says what it cannot see: the port check matches a literal
+socket in a permission-restricted, per-user directory — never a network socket. **Not
+`$TMPDIR`**, and the difference is deliberate: `socketDir()` in
+`packages/headerlab/lib/socket.mjs` asks the OS (`getconf DARWIN_USER_TEMP_DIR`, by
+absolute path) rather than trusting an inherited environment variable, because the host
+inherits Chrome's environment and the CLI inherits the terminal's — two copies that can
+disagree with nothing failing to show it. `tests/unit/outbound.test.ts` bans outbound primitives — `fetch`,
+`WebSocket`, `node:https`, a `.listen(<port-number>)` call — from every `.mjs` under
+`packages/headerlab/`, and its own docblock says what it cannot see: the port check matches a literal
 digit in source, so `server.listen(8080)` is caught and `server.listen(tcpPort)` would not
 be. That is written down rather than left implied, because overstating a security
 guarantee is the one thing this repository would rather not do.

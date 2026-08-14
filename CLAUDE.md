@@ -124,8 +124,10 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   tree-shaking meant it never shipped. Plant in an entrypoint or you are testing nothing.
   The patterns match **call and construction forms**, never bare words: `fetch`,
   `websocket` and `xmlhttprequest` all occur in the bundle as harmless substrings (React
-  DOM's `prefetchDNS`/`fetchPriority`/`dns-prefetch`, and two DNR resource-type names the
-  popup offers as checkboxes), and matching words would need exactly the exception list
+  DOM's `prefetchDNS`/`fetchPriority`/`dns-prefetch`, and two DNR resource-type names —
+  `xmlhttprequest`, which the popup offers as a checkbox labelled `xhr`, and `websocket`,
+  which it does not: that one is in the bundle only as a member of `schema.ts`'s
+  fifteen-value `resourceType` enum), and matching words would need exactly the exception list
   this claim promises there isn't one of. Two of the tests in that file exist to hold
   that line: one plants each forbidden form and requires the patterns to match, the other
   feeds them the benign substrings and requires they do not.
@@ -158,8 +160,9 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   `tsconfig.json` extends `./.wxt/tsconfig.json` and a fresh clone would otherwise
   type-check against a file that does not exist yet. `wxt prepare` is 177ms and
   idempotent; running it every time costs less than the trap does.
-  Both settings come from the developer's `~/.npmrc`, **not from this repo** — there is
-  no `.npmrc` here, so neither is reproducible from a clone.
+  `ignore-scripts` comes from the developer's `~/.npmrc`, **not from this repo** — there is
+  no `.npmrc` here, so it is not reproducible from a clone. `min-release-age` sat beside it
+  until 2026-08-15 and is now gone; the paragraph above is its record, not a live setting.
   **A dependency's own build script is a separate mechanism, and an unanswered one fails
   the install rather than warning.** Exactly one package here asks: `spawn-sync`, reached
   through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner, which this Chrome-only

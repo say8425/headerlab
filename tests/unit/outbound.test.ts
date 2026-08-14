@@ -33,7 +33,7 @@ const FORBIDDEN = [
 
 const SOURCES = globSync('packages/headerlab/**/*.mjs');
 
-describe('nothing under packages/ can leave this machine', () => {
+describe('nothing in packages/headerlab can leave this machine', () => {
   it('finds sources to check — an empty glob would pass vacuously', () => {
     expect(SOURCES.length).toBeGreaterThan(0);
   });

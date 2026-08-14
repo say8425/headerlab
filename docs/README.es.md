@@ -131,8 +131,11 @@ concedido sin un diálogo nativo de permisos.</sub>
   búsqueda simple e insensible a mayúsculas de esas palabras aparece dieciséis veces
   en el bundle, y cada una de ellas es una cadena o un identificador y no una llamada — los
   `prefetchDNS`, `fetchPriority` y `dns-prefetch` de React DOM, y los literales
-  `"xmlhttprequest"` y `"websocket"`, que son dos nombres de tipo de recurso de
-  declarativeNetRequest y aparecen porque puedes filtrar por ellos en el popup. Se dice aquí
+  `"xmlhttprequest"` y `"websocket"`. Esos dos son nombres de tipo de recurso de
+  declarativeNetRequest, y llegan por vías distintas: `xmlhttprequest` es uno de los ocho
+  que el popup ofrece como casillas (ahí etiquetado `xhr`), mientras que `websocket` solo
+  existe como miembro del enum de quince tipos de recurso contra el que se valida el estado
+  guardado. Se dice aquí
   para que encontrarlos se lea como algo esperado y no como una mentira descubierta.
 - **Ningún content script.** No se inyecta nada en ninguna página. Las cabeceras las cambia
   el motor `declarativeNetRequest` de Chrome, que nunca entrega el contenido de las
