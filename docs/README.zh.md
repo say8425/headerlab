@@ -65,7 +65,7 @@ CLI 并非前提条件：插件自带指向 `packages/headerlab` 的 shim。同�
 
 - 对**请求**侧或**响应**侧的任意头部进行**设置、追加或删除**。`append` 被 Chrome 限制在
   请求头的 21 项白名单内，HeaderLab 会点名落在名单之外的规则 —— 这比听起来更重要，因为
-  Chrome 是整体拒绝规则集而非逐条拒绝，所以一条这样的规则会连带停掉其余所有规则。
+  Chrome 是整体拒绝规则集而非逐条拒绝，所以一条这样的规则会连带停掉其余所有规则。这不会悄无声息 —— 弹窗会显示注册失败。
 - **按站点限定范围。** 站点按主机匹配：你输入的端口或路径会被丢弃，而存下来的值就是实际
   生效的值，所以侧栏显示的就是真正走上链路的东西。
 - **应用到所有站点**是一个显式模式，而不是一个空的站点列表。它需要 `<all_urls>`，但开关
@@ -176,7 +176,8 @@ packages/        扩展产物之外的代理桥接 —— headerlab
 
 下表是*移植时会撞上的平台天花板*，而不是支持矩阵。它是本扩展所依赖的那些 API 的
 [MDN 浏览器兼容性数据](https://github.com/mdn/browser-compat-data)，按各浏览器首次发布
-该能力的版本读取：
+该能力的版本读取。Edge 那一列是 `✓` 而非数字，因为 BCD 把它记作 `mirror` —— 它跟随
+Chrome：
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -184,7 +185,7 @@ packages/        扩展产物之外的代理桥接 —— headerlab
 | 响应头 (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **不支持** |
 | 按站点的运行时授权 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | 标签页范围的规则 (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **不支持** |
-| 原生消息 (`runtime.connectNative`) | 29 | ✓ | 50 | 应用容器 |
+| 原生消息 (`runtime.connectNative`) | 29 | ✓ | 50 | 14（包裹应用） |
 
 其中两条值得单独写清楚：
 
@@ -210,7 +211,10 @@ pnpm test            # wxt build && vitest run —— 单元测试，无浏览�
 pnpm test:packages   # 代理桥接的各包，在 node:test 下运行 —— vitest 的 glob
                      # 触及不到它们，所以它是独立的 CI 作业
 pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test —— 真实 Chrome
+pnpm test:e2e        # 构建两个 e2e 模式后运行 playwright test —— 真实 Chrome
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 修复)
+pnpm format:check    # oxfmt --check             (pnpm format 写入)
 pnpm build           # 生产构建 → .output/chrome-mv3
 pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片
 ```
@@ -232,6 +236,16 @@ pnpm exec playwright install --with-deps --no-shell chromium
 `--no-shell` 很关键。Playwright 默认下载的无头版本是 `chromium-headless-shell`，那是一个
 无法加载扩展的精简构建 —— 而上面这两条命令恰恰是为加载扩展而存在的。没有完整二进制时，
 它们失败的样子看起来像代码问题，而不是缺少依赖。
+
+**`pnpm screenshots` 会覆盖被追踪的 PNG**（`docs/screenshots/`）。这正是它的职责，但跑一次
+就会在 `git status` 里留下改动 —— 只有在 UI 确实变了的时候才提交它们。
+
+**e2e 构建带有发布构建所没有的主机权限，考虑到本页开头的主张，这值得明说。**
+`pnpm test:e2e` 会在生产目录旁边生成 `.output/chrome-mv3-e2e` 和
+`.output/chrome-mv3-bridge-e2e`。前者声明了 `http://127.0.0.1/*`（`wxt.config.ts`），
+以便测试套件能驱动本地回声服务器，而不必面对 Playwright 无法点击的运行时弹窗；后者
+直接授予 `nativeMessaging`。`tests/unit/manifest.test.ts` 断言两者都不会进入生产，
+并且运行 e2e 套件不会触碰 `.output/chrome-mv3` —— 需要新的生产构建请运行 `pnpm build`。
 
 其余内容由 `../CLAUDE.md` 承载：`lint` 为何要串联 `wxt prepare`、`postinstall` 为何可能
 一次都不会运行、oxfmt 格式化什么又不格式化什么，以及那些已经耗掉别人时间的平台陷阱。

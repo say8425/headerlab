@@ -72,7 +72,8 @@ codex plugin marketplace add say8425/headerlab
 - 어떤 헤더든 **요청** 쪽이든 **응답** 쪽이든 **설정·추가·삭제**합니다. `append` 는
   Chrome 이 요청 헤더 21개 허용목록으로 제한하며, HeaderLab 은 그 밖에 있는 룰을 짚어
   줍니다. 이건 들리는 것보다 중요합니다 — Chrome 은 룰셋을 룰 단위가 아니라 통째로
-  거절하므로, 그런 룰 하나가 나머지 전부를 함께 멈춥니다.
+  거절하므로, 그런 룰 하나가 나머지 전부를 함께 멈춥니다. 이건 조용히 넘어가지 않습니다 —
+  팝업이 등록 실패를 표시합니다.
 - **사이트 단위 범위 지정.** 사이트는 호스트로 매칭됩니다. 포트나 경로를 넣으면 떨어져
   나가고, 저장된 값이 곧 동작하는 값이므로 레일에 보이는 것이 실제로 회선에 나가는 것입니다.
 - **모든 사이트에 적용**을 빈 목록이 아니라 명시적인 모드로 둡니다. `<all_urls>` 를
@@ -195,7 +196,8 @@ packages/        확장 번들 바깥의 에이전트 브리지 — headerlab
 
 아래 표는 *이식했을 때 만나게 될 플랫폼 천장*이지 지원 표가 아닙니다. 이 확장이 딛고 선
 API 들에 대한 [MDN 브라우저 호환성 데이터](https://github.com/mdn/browser-compat-data)를,
-각 브라우저가 처음 출시한 버전으로 읽은 것입니다:
+각 브라우저가 처음 출시한 버전으로 읽은 것입니다. Edge 열이 숫자가 아니라 `✓` 인 것은
+BCD 가 `mirror` 로 기록하기 때문입니다 — Chrome 을 따라갑니다:
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -203,7 +205,7 @@ API 들에 대한 [MDN 브라우저 호환성 데이터](https://github.com/mdn/
 | 응답 헤더 (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **없음** |
 | 사이트별 런타임 권한 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | 탭 범위 룰 (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **없음** |
-| 네이티브 메시징 (`runtime.connectNative`) | 29 | ✓ | 50 | 앱 컨테이너 |
+| 네이티브 메시징 (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (감싸는 앱) |
 
 이 중 둘은 따로 적어 둘 값어치가 있습니다:
 
@@ -230,7 +232,10 @@ pnpm test            # wxt build && vitest run — 단위 테스트, 브라우�
 pnpm test:packages   # 에이전트 브리지 패키지들, node:test 로 — vitest 의 glob 이
                      # 닿지 않아 자체 CI 잡을 가집니다
 pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test — 진짜 Chrome
+pnpm test:e2e        # e2e 모드 둘을 빌드한 뒤 playwright test — 진짜 Chrome
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 로 수정)
+pnpm format:check    # oxfmt --check             (pnpm format 으로 쓰기)
 pnpm build           # 프로덕션 빌드 → .output/chrome-mv3
 pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 생성
 ```
@@ -255,6 +260,19 @@ pnpm exec playwright install --with-deps --no-shell chromium
 `chromium-headless-shell` 이고, 이것은 확장을 로드할 수 없는 축약 빌드입니다 — 그런데 저
 두 명령은 확장을 로드하려고 존재합니다. 전체 바이너리가 없으면 의존성 누락이 아니라 코드
 문제처럼 보이는 방식으로 실패합니다.
+
+**`pnpm screenshots` 는 추적 중인 PNG 를 덮어씁니다** (`docs/screenshots/`). 그게 그 명령의
+일이지만, 한 번 돌리면 `git status` 에 변경이 남습니다 — UI 가 실제로 바뀌었을 때만
+커밋하세요.
+
+**e2e 빌드는 배포 빌드에 없는 호스트 권한을 지니며, 이 페이지 첫머리의 주장을 생각하면
+소리 내어 말할 값어치가 있습니다.** `pnpm test:e2e` 는 프로덕션 디렉터리 옆에
+`.output/chrome-mv3-e2e` 와 `.output/chrome-mv3-bridge-e2e` 를 만듭니다. 앞의 것은
+`http://127.0.0.1/*` 를 선언해(`wxt.config.ts`) Playwright 가 클릭할 수 없는 런타임
+프롬프트 없이 로컬 에코 서버를 구동할 수 있게 하고, 뒤의 것은 `nativeMessaging` 을
+곧바로 부여합니다. `tests/unit/manifest.test.ts` 가 둘 다 프로덕션에 닿지 않음을
+단언하며, e2e 스위트를 돌려도 `.output/chrome-mv3` 는 건드리지 않습니다 — 새 프로덕션
+빌드는 `pnpm build` 로 만드세요.
 
 나머지는 `../CLAUDE.md` 가 들고 있습니다: `lint` 가 왜 `wxt prepare` 를 체인하는지,
 `postinstall` 이 왜 아예 안 돌 수 있는지, oxfmt 가 무엇을 포맷하고 무엇을 안 하는지,

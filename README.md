@@ -72,7 +72,7 @@ is not a conflict either — PATH resolves the global copy first.
   `append` is limited by Chrome to a 21-header allowlist on requests, and HeaderLab names
   the rule that falls outside it — which matters more than it sounds, because Chrome
   rejects a ruleset as a whole rather than per rule, so one such rule stops every other one
-  too.
+  too. That is reported, not silent: the popup shows the registration failure.
 - **Scope by site.** Sites are matched by host: a port or a path is dropped when you add
   one, and the stored value is the value that operates, so what the rail shows is what goes
   on the wire.
@@ -201,7 +201,8 @@ nobody has run the suite against it.
 
 The table below is the *platform ceiling a port would meet*, not a support matrix — it is
 [MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for the APIs this
-extension is built on, read at the versions each browser first shipped them:
+extension is built on, read at the versions each browser first shipped them. Edge's column
+is `✓` rather than a number because BCD records it as `mirror` — it tracks Chrome's:
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -209,7 +210,7 @@ extension is built on, read at the versions each browser first shipped them:
 | Response headers (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **none** |
 | Per-site runtime grant (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Tab-scoped rules (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **none** |
-| Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | app container |
+| Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (containing app) |
 
 Two of those are worth spelling out:
 
@@ -235,7 +236,10 @@ pnpm test            # wxt build && vitest run — unit tests, no browser
 pnpm test:packages   # the agent-bridge packages, under node:test — vitest's
                      # glob does not reach them, so this is its own CI job
 pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test — real Chrome
+pnpm test:e2e        # builds both e2e modes, then playwright test — real Chrome
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to fix)
+pnpm format:check    # oxfmt --check             (pnpm format to write)
 pnpm build           # production build → .output/chrome-mv3
 pnpm screenshots     # rebuild the images in this README from the real popup
 ```
@@ -261,6 +265,19 @@ pnpm exec playwright install --with-deps --no-shell chromium
 a stripped build that cannot load extensions — and both of those commands exist to load
 one. Without the full binary they fail in a way that looks like a code problem rather than
 a missing dependency.
+
+**`pnpm screenshots` overwrites the tracked PNGs** under `docs/screenshots/`. That is its
+job, but it means a run leaves changes in `git status`; commit them only when the UI
+actually changed.
+
+**The e2e build carries a host permission the shipped build does not, and that is worth
+saying out loud given the first claim on this page.** `pnpm test:e2e` builds into
+`.output/chrome-mv3-e2e` and `.output/chrome-mv3-bridge-e2e`, beside the production
+directory. The first of those declares `http://127.0.0.1/*` (`wxt.config.ts`) so the suite
+can drive a local echo server without a runtime prompt Playwright cannot click, and the
+second grants `nativeMessaging` outright. `tests/unit/manifest.test.ts` asserts neither
+ever reaches production, and running the e2e suite does not touch `.output/chrome-mv3` —
+run `pnpm build` for a fresh production build.
 
 `CLAUDE.md` carries the rest: why `lint` chains `wxt prepare`, why `postinstall` may never
 run, what oxfmt does and does not format, and the platform traps that have already cost
