@@ -243,10 +243,15 @@ describe('the release configuration', () => {
   // titled `diffdeck: v1.3.2`.
   //
   // The extension used to hold the bare `v<version>` namespace via
-  // `include-component-in-tag: false`, which is why `v1.0.0` and `v1.1.0`
-  // exist under that shape and stay that way — history is a record. From
-  // `extension-v1.1.1` on, a release page reader can tell the two apart
-  // without knowing the convention, which is the whole reason this changed.
+  // `include-component-in-tag: false`, and `v1.0.0`/`v1.1.0` were tagged under
+  // that shape. They no longer exist: on 2026-08-15 both releases were moved
+  // onto `extension-v1.0.0`/`extension-v1.1.0` and the bare tags deleted, so
+  // every tag in this repository now names its package. Moving a release
+  // rather than deleting and re-creating it is what kept the two
+  // `headerlab-<version>-chrome.zip` assets and their download counts —
+  // `PATCH /releases/{id}` accepts `tag_name`, and the release object survives
+  // the change. Nothing here is derived from those tags, so this file only
+  // records what happened; the live evidence is `gh release list`.
   //
   // `component` is asserted by value, not just presence: without it the
   // default comes from the package name, and the root's is `headerlab` — so a
@@ -314,6 +319,38 @@ describe('the release configuration', () => {
     for (const path of entries) {
       expect(existsSync(path.replace(/^\//, ''))).toBe(true);
     }
+  });
+
+  /**
+   * The root package's path is the whole repository, so without this every
+   * CLI commit also lands in the extension's changelog.
+   *
+   * **Measured, and the measurement is the honest part: this changes nothing
+   * about the history that already exists.** The schema's own wording is
+   * "if all files from commit belong to one of the paths it will be skipped",
+   * so a commit is dropped only when it touches nothing outside the excluded
+   * paths — and all 14 commits between `extension-v1.0.0` and
+   * `extension-v1.1.2` touch something outside `packages/`. The two that read
+   * as CLI-only in the changelog (#23, #26) each also edited a root file —
+   * README.md and CLAUDE.md — so they belong in the extension's changelog and
+   * stay there. What this buys is the commit that has not happened yet: a fix
+   * living entirely under `packages/headerlab/`, which is the ordinary shape
+   * of CLI work once its docs settle.
+   *
+   * Derived from the configured packages rather than pinned to the literal
+   * `['packages/headerlab']`, so a third released package added without being
+   * excluded fails here instead of quietly widening the extension's changelog.
+   *
+   * `packages/plugin` is deliberately NOT excluded, and it is the one path
+   * where the obvious tidy answer is wrong. It is not a release-please package
+   * — it is version-bumped through the CLI's `extra-files` — so nothing else
+   * would pick its commits up. Excluding it would make a skill-only change
+   * appear in no changelog at all, which is worse than appearing in a
+   * debatable one.
+   */
+  it("keeps the extension's changelog off the other packages' own commits", () => {
+    const siblings = Object.keys(config.packages).filter((path) => path !== '.');
+    expect(config.packages['.']['exclude-paths']).toEqual(siblings);
   });
 
   // The setting that delivers the independent releases the owner asked for.
