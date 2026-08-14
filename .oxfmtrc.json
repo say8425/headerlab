@@ -5,5 +5,23 @@
 
   "printWidth": 100,
 
-  "ignorePatterns": ["entrypoints/popup/style.css", "docs/**", "**/*.md", "**/*.html"]
+  // The last three are release-please's output, not ours. It regenerates them
+  // wholesale on every release and writes compact JSON, so oxfmt fails them and
+  // the `format` job goes red on the release PR itself — measured on both PRs
+  // of the first two-package release: #18 failed on the manifest, #19 on the
+  // manifest and both plugin manifests, while `main` was clean. Nobody can fix
+  // that by formatting, because the next release rewrites them again.
+  //
+  // The package.json files release-please also touches are deliberately NOT
+  // here: it edits only their `version` field and leaves the rest alone, so
+  // they stay formatted and stay ours to format.
+  "ignorePatterns": [
+    "entrypoints/popup/style.css",
+    "docs/**",
+    "**/*.md",
+    "**/*.html",
+    ".release-please-manifest.json",
+    "packages/plugin/.claude-plugin/plugin.json",
+    "packages/plugin/.codex-plugin/plugin.json"
+  ]
 }
