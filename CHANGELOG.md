@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.2](https://github.com/say8425/headerlab/compare/extension-v1.1.1...extension-v1.1.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* **headerlab:** stop the README promising provenance the first release will not have ([#26](https://github.com/say8425/headerlab/issues/26)) ([49d16b3](https://github.com/say8425/headerlab/commit/49d16b391a29b2cdb5494d69712ffb90c9bcb2f6))
+* **headerlab:** stop the README sending npm users to files they do not have ([#23](https://github.com/say8425/headerlab/issues/23)) ([8110753](https://github.com/say8425/headerlab/commit/81107532cfabdf2ce5d8c9e8f31481fb974d69ee))
+
 ## [1.1.1](https://github.com/say8425/headerlab/compare/extension-v1.1.0...extension-v1.1.1) (2026-08-14)
 
 
