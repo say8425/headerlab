@@ -145,23 +145,123 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-コマンドは全部で 12 個、すべての応答は stdout 上の 1 つの JSON オブジェクトで、終了コードが
-それに続きます。**人が有効にするまでブリッジは無効です** — `nativeMessaging` をオプション
-権限として使い、Chrome 自身の同意ダイアログの向こう側にあります。そして CLI はブリッジを
-有効にすることも、サイト権限を付与することもできません。Chrome がどちらにもユーザー
-ジェスチャーを要求するからです。マシンの外に出るものはありません — 3 つのプロセスは
-ユーザーごとのディレクトリにある Unix ドメインソケットだけで会話し、ネットワークソケットは
-使いません。
+すべての応答は stdout 上の 1 つの JSON オブジェクト — 成功でも失敗でも — で、終了コードが
+それに続きます。代わりに解析すべき人間向けの出力はありません。
 
-有効化は 3 ステップです — ポップアップのブリッジ行で **Enable** を押し、
-`headerlab bridge install --extension-id <id>` を実行すると、ポップアップが
-**Bridge live** になります。
+```
+CLI (headerlab)                      Native host              Extension (SW)
+node, zero deps                       node, zero deps          lib/bridge/
+   │                                      │                        │
+   │  unix socket                         │  stdio                 │
+   │  <per-user tmp>/headerlab/…sock      │  (4-byte length + JSON)│
+   └──────── one JSON line ──────────────►├───────────────────────►│
+            request/response              │                    apply()
+   ◄──────────────────────────────────────┤◄───────────────────────┤
+                                          │                   local:state
+                                          │                        ▼
+                                     Chrome launches         reconcile()
+                                     and kills it        (existing single loop)
+```
 
-**[→ `docs/agent-bridge.md`](agent-bridge.md)** に設計があります: プロセス図と方向が
-なぜ一方向なのか、コマンド表の全体、取り違えてはいけない 5 つのこと、そしてアップグレードが
-ランチャーを孤児にしたときの対処。コマンドリファレンスそのものは
+**この図が運びたい唯一の事実は方向です: ホストから拡張機能へ先に話しかけることはできません。**
+Chromium にはネイティブ側から接続する経路もありますが、既定でオフのフラグの向こうにあるため、
+設計は拡張機能を唯一の開始者として扱います。拡張機能がポートを開き、その副作用として Chrome
+がホストプロセスを起動し、ホストが Unix ソケットで待ち受け、そこに接続するのが CLI です —
+逆方向はありません。書き込みは JSON 1 行として入り、stdio 上でフレーミングされて拡張機能へ
+渡り、`local:state` に適用され、他のあらゆるトリガーがすでに集まるその `reconcile()` が
+拾います: **新しいトリガーであって、新しい writer ではありません。**
+
+### コマンド
+
+9 つがブリッジのソケットを通ります: ルールセットのスコープを決める `site add|rm` と
+`site all-sites on|off`、ヘッダールールを編集する `rule add|rm|toggle`、全体を止めて再開する
+`pause`/`resume`、そして保存された状態を丸ごと置き換える `state set <file|->`。
+
+残りの 3 つはそのソケットに一切触れません — ネイティブメッセージングのホストマニフェストと
+Chrome が実行するランチャースクリプトを管理するもので、そもそもソケットを可能にしているのが
+それです: `bridge install`、`bridge uninstall`、`bridge status`。最後のものは、ランチャーが
+指すファイルがもう存在しないときに `entryMissing` を報告します —
+`npm uninstall -g headerlab`、アップグレード、あるいはグローバル prefix を移動させる nvm の
+切り替えの症状です。`bridge install` を再実行すれば直ります。
+
+フラグとエラーコードまでの完全なリファレンスは
 [`packages/plugin/skills/headerlab/SKILL.md`](../packages/plugin/skills/headerlab/SKILL.md)
 にあります。
+
+### 取り違えてはいけない 5 つのこと
+
+製品自身の主張です。ここで間違えるのは、この節を丸ごと省くより悪いことです。
+
+- **人が有効にするまでブリッジは無効です。** `nativeMessaging` をオプション権限として使い、
+  ポップアップのボタンから、Chrome 自身の同意ダイアログの向こう側で要求されます —
+  インストール時点の `permissions` リストは変わりません。推測ではなく実測です:
+  [`docs/research/2026-08-11-native-messaging-spike.md`](research/2026-08-11-native-messaging-spike.md)
+  が同意ダイアログが実際に出ること、そして 2 回目の接続ではダイアログなしに権限が保たれることを
+  記録しています。
+- **CLI はサイト権限を付与できません。** `site add` と `site all-sites on` はルールが何に
+  *スコープ*されるかを変えるだけです — その行は、手で追加したサイトと同じく、人が **Grant**
+  を押すまで保留のままです。Chrome が権限付与にユーザージェスチャーを要求し、その制限は
+  迂回せずに守られています。
+- **CLI はブリッジも有効にできません。** `chrome.permissions.request()` は解決するのに
+  ユーザージェスチャーを要求します。`headerlab bridge enable` はありませんし、動く形で
+  生まれることもありません: 誰も **Enable** を押していないブリッジの傍らでの
+  `bridge install` は、決して接続しないファイルを書くだけです。
+- **マシンの外に出るものはありません。** CLI・ホスト・拡張機能は、権限が制限された
+  ユーザーごとのディレクトリにある Unix ドメインソケットだけで会話し、ネットワークソケットは
+  使いません。**`$TMPDIR` ではなく**、それは意図的です: `socketDir()` は各プロセスが継承した
+  `$TMPDIR` を読む代わりに OS に尋ねます(`getconf DARWIN_USER_TEMP_DIR` を絶対パスで)。
+  ホストは Chrome の環境を、CLI はターミナルの環境を継承するため、2 つのコピーが食い違っても
+  それを示す失敗がないからです。上書きする変数は 1 つだけあり(`HEADERLAB_SOCKET_DIR`)、
+  それは呼び出し側それぞれではなく関数の*内側*で一度だけ読まれます — 同じ理由でです。`tests/unit/outbound.test.ts` が `packages/headerlab/` 配下のすべての `.mjs`
+  から外向きのプリミティブ — `fetch`、`WebSocket`、`node:https`、`.listen(<ポート番号>)`
+  呼び出し — を禁じ、自身の docblock が見えないものを自分で述べています: ポート検査は
+  ソース中のリテラルな数字に一致するので、`server.listen(8080)` は捕まり
+  `server.listen(tcpPort)` は捕まりません。暗黙に任せず書いてあるのは、セキュリティの保証を
+  誇張することがこのリポジトリの最も避けたいことだからです。
+- **このビルドは正規表現フィルタを拒否します。** `state set` はペイロードを検証しますが、
+  ポップアップに正規表現エディタはなく、ここで
+  `chrome.declarativeNetRequest.isRegexSupported()` を呼ぶ場所もありません — パターンが有効な
+  RE2 かどうかの唯一の権威です。ですから `filter.mode: 'regex'` のルールは目に見えないまま
+  適用され、責任あるパターンをどの画面も示せないままヘッダーが変わることになります。
+  `lib/bridge/port.ts` がそのようなペイロードをエラーコード `unsupported` で即座に拒否します
+  — 一緒に使える正規表現エディタができるまで
+  ([#33](https://github.com/say8425/headerlab/issues/33))。
+
+### 有効にする
+
+1. ポップアップのブリッジ行で **Enable** を押します — それまでは **Bridge off** と読めます。
+   これが Chrome 自身の同意ダイアログを通じて `nativeMessaging` 権限を要求します。
+2. `chrome://extensions` から id をコピーしてインストーラを実行します:
+
+   ```bash
+   headerlab bridge install --extension-id <id>
+   ```
+
+3. ポップアップが **Bridge live** になります。
+
+`--extension-id` は CLI 自身の README も先に挙げる指示です。常に当てはまる側だからです —
+npm で CLI を入れた人には、指し示すべき拡張機能のディレクトリがありません。
+`--load-path <dir>` はローカルの展開ビルドで作業していてパスがすでに手元にあるときの代替
+ですが、便利さと同じだけ落とし穴です: シンボリックリンク、末尾のスラッシュ、あるいは同じ
+ディレクトリを違う綴りで書いたパスが、それぞれ別の id にハッシュされ、食い違ったマニフェストは
+きれいにインストールされたうえで単に接続しません。
+
+どちらの場合もインストーラは使った id をそのまま返します。CLI の内部には、それを Chrome が
+実際に読み込んだものと照合する手段がないからです。返ってきた id を `chrome://extensions` と
+見比べることが存在する唯一の検査であり、`tests/e2e/bridge.spec.ts` が動いているブラウザを
+相手にまさにそれを行います。
+
+**パッケージング。** `packages/headerlab` は `headerlab` コマンド**と** Chrome が起動する
+ホストを、2 つではなく 1 つのパッケージとして配布します。`bridge install` はホストの
+エントリファイルを絶対パスで名指すランチャーを書きますが、ホストなしで公開された CLI も
+そのランチャーを書いてしまいます — インストール手順は、自分が名指したファイルが対象マシンに
+存在しないことを見られません — そして Chrome はその失敗を、拒否されたマニフェストや食い違った
+id と同じメッセージで報告します。1 つの tarball から両方を配ることで、その失敗の仕方が文書
+ではなく構造として不可能になります。
+
+コマンドの面は設計自身の §2/§3 より狭いままです — `headerlab status`、`diagnostics`、
+`state get`、`rule ls`、そしてすべての raw な書き込み前のスナップショットは存在しません
+([#35](https://github.com/say8425/headerlab/issues/35))。
 
 ## アーキテクチャ
 
