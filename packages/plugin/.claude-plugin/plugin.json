@@ -1,6 +1,6 @@
 {
   "name": "headerlab",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Drive the HeaderLab Chrome extension's header rules from Claude Code.",
   "author": {
     "name": "HeaderLab"
@@ -8,6 +8,10 @@
   "homepage": "https://github.com/say8425/headerlab",
   "repository": "https://github.com/say8425/headerlab",
   "license": "Apache-2.0",
-  "keywords": ["headerlab", "http-headers", "chrome-extension"],
+  "keywords": [
+    "headerlab",
+    "http-headers",
+    "chrome-extension"
+  ],
   "skills": "./skills/"
 }
