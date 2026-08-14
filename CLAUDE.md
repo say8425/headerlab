@@ -381,6 +381,8 @@ reporting `9.15.9` while the field still said so. **Do not put a `+sha512…` in
 suffix on that field** — corepack accepts that form, pnpm does not, and 9.15.9 refused
 every command with `Invalid package manager specification … expected a semver version`.
 
+## CI
+
 **CI references actions by floating major — `actions/checkout@v7`, not a SHA and not
 `@v7.0.1`.** This went SHA → exact tag → major, each step trading supply-chain strength
 for legibility, and the trade is worth naming rather than discovering: a moved tag is a
@@ -420,6 +422,8 @@ the shims land in the Node the job will use, and `cache: pnpm` is therefore unus
 because setup-node resolves the store before pnpm exists — hence the explicit
 `pnpm store path` and `actions/cache` pair. A local action is in-repo source, so it adds no
 supply-chain surface.
+
+## Release
 
 **Release is `release-please.yml`, on push to `main`.** It opens and grooms a release PR
 from the conventional-commit subjects; merging that PR is what tags, releases, and — only
