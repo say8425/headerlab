@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/say8425/headerlab/compare/extension-v1.1.0...extension-v1.1.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* publish with --access public, and name the extension in its tag ([#21](https://github.com/say8425/headerlab/issues/21)) ([a8b86e1](https://github.com/say8425/headerlab/commit/a8b86e1086d9b4c081b3374a1c5286958a217879))
+
 ## [1.1.0](https://github.com/say8425/headerlab/compare/v1.0.0...v1.1.0) (2026-08-14)
 
 
