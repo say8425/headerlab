@@ -383,9 +383,12 @@ there is no dependabot here yet.
 Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
 each so a push reported every failure instead of one per round trip. Separate jobs do the
 same thing without the trick, and name the failing check in the PR's check list rather
-than burying it in one job's log. `packages` joined later as a sixth, for the
-`packages/*/test/*.mjs` suites `vitest.config.ts`'s glob does not reach — see Commands'
-`test:packages` line. The cost is honest and small: each job installs dependencies again,
+than burying it in one job's log. **Every job's `name:` is the check it performs, not the
+thing it looks at** — that is why the sixth is `package tests (node:test)` rather than
+`packages`, which named a directory and had stopped being plural besides once the host
+merged into the CLI. What distinguishes it from `unit` is the runner: it covers the
+`packages/*/test/*.mjs` suites `vitest.config.ts`'s glob does not reach, so `pnpm test`
+never runs them — see Commands' `test:packages` line. The cost is honest and small: each job installs dependencies again,
 and `format:check` takes 82ms against a setup measured in seconds. It buys per-check
 status, and it is what was asked for.
 

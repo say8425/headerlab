@@ -57,8 +57,13 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm test
 
-  packages:
-    name: packages
+  # Named for the check, like every job above it — `packages` named a
+  # directory instead, and stopped being plural besides once the host merged
+  # into the CLI. What distinguishes this from `unit` is the runner: these
+  # suites are `node:test` under `packages/*/test/*.mjs`, which vitest's glob
+  # does not reach and `pnpm test` therefore never runs.
+  package-tests:
+    name: package tests (node:test)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
