@@ -242,7 +242,7 @@ pnpm test:packages   # エージェントブリッジのパッケージ群を no
 pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # e2e モード 2 つをビルドして playwright test — 本物の Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # wxt prepare && oxlint     (lint:fix で修正を適用)
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix で修正)
 pnpm format:check    # oxfmt --check             (pnpm format で書き込み)
 pnpm build           # 本番ビルド → .output/chrome-mv3
 pnpm screenshots     # この README の画像を実際のポップアップから再生成

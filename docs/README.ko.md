@@ -234,7 +234,7 @@ pnpm test:packages   # 에이전트 브리지 패키지들, node:test 로 — vi
 pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # e2e 모드 둘을 빌드한 뒤 playwright test — 진짜 Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # wxt prepare && oxlint     (lint:fix 로 수정 적용)
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 로 수정)
 pnpm format:check    # oxfmt --check             (pnpm format 으로 쓰기)
 pnpm build           # 프로덕션 빌드 → .output/chrome-mv3
 pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 생성

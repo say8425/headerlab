@@ -213,7 +213,7 @@ pnpm test:packages   # 代理桥接的各包，在 node:test 下运行 —— vi
 pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # 构建两个 e2e 模式后运行 playwright test —— 真实 Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # wxt prepare && oxlint     (lint:fix 应用修复)
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 修复)
 pnpm format:check    # oxfmt --check             (pnpm format 写入)
 pnpm build           # 生产构建 → .output/chrome-mv3
 pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片

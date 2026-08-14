@@ -253,7 +253,7 @@ pnpm test:packages   # los paquetes del puente, bajo node:test — el glob de vi
 pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # construye los dos modos e2e y lanza playwright test
 pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # wxt prepare && oxlint     (lint:fix para aplicar arreglos)
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix arregla)
 pnpm format:check    # oxfmt --check             (pnpm format para escribir)
 pnpm build           # build de producción → .output/chrome-mv3
 pnpm screenshots     # regenera las imágenes de este README desde el popup real

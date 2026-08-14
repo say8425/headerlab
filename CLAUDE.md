@@ -233,8 +233,11 @@ correctness 6, perf 16, suspicious 187, pedantic 220, restriction 1208, style 39
 big numbers are not defects — 162 of `suspicious` are `react-in-jsx-scope`, a rule for
 the *old* JSX transform that React 19 does not use, and most of `style` is now oxfmt's
 job. A category that needs a page of suppressions to go green is a category nobody
-reads. CI adds `--deny-warnings` so a rule that arrives at warning level in a future
-release still stops the build.
+reads. **`--deny-warnings` lives in the `lint` script itself, not in CI** — `ci.yml`'s lint
+job is a bare `pnpm lint` — so a rule that arrives at warning level in a future release
+stops a local run and the build alike. An earlier version of this line said CI adds it,
+which would have meant `pnpm lint` passing locally on something CI rejects; it does not,
+and the two cannot drift apart while the flag stays where it is.
 
 **`lint` chains `wxt prepare`, and that is a correctness fix rather than a convenience.**
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports

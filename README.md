@@ -238,7 +238,7 @@ pnpm test:packages   # the agent-bridge packages, under node:test — vitest's
 pnpm check:all       # pnpm check && pnpm test:packages
 pnpm test:e2e        # builds both e2e modes, then playwright test — real Chrome
 pnpm typecheck       # wxt prepare && tsc --noEmit
-pnpm lint            # wxt prepare && oxlint     (pnpm lint:fix to apply fixes)
+pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to fix)
 pnpm format:check    # oxfmt --check             (pnpm format to write)
 pnpm build           # production build → .output/chrome-mv3
 pnpm screenshots     # rebuild the images in this README from the real popup
