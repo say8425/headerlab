@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/say8425/headerlab/compare/cli-v0.1.1...cli-v0.1.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* **headerlab:** stop the README promising provenance the first release will not have ([#26](https://github.com/say8425/headerlab/issues/26)) ([49d16b3](https://github.com/say8425/headerlab/commit/49d16b391a29b2cdb5494d69712ffb90c9bcb2f6))
+
 ## [0.1.1](https://github.com/say8425/headerlab/compare/cli-v0.1.0...cli-v0.1.1) (2026-08-14)
 
 
