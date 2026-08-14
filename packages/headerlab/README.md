@@ -38,13 +38,20 @@ different id.
 
 ## Verifying what you installed
 
-Every release is published from GitHub Actions with
-[provenance](https://docs.npmjs.com/generating-provenance-statements), so npm holds a
-signed statement of which commit and which workflow built the tarball:
+Releases published from GitHub Actions carry
+[provenance](https://docs.npmjs.com/generating-provenance-statements) — a signed statement
+of which commit and which workflow built the tarball:
 
 ```bash
 npm audit signatures
 ```
+
+**The first published version is the exception, and it says so rather than hoping you do
+not check.** npm is retiring the tokens that let CI publish without a one-time password
+(direct publishing goes away around January 2027), and npm only lets you configure the
+replacement — trusted publishing over OIDC — for a package that already exists. So the
+first version was published by hand and has no attestation. Every version after it is built and
+signed by the workflow in this repository.
 
 This extension exists because [ModHeader](https://github.com/modheader) was pulled from
 the Chrome Web Store after a hidden tracker was found in it. A CLI that can change your

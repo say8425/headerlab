@@ -180,10 +180,18 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   the listing. Measured this way: 13 files, `bin/` and `lib/` plus
   `package.json`, with `test/` sitting beside them on disk and correctly
   absent from the tarball (`cd packages/headerlab && npm pack --dry-run`).
-  Publishing itself happens only from `release-please.yml`'s `npm publish
-  --provenance` step, on a release; it is never run by hand, and this
-  repository's own pnpm cannot do it anyway — see "Never write the lockfile on
-  this machine" below.
+  Publishing happens from `release-please.yml`'s `npm publish --provenance`
+  step, on a release. **The first published version is the one exception, and
+  it is a forced one.** npm is retiring the tokens that let CI publish without
+  a one-time password — the observed failure is `EOTP`, twice, each time
+  *after* release-please had already created the tag and the GitHub release —
+  and its replacement, trusted publishing over OIDC, can only be configured
+  for a package that already exists on the registry. So the first version is
+  published by hand, from a network that can reach `registry.npmjs.org`; this
+  one cannot, and `npm view` against it times out through the office proxy
+  even though `npm config get registry` names it. Every version after that is
+  signed by the workflow. Do not read this as licence to publish by hand
+  again.
   **One package rather than two, and it is not tidiness.** `bridge install`
   writes a launcher that names the native-messaging host's entry file by
   absolute path (`lib/manifest.mjs`'s `launcherScript`). A CLI published
