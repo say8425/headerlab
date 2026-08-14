@@ -48,9 +48,9 @@ npm audit signatures
 
 **The first published version is the exception, and it says so rather than hoping you do
 not check.** npm is retiring the tokens that let CI publish without a one-time password
-(direct publishing goes away around January 2027), and its replacement — trusted
-publishing over OIDC — is configured on a package that already exists. So the first
-version was published by hand and has no attestation. Every version after it is built and
+(direct publishing goes away around January 2027), and npm only lets you configure the
+replacement — trusted publishing over OIDC — for a package that already exists. So the
+first version was published by hand and has no attestation. Every version after it is built and
 signed by the workflow in this repository.
 
 This extension exists because [ModHeader](https://github.com/modheader) was pulled from
