@@ -1,6 +1,6 @@
 ---
 name: headerlab
-description: Read and change HeaderLab's HTTP header rules from the command line — scope which sites a rule applies to, add/remove/toggle header rules, pause or resume the whole rule set, or replace stored state wholesale. Use whenever the user asks to add or edit a header rule, scope a rule to a site, pause/resume HeaderLab, or inspect its current rules.
+description: Change HeaderLab's HTTP header rules from the command line — scope which sites a rule applies to, add/remove/toggle header rules, pause or resume the whole rule set, or replace stored state wholesale. Use whenever the user asks to add or edit a header rule, scope a rule to a site, or pause/resume HeaderLab. There is no read-only command; state comes back only as the reply to a successful write.
 ---
 
 # HeaderLab CLI
@@ -12,6 +12,10 @@ PATH. Say so plainly and stop — do not guess at a substitute command, and do
 not assume the extension is reachable some other way. That line is a fact
 gathered before this skill's content ever reached you, not a prompt asking
 you to notice a problem yourself; treat it with the same weight.
+
+The one remedy worth naming is `npm i -g headerlab` — report the missing CLI
+and mention that command as something the person can run. Do not run it
+yourself; installing it is their call, not something to do unprompted.
 
 ## What this is
 

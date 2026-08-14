@@ -46,6 +46,28 @@ describe('the workspace', () => {
     expect(existsSync(`${dir}/package.json`)).toBe(true);
   });
 
+  // `private: true`'s absence on packages/headerlab is the whole safety switch
+  // that lets `npm publish` succeed there — without it npm rejects an
+  // accidental publish with EPRIVATE. Nothing previously asserted the other
+  // two packages still carry that flag. It bites harder than usual here
+  // because the root package and the CLI package share the npm name
+  // `headerlab`: the root has no `files` field and no `.npmignore` (so a
+  // publish would fall back to `.gitignore` and pack most of the working
+  // tree), and the root's `1.0.0` outranks the CLI's `0.0.0`, so it would
+  // become `latest` on the very name the CLI is meant to own.
+  //
+  // All three directions are asserted, not just the two `private: true`
+  // packages — a test that checks only those passes if `packages/headerlab`
+  // silently becomes private again and quietly stops publishing.
+  it('keeps private: true on the root and the plugin, and no private key on the CLI', () => {
+    const root = JSON.parse(readFileSync('package.json', 'utf8'));
+    const plugin = JSON.parse(readFileSync('packages/plugin/package.json', 'utf8'));
+    const cli = JSON.parse(readFileSync('packages/headerlab/package.json', 'utf8'));
+    expect(root.private).toBe(true);
+    expect(plugin.private).toBe(true);
+    expect('private' in cli).toBe(false);
+  });
+
   // Measured: `allowBuilds` is pnpm 11's spelling and pnpm 10 ignores it in
   // silence. Adding `packages:` must not disturb the answer already recorded
   // for spawn-sync, which is what keeps `pnpm install` from failing.

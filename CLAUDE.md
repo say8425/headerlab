@@ -737,9 +737,13 @@ that no longer renders, passing while describing nothing.
   argues against by name. So `idle` in practice names the state most people land in first:
   **Enable** pressed, `headerlab bridge install` never run.
 - **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which
-  execs the entry path under this repository.** Move or delete the repo and that entry
-  disappears; nothing in Chrome or the extension will ever say so — `headerlab bridge
-  status` is the only thing that reads the launcher back and reports `entryMissing`.
+  execs the entry path of whichever installed copy of `packages/headerlab` wrote it —
+  a clone for a contributor, the global `node_modules` for `npm i -g headerlab`.**
+  Moving or deleting that copy orphans the entry the same way either way: a clone
+  moved or deleted, or `npm uninstall -g headerlab`, an `npm i -g headerlab@next`
+  upgrade, or an nvm switch that moves the global prefix. Nothing in Chrome or the
+  extension will ever say so — `headerlab bridge status` is the only thing that reads
+  the launcher back and reports `entryMissing`.
 - **`headerlab status`, `diagnostics`, `state get` and `rule ls` are not built.** Only
   `state.set` exists on the `state` group. §2 and §3 of the design spec promise a
   snapshot taken before every raw `state set` write, with `state snapshots`/`state
