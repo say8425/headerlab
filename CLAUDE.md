@@ -517,10 +517,13 @@ loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT
 changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the
 workflow this was modelled on: there is no listing, so a `wxt submit` step would need four
 secrets that do not exist and would fail every release. Add it with the listing, not before.
-The first run starts from **zero tags and zero releases**, so it reads the whole history and
-its first changelog will hold every commit this repository has — expected, not a
-misconfiguration. It proposes a version from `package.json`'s `1.0.0` and the
-conventional-commit subjects above it rather than releasing `1.0.0` itself.
+**The first run started from zero tags and zero releases**, so it read the whole history and
+its first changelog held every commit this repository had — expected, not a
+misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
+conventional-commit subjects above it rather than releasing `1.0.0` itself. That is history
+now: there are seven tags and seven releases, and a run finds the previous release through
+the `extension-v*` / `cli-v*` tag formats. Kept because the same paragraph is what a fresh
+fork of this setup would need.
 
 **The workflows carry almost no comments, and that is deliberate.** They had many, and they
 restated what this file already says at more length. The reasoning lives here; the YAML

@@ -353,6 +353,28 @@ describe('the release configuration', () => {
     expect(config.packages['.']['exclude-paths']).toEqual(siblings);
   });
 
+  /**
+   * The sharpest answer to this file's own question — what wrong configuration
+   * would still pass? — is one the test above cannot reach: release-please
+   * renaming or dropping `exclude-paths` in a later version. The key would go
+   * on matching, the assertion would go on passing, and the setting would
+   * silently stop doing anything, because `extractReleaserConfig` reads a fixed
+   * list of known keys and discards the rest without a log line.
+   *
+   * Nothing here can validate a key against a schema — no validator is in this
+   * dependency tree and CLAUDE.md forbids adding one. What it can do is pin the
+   * version the keys in this file were actually read against, so that bumping
+   * `$schema` is what forces someone to look again. The two were verified
+   * together against v17.6.0: `exclude-paths` exists at
+   * `/definitions/ReleaserConfigOptions/properties/exclude-paths`, and its
+   * description is the wording quoted above, verbatim.
+   */
+  it('pins the schema version its keys were verified against', () => {
+    expect(config.$schema).toBe(
+      'https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json',
+    );
+  });
+
   // The setting that delivers the independent releases the owner asked for.
   // Deleting it merges the extension's and the CLI's release PRs into one,
   // with nothing else in this file failing.

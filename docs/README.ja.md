@@ -74,7 +74,7 @@ headerlab` を併用しても衝突しません。PATH がグローバルのコ�
   `append` は Chrome によってリクエストヘッダー 21 個の許可リストに制限されており、
   HeaderLab はその外にあるルールを名指しします。これは聞こえるより重要です — Chrome は
   ルールセットをルール単位ではなく丸ごと拒否するため、そうしたルールが 1 つあると他の
-  すべても止まります。
+  すべても止まります。これは黙って起きません — ポップアップが登録の失敗を表示します。
 - **サイト単位のスコープ。** サイトはホストでマッチします。ポートやパスを入れると落とされ、
   保存された値がそのまま動作する値になるので、レールに見えるものが実際に回線に出るものです。
 - **すべてのサイトに適用**を、空のリストではなく明示的なモードとして扱います。`<all_urls>`
@@ -204,7 +204,8 @@ packages/        拡張バンドルの外にあるエージェントブリッジ
 下の表は*移植したときにぶつかるプラットフォームの天井*であって、サポート表ではありません。
 この拡張機能が立脚する API について、
 [MDN のブラウザ互換性データ](https://github.com/mdn/browser-compat-data)を、各ブラウザが
-最初に出荷したバージョンで読んだものです:
+最初に出荷したバージョンで読んだものです。Edge の列が数値でなく `✓` なのは、BCD が
+`mirror` と記録しているからです — Chrome に追随します:
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -212,7 +213,7 @@ packages/        拡張バンドルの外にあるエージェントブリッジ
 | レスポンスヘッダー (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **なし** |
 | サイト単位のランタイム権限 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | タブスコープのルール (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **なし** |
-| ネイティブメッセージング (`runtime.connectNative`) | 29 | ✓ | 50 | アプリコンテナ |
+| ネイティブメッセージング (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (包含アプリ) |
 
 このうち 2 つは書き出しておく価値があります:
 
@@ -239,7 +240,10 @@ pnpm test            # wxt build && vitest run — 単体テスト、ブラウ�
 pnpm test:packages   # エージェントブリッジのパッケージ群を node:test で — vitest の
                      # glob が届かないため独自の CI ジョブになっています
 pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test — 本物の Chrome
+pnpm test:e2e        # e2e モード 2 つをビルドして playwright test — 本物の Chrome
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint     (lint:fix で修正を適用)
+pnpm format:check    # oxfmt --check             (pnpm format で書き込み)
 pnpm build           # 本番ビルド → .output/chrome-mv3
 pnpm screenshots     # この README の画像を実際のポップアップから再生成
 ```
@@ -266,6 +270,19 @@ pnpm exec playwright install --with-deps --no-shell chromium
 `chromium-headless-shell` で、これは拡張機能を読み込めない縮小ビルドです — ところが上の
 2 つのコマンドは拡張機能を読み込むために存在します。完全なバイナリがないと、依存の欠落
 ではなくコードの問題に見える形で失敗します。
+
+**`pnpm screenshots` は追跡中の PNG を上書きします**(`docs/screenshots/`)。それがこの
+コマンドの仕事ですが、一度実行すると `git status` に変更が残ります — UI が実際に変わった
+ときだけコミットしてください。
+
+**e2e ビルドは配布ビルドにないホスト権限を持ちます。このページ冒頭の主張を考えれば、
+声に出して言う価値があります。** `pnpm test:e2e` は本番ディレクトリの隣に
+`.output/chrome-mv3-e2e` と `.output/chrome-mv3-bridge-e2e` を作ります。前者は
+`http://127.0.0.1/*` を宣言し(`wxt.config.ts`)、Playwright がクリックできない
+ランタイムのダイアログなしにローカルのエコーサーバを動かせるようにします。後者は
+`nativeMessaging` をそのまま付与します。`tests/unit/manifest.test.ts` がどちらも本番に
+届かないことを表明し、e2e スイートを走らせても `.output/chrome-mv3` には触れません —
+新しい本番ビルドは `pnpm build` で作ってください。
 
 残りは `../CLAUDE.md` が持っています: `lint` がなぜ `wxt prepare` を連結するのか、
 `postinstall` がなぜ一度も走らないことがあるのか、oxfmt が何をフォーマットし何をしないのか、

@@ -76,7 +76,8 @@ PATH resuelve primero la copia global.
   **respuesta**. Chrome limita `append` a una lista de 21 cabeceras permitidas en las
   peticiones, y HeaderLab señala la regla que queda fuera de ella — lo cual importa más de
   lo que parece, porque Chrome rechaza el conjunto de reglas entero en lugar de regla por
-  regla, así que una sola de esas detiene también todas las demás.
+  regla, así que una sola de esas detiene también todas las demás. Y no ocurre en silencio: el
+  popup muestra el fallo de registro.
 - **Ámbito por sitio.** Los sitios se emparejan por host: un puerto o una ruta se descartan
   al añadirlos, y el valor guardado es el valor que opera, así que lo que muestra el panel
   es lo que sale por el cable.
@@ -213,7 +214,8 @@ La tabla de abajo es *el techo de plataforma con el que se toparía un port*, no
 de compatibilidad — son los
 [datos de compatibilidad de MDN](https://github.com/mdn/browser-compat-data) para las APIs
 sobre las que está construida esta extensión, leídos en la versión en que cada navegador
-las publicó por primera vez:
+las publicó por primera vez. La columna de Edge es `✓` y no un número porque BCD la
+registra como `mirror` — sigue a la de Chrome:
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -221,7 +223,7 @@ las publicó por primera vez:
 | Cabeceras de respuesta (`RuleAction.responseHeaders`) | 86 | ✓ | 113 | **ninguna** |
 | Concesión por sitio en runtime (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Reglas por pestaña (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **ninguna** |
-| Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | app contenedora |
+| Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (app contenedora) |
 
 Dos de ellas merecen deletrearse:
 
@@ -249,7 +251,10 @@ pnpm test            # wxt build && vitest run — tests unitarios, sin navegado
 pnpm test:packages   # los paquetes del puente, bajo node:test — el glob de vitest
                      # no llega hasta ellos, así que es su propio job de CI
 pnpm check:all       # pnpm check && pnpm test:packages
-pnpm test:e2e        # wxt build --mode e2e && playwright test — Chrome de verdad
+pnpm test:e2e        # construye los dos modos e2e y lanza playwright test
+pnpm typecheck       # wxt prepare && tsc --noEmit
+pnpm lint            # wxt prepare && oxlint     (lint:fix para aplicar arreglos)
+pnpm format:check    # oxfmt --check             (pnpm format para escribir)
 pnpm build           # build de producción → .output/chrome-mv3
 pnpm screenshots     # regenera las imágenes de este README desde el popup real
 ```
@@ -276,6 +281,20 @@ pnpm exec playwright install --with-deps --no-shell chromium
 `chromium-headless-shell`, una build recortada que no puede cargar extensiones — y esos dos
 comandos existen precisamente para cargar una. Sin el binario completo fallan de una forma
 que parece un problema de código y no una dependencia que falta.
+
+**`pnpm screenshots` sobrescribe los PNG versionados** de `docs/screenshots/`. Ese es su
+trabajo, pero significa que una ejecución deja cambios en `git status`; haz commit de ellos
+solo cuando la UI haya cambiado de verdad.
+
+**La build de e2e lleva un permiso de host que la build publicada no tiene, y dada la
+primera afirmación de esta página merece decirse en voz alta.** `pnpm test:e2e` construye
+en `.output/chrome-mv3-e2e` y `.output/chrome-mv3-bridge-e2e`, junto al directorio de
+producción. El primero declara `http://127.0.0.1/*` (`wxt.config.ts`) para que la suite
+pueda usar un servidor de eco local sin un diálogo en tiempo de ejecución que Playwright no
+puede pulsar, y el segundo concede `nativeMessaging` directamente.
+`tests/unit/manifest.test.ts` afirma que ninguno de los dos llega nunca a producción, y
+ejecutar la suite e2e no toca `.output/chrome-mv3` — usa `pnpm build` para una build de
+producción fresca.
 
 `../CLAUDE.md` lleva el resto: por qué `lint` encadena `wxt prepare`, por qué
 `postinstall` puede no ejecutarse nunca, qué formatea y qué no formatea oxfmt, y las
