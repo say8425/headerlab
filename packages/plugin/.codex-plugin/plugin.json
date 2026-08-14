@@ -1,6 +1,6 @@
 {
   "name": "headerlab",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Drive the HeaderLab Chrome extension's header rules from Codex.",
   "author": {
     "name": "HeaderLab"
@@ -8,7 +8,11 @@
   "homepage": "https://github.com/say8425/headerlab",
   "repository": "https://github.com/say8425/headerlab",
   "license": "Apache-2.0",
-  "keywords": ["headerlab", "http-headers", "chrome-extension"],
+  "keywords": [
+    "headerlab",
+    "http-headers",
+    "chrome-extension"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "HeaderLab",
@@ -16,7 +20,10 @@
     "longDescription": "Talks to a running HeaderLab Chrome extension over its native-messaging bridge via the headerlab CLI: scope sites, add or remove header rules, pause or resume the whole rule set, or replace stored state wholesale. Every reply is one JSON object on stdout, success or failure, with the exit code following it.",
     "developerName": "HeaderLab",
     "category": "productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "defaultPrompt": "Use the headerlab CLI to inspect or change HeaderLab's header rules."
   }
 }
