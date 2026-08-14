@@ -7,42 +7,21 @@ import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
 import { effectiveDomain } from '@/lib/permissions/origins';
-import { probeAllSites, probeGrants, requestAllSites, requestHost } from '@/lib/permissions/probe';
+import {
+  probeAllSites,
+  probeGrants,
+  probeNativeMessaging,
+  removeNativeMessaging,
+  requestAllSites,
+  requestNativeMessaging,
+  requestHost,
+} from '@/lib/permissions/probe';
 import { getSyncStatus } from '@/lib/storage/session';
-import { createProfile } from '@/lib/model/defaults';
+import { bridgeStatusItem, DEFAULT_BRIDGE_STATUS, getBridgeStatus } from '@/lib/storage/session';
+import type { BridgeStatus } from '@/lib/storage/session';
+import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { Diagnostic, HeaderRule, Profile, ResourceType } from '@/lib/model/types';
-
-function newRule(): HeaderRule {
-  return {
-    id: crypto.randomUUID(),
-    enabled: true,
-    target: 'request',
-    operation: 'set',
-    name: '',
-    value: '',
-  };
-}
-
-/**
- * The implicit rule set, minted the first time the popup opens on empty
- * storage.
- *
- * `lib/model/defaults.ts` ships `profiles: []`, and a fresh install used to
- * open on a single "Create profile" button — a wall between the user and the
- * one thing this extension does. It starts with a rule already in it, because
- * the state worth opening on is one where a header name can be typed
- * immediately.
- *
- * Made **lazily, here**, rather than as a module constant. A constant would
- * have to call `crypto.randomUUID()` at import time, which mints an id on
- * every page that loads this module whether or not one is ever needed, and
- * gives the background and the popup different ids for what is supposed to be
- * the same rule set.
- */
-function bootstrapProfile(): Profile {
-  return { ...createProfile('Default', 0), headers: [newRule()] };
-}
 
 export default function App() {
   const { state, valid, patch } = useAppState();
@@ -56,6 +35,10 @@ export default function App() {
     lastError: null,
     iconError: null,
   });
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>(DEFAULT_BRIDGE_STATUS);
+  // `null` until the probe answers, for exactly the reason `allSitesGranted`
+  // is: the row must not offer Enable before the browser has been asked.
+  const [bridgeAllowed, setBridgeAllowed] = useState<boolean | null>(null);
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -187,6 +170,46 @@ export default function App() {
       .catch(() => setStatus({ lastError: null, iconError: null }));
   }, [state]);
 
+  /**
+   * Watched rather than polled. The background worker writes this record when
+   * the port opens, when it drops, and when a command is applied — three
+   * events the popup has no other way to learn about, and a popup that read
+   * once on mount would show a bridge as idle for as long as it stayed open.
+   *
+   * `[]` and not `[state]`: this subscription is about the port, not the rule
+   * set, and re-subscribing on every keystroke would tear down and rebuild the
+   * listener for nothing.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    getBridgeStatus()
+      .then((s) => {
+        if (!cancelled) setBridgeStatus(s);
+      })
+      .catch(() => {});
+    const unwatch = bridgeStatusItem.watch((value) => {
+      setBridgeStatus(value ?? DEFAULT_BRIDGE_STATUS);
+    });
+    return () => {
+      cancelled = true;
+      unwatch();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    probeNativeMessaging()
+      .then((allowed) => {
+        if (!cancelled) setBridgeAllowed(allowed);
+      })
+      .catch(() => {
+        if (!cancelled) setBridgeAllowed(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state]);
+
   // Said on screen, not only to a console nobody is watching. `state.ts` claims
   // its error exists "so a corrupted store is diagnosable, not just quietly
   // reset" — a devtools line in a popup that closes the moment you look away
@@ -269,6 +292,19 @@ export default function App() {
   const reason = suppressionReason(active);
   const blockedBy = reason !== null ? REASON_BLAME[reason] : state.globalPause ? 'pause' : null;
 
+  // The permission decides `off`; the port decides the other two. Kept in this
+  // order because a held permission with no port is the state that actually
+  // needs a remedy on screen, and reading the port first would hide it behind
+  // a bridge nobody enabled.
+  const bridgeMode =
+    bridgeAllowed === null
+      ? 'unknown'
+      : !bridgeAllowed
+        ? 'off'
+        : bridgeStatus.connected
+          ? 'live'
+          : 'idle';
+
   // Take the caret only when there is nothing else on screen to look at: one
   // rule, and it has no name yet. Anything more and the popup would be
   // grabbing focus from someone who opened it to read rather than to edit.
@@ -290,6 +326,24 @@ export default function App() {
         blockedBy={blockedBy}
         lastError={status.lastError}
         iconError={status.iconError}
+        bridge={bridgeMode}
+        bridgeLastCommandAt={bridgeStatus.lastCommandAt}
+        bridgeError={bridgeStatus.lastError}
+        onEnableBridge={async () => {
+          // The click is the user gesture `permissions.request()` requires.
+          // Nothing here opens the port: the background worker's
+          // `permissions.onAdded` listener does, and the record it writes is
+          // what this component is already watching. One path in, one path out.
+          const granted = await requestNativeMessaging();
+          if (mountedRef.current) setBridgeAllowed(granted);
+        }}
+        onDisableBridge={async () => {
+          const removed = await removeNativeMessaging();
+          // Re-probed rather than assumed. A removal that failed leaves the
+          // bridge reachable, and saying otherwise would be the one direction
+          // of under-reporting this product exists to rule out.
+          if (mountedRef.current) setBridgeAllowed(removed ? false : await probeNativeMessaging());
+        }}
         allSites={active.filter.allSites}
         allSitesGranted={allSitesGranted}
         onToggleAllSites={(next) => {

@@ -98,3 +98,66 @@ export async function requestAllSites(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The one permission the agent bridge needs, and the only optional
+ * *permission* (as opposed to optional host permission) this extension
+ * declares. Named once here so the popup, the adapter and the tests cannot
+ * spell it three ways.
+ */
+export const NATIVE_MESSAGING = 'nativeMessaging';
+
+/**
+ * Whether the bridge permission is already held.
+ *
+ * `{permissions: [...]}`, never `{origins: [...]}` — this is not a host, and
+ * `contains()` answers a nonsense origin with a calm `false` rather than an
+ * error, so the wrong shape would read as "the user declined" forever.
+ *
+ * Throws are reported as not-granted for the same reason `covers()` does it:
+ * a throw is not an answer, and this product's rule is that a state it cannot
+ * establish is shown as the one that offers a remedy.
+ */
+export async function probeNativeMessaging(): Promise<boolean> {
+  try {
+    return await browser.permissions.contains({ permissions: [NATIVE_MESSAGING] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Asks for the bridge permission. Must be called from a user gesture — the
+ * popup's Enable button click is that gesture, and it is the only caller.
+ *
+ * Nothing else rides along in the request. The consent dialog Chrome draws is
+ * the user's only view of what is being asked for, so bundling a host pattern
+ * into the same call would put a grant they did not read behind a button
+ * labelled Enable.
+ */
+export async function requestNativeMessaging(): Promise<boolean> {
+  try {
+    return await browser.permissions.request({ permissions: [NATIVE_MESSAGING] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Gives the bridge permission back. This is what "turning it off is physical"
+ * means: without the permission the port cannot open, Chrome kills the host,
+ * and the socket file disappears — there is no flag left that could claim the
+ * bridge is alive.
+ *
+ * A failure is reported as `false` rather than swallowed. Reporting success
+ * here would leave the popup saying the bridge is off while it is still
+ * reachable, which is the exact direction of under-reporting this product
+ * exists to rule out.
+ */
+export async function removeNativeMessaging(): Promise<boolean> {
+  try {
+    return await browser.permissions.remove({ permissions: [NATIVE_MESSAGING] });
+  } catch {
+    return false;
+  }
+}

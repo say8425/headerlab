@@ -43,6 +43,15 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     onRemoveDomain: vi.fn(),
     onToggleType: vi.fn(),
     onGrant: vi.fn(),
+    // `unknown` would make every existing test render a row with no control,
+    // which is not what those tests are about. `off` is the state a fresh
+    // install actually opens in, so it is the honest default here — and the
+    // tests that are about the other three opt into them by name.
+    bridge: 'off',
+    bridgeLastCommandAt: null,
+    bridgeError: null,
+    onEnableBridge: vi.fn(),
+    onDisableBridge: vi.fn(),
     ...over,
   };
 }
@@ -787,5 +796,155 @@ describe('scope notes', () => {
       'Rules not registeredRule 3 is invalid',
     );
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
+  });
+});
+
+describe('the bridge row', () => {
+  it.each([
+    ['off', 'Bridge off', 'Enable'],
+    ['idle', 'Bridge idle', 'Disable'],
+    ['live', 'Bridge live', 'Disable'],
+  ])('%s reads "%s" with a %s button', (mode, label, button) => {
+    render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual(`${label}${button}`);
+  });
+
+  it('says nothing and offers no control while the probe is still out', () => {
+    // Same rule as the all-sites row's `allSitesGranted: null`: a popup that
+    // showed "Bridge off" with an Enable button for a tenth of a second and
+    // then withdrew it is the flicker that teaches people to distrust the
+    // screen. Absence asserted before presence — an "always renders Enable"
+    // implementation would pass a presence-only check.
+    render(<ScopeRail {...props({ bridge: 'unknown' })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual('Bridge');
+    expect(row.querySelector('button')).toBeNull();
+  });
+
+  it('keeps the row the same height in every state', () => {
+    // State changes appearance, not geometry (CLAUDE.md, Interface). The
+    // class list is what the e2e measures; here it is enough that all four
+    // states render the same box classes.
+    const heights = new Set(
+      (['unknown', 'off', 'idle', 'live'] as const).map((bridge) => {
+        const { unmount } = render(<ScopeRail {...props({ bridge })} />);
+        const cls = screen.getByTestId('bridgestate').className;
+        unmount();
+        return cls;
+      }),
+    );
+    expect(heights.size).toEqual(1);
+  });
+
+  it('carries the last external write in a title rather than a second line', () => {
+    render(
+      <ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: '2026-08-12T09:30:00.000Z' })} />,
+    );
+    const label = screen.getByTestId('bridge-label');
+    // The exact string, not "contains a date": the rail has 28px and this is
+    // the only place the fact is stated, so a title that dropped the value and
+    // kept the prefix would look right and say nothing.
+    expect(label.getAttribute('title')).toEqual(
+      `Last change through the bridge: ${new Date('2026-08-12T09:30:00.000Z').toLocaleString()}`,
+    );
+  });
+
+  it('has no title at all when nothing has come through', () => {
+    render(<ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: null })} />);
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
+  });
+
+  // A separate box for this state used to live here — deleted (see
+  // ScopeRail.tsx's `bridgeUnreachable` docblock and the site-list docblock's
+  // "not hypothetical" paragraph) because the rail has no free height for a
+  // box that only sometimes exists, and it collapsed the site list to
+  // nothing under real content pressure. The error now folds into the row
+  // that already exists, so these tests replace the two above rather than
+  // testing a `bridge-error` element that no longer renders.
+  describe('an unreachable bridge (idle, with an error)', () => {
+    it('keeps the row the exact same box as every other bridge state', () => {
+      // Assertion 1 at the unit level: geometry must not depend on whether
+      // there is an error. The e2e suite (bridge-rail.spec.ts) makes the same
+      // check against real layout; this is the fast, always-run half of it.
+      const withError = render(
+        <ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />,
+      );
+      const errorClass = screen.getByTestId('bridgestate').className;
+      withError.unmount();
+
+      const withoutError = render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
+      const plainClass = screen.getByTestId('bridgestate').className;
+      withoutError.unmount();
+
+      expect(errorClass).toEqual(plainClass);
+    });
+
+    it('swaps the dot to the pending colour and the label to "Bridge down"', () => {
+      render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+      const row = screen.getByTestId('bridgestate');
+      expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
+      // "Bridge down", not "Bridge unreachable" — the latter measured 115px
+      // against this row's 87.15625px label budget and wrapped to two
+      // lines. ScopeRail.tsx's `bridge-label` docblock has the full
+      // measurement and the two other candidates rejected on it.
+      expect(screen.getByTestId('bridge-label').textContent).toEqual('Bridge down');
+    });
+
+    it('carries the command and Chrome’s own words in title, not on the row', () => {
+      render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+      const row = screen.getByTestId('bridgestate');
+      const label = screen.getByTestId('bridge-label');
+      // What to run is on screen only via title — the row's own text is
+      // exactly assertion 4's "Bridge down", checked above.
+      expect(row.textContent).toEqual('Bridge downDisable');
+      const title = label.getAttribute('title');
+      // The remedy leads; Chrome's string trails it — checked as two
+      // separate assertions rather than one exact string so the order is
+      // pinned without also pinning incidental punctuation between them.
+      expect(title).toContain('headerlab bridge install');
+      expect(title!.indexOf('headerlab bridge install')).toBeLessThan(
+        title!.indexOf('Native host has exited.'),
+      );
+      // Chrome's own words, kept verbatim. A title that translated them into
+      // one of the three possible causes would be a guess presented as a
+      // diagnosis — Chrome gives the same message for all three (measured,
+      // see ScopeRail.tsx's `bridge-label` docblock).
+      expect(title).toContain('Native host has exited.');
+    });
+  });
+
+  // Assertion 4, absence before presence: the ordinary idle state — the one
+  // every install passes through between Enable and running the installer,
+  // with no error yet reported — must not borrow any part of the error
+  // treatment above.
+  it('reads plain "Bridge idle" with no title when idle and not (yet) an error', () => {
+    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.textContent).toEqual('Bridge idleDisable');
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
+    expect(row.querySelector('[aria-hidden="true"]')!.className).not.toContain('bg-pending');
+  });
+
+  it('shows no bridge-error element at all — its subject is gone', () => {
+    // The old note's testid must not resurrect itself under a different code
+    // path. A stale error from before the permission was withdrawn must also
+    // not accuse a bridge nobody has turned on.
+    render(<ScopeRail {...props({ bridge: 'off', bridgeError: 'Native host has exited.' })} />);
+    expect(screen.queryByTestId('bridge-error')).toBeNull();
+  });
+
+  it('calls enable from the off state and disable from the others', () => {
+    const onEnableBridge = vi.fn();
+    const onDisableBridge = vi.fn();
+    for (const bridge of ['off', 'idle', 'live'] as const) {
+      const { unmount } = render(
+        <ScopeRail {...props({ bridge, onEnableBridge, onDisableBridge })} />,
+      );
+      screen.getByTestId('bridgestate').querySelector('button')!.click();
+      unmount();
+    }
+    expect(onEnableBridge).toHaveBeenCalledTimes(1);
+    expect(onDisableBridge).toHaveBeenCalledTimes(2);
   });
 });

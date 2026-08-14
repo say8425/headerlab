@@ -1,4 +1,4 @@
-import type { AppState, Profile, ProfileColor } from '@/lib/model/types';
+import type { AppState, HeaderRule, Profile, ProfileColor } from '@/lib/model/types';
 
 /**
  * The identity colours a profile can be given — by the picker and by the
@@ -65,3 +65,44 @@ export const DEFAULT_STATE: AppState = {
   globalPause: false,
   theme: 'system',
 };
+
+/**
+ * One new rule row. Being born nameless is normal — the popup creates a rule
+ * blank, which is why `incomplete-header` exists as a diagnostic separate
+ * from `invalid-header-name`.
+ */
+export function newRule(): HeaderRule {
+  return {
+    id: crypto.randomUUID(),
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: '',
+    value: '',
+  };
+}
+
+/**
+ * The implicit rule set created the first time an empty store is opened.
+ *
+ * **It holds a rule already, and that is the point of it.** `DEFAULT_STATE`
+ * ships `profiles: []`, and a fresh install used to open on a single "Create
+ * profile" button — a wall between the user and the one thing this extension
+ * does. The state worth opening on is one where a header name can be typed
+ * immediately, so `headers: [newRule()]` is a requirement rather than a
+ * convenience. Emptying it puts the wall back.
+ *
+ * **A function, not a module constant.** As a constant, `crypto.randomUUID()`
+ * would run at import time, minting an id nobody uses every time, and leaving
+ * the background and the popup with different ids for what should be the same
+ * rule set.
+ *
+ * The popup (App.tsx) and the bridge (lib/bridge/apply.ts) **both call this.**
+ * Do not write a second copy. Same shape as SELECTABLE_COLORS above, and as
+ * the aliveness predicate that was implemented four times before landing in
+ * lib/compile/suppression.ts — a second statement of one fact eventually
+ * disagrees with the first.
+ */
+export function bootstrapProfile(): Profile {
+  return { ...createProfile('Default', 0), headers: [newRule()] };
+}

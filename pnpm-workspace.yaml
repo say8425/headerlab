@@ -16,3 +16,16 @@
 # version that does not own them, so a guess reads as working and is not.
 allowBuilds:
   spawn-sync: false
+
+# The extension itself stays at the repository root, and that is load-bearing
+# rather than tidy: release-please prefixes every output with the package path
+# once that path is not `.`, which would leave five conditions in
+# release-please.yml evaluating false — tagging a release with no check, no
+# zip and no attached artifact, in the one job holding contents: write, with
+# nothing going red. See the design document §6.1.
+#
+# Named, not globbed. A glob lets a directory join the release surface without
+# appearing in a diff.
+packages:
+  - packages/headerlab
+  - packages/plugin

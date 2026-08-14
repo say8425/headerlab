@@ -53,6 +53,15 @@ const BUILDS = {
       'run `pnpm test:e2e` (or `pnpm build:e2e` before `playwright test`) — ' +
       'not a bare `playwright test`, and not a plain `pnpm build`',
   },
+  // tests/e2e/bridge.spec.ts's own build, via bridge-fixtures.ts — kept out
+  // of `e2e` above so granting nativeMessaging outright (wxt.config.ts's
+  // `bridge-e2e` branch) cannot change what any other e2e test's popup
+  // renders. See that branch's docblock for the layout guards this split
+  // exists to protect.
+  'bridge-e2e': {
+    dir: '.output/chrome-mv3-bridge-e2e',
+    fix: 'run `pnpm test:e2e`, which builds this mode too — not a bare `playwright test`',
+  },
 } as const;
 
 export type BuildMode = keyof typeof BUILDS;

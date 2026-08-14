@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>HeaderLab — Agent bridge 표시 위치 시안</title>
+<style>
+/*
+ * 세 가지 배치안을 실제 치수로 그린다. 레일은 224×600, 값은 전부
+ * entrypoints/popup/style.css 의 두 팔레트에서 그대로 옮겼다.
+ *
+ * 이 파일은 docs/ 아래이므로 Tailwind 의 @source not 과 oxfmt 의
+ * ignorePatterns 양쪽에 이미 걸려 있다 — 새 예외를 만들지 않는다.
+ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+.light {
+  --background:#ffffff; --foreground:#14161c; --foreground-2:#454b57;
+  --muted-foreground:#5c6371; --card:#ffffff; --border:#d5d9e1;
+  --tray:#e9ecf1; --rowoff:#f1f3f7; --rail:#f0f1f4; --rail-border:#d5d9e1;
+  --input:#7a8593; --primary:#14161c; --primary-foreground:#ffffff;
+  --ring:#1a56c4; --boundary:#767d8c; --live:#0d6b41; --pending:#8a5200;
+  --pending-bg:#fbefdb; --destructive:#b3261e;
+  --shadow: 0 1px 2px rgb(20 22 28 / .06), 0 1px 1px rgb(20 22 28 / .04);
+}
+.dark {
+  --background:#0b0f14; --foreground:#e7eef6; --foreground-2:#a6b3c1;
+  --muted-foreground:#8b98a6; --card:#161d25; --border:#242d38;
+  --tray:#0e1319; --rowoff:#121821; --rail:#141a21; --rail-border:#232b36;
+  --input:#5f6b79; --primary:#e7eef6; --primary-foreground:#0b0f14;
+  --ring:#7fb8f0; --boundary:#7b8694; --live:#4cde84; --pending:#f0b45c;
+  --pending-bg:#2c2113; --destructive:#f08c7c;
+  --shadow: 0 1px 2px rgb(0 0 0 / .5);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #f6f7f9; color: #14161c; padding: 32px 40px 64px;
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 20px; letter-spacing: -.02em; margin-bottom: 6px; }
+.lede { font-size: 13px; line-height: 1.6; color: #454b57; max-width: 76ch; }
+.lede b { color: #b3261e; }
+.lede code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #e9ecf1; padding: 1px 4px; border-radius: 3px; }
+
+section { margin-top: 40px; border-top: 1px solid #d5d9e1; padding-top: 24px; }
+h2 { font-size: 15px; letter-spacing: -.01em; margin-bottom: 4px; }
+h2 .tag { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; margin-left: 8px; vertical-align: 2px; }
+.tag.free  { background: #dff0e6; color: #0d6b41; }
+.tag.tight { background: #fbefdb; color: #8a5200; }
+.tag.cost  { background: #fadedb; color: #b3261e; }
+.why { font-size: 12.5px; line-height: 1.65; color: #454b57; max-width: 70ch; margin-bottom: 16px; }
+.why b { color: #14161c; }
+
+.row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.cap { font-size: 10.5px; font-weight: 600; color: #5c6371; margin-bottom: 6px; letter-spacing: .02em; text-transform: uppercase; }
+
+/* ---------- the rail, at real size ---------- */
+.rail {
+  width: 224px; height: 600px; background: var(--rail);
+  border-right: 1px solid var(--rail-border);
+  padding: 12px 0; display: flex; flex-direction: column;
+  color: var(--foreground); overflow: hidden;
+  border-radius: 6px;
+}
+.brand { display: flex; height: 24px; flex-shrink: 0; align-items: center; gap: 8px; padding: 0 12px; }
+.logo { display:flex; width:24px; height:24px; flex-shrink:0; align-items:center; justify-content:center;
+        border-radius:6px; background: var(--foreground); color: var(--background); }
+.brandname { font-size:14px; line-height:18px; font-weight:600; letter-spacing:-.014em; }
+
+.card { margin: 0 12px; border-radius: 10px; background: var(--card); padding: 12px; box-shadow: var(--shadow); flex-shrink: 0; }
+.card.top { margin-top: 16px; }
+
+.count { display:flex; height:28px; align-items:baseline; gap:7px; font-variant-numeric: tabular-nums; }
+.count b { font-size:24px; line-height:28px; letter-spacing:-.03em; font-weight:650; }
+.count span { font-size:12px; line-height:16px; font-weight:500; color: var(--foreground-2); }
+.sub { margin-top:4px; display:flex; height:16px; align-items:center; gap:5px;
+       font-size:11px; line-height:14px; font-weight:500; color: var(--foreground-2); }
+.dot { width:6px; height:6px; border-radius:999px; flex-shrink:0; }
+.dot.off  { background: var(--input); }
+.dot.live { background: var(--live); }
+.dot.mute { background: var(--muted-foreground); }
+
+.statusrow { margin-top:12px; display:flex; height:20px; align-items:center; gap:7px; }
+.statusrow .label { font-size:12px; line-height:16px; font-weight:600; }
+.spacer { flex: 1; }
+
+.sw { width:30px; height:16px; border-radius:999px; flex-shrink:0; position:relative; background: var(--input); }
+.sw.on { background: var(--live); }
+.sw::after { content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:999px; background:#fff; }
+.sw.on::after { left:16px; }
+
+.btn { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5px;
+       font-size:11px; line-height:14px; font-weight:600; border:1px solid var(--boundary);
+       background: var(--card); color: var(--foreground); }
+.btn.primary { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+
+.head { display:flex; height:20px; flex-shrink:0; align-items:center; gap:6px; padding:0 12px;
+        font-size:11px; line-height:14px; font-weight:600; color: var(--foreground-2); margin-top:16px; }
+.head .n { font-weight:500; color: var(--muted-foreground); }
+
+.siterow { margin: 6px 12px 0; height:48px; border-radius:8px; background: var(--card);
+           box-shadow: var(--shadow); display:flex; align-items:center; gap:4px;
+           padding: 4px 6px 4px 10px; flex-shrink:0; }
+.siterow .col { display:flex; min-width:0; flex:1; flex-direction:column; gap:4px; }
+.siterow .l1 { display:flex; height:16px; align-items:center; gap:6px; }
+.siterow .name { font-size:12px; line-height:16px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.siterow .l2 { display:flex; height:20px; align-items:center; padding-left:20px;
+               font-size:11px; line-height:14px; }
+.ok  { color: var(--live); font-weight:600; }
+.mut { color: var(--muted-foreground); font-weight:500; }
+.glyph { width:14px; height:14px; flex-shrink:0; }
+.glyph.live { color: var(--live); }
+.glyph.pend { color: var(--pending); }
+
+.addsite { margin: 6px 12px 0; height:40px; border-radius:8px; border:1px dashed var(--boundary);
+           display:flex; align-items:center; justify-content:center; gap:6px; flex-shrink:0;
+           font-size:12px; font-weight:500; color: var(--muted-foreground); }
+
+.types { margin-top:auto; flex-shrink:0; padding-top:12px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; padding:6px 12px 0; }
+.chk { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:500; }
+.box { width:14px; height:14px; border-radius:4px; border:1.5px solid var(--boundary); flex-shrink:0; }
+.box.on { background: var(--foreground); border-color: var(--foreground); }
+
+/* the new element, highlighted so it reads out of the rail at a glance */
+.new { position: relative; }
+.new::before {
+  content:""; position:absolute; inset:-4px; border-radius:12px;
+  border:1.5px dashed #1a56c4; pointer-events:none;
+}
+
+/* ---------- option A: a fourth line in the readout card ---------- */
+.bridgeline { margin-top:8px; display:flex; height:20px; align-items:center; gap:7px; }
+.bridgeline .label { font-size:12px; line-height:16px; font-weight:600; }
+
+/* ---------- option C: a chip in the brand row ---------- */
+.chip { display:inline-flex; align-items:center; gap:5px; height:18px; padding:0 7px;
+        border-radius:999px; font-size:10px; line-height:12px; font-weight:700;
+        letter-spacing:.03em; border:1px solid var(--boundary); color: var(--muted-foreground); }
+.chip.live { border-color: var(--live); color: var(--live); }
+
+/* ---------- state strips ---------- */
+.states { display:flex; flex-direction:column; gap:10px; }
+.state { width: 224px; padding: 0; }
+.state .hint { font-size:10.5px; color:#5c6371; margin-top:4px; line-height:1.4; }
+.frame { background: var(--rail); border:1px solid var(--rail-border); border-radius:8px; padding:8px 0; }
+</style>
+</head>
+<body>
+
+<h1>Agent bridge — 팝업 표시 위치 시안</h1>
+<p class="lede">
+  세로 예산이 이 결정을 좌우합니다. 레일은 224×600 이고, 사이트 목록의
+  <code>max-height:132px</code> 는 <b>일부러 행 피치(54px)의 배수가 아니게</b> 잡혀
+  세 번째 행을 반쯤 잘라 "더 있다"를 말합니다. 그 아래 요청 타입 체크리스트까지 두고 남는
+  여유는 <b>28px</b> 뿐입니다. 그보다 큰 요소를 넣으면 잘린 행이 온전한 행이 되어
+  affordance 가 사라지거나, 체크리스트가 내려앉습니다.
+  아래 숫자는 소스에서 읽은 값이며, 최종 확정 전에 빌드된 팝업에서 다시 재야 합니다.
+</p>
+
+<!-- ============================= OPTION A ============================= -->
+<section>
+  <h2>안 A — 리드아웃 카드의 네 번째 줄 <span class="tag tight">+28px · 여유를 정확히 다 씀</span></h2>
+  <p class="why">
+    브리지를 <b>Active / Paused 와 같은 등급의 상태</b>로 놓습니다. "지금 이 확장이 어떤
+    상태인가"를 한 카드가 전부 답하게 되고, 새 카드도 새 어휘도 생기지 않습니다.
+    다만 컨트롤은 <b>스위치가 아니라 버튼</b>입니다 — all-sites 스위치가
+    <code>permissions.request()</code> 를 부르지 않도록 고쳐진 바로 그 이유("컨트롤이
+    움직였다는 이유로 권한 대화상자를 띄우는 것") 때문입니다. 켜기는 Enable 버튼,
+    끄기는 Disable 버튼.
+  </p>
+  <div class="row">
+    <div>
+      <div class="cap">light · 붙어 있음</div>
+      <div class="light rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+          <div class="bridgeline new"><span class="dot live"></span><span class="label">Bridge live</span><span class="spacer"></span><span class="btn">Disable</span></div>
+        </div>
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">staging.example.c…</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap">dark · 붙어 있음</div>
+      <div class="dark rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+          <div class="bridgeline new"><span class="dot live"></span><span class="label">Bridge live</span><span class="spacer"></span><span class="btn">Disable</span></div>
+        </div>
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">staging.example.c…</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="cap">네 가지 상태 (light)</div>
+      <div class="light state frame">
+        <div class="card" style="margin:0 12px; box-shadow:none; background:transparent; padding:0 0">
+          <div class="bridgeline" style="margin:0 0 0 0; padding:0 12px 0 0"><span class="dot mute"></span><span class="label">Bridge off</span><span class="spacer"></span><span class="btn">Enable</span></div>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한 없음 — 유일하게 브라우저에 무언가를 요구하는 버튼</p>
+
+      <div class="light state frame">
+        <div class="bridgeline" style="margin:0; padding:0 12px"><span class="dot mute"></span><span class="label">Bridge idle</span><span class="spacer"></span><span class="btn">Disable</span></div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한은 있고 CLI 는 안 붙음</p>
+
+      <div class="light state frame">
+        <div class="bridgeline" style="margin:0; padding:0 12px"><span class="dot live"></span><span class="label">Bridge live</span><span class="spacer"></span><span class="btn">Disable</span></div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">CLI 가 붙어 있음 — 마지막 외부 쓰기는 tooltip</p>
+
+      <div class="dark state frame">
+        <div class="bridgeline" style="margin:0; padding:0 12px"><span class="dot live"></span><span class="label">Bridge live</span><span class="spacer"></span><span class="btn">Disable</span></div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">dark 대응</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= OPTION B ============================= -->
+<section>
+  <h2>안 B — Sites 위의 독립 카드 <span class="tag cost">+54px · 사이트 목록이 줄어듦</span></h2>
+  <p class="why">
+    All sites 행과 <b>완전히 같은 문법</b>입니다 — 글리프 슬롯, 라벨, 그리고 항상 자리를
+    비워둔 둘째 줄에 버튼이나 문장이 들어갑니다. 가장 읽기 쉽고, "마지막 외부 쓰기 14:22"
+    같은 문장을 <b>tooltip 이 아니라 화면에</b> 놓을 수 있는 유일한 안입니다.
+    대가가 정직하게 큽니다: 54px 은 여유(28px)를 넘으므로 사이트 목록 max-height 가
+    132 → 108 로 내려가고, <b>일부러 반쯤 자른 세 번째 행이 사라집니다</b>.
+    즉 이 안을 고르면 그 측정값을 다시 잡아야 합니다.
+  </p>
+  <div class="row">
+    <div>
+      <div class="cap">light · 붙어 있음</div>
+      <div class="light rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+        </div>
+
+        <div class="siterow new" style="margin-top:16px">
+          <div class="col">
+            <div class="l1">
+              <svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+              <span class="name">Agent bridge</span>
+            </div>
+            <div class="l2 ok">Client attached · 14:22</div>
+          </div>
+          <span class="btn">Disable</span>
+        </div>
+
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">staging.example.c…</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap">dark · 붙어 있음</div>
+      <div class="dark rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+        </div>
+        <div class="siterow new" style="margin-top:16px">
+          <div class="col">
+            <div class="l1">
+              <svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+              <span class="name">Agent bridge</span>
+            </div>
+            <div class="l2 ok">Client attached · 14:22</div>
+          </div>
+          <span class="btn">Disable</span>
+        </div>
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="cap">세 가지 상태 (light)</div>
+      <div class="light state frame">
+        <div class="siterow" style="margin:0 12px">
+          <div class="col">
+            <div class="l1"><span class="glyph"></span><span class="name">Agent bridge</span></div>
+            <div class="l2"><span class="btn primary">Enable</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한 없음 — Grant 와 같은 자리, 같은 크기</p>
+
+      <div class="light state frame">
+        <div class="siterow" style="margin:0 12px">
+          <div class="col">
+            <div class="l1"><svg class="glyph pend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg><span class="name">Agent bridge</span></div>
+            <div class="l2 mut">Waiting for a client</div>
+          </div>
+          <span class="btn">Disable</span>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한은 있고 CLI 는 안 붙음</p>
+
+      <div class="dark state frame">
+        <div class="siterow" style="margin:0 12px">
+          <div class="col">
+            <div class="l1"><svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg><span class="name">Agent bridge</span></div>
+            <div class="l2 ok">Client attached · 14:22</div>
+          </div>
+          <span class="btn">Disable</span>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">dark · 붙어 있음</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= OPTION C ============================= -->
+<section>
+  <h2>안 C — 브랜드 행의 칩 <span class="tag free">+0px · 이미 비어 있는 공간</span></h2>
+  <p class="why">
+    브랜드 행은 <code>h-6</code> 로 이미 자리가 잡혀 있고 오른쪽 <b>약 130px 이 비어</b>
+    있습니다. 칩을 거기 놓으면 세로 예산을 <b>한 픽셀도</b> 쓰지 않고, 슬롯이 늘 존재하므로
+    reflow 가 원천적으로 불가능합니다 — 이 저장소가 가장 강하게 요구하는 규칙을
+    공짜로 만족합니다. 브리지는 스코프도 규칙도 아닌 <b>확장 자체에 대한 사실</b>이므로,
+    크롬(brand row)에 두는 것이 의미상으로도 맞습니다.
+    대가: 칩 하나에 담기는 정보가 적어 "마지막 외부 쓰기"는 tooltip 으로 밀리고,
+    Enable 은 칩을 눌러 열리는 작은 팝오버 안에 들어갑니다.
+  </p>
+  <div class="row">
+    <div>
+      <div class="cap">light · 붙어 있음</div>
+      <div class="light rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+          <span class="spacer"></span>
+          <span class="chip live new">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+            CLI
+          </span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+        </div>
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">staging.example.c…</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap">dark · 붙어 있음</div>
+      <div class="dark rail">
+        <div class="brand">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span>
+          <span class="spacer"></span>
+          <span class="chip live new">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+            CLI
+          </span>
+        </div>
+        <div class="card top">
+          <div class="count"><b>3</b><span>of 4 rules live</span></div>
+          <div class="sub"><span class="dot off"></span>1 off</div>
+          <div class="statusrow"><span class="dot live"></span><span class="label">Active</span><span class="spacer"></span><span class="sw on"></span></div>
+        </div>
+        <div class="head">Sites <span class="n">2</span></div>
+        <div class="siterow">
+          <div class="col">
+            <div class="l1"><svg class="glyph live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="name">api.example.com</span></div>
+            <div class="l2 ok">Access granted</div>
+          </div>
+        </div>
+        <div class="addsite">+ add a site</div>
+        <div class="types">
+          <div class="head" style="margin-top:0">Request types <span class="n">3 of 8</span></div>
+          <div class="grid">
+            <span class="chk"><span class="box on"></span>main_frame</span><span class="chk"><span class="box on"></span>sub_frame</span>
+            <span class="chk"><span class="box on"></span>xhr</span><span class="chk"><span class="box"></span>script</span>
+            <span class="chk"><span class="box"></span>stylesheet</span><span class="chk"><span class="box"></span>image</span>
+            <span class="chk"><span class="box"></span>font</span><span class="chk"><span class="box"></span>media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="cap">칩의 세 상태</div>
+      <div class="light state frame">
+        <div class="brand" style="height:24px">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span><span class="spacer"></span>
+          <span class="chip">CLI off</span>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한 없음 — 누르면 팝오버에서 Enable</p>
+
+      <div class="light state frame">
+        <div class="brand" style="height:24px">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span><span class="spacer"></span>
+          <span class="chip">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+            CLI</span>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">권한 있음, 안 붙음 — 외곽선만</p>
+
+      <div class="dark state frame">
+        <div class="brand" style="height:24px">
+          <span class="logo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></span>
+          <span class="brandname">HeaderLab</span><span class="spacer"></span>
+          <span class="chip live">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+            CLI</span>
+        </div>
+      </div>
+      <p class="hint" style="font-size:10.5px;color:#5c6371;margin-top:-4px">dark · 붙어 있음</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>추천</h2>
+  <p class="why">
+    <b>안 A</b>. 브리지는 Active/Paused 와 같은 등급의 "이 확장이 지금 어떤 상태인가"이고,
+    그 질문에 답하는 카드가 이미 있습니다. 28px 은 여유 안에 정확히 들어가므로 사이트
+    목록의 잘린-행 측정값을 건드리지 않습니다. 컨트롤을 스위치가 아닌 버튼으로 두는 것이
+    이 안의 핵심이고, 그건 all-sites 스위치가 이미 배운 교훈입니다.
+    <br><br>
+    <b>안 C</b> 는 세로 예산이 정말 빠듯한 것으로 드러나면 물러설 자리입니다 — 0px 이고
+    reflow 가 불가능하지만, 정보가 tooltip 으로 밀립니다.
+    <b>안 B</b> 는 가장 읽기 쉬우나 사이트 목록의 의도된 측정값을 깨므로, 그 비용을
+    감수할 이유가 따로 있어야 합니다.
+  </p>
+</section>
+
+</body>
+</html>

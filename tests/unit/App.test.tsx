@@ -849,6 +849,71 @@ describe('editing rules', () => {
   });
 });
 
+describe('the bridge row', () => {
+  it('says nothing before the permission probe answers', async () => {
+    // A promise that never settles is the honest model of "the probe is still
+    // out" — a resolved `false` would be testing the off state instead.
+    vi.spyOn(probe, 'probeNativeMessaging').mockReturnValue(new Promise(() => {}));
+    await seed(stateWith());
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByTestId('bridgestate')).toBeTruthy());
+    expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('unknown');
+  });
+
+  it('reads live from the session record, not from the permission', async () => {
+    // Permission held and a port open are two different facts. An
+    // implementation that derived `live` from the permission alone would call
+    // a bridge live with no host installed — the single most misleading thing
+    // this row could say, and the exact state `bridge install` exists to fix.
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(true);
+    await seed(stateWith());
+    await fakeBrowser.storage.session.set({
+      bridgeStatus: { connected: false, lastCommandAt: null, lastError: null },
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('idle'),
+    );
+  });
+
+  it('turns live once the worker records a connected port', async () => {
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(true);
+    await seed(stateWith());
+    await fakeBrowser.storage.session.set({
+      bridgeStatus: { connected: true, lastCommandAt: null, lastError: null },
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('live'),
+    );
+  });
+
+  it('asks for the permission when Enable is clicked, and only then', async () => {
+    // The button is the user gesture. Nothing else in the popup may reach
+    // `permissions.request()` — the all-sites switch already had that removed
+    // for the same reason.
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
+    const request = vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue(true);
+    await seed(stateWith());
+
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('off'),
+    );
+    expect(request).toHaveBeenCalledTimes(0);
+
+    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('button'));
+
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('all-sites mode', () => {
   const allSitesSwitch = () => screen.getByRole('switch', { name: 'Apply to every site' });
 

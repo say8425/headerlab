@@ -11,9 +11,11 @@ product. When a change trades either away for convenience, the change is wrong.
 ## Commands
 
 ```bash
-pnpm check           # typecheck · lint · format:check · test — four of CI's five jobs, in one command
+pnpm check           # typecheck · lint · format:check · test — four of CI's six jobs, in one command
 pnpm test            # wxt build && vitest run  — the build is not optional, see below
-pnpm test:e2e        # wxt build --mode e2e && playwright test
+pnpm test:e2e        # wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test
+pnpm test:packages   # pnpm -r test — the agent-bridge packages, node:test, invisible to vitest
+pnpm check:all       # pnpm check && pnpm -r test — everything above, in one command
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 pnpm format:check    # oxfmt --check            (pnpm format to write)
@@ -42,6 +44,8 @@ lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer) pure ·
+                 port.ts is its one browser caller
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
 lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
@@ -54,6 +58,11 @@ entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
                  that exposes them as utilities, and the shadcn data-* variants
 public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
+packages/        the agent-bridge pnpm workspace — headerlab (the `headerlab`
+                 CLI plus the native-messaging host it installs, published to
+                 npm), plugin (Claude Code / Codex skill, not published).
+                 Zero runtime deps, node:test, own CI job. See README's
+                 "Agent bridge" section for the design.
 ```
 
 **Decision logic lives in a pure layer; browser calls live in one thin adapter each.**
@@ -65,12 +74,18 @@ constraint produced.
 `tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
 above calls pure.** Two directories are auto-discovered, so a new file in either is
 guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
-of exactly three files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts` and
-`lib/model/migrate.ts` — because `lib/permissions/` also holds the adapter (`probe.ts`)
-that must *not* be guarded, so there is no directory-shaped rule to apply. `schema.ts`,
-`defaults.ts`, `types.ts` and `lib/utils.ts` are pure by convention and unguarded in
-fact. A new pure file outside those two directories is unguarded until someone adds it
-by name.
+of exactly seven files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
+`lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
+`lib/bridge/apply.ts` and `lib/model/schema.ts`. `lib/permissions/` and `lib/bridge/`
+each also hold an adapter that must *not* be guarded — `probe.ts` and `port.ts` — so
+neither directory has a directory-shaped rule to apply. `defaults.ts`
+and `schema.ts` are named individually for the same one-hop reason: the guard only scans
+a file's own source, so if guarded `lib/bridge/apply.ts` imports either as a runtime
+value — `bootstrapProfile`/`newRule` from `defaults.ts`, `parseAppState` from `schema.ts`
+(a value import, not the `import type` that would be erased) — a browser dependency
+arriving through it would slip past unnoticed. `types.ts` and `lib/utils.ts` are pure by
+convention and unguarded in fact. A new pure file outside those two directories is
+unguarded until someone adds it by name.
 
 **One reconcile loop.** Every trigger — storage change, worker startup, permission
 grant or revoke — funnels into `reconcile()` in `lib/sync/ruleSync.ts`. It recompiles
@@ -88,6 +103,13 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   did not declare as optional — so dropping it leaves the all-sites switch flipping into
   a mode whose grant can never be obtained, with nothing failing until somebody clicks
   Grant. The same test pins the value, not merely the key.
+  **`optional_permissions` is `["nativeMessaging"]`, and the install-time `permissions`
+  list is still exactly the same two strings.** `manifest.test.ts` pins all three arrays.
+  If Chrome ever makes this particular permission optional-ineligible, the failure is
+  silent by construction: `permissions_parser.cc` drops it from the list and leaves only
+  an install warning, and the one consistency check (a `DCHECK_EQ`) is compiled out of
+  release builds — so the manifest string alone proves nothing. The real guard is the
+  runtime grant actually succeeding, and only `tests/e2e/bridge.spec.ts` exercises that.
 - **No network primitives in the shipped bundle** — no `fetch`, `XMLHttpRequest`,
   `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` with no
   exception list, which is the point: the claim is verifiable by a stranger who trusts
@@ -132,12 +154,56 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
   10, and the version that does not own a spelling ignores it in silence.
+  **`pnpm-workspace.yaml` also declares `packages:`** — `packages/headerlab`,
+  `packages/plugin`, named rather than globbed, so a directory joining the release surface
+  shows up as a diff instead of silently matching a glob (`tests/unit/workspace.test.ts`
+  pins the exact two, and the same file guards CI actually running their tests — see
+  the CI section below). The extension itself stays at the repository root, and that is
+  load-bearing rather than tidy: release-please prefixes every output with the package
+  path once that path is not `.`, which would leave conditions in `release-please.yml`
+  evaluating false — tagging a release with no check, no zip and no attached artifact, in
+  the one job holding `contents: write`, with nothing going red. That reasoning otherwise
+  lives only in a YAML comment; `docs/superpowers/specs/2026-08-11-agent-bridge-design.md`
+  §6.1 has the fuller version.
   **`npm_config_ignore_scripts=false` does not override pnpm's `.npmrc`.
   `--ignore-scripts=false` does**, and the gap between them is why CI found this rather
   than this machine: the first form was measured here, reported nothing blocked, and this
   file was written to say "no package in this tree declares a build script at all". All
   five jobs failed on the first push. To reproduce what CI does, run
   `rm -rf node_modules && pnpm install --frozen-lockfile --ignore-scripts=false`.
+- **`packages/headerlab` is published. The extension and the plugin are not.**
+  That package carries no `private: true`, and that flag's absence is the whole
+  safety switch — with it gone, npm no longer rejects an accidental `npm
+  publish` with `EPRIVATE`. What actually reaches the tarball is decided by
+  `package.json`'s `files` field, and *believing* `files` is not the same as
+  *checking* it: run `npm pack --dry-run` from `packages/headerlab` and read
+  the listing. Measured this way: 13 files, `bin/` and `lib/` plus
+  `package.json`, with `test/` sitting beside them on disk and correctly
+  absent from the tarball (`cd packages/headerlab && npm pack --dry-run`).
+  Publishing itself happens only from `release-please.yml`'s `npm publish
+  --provenance` step, on a release; it is never run by hand, and this
+  repository's own pnpm cannot do it anyway — see "Never write the lockfile on
+  this machine" below.
+  **One package rather than two, and it is not tidiness.** `bridge install`
+  writes a launcher that names the native-messaging host's entry file by
+  absolute path (`lib/manifest.mjs`'s `launcherScript`). A CLI published
+  without that host would still write the launcher — the install step cannot
+  see that the file it is naming does not exist on the target machine — and
+  Chrome would report the resulting failure with the same message it uses for
+  a rejected manifest or a mismatched extension id, indistinguishable without
+  reading the log by hand. Shipping both from the one tarball `bridge install`
+  reads makes that failure mode structurally impossible rather than merely
+  documented.
+  **The publish direction has been measured separately from the install
+  direction, and it does not hit the same proxy.** `npm config get registry`
+  here resolves to `https://registry.npmjs.org/`, unrewritten — every proxy
+  incident this file records elsewhere (the `nexus.mng.musinsa.io` rewrite,
+  the dropped platform bindings) is from *installing*, and this is the first
+  time the *publish* direction has been checked at all. `npm publish
+  --dry-run` from `packages/headerlab` passes clean (`+ headerlab@0.0.0`, no
+  name rejection), and separately `npm whoami` returns 401 here — confirming
+  the clean dry-run is dry-run behaviour and not a stray local credential
+  standing in for CI's.
 
 ## Toolchain
 
@@ -159,6 +225,14 @@ Reproduced both ways with a one-line probe importing a non-existent default: an 
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
 deliberately *not* chained — oxfmt reads no tsconfig and resolves nothing.
+
+**`@types/chrome` is installed but not auto-included, under this repo's `typescript@7.0.2`
+(tsgo).** Ambient auto-inclusion does not pick it up, so a file that touches `chrome.*`
+needs `/// <reference types="chrome" />` as its literal first line — `lib/bridge/port.ts`
+carries one for exactly this reason. Reproduced by deleting the directive: five
+`TS2503`/`TS2304` errors. **Do not fix this in `tsconfig.json`'s `types` key** — that array
+*replaces* tsgo's auto-list rather than extending it, so naming `chrome` there would drop
+whatever tsgo would otherwise have included on its own.
 
 **`coverage/` is gitignored on purpose.** `@vitest/coverage-v8` is installed, so
 `--coverage` is one flag away, and its output is untracked — which puts it in
@@ -259,6 +333,24 @@ changes, and the diff proves it converts rather than drifts — 188 insertions, 
 deletions, all 18 of them the missing bindings. `pnpm install --frozen-lockfile`
 re-resolves nothing and is the everyday command.
 
+**A prediction about `--frozen-lockfile` and a missing workspace importer was made twice,
+and both times the answer was already sitting in this repository, unread.** Two reviews,
+two days apart, predicted that the install fails outright when `pnpm-workspace.yaml`
+declares a package the lockfile's `importers:` block has no entry for. Neither is what
+happens: commit `6220afe` reproduced it in a scratch copy and found the install
+*succeeds*, silently writing the missing entries into the committed file — worse than a
+red job, because nothing says it happened. That commit's own message carries the caveat
+that got lost when the reasoning was later copied into `tests/unit/workspace.test.ts`'s
+docblock: it was measured on **pnpm 10.33.0**, the version this machine's broken pnpm
+resolves to, and CI pins **11.20.0** — so neither "it fails" nor "it silently rewrites" has
+ever been reproduced on the pnpm that actually runs the workflow. `1b89b45` restored the
+caveat to the docblock rather than picking a side. `.github/actions/setup/action.yml` runs
+`git diff --exit-code pnpm-lock.yaml` immediately after the install for exactly this
+reason — it is the right guard under either resolution, since a silent rewrite shows up as
+an uncommitted diff and a hard failure never reaches that step at all. The lesson worth
+keeping is not which way the flag behaves; it is to run `git log -S` against a tooling
+claim before restating it a third time — the answer was already here twice.
+
 **corepack cannot fetch pnpm through the proxy**, so `corepack enable` is a CI-only
 instruction. It builds the tarball URL as `<registry>/pnpm-11.20.0/-/pnpm-11.20.0.tgz`,
 which 404s — the same path-shape bug that made `replace-registry-host` useless above.
@@ -287,16 +379,21 @@ a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`
 Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
 there is no dependabot here yet.
 
-**CI is five jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
+**CI is six jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
 Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
 each so a push reported every failure instead of one per round trip. Separate jobs do the
 same thing without the trick, and name the failing check in the PR's check list rather
-than burying it in one job's log. The cost is honest and small: each job installs
-dependencies again, and `format:check` takes 82ms against a setup measured in seconds. It
-buys per-check status, and it is what was asked for.
+than burying it in one job's log. **Every job's `name:` is the check it performs, not the
+thing it looks at** — that is why the sixth is `package tests (node:test)` rather than
+`packages`, which named a directory and had stopped being plural besides once the host
+merged into the CLI. What distinguishes it from `unit` is the runner: it covers the
+`packages/*/test/*.mjs` suites `vitest.config.ts`'s glob does not reach, so `pnpm test`
+never runs them — see Commands' `test:packages` line. The cost is honest and small: each job installs dependencies again,
+and `format:check` takes 82ms against a setup measured in seconds. It buys per-check
+status, and it is what was asked for.
 
 **The setup those jobs share is a local composite action, `.github/actions/setup`.**
-Five copies of the same six steps is the shape that drifts. Two things in it are surprising
+Six copies of the same six steps is the shape that drifts. Two things in it are surprising
 at the point of use and carry a comment there: `corepack enable` runs *after* setup-node so
 the shims land in the Node the job will use, and `cache: pnpm` is therefore unusable
 because setup-node resolves the store before pnpm exists — hence the explicit
@@ -362,7 +459,19 @@ looping would reduce `example.com:80:90` to a plausible-looking host.
 (`local:`, `session:`). `public/` is copied to the output root. Output directories are
 mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding storage
 must also seed the companion version key at the **current** `STATE_VERSION`:
-`{ state, state$: { v: 2 } }`.
+`{ state, state$: { v: 2 } }`. **Two e2e modes exist — `e2e` and `bridge-e2e`** —
+because granting `nativeMessaging` outright in the shared build put every popup test
+into the bridge's error state; `wxt.config.ts`'s `bridge-e2e` branch carries the full
+reasoning at the point of use.
+
+**The host and the CLI must never resolve `HEADERLAB_SOCKET_DIR` — or any socket
+directory — independently.** `socketDir()` in `packages/headerlab/lib/socket.mjs` reads the
+override once, inside itself, rather than trusting either call site to apply it the same
+way. The host inherits Chrome's environment and the CLI inherits the terminal's, so if
+either half applied an override — or fell back to `$TMPDIR` — on its own, the two could
+silently resolve to different directories with nothing failing to show it. Same reasoning
+as branch 2 of that function shelling out to `getconf DARWIN_USER_TEMP_DIR` by absolute
+path instead of trusting either inherited `$TMPDIR` copy.
 
 **`cn` is `twMerge(clsx(…))`, and tailwind-merge groups by variant, not by property.**
 So `bg-transparent` passed to a shadcn primitive does **not** displace that primitive's
@@ -455,19 +564,49 @@ own sub-line. When adding one, ask what its absence looks like — if the answer
 **State changes appearance, not geometry.** Colour, weight, opacity and content may
 follow state freely; box dimensions and positions should not.
 
+**The rail now carries zero slack, measured.** Adding the bridge row cost 21px the
+layout did not have to spare: `docs/design/2026-08-12-agent-bridge-rail-budget.html`
+measured the *built* popup and found 7px genuinely free, not the 28px a source-level
+reading of the Tailwind classes suggested. The remaining 21px came from four existing
+margins each giving up one notch on Tailwind's 4px scale (the readout card's and the
+sites section's own `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`, the bridge row's
+own `mt-2`→`mt-1` — 16px) plus the site list's `max-height` dropping `132px`→`127px`
+(5px). Budget 576px, used 576px, slack 0 — the next row added to this rail reopens that
+accounting from zero rather than finding space waiting for it.
+
+**Measuring "is this rail full" has two traps that both silently report "no
+problem."** `clientHeight − scrollHeight` is structurally always 0 here: the site list
+is `flex-shrink: 1`, so it absorbs any deficit before the rail itself can overflow, and
+the request-types section's `mt-auto` eats the leftover as margin — summing computed
+margins then counts that same free space a second time. Measure the height the rail
+was *asked* for instead: correct the list's contribution to `min(max-height,
+scrollHeight)` and skip auto margins entirely. A working implementation is `measure()`
+in the rail-budget design file above.
+
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the eleven e2e tests drive a real request through the
+against a loaded extension. Two of the sixteen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
-never reaches declarativeNetRequest while its sibling still does. The other eight cover
-the popup rendering from stored state and seven layout guards: nothing wider than what
+never reaches declarativeNetRequest while its sibling still does. Nine more cover
+the popup rendering from stored state and eight layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
 when toggled off (one test, not two), the ghost row at the end matches a minimum rule
-row's height, the badge and the chip each keep a focus ring that reaches the screen, and
-an error diagnostic replacing a value never resizes the row or moves the rows below it.
+row's height, the badge and the chip each keep a focus ring that reaches the screen, an
+error diagnostic replacing a value never resizes the row or moves the rows below it, and
+the bridge row does not push the rail past its own column.
+
+The remaining four are the bridge's own, in `tests/e2e/bridge.spec.ts` and
+`tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
+`--load-path` is byte-for-byte the id Chrome actually assigned the loaded extension —
+design §8.3's self-verification, performed against a running browser rather than argued
+for. One drives a real `headerlab site add` through a real installed host, through the
+socket, into real storage, and reads the result back off `chrome.storage` rather than off
+the CLI's own reply. One confirms the popup reads "Bridge live" once that command has
+landed. The fourth is a layout guard in the same family as the eight above: an
+unreachable bridge leaves the rail exactly where a live one leaves it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -498,6 +637,18 @@ survives an "always rendered" mutation.
 **Mutation-verify.** Break the implementation, watch that specific test go red, restore.
 Do this on uncommitted work at your peril: a `git checkout --` revert has discarded real
 edits here. Commit first.
+
+**Mutation-testing an installer writes to real user directories.** The mutations that
+disable a test's own scratch-path isolation are, by definition, exactly the ones that
+escape it — and an assertion failing partway through skips whatever cleanup sat after it
+in the test body. Register teardown so it cannot be skipped (`t.after`, registered before
+the install runs, not a cleanup call at the end of the test), and check
+`~/.headerlab/bin` and the real per-user socket directory by hand afterward regardless.
+
+**One flaky test, pre-existing, not from the bridge work.**
+`packages/headerlab/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
+under the two-second SIGKILL budget, with everything cleaned up" failed once under
+concurrent load and passed both in isolation and on re-run.
 
 **jsdom** needs a per-file `// @vitest-environment jsdom` docblock; the global
 environment is `node`. **`@testing-library/jest-dom` is not installed** — plain vitest
@@ -568,3 +719,37 @@ that no longer renders, passing while describing nothing.
   which squashing does not touch — so what carries forward is the mechanism, not this
   instance: a subject from inside a squashed branch is never a subject on `main`. Nothing
   runs that grep automatically; finding the next one means doing it again.
+- **A note that appears cannot live in this rail, and two pre-existing ones already
+  break it.** `sync-error` and `icon-error` are plain conditional blocks, and the rail
+  has carried zero slack since the bridge row landed (see Interface). Measured at four
+  saved sites: the site list's cap is 127px with neither note showing, 65px with only
+  `sync-error`, 34px with only `icon-error`, and 0px with both — the user's saved sites
+  pushed off screen by an error message about something else. This predates the bridge
+  work entirely, and it is not the same fix shape as the bridge row's own note (that one
+  folded into an existing fixed-height row; these are multi-line prose with no existing
+  row to fold into), so it needs its own design pass rather than a while-we-are-here
+  patch.
+- **Three hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
+  `packages/headerlab/lib/socket.d.mts`, `packages/headerlab/lib/install.d.mts` — because `tests/`
+  and `tests/e2e/` import `.mjs` modules from TypeScript and `allowJs` is off. Nothing
+  checks that any of them still matches its implementation.
+- **The bridge's `idle` state means "the permission is held and no port is open," not
+  "a CLI is not attached."** The extension has no way to see the host's socket clients —
+  it can only see its own `connectNative` port — and giving it that visibility would turn
+  the host from a dumb relay into a protocol participant, which `packages/headerlab/lib/bridge.mjs`
+  argues against by name. So `idle` in practice names the state most people land in first:
+  **Enable** pressed, `headerlab bridge install` never run.
+- **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which
+  execs the entry path of whichever installed copy of `packages/headerlab` wrote it —
+  a clone for a contributor, the global `node_modules` for `npm i -g headerlab`.**
+  Moving or deleting that copy orphans the entry the same way either way: a clone
+  moved or deleted, or `npm uninstall -g headerlab`, an `npm i -g headerlab@next`
+  upgrade, or an nvm switch that moves the global prefix. Nothing in Chrome or the
+  extension will ever say so — `headerlab bridge status` is the only thing that reads
+  the launcher back and reports `entryMissing`.
+- **`headerlab status`, `diagnostics`, `state get` and `rule ls` are not built.** Only
+  `state.set` exists on the `state` group. §2 and §3 of the design spec promise a
+  snapshot taken before every raw `state set` write, with `state snapshots`/`state
+  restore <id>` to read it back — none of that exists either; `state.set` passes zod
+  validation and nothing else. The README makes no such promise, so nothing false has
+  shipped publicly, but the design spec did until this note.

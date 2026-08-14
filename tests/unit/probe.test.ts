@@ -1,6 +1,12 @@
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { probeGrants, requestHost } from '@/lib/permissions/probe';
+import {
+  probeGrants,
+  probeNativeMessaging,
+  removeNativeMessaging,
+  requestHost,
+  requestNativeMessaging,
+} from '@/lib/permissions/probe';
 
 // fake-browser defines permissions.* as stubs that THROW ("not implemented"),
 // exactly as it does for declarativeNetRequest — measured, see
@@ -115,5 +121,71 @@ describe('requestHost', () => {
   it('reports false rather than rejecting when the request throws', async () => {
     vi.spyOn(perms(), 'request').mockRejectedValue(new Error('user gesture required') as never);
     await expect(requestHost('example.com')).resolves.toBe(false);
+  });
+});
+
+type PermissionsArg = { permissions?: string[]; origins?: string[] };
+
+describe('the nativeMessaging permission', () => {
+  it('probes the permission key, never an origin — it is not a host', async () => {
+    // A copy-paste from probeAllSites would send `{origins: ['nativeMessaging']}`,
+    // which `contains()` answers `false` to without complaining. The shape of
+    // the argument is the whole of what distinguishes the two calls, so it is
+    // what gets asserted.
+    const asked: PermissionsArg[] = [];
+    vi.spyOn(perms(), 'contains').mockImplementation((async (p: PermissionsArg) => {
+      asked.push(p);
+      return true;
+    }) as never);
+
+    await expect(probeNativeMessaging()).resolves.toBe(true);
+    expect(asked).toEqual([{ permissions: ['nativeMessaging'] }]);
+  });
+
+  it('reports not-granted rather than propagating a throw', async () => {
+    vi.spyOn(perms(), 'contains').mockImplementation((() => {
+      throw new Error('not implemented');
+    }) as never);
+
+    await expect(probeNativeMessaging()).resolves.toBe(false);
+  });
+
+  it('requests exactly that permission and nothing else', async () => {
+    const asked: PermissionsArg[] = [];
+    vi.spyOn(perms(), 'request').mockImplementation((async (p: PermissionsArg) => {
+      asked.push(p);
+      return true;
+    }) as never);
+
+    await expect(requestNativeMessaging()).resolves.toBe(true);
+    // No `origins` key at all. Asking for a host alongside it would smuggle a
+    // host grant into a dialog the user reads as being about the bridge.
+    expect(asked).toEqual([{ permissions: ['nativeMessaging'] }]);
+  });
+
+  it('reports a declined request as false rather than throwing', async () => {
+    vi.spyOn(perms(), 'request').mockImplementation((async () => false) as never);
+    await expect(requestNativeMessaging()).resolves.toBe(false);
+  });
+
+  it('removes exactly that permission', async () => {
+    const asked: PermissionsArg[] = [];
+    vi.spyOn(perms(), 'remove').mockImplementation((async (p: PermissionsArg) => {
+      asked.push(p);
+      return true;
+    }) as never);
+
+    await expect(removeNativeMessaging()).resolves.toBe(true);
+    expect(asked).toEqual([{ permissions: ['nativeMessaging'] }]);
+  });
+
+  it('reports a failed removal as false — the bridge stays reachable and must say so', async () => {
+    // Returning `true` on a throw would leave the popup claiming the bridge is
+    // off while the permission is still held and the port can still open.
+    vi.spyOn(perms(), 'remove').mockImplementation((() => {
+      throw new Error('not implemented');
+    }) as never);
+
+    await expect(removeNativeMessaging()).resolves.toBe(false);
   });
 });

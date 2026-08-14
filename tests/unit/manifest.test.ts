@@ -51,6 +51,47 @@ describe('production manifest', () => {
     // permission along with it.
     expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
   });
+
+  it('declares nativeMessaging as optional, exactly — the bridge asks for it at runtime', () => {
+    // §8.1: `permissions_parser.cc` drops an optional-ineligible permission
+    // from the list and leaves only an install warning, and the one
+    // consistency check is a DCHECK compiled out of release builds. So a
+    // Chrome change that made this permission non-optional would fail
+    // *silently*: the key would still be here and the request would never
+    // succeed. Pinning the exact value is what makes the e2e in Task 6 —
+    // which drives a real request through a real Chrome — the thing that
+    // would notice.
+    expect(readManifest().optional_permissions).toEqual(['nativeMessaging']);
+  });
+
+  it('keeps the install-time permission list byte-identical after adding it', () => {
+    // The whole point of the optional route. This assertion is the one that
+    // fails if someone "fixes" a connect error by moving the permission into
+    // `permissions` — which would work, and would silently trade away the
+    // zero-permission install posture this product is built on.
+    //
+    // The same exact-equality catches a second leak this array must never
+    // carry: bridge-e2e (tests/e2e/bridge.spec.ts's own build,
+    // wxt.config.ts's `mode === 'bridge-e2e'` branch) hands out
+    // nativeMessaging outright so Playwright never meets a consent dialog.
+    // It is a separate mode from the shared 'e2e' build and from production
+    // precisely so that grant cannot leak into either without a test
+    // noticing — a production build carrying it would give away the
+    // zero-permission posture without anyone noticing, since the manifest
+    // would still look small. A dedicated `not.toContain('nativeMessaging')`
+    // assertion was tried here and dropped: this array is already pinned
+    // exactly, twice, above (lines 44 and 52), so a third exact-equality
+    // check and a `not.toContain` on the same value catch identically the
+    // same mutation — the extra assertion documented the reasoning but added
+    // no catching power of its own. tests/e2e/bridge.spec.ts's own tests are
+    // what prove the bridge-e2e manifest is right, functionally rather than
+    // by reading JSON — a wrong manifest there fails to connect at all — and
+    // if this permission ever leaked into the plain 'e2e' build instead,
+    // tests/e2e/header-modification.spec.ts's two rail layout guards would
+    // catch it: that leak is exactly what pushed the site list to 0 before
+    // the bridge-e2e mode split existed.
+    expect(readManifest().permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
+  });
 });
 
 describe('the toolbar icon', () => {

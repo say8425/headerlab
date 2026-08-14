@@ -54,6 +54,29 @@ export interface ScopeRailProps {
   onRemoveDomain: (domain: string) => void;
   onToggleType: (type: ResourceType) => void;
   onGrant: (host: string) => void;
+  /**
+   * What the agent bridge is doing.
+   *
+   * `unknown` is not `off`. The permission probe has not answered yet, and a
+   * row that offered Enable before the browser had been asked is the same
+   * flicker `allSitesGranted: null` exists to prevent — so that state carries
+   * no colour and no control, only the word.
+   *
+   * `idle` means the permission is held and no port is open. That is not the
+   * design's original wording ("a CLI is not attached"), and the change is
+   * deliberate: the extension cannot see the host's socket clients, and making
+   * the host tell it would turn a relay into a protocol participant — the
+   * thing packages/headerlab/lib/bridge.mjs argues against by name. What `idle`
+   * actually points at is the state a user really lands in: Enable pressed,
+   * `headerlab bridge install` never run.
+   */
+  bridge: 'unknown' | 'off' | 'idle' | 'live';
+  /** ISO timestamp of the last command applied through the bridge, or null. */
+  bridgeLastCommandAt: string | null;
+  /** Chrome's own message from the last failed connect, or null. */
+  bridgeError: string | null;
+  onEnableBridge: () => void;
+  onDisableBridge: () => void;
 }
 
 /** A rail section's heading: "Sites 2", "Request types 3 of 8". */
@@ -74,6 +97,21 @@ const NOTE_CLASS =
   'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
 /** The two switches in the rail are one control in two places. */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
+
+/**
+ * Disable is not a request — it hands a permission back — so it does not
+ * borrow the amber Grant palette. Enable does: it opens Chrome's consent
+ * dialog, which is exactly what GRANT_BUTTON_CLASS already means everywhere
+ * else on this screen.
+ */
+const BRIDGE_OFF_BUTTON_CLASS = 'h-5 rounded-[4px]';
+
+const BRIDGE_LABEL = {
+  unknown: 'Bridge',
+  off: 'Bridge off',
+  idle: 'Bridge idle',
+  live: 'Bridge live',
+} as const;
 
 /**
  * The left rail: where does this apply, and is it working.
@@ -119,6 +157,11 @@ export function ScopeRail({
   onRemoveDomain,
   onToggleType,
   onGrant,
+  bridge,
+  bridgeLastCommandAt,
+  bridgeError,
+  onEnableBridge,
+  onDisableBridge,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
 
@@ -178,6 +221,19 @@ export function ScopeRail({
         ? 'granted'
         : 'pending';
 
+  /**
+   * `idle` covers two states that look identical to the extension but must
+   * not look identical to a person: "Enable pressed, `headerlab bridge
+   * install` never run" and "was live, the host just died". Both used to get
+   * a second box below the row this constant now feeds — deleted, because
+   * the rail has zero slack (see the site-list docblock below) and a box
+   * that only appears on error collapsed the site list to nothing under
+   * real content pressure, in production as much as in a test with enough
+   * sites to reach the cap. The error is folded into the row that already
+   * exists instead: see the `bridgestate` block for where this is read.
+   */
+  const bridgeUnreachable = bridge === 'idle' && bridgeError !== null;
+
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
       <div className="flex h-6 shrink-0 items-center gap-2 px-3">
@@ -195,7 +251,7 @@ export function ScopeRail({
       {/* The count and the master switch on one raised surface. They are the
           same question asked twice — how much is going out, and is any of it —
           so they share a card rather than sitting as two bands on the rail. */}
-      <div className="mx-3 mt-4 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
+      <div className="mx-3 mt-3 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
         <div data-testid="readout">
           <div className="flex h-7 items-baseline gap-[7px] tabular-nums">
             {/* No `leading-1`: at this weight macOS's system-ui glyphs have
@@ -280,6 +336,106 @@ export function ScopeRail({
             className={SWITCH_CLASS}
           />
         </div>
+
+        {/* The fourth line of the readout card. It did not fit inside the 28px
+            the rail's own docblock once claimed — that figure was read off the
+            source, not the built popup, and the real number was 7px once
+            measured correctly (docs/design/2026-08-12-agent-bridge-rail-budget.html).
+            The 21px shortfall is closed by trimming four other margins one
+            notch each (this row's own `mt-1`, the readout card's and sites
+            section's `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`) and
+            taking the remaining 5px from the site list's own cap — see that
+            list's docblock for the accounting.
+
+            Shaped exactly like the run state above it because it is the same
+            kind of fact: a thing that is either happening or not, with one
+            control. The control is a button and not a switch for the reason
+            the all-sites switch stopped calling `permissions.request()` — a
+            consent dialog must follow a button that asks for consent, never a
+            control that merely moved. */}
+        <div
+          className="mt-1 flex h-5 items-center gap-[7px]"
+          data-testid="bridgestate"
+          data-bridge={bridge}
+        >
+          {/* Colour only when a port is actually open, plus the pending
+              (amber) borrow below for `bridgeUnreachable` — incomplete
+              rather than wrong, the same reading that keeps a pending site
+              row out of the error palette. `unknown` gets the slot with no
+              fill at all — reserving the space must not put a phantom state
+              on screen, the same bargain the all-sites glyph makes. */}
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${
+              bridge === 'live'
+                ? 'bg-live'
+                : bridge === 'unknown'
+                  ? 'bg-transparent'
+                  : bridgeUnreachable
+                    ? 'bg-pending'
+                    : 'bg-muted-foreground'
+            }`}
+            aria-hidden="true"
+          />
+          {/* `title` is where the detail goes, not a second box: Chrome
+              reports the identical string for a missing host manifest, a
+              manifest naming a different extension, and an interpreter it
+              cannot start (measured) — the string is the least actionable
+              part of the message, so the label names the state in words a
+              person can act on and the remedy leads the title, with Chrome's
+              string trailing it. Mutually exclusive with the last-command
+              title below: a bridge that cannot be reached is not a bridge to
+              report a last command for.
+
+              "Bridge down", not "Bridge unreachable": this row has 87.15625px
+              for the label (measured against the built popup — the dot, the
+              gaps and the Disable button already spend the rest of the
+              row's fixed `h-5`), and "Bridge unreachable" measures 115px in
+              this exact font and weight — 28px over, so it wraps to two
+              lines and blows the row's height, the same reflow this whole
+              fix exists to remove. "Bridge down" measures 73.98px, 13px of
+              real margin. Two other candidates were measured and rejected:
+              "Not connected" is 86.89px — 0.27px of margin is not margin,
+              and CI renders this stack under different font metrics (see
+              the readout's own comment on that). "Bridge lost" fits at
+              64.05px but asserts prior possession; the common path into
+              this state is Enable pressed and `headerlab bridge install`
+              never run, where nothing was ever had. */}
+          <span
+            className="text-[12px] leading-4 font-semibold text-foreground"
+            data-testid="bridge-label"
+            {...(bridgeUnreachable
+              ? { title: `Run headerlab bridge install. ${bridgeError}` }
+              : bridgeLastCommandAt === null
+                ? {}
+                : {
+                    title: `Last change through the bridge: ${new Date(
+                      bridgeLastCommandAt,
+                    ).toLocaleString()}`,
+                  })}
+          >
+            {bridgeUnreachable ? 'Bridge down' : BRIDGE_LABEL[bridge]}
+          </span>
+          <span className="flex-1" />
+          {bridge === 'unknown' ? null : bridge === 'off' ? (
+            <Button
+              size="xs"
+              variant="secondary"
+              className={GRANT_BUTTON_CLASS}
+              onClick={onEnableBridge}
+            >
+              Enable
+            </Button>
+          ) : (
+            <Button
+              size="xs"
+              variant="secondary"
+              className={BRIDGE_OFF_BUTTON_CLASS}
+              onClick={onDisableBridge}
+            >
+              Disable
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* A failed reconcile means nothing is applying, which contradicts the
@@ -323,7 +479,7 @@ export function ScopeRail({
           down, instead of the site list shrinking from 132 to 48. The e2e
           suite opens exactly that page (a note plus eight sites), so the class
           cannot be dropped in silence. */}
-      <div className="mt-4 flex min-h-0 flex-col gap-1.5">
+      <div className="mt-3 flex min-h-0 flex-col gap-1.5">
         <div className={HEAD_CLASS}>
           Sites{' '}
           <span className={HEAD_COUNT_CLASS} data-testid="site-count">
@@ -502,19 +658,58 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 132px, which is deliberately NOT a multiple of
+            The height stops at 127px, which is deliberately NOT a multiple of
             the 54px row pitch: two rows and the gap after them are 108px and
             three are 156px, so a third site leaves that row cut across the
-            middle — 24px of 48 — and the cut row is the affordance saying the
-            list continues. 156 or 162 would each show a whole number of rows
-            and say nothing. The remaining rail is what caps it: 132 leaves
-            28px of slack under the checklist, and every 48px more would spend
-            a whole row of that. The reference
-            mockup capped the list at a fixed 176px, which this does not copy —
-            a hard cap opens a hole between the last site and everything below
-            it when there are only one or two. `max-height` lets the list be as
-            tall as it has content for, and `mt-auto` on the section below
-            sends the leftover to the foot of the rail instead.
+            middle — now 19px of 48, not the wider 24px an unpressured rail
+            could afford — and the cut row is the affordance saying the list
+            continues regardless of exactly how much of it shows. 156 or 162
+            would each show a whole number of rows and say nothing; nor would
+            108, which is why the cap sits above two full rows rather than at
+            them. The reference mockup capped the list at a fixed 176px, which
+            this does not copy — a hard cap opens a hole between the last site
+            and everything below it when there are only one or two.
+            `max-height` lets the list be as tall as it has content for, and
+            `mt-auto` on the section below sends the leftover to the foot of
+            the rail instead.
+
+            132 was the figure here before the bridge row
+            (components/ScopeRail.tsx's bridgestate block) landed. That row
+            needed 28px and the rail had 7 genuinely free — measured in the
+            built popup, not read off the source; see
+            docs/design/2026-08-12-agent-bridge-rail-budget.html for the
+            arithmetic. Four other margins each gave up one notch on
+            Tailwind's 4px spacing scale (the readout card's and this
+            section's own `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`,
+            the bridge row's own `mt-2`→`mt-1` — 16px→12px is 4px, not 1),
+            closing 16 of the 21px shortfall; the list gave up the remaining
+            5, 132→127.
+
+            **The rail now carries zero slack.** Every other margin in this
+            card was already load-bearing rhythm, not spare space, so the next
+            thing added to this rail does not have 7 (or 28) free px waiting
+            for it — it reopens this exact accounting from a starting budget
+            of 0, and adding it without shrinking this list further means
+            finding room somewhere else in the rail on purpose, not by
+            spending what is left here.
+
+            This is not hypothetical: a bridge-connect-error note briefly
+            lived here as its own box, conditionally rendered below the
+            bridgestate row. It was deleted rather than budgeted, because
+            "budgeted" was not available — measured against the built popup
+            with that note present and a full 4-site list, this element's
+            `clientHeight` went to 0, not merely smaller: the note's own
+            height alone exceeded everything zero slack had left to give,
+            taking the entire site list off the screen (CLAUDE.md's "Never
+            show something the user cannot reach", of a list of the user's
+            own configured sites). `ScopeRail.tsx`'s `bridgeUnreachable`
+            folds that error into the row that already exists — a colour and
+            a `title`, no new box — instead. A future note belongs in a
+            fixed-height reserved slot sized against a real measurement of
+            this list's actual floor, the same way the bridge row itself was
+            budgeted; it does not belong as a conditional box added here on
+            the assumption that "zero slack" still means "close, but it
+            fits".
 
             The scrollbar is not assumed to be visible: on macOS it is an
             overlay that paints over the content and vanishes. `scroll-list`
@@ -525,7 +720,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[132px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[127px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {
@@ -591,7 +786,7 @@ export function ScopeRail({
           also where the scope notes go — every one of them is about the sites,
           and the checklist is the least-touched control on screen, so it is
           the one that can afford to be the thing you scroll past. */}
-      <div className="mt-auto shrink-0 pt-3" data-testid="rail-section-types">
+      <div className="mt-auto shrink-0 pt-2" data-testid="rail-section-types">
         <div className={HEAD_CLASS}>
           Request types{' '}
           <span className={HEAD_COUNT_CLASS}>

@@ -26,6 +26,22 @@ const EXPLICIT = [
   // migration is the code that gets one attempt — by the time it runs, the
   // bytes it was supposed to preserve are already gone.
   'lib/model/migrate.ts',
+  // Both `apply.ts` and `App.tsx` pull the bootstrap rule set from here. The
+  // guard only scans a file's own source, so if guarded `apply.ts` imports
+  // this unguarded file, a browser dependency arriving one hop away would
+  // slip past unnoticed.
+  'lib/model/defaults.ts',
+  // Same situation as lib/permissions/: this directory also holds an adapter
+  // (port.ts), so there can be no directory-shaped rule here. Without naming
+  // each pure file explicitly, there is no guard.
+  'lib/bridge/protocol.ts',
+  'lib/bridge/apply.ts',
+  // `apply.ts` imports `parseAppState` **as a value** (a runtime call, not a
+  // type). `types.ts`'s `import type` is erased at compile time, but this one
+  // is not — so if guarded `apply.ts` calls this unguarded file, a browser
+  // dependency arriving one hop away would slip past unnoticed, the same
+  // reason `defaults.ts` is listed here.
+  'lib/model/schema.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -78,6 +94,10 @@ describe('the pure layer stays pure', () => {
       'lib/permissions/origins.ts',
       'lib/permissions/audit.ts',
       'lib/model/migrate.ts',
+      'lib/model/defaults.ts',
+      'lib/bridge/protocol.ts',
+      'lib/bridge/apply.ts',
+      'lib/model/schema.ts',
     ]);
   });
 
