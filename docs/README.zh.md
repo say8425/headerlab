@@ -107,8 +107,9 @@ Chrome 对一个它不会追加的请求头执行 `append` —— 该行说明�
   它不会返回任何结果。这个模式刻意只匹配调用与构造形式：如果只是忽略大小写地搜索那几个
   单词，在产物里会命中十六次，而每一次都是字符串或标识符而非调用 —— React DOM 的
   `prefetchDNS`、`fetchPriority` 和 `dns-prefetch`，以及字面量 `"xmlhttprequest"` 和
-  `"websocket"`，后两者是 Chrome declarativeNetRequest 的资源类型名，出现在这里是因为
-  你可以在弹窗中按它们过滤。写在这里，是为了让你发现它们时读作「意料之中」而不是「抓到
+  `"websocket"`。后两者是 declarativeNetRequest 的资源类型名，但来路不同 ——
+  `xmlhttprequest` 是弹窗以复选框提供的八种之一（在那里显示为 `xhr`），而 `websocket`
+  只是校验已存状态的那个十五值资源类型枚举的成员。写在这里，是为了让你发现它们时读作「意料之中」而不是「抓到
   一个谎」。
 - **没有内容脚本。** 不向任何页面注入任何东西。头部由 Chrome 的 `declarativeNetRequest`
   引擎修改，该引擎从不把请求内容交给扩展。

@@ -121,10 +121,12 @@ without a native permission dialog.</sub>
   That returns nothing. The pattern matches call and constructor forms on purpose: a bare
   case-insensitive search for those words does hit the bundle sixteen times, and
   every one is a string or an identifier rather than a call — React DOM's `prefetchDNS`,
-  `fetchPriority` and `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`,
-  which are two of Chrome's declarativeNetRequest resource-type names and appear because
-  you can filter on them in the popup. Said here so that finding them reads as expected
-  rather than as a caught lie.
+  `fetchPriority` and `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`.
+  Those last two are declarativeNetRequest resource-type names, and they arrive by
+  different routes: `xmlhttprequest` is one of the eight the popup offers as checkboxes
+  (labelled `xhr` there), while `websocket` is only ever a member of the fifteen-value
+  resource-type enum the stored state is validated against. Said here so that finding them
+  reads as expected rather than as a caught lie.
 - **No content scripts.** Nothing is injected into any page. Headers are changed by
   Chrome's `declarativeNetRequest` engine, which never hands request contents to the
   extension.
