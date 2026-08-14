@@ -343,14 +343,19 @@ it reads "Bridge off" until then — which asks Chrome for the
 `nativeMessaging` permission through its own consent dialog; then run
 
 ```bash
-headerlab bridge install --load-path <the unpacked extension directory>
+headerlab bridge install --extension-id <id>
 ```
 
-pointing `--load-path` at the same directory `chrome://extensions` has
-loaded (`.output/chrome-mv3` for a production build, `.output/chrome-mv3-dev`
-under `pnpm dev`); the popup then reads **Bridge live**. `--extension-id <id>`
-is the alternative when the id is already known — copy it from
-`chrome://extensions` — and either way the installer reports back exactly
+copying the id from `chrome://extensions`; the popup then reads **Bridge
+live**. That is the instruction the CLI's own README leads with too, because
+it is the one that always applies — someone who installed the CLI from npm
+has no extension directory to point at.
+
+`--load-path <dir>` is the alternative when you are working on a local
+unpacked build and the path is already at hand — `.output/chrome-mv3` for a
+production build, `.output/chrome-mv3-dev` under `pnpm dev`. It computes the
+id from that path rather than being told it, which is a footgun as much as a
+convenience. Either way the installer reports back exactly
 which id it used, because nothing inside the CLI can check that against what
 Chrome actually loaded: a symlink, a trailing slash, or a differently spelled
 path to the same directory each hash to a different id, and a mismatched
