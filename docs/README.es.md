@@ -127,7 +127,7 @@ concedido sin un diálogo nativo de permisos.</sub>
   ```
 
   Eso no devuelve nada. El patrón busca formas de llamada y de constructor a propósito: una
-  búsqueda simple e insensible a mayúsculas de esas palabras sí aparece unas catorce veces
+  búsqueda simple e insensible a mayúsculas de esas palabras aparece dieciséis veces
   en el bundle, y cada una de ellas es una cadena o un identificador y no una llamada — los
   `prefetchDNS`, `fetchPriority` y `dns-prefetch` de React DOM, y los literales
   `"xmlhttprequest"` y `"websocket"`, que son dos nombres de tipo de recurso de

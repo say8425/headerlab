@@ -105,7 +105,7 @@ Chrome 对一个它不会追加的请求头执行 `append` —— 该行说明�
   ```
 
   它不会返回任何结果。这个模式刻意只匹配调用与构造形式：如果只是忽略大小写地搜索那几个
-  单词，在产物里大约会命中十四次，而每一次都是字符串或标识符而非调用 —— React DOM 的
+  单词，在产物里会命中十六次，而每一次都是字符串或标识符而非调用 —— React DOM 的
   `prefetchDNS`、`fetchPriority` 和 `dns-prefetch`，以及字面量 `"xmlhttprequest"` 和
   `"websocket"`，后两者是 Chrome declarativeNetRequest 的资源类型名，出现在这里是因为
   你可以在弹窗中按它们过滤。写在这里，是为了让你发现它们时读作「意料之中」而不是「抓到

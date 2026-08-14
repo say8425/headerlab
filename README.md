@@ -119,7 +119,7 @@ without a native permission dialog.</sub>
   ```
 
   That returns nothing. The pattern matches call and constructor forms on purpose: a bare
-  case-insensitive search for those words does hit the bundle about fourteen times, and
+  case-insensitive search for those words does hit the bundle sixteen times, and
   every one is a string or an identifier rather than a call — React DOM's `prefetchDNS`,
   `fetchPriority` and `dns-prefetch`, and the literals `"xmlhttprequest"` and `"websocket"`,
   which are two of Chrome's declarativeNetRequest resource-type names and appear because

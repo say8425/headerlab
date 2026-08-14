@@ -120,7 +120,7 @@ headerlab` を併用しても衝突しません。PATH がグローバルのコ�
   ```
 
   何も出ません。このパターンが呼び出しとコンストラクタの形だけに一致するのは意図的です。
-  大文字小文字を無視して単語をそのまま検索すると、バンドルに 14 回ほど当たりますが、
+  大文字小文字を無視して単語をそのまま検索すると、バンドルに 16 回当たりますが、
   そのすべてが呼び出しではなく文字列か識別子です — React DOM の `prefetchDNS`、
   `fetchPriority`、`dns-prefetch`、そしてリテラルの `"xmlhttprequest"` と `"websocket"`
   です。後の 2 つは Chrome の declarativeNetRequest のリソースタイプ名で、ポップアップで

@@ -117,7 +117,7 @@ codex plugin marketplace add say8425/headerlab
   ```
 
   아무것도 나오지 않습니다. 이 패턴이 호출·생성자 형태만 잡는 것은 의도입니다. 대소문자를
-  무시하고 저 단어들을 그냥 찾으면 번들에서 열네 번쯤 걸리는데, 전부 호출이 아니라 문자열
+  무시하고 저 단어들을 그냥 찾으면 번들에서 열여섯 번 걸리는데, 전부 호출이 아니라 문자열
   또는 식별자입니다 — React DOM 의 `prefetchDNS`, `fetchPriority`, `dns-prefetch`, 그리고
   리터럴 `"xmlhttprequest"` 와 `"websocket"` 입니다. 뒤의 둘은 Chrome 의
   declarativeNetRequest 리소스 타입 이름이고, 팝업에서 그걸로 필터할 수 있어서 들어 있습니다.
