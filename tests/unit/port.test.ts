@@ -417,6 +417,32 @@ describe('a bridge-status write can fail without breaking the bridge', () => {
   });
 });
 
+describe('handleMessage routes reads before writes', () => {
+  it('answers a status query without writing state', async () => {
+    await refreshBridge();
+    const port = ports[0]!;
+    const { stateItem } = await import('@/lib/storage/state');
+    const setValueSpy = vi.spyOn(stateItem, 'setValue');
+
+    port.send({ id: '1', command: { cmd: 'status' } });
+    await settle();
+
+    // Absence first: a status query that writes state would fire
+    // stateItem.watch() → reconcile(), replacing every DNR rule for a
+    // command that only asked to look.
+    expect(setValueSpy).not.toHaveBeenCalled();
+
+    expect(port.messages).toHaveLength(1);
+    expect(port.messages[0]).toMatchObject({
+      id: '1',
+      ok: true,
+      state: DEFAULT_STATE,
+      tally: null,
+      diagnostics: { byRow: [], byHost: [], scope: [] },
+    });
+  });
+});
+
 describe('declaresRegexMode', () => {
   it.each([
     ['a payload that is not an object', 'nope', false],
