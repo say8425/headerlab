@@ -20,7 +20,7 @@ import {
 import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
-import { findCommand, GROUPS, pathKey } from '../lib/commands.mjs';
+import { findCommand, GROUPS, pathKey, subcommandsOf } from '../lib/commands.mjs';
 import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
 import { planFail, planOk, planSlowReply, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
@@ -207,6 +207,25 @@ function readStdin() {
 }
 
 /**
+ * A symlink, a trailing slash, or a differently spelled path to the same
+ * directory each hash to a different id, and `allowed_origins` takes no
+ * wildcard — so a mismatch is a bridge that installs cleanly and never
+ * connects, with Chrome giving the same message it gives for a manifest that
+ * is not there at all. Reported, never assumed: this is the one text both
+ * `runBridgeCommand`'s real install and its `--dry-run` preview attach, under
+ * the same condition (`--extension-id` was not given, so the id was
+ * computed). `previewInstall`'s own docblock in `lib/install.mjs` names this
+ * exact trap as its reason for existing — a dry run that omitted the note
+ * would show the id without the warning that makes checking it necessary.
+ */
+function computedIdNote(loadPath) {
+  return (
+    `computed from ${loadPath} — check it against the id on ` +
+    'chrome://extensions before assuming this worked'
+  );
+}
+
+/**
  * Handles the `bridge.*` commands, which never reach a socket — installing,
  * uninstalling and reporting on the native messaging host manifest is what
  * makes a socket possible in the first place, not something that needs one.
@@ -230,9 +249,14 @@ async function runBridgeCommand(command, commandPath) {
   // into an id means resolving it against process.cwd() and hashing the bytes
   // of the result.
   const extensionId = command.extensionId ?? unpackedExtensionId(path.resolve(command.loadPath));
+  const note =
+    command.extensionId === null ? { note: computedIdNote(path.resolve(command.loadPath)) } : {};
 
   if (command.dryRun) {
-    emitOk(await previewInstall({ ...paths, extensionId }), ['bridge', 'install']);
+    emitOk({ ...(await previewInstall({ ...paths, extensionId })), ...note }, [
+      'bridge',
+      'install',
+    ]);
     return;
   }
 
@@ -241,24 +265,7 @@ async function runBridgeCommand(command, commandPath) {
     emitFail(result.error.code, result.error.message);
     return;
   }
-  emitOk(
-    {
-      ...result,
-      // Reported, never assumed. A symlink, a trailing slash, or a differently
-      // spelled path to the same directory each yield a different id, and
-      // `allowed_origins` takes no wildcard — so a mismatch is a bridge that
-      // installs cleanly and never connects, with Chrome giving the same
-      // message it gives for a manifest that is not there at all.
-      ...(command.extensionId === null
-        ? {
-            note:
-              `computed from ${path.resolve(command.loadPath)} — check it against the id on ` +
-              'chrome://extensions before assuming this worked',
-          }
-        : {}),
-    },
-    commandPath,
-  );
+  emitOk({ ...result, ...note }, commandPath);
 }
 
 /**
@@ -468,6 +475,39 @@ function helpTextFor(argv) {
 }
 
 /**
+ * 최상위 오타 제안의 두 단계 표현. 그룹 이름과 전체 경로 양쪽을 후보로
+ * 삼는다 — 사람은 `sites add` 도 치고 `site addd` 도 친다.
+ *
+ * `warnIfUnknown` 과 `withSuggestion` 이 이 표현을 나란히 복제하고
+ * 있었다 — 후보 집합이 한쪽만 바뀌면 다른 쪽은 조용히 남는다. 이름
+ * 붙여 한 곳에 두어 그 갈라짐을 없앤다.
+ */
+function suggestionFor(argv) {
+  return suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
+}
+
+/** `hint` 가 있으면 붙이고 없으면 `base` 그대로. 세 갈래(최상위, 그룹 안 서브커맨드, 파싱 실패)가 같은 문장 모양을 쓴다. */
+function withHint(base, hint) {
+  return hint === null ? base : `${base} — did you mean "${hint}"?`;
+}
+
+/**
+ * `headerlab site bogus --help` 처럼, 그룹은 맞았는데 그 아래 서브커맨드가
+ * 없는 경우. `warnIfUnknown` 이 예전에는 `GROUPS.includes(argv[0])` 에서
+ * 바로 멈췄다 — 토큰 하나짜리 미확인 명령에만 경고했고, 실제 그룹 아래의
+ * 미확인 서브커맨드는 조용히 최상위 도움말로 떨어졌다.
+ *
+ * 제안 후보는 `suggestionFor` 가 쓰는 최상위 두 단계(전체 GROUPS, 전체
+ * 경로)가 아니라 **이 그룹 소속 서브커맨드만**이다 — `site bogus` 에
+ * `rule add` 를 제안하는 것은 사람이 안 친 오타를 지어내는 것과 같다.
+ */
+function warnUnknownSubcommand(argv) {
+  const [group, sub] = argv;
+  const hint = suggest(sub ?? '', subcommandsOf(group));
+  process.stderr.write(`${withHint(`unknown ${group} command: ${sub ?? '(nothing)'}`, hint)}\n`);
+}
+
+/**
  * `headerlab teleport --help` 는 종료 0 으로 도움말을 낸다 — 도움말을
  * 청하는 것은 오류가 아니고, `headerlab teleport --help | less` 가 계속
  * 되어야 한다. 그래도 `teleport` 가 명령이 아니라는 사실 자체는 어디에도
@@ -479,24 +519,28 @@ function helpTextFor(argv) {
  * 이름 하나)을 "실제 명령" 으로 치므로 — `headerlab site --help` 는
  * `site add` 도 `site rm` 도 아니지만 실제 그룹이라 조용하다. argv 가
  * 비어 있어도(맨손 `--help`) 조용하다.
+ *
+ * 그룹은 맞는데 서브커맨드가 안 맞는 경우(`headerlab site bogus --help`)는
+ * 셋째 갈래다 — 그룹 이름 단독과 달리 실제로 안 친 토큰이 있으므로
+ * `warnUnknownSubcommand` 로 넘긴다.
  */
 function warnIfUnknown(argv) {
   if (argv.length === 0) return;
   if (findCommand(argv) !== null) return;
-  if (GROUPS.includes(argv[0])) return;
-  const hint = suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
+  if (GROUPS.includes(argv[0])) {
+    if (argv.length > 1) warnUnknownSubcommand(argv);
+    return;
+  }
   const base = `unknown command: ${argv[0]}`;
-  process.stderr.write(`${hint === null ? base : `${base} — did you mean "${hint}"?`}\n`);
+  process.stderr.write(`${withHint(base, suggestionFor(argv))}\n`);
 }
 
 /**
- * 오타 제안을 에러 메시지에 붙인다. 그룹 이름과 전체 경로 양쪽을
- * 후보로 삼는다 — 사람은 `sites add` 도 치고 `site addd` 도 친다.
+ * 오타 제안을 에러 메시지에 붙인다.
  */
 function withSuggestion(error, argv) {
   if (error.code !== 'unknown-command') return error.message;
-  const hint = suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
-  return hint === null ? error.message : `${error.message} — did you mean "${hint}"?`;
+  return withHint(error.message, suggestionFor(argv));
 }
 
 /**

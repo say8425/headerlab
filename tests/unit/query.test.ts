@@ -82,6 +82,39 @@ describe('status', () => {
     expect(tally!.unfinished).toBe(1);
   });
 
+  it('does not count a rule as live while the extension is paused', () => {
+    // Task 13's implementer mutation-verified that hardcoding
+    // `ruleTally(..., { live: true })` in `status()` leaves every other test
+    // in this file green — a paused extension would still be reported as
+    // shipping its rules live, and nothing here would catch it. This test
+    // exists to close exactly that hole: it pins `live` and `blocked` to
+    // exact counts (not a partial match) for a state that is both paused
+    // and carries one enabled, complete rule, so a wiring that reads
+    // `{ live: true }` instead of `{ live: !state.globalPause }` fails it.
+    const profile = bootstrapProfile();
+    const state: AppState = {
+      version: 2,
+      globalPause: true,
+      theme: 'system',
+      profiles: [
+        {
+          ...profile,
+          filter: { ...profile.filter, domains: ['a.com'] },
+          headers: [
+            { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+          ],
+        },
+      ],
+    };
+    const { tally } = status(state);
+    expect(tally).not.toBeNull();
+    expect(tally!.total).toBe(1);
+    expect(tally!.live).toBe(0);
+    expect(tally!.off).toBe(0);
+    expect(tally!.unfinished).toBe(0);
+    expect(tally!.blocked).toBe(1);
+  });
+
   it('serialises the diagnostic maps as pairs so they survive JSON', () => {
     const payload = status(emptyState());
     expect(Array.isArray(payload.diagnostics.byRow)).toBe(true);

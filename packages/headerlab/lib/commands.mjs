@@ -146,6 +146,18 @@ export function commandPaths() {
 }
 
 /**
+ * 한 그룹 소속 서브커맨드의 두 번째 토큰들. `site` 라면 `['ls','add','rm',
+ * 'all-sites']`. `topHelp` 가 최상위 도움말에 그룹별 서브커맨드 줄을 접어
+ * 보여줄 때 이미 하던 계산과 같은 것이며, `bin/headerlab.mjs` 의
+ * `warnIfUnknown` 이 모르는 서브커맨드에 오타 제안 후보를 주려고 따로
+ * 가져다 쓴다 — 서브커맨드가 표에 늘 때마다 두 곳을 손으로 맞출 필요가
+ * 없도록 표에서 뽑는다.
+ */
+export function subcommandsOf(group) {
+  return COMMANDS.filter((c) => c.path[0] === group && c.path.length > 1).map((c) => c.path[1]);
+}
+
+/**
  * argv 앞머리에서 가장 긴 일치를 고른다. `site all-sites on` 이
  * `site` 가 아니라 `site all-sites` 로 잡혀야 하므로 길이 내림차순이다.
  */

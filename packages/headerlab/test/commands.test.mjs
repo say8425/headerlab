@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { COMMANDS, GROUPS, commandPaths, findCommand } from '../lib/commands.mjs';
+import { COMMANDS, GROUPS, commandPaths, findCommand, subcommandsOf } from '../lib/commands.mjs';
 import { EXAMPLES } from '../lib/help.mjs';
 import { parse } from '../lib/args.mjs';
 
@@ -50,6 +50,18 @@ test('findCommand 는 모르는 것에 null 을 준다', () => {
 test('모든 항목이 한 줄 요약을 갖는다', () => {
   const missing = COMMANDS.filter((c) => typeof c.summary !== 'string' || c.summary.length === 0);
   assert.deepEqual(missing, []);
+});
+
+test('subcommandsOf 가 한 그룹 소속 서브커맨드의 두 번째 토큰만 준다', () => {
+  assert.deepEqual([...subcommandsOf('site')].sort(), ['add', 'all-sites', 'ls', 'rm']);
+});
+
+test('subcommandsOf 는 서브커맨드가 없는 그룹(단항 명령)에 빈 배열을 준다', () => {
+  assert.deepEqual(subcommandsOf('pause'), []);
+});
+
+test('subcommandsOf 는 모르는 그룹에도 빈 배열을 준다', () => {
+  assert.deepEqual(subcommandsOf('teleport'), []);
 });
 
 test('GROUPS 가 실제 그룹 이름들이다', () => {

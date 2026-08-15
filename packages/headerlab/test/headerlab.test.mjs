@@ -351,6 +351,54 @@ test('bridge install with an explicit --extension-id trusts it, and reports no n
   assert.equal('note' in payload, false);
 });
 
+// `previewInstall`'s own docblock names the `--load-path` id-mismatch trap as
+// its reason for existing, but until now only the real install path attached
+// the note that explains it — the dry run showed the computed id with none
+// of the warning that makes checking it necessary. Two tests, absence first:
+// a wrong implementation that always attaches the note would still pass the
+// load-path one below; only checking absence under --extension-id catches it.
+test('bridge install --dry-run with an explicit --extension-id reports no note', async () => {
+  const extensionId = 'b'.repeat(32);
+  const { stdout, code } = await runCli([
+    'bridge',
+    'install',
+    '--extension-id',
+    extensionId,
+    '--dry-run',
+    '--user-data-dir',
+    scratchProfile,
+  ]);
+  const payload = JSON.parse(stdout);
+
+  assert.equal(code, 0);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.extensionId, extensionId);
+  assert.equal('note' in payload, false);
+});
+
+test('bridge install --dry-run with a --load-path carries the same computed-id note the real install gives', async () => {
+  const loadPath = mkdtempSync(path.join(tmpdir(), 'hl-cli-bridge-dryrun-load-path-'));
+  const expectedId = unpackedExtensionId(loadPath);
+
+  const { stdout, code } = await runCli([
+    'bridge',
+    'install',
+    '--load-path',
+    loadPath,
+    '--dry-run',
+    '--user-data-dir',
+    scratchProfile,
+  ]);
+  const payload = JSON.parse(stdout);
+
+  assert.equal(code, 0);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.extensionId, expectedId);
+  assert.match(payload.note, /computed from/);
+});
+
 test('bridge status finds what bridge install wrote to a non-default --user-data-dir', async (t) => {
   cleanUpBridgeInstall(t);
 
@@ -633,6 +681,27 @@ test('그룹 이름 단독에 --help 를 붙이면 경고가 없다', async () =
   const { code, stdout, stderr } = await runCli(['site', '--help']);
   assert.equal(code, 0);
   assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+// 그룹은 맞는데 그 아래 서브커맨드가 없는 경우(`headerlab site bogus`)는
+// `warnIfUnknown` 이 `GROUPS.includes(argv[0])` 에서 곧장 멈추던 예전
+// 구현에서 조용히 최상위 도움말로 떨어졌다 — 셋째 갈래를 두 방향에서 잰다:
+// 제안이 없는 경우와, `suggest()` 가 그 그룹 소속 서브커맨드 안에서 찾아
+// 붙이는 경우.
+test('실제 그룹 아래 모르는 서브커맨드에 --help 를 붙이면 stderr 에 한 줄 남긴다', async () => {
+  const { code, stdout, stderr } = await runCli(['site', 'bogus', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown site command: bogus\n');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+test('그 서브커맨드 오타에 제안이 있으면 stderr 줄에 붙고, 후보는 그 그룹 소속뿐이다', async () => {
+  // 'ad' 는 site 소속 네 후보(ls·add·rm·all-sites) 안에서 'add' 와 거리 1 —
+  // 최상위 오타 제안(GROUPS·allPaths)이 대신 끼어들면 다른 답이 나온다.
+  const { code, stdout, stderr } = await runCli(['site', 'ad', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown site command: ad — did you mean "add"?\n');
   assert.equal(stdout.includes('USAGE'), true);
 });
 
