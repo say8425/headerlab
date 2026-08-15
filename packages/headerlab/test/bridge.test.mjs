@@ -10,7 +10,7 @@ import {
   registryPathFor,
   socketPathFor,
 } from '../lib/socket.mjs';
-import { extractBridgeFlag, findLiveBridges, resolveTarget, sendCommand } from '../lib/bridge.mjs';
+import { findLiveBridges, resolveTarget, sendCommand } from '../lib/bridge.mjs';
 
 // This file exercises the exact logic bin/headerlab.mjs cannot expose to
 // node:test on its own — bin/headerlab.mjs runs main() as an import-time
@@ -72,38 +72,6 @@ function writeRegistry(dir, pid, origin = `chrome-extension://${pid}fakeid/`) {
     JSON.stringify({ origin, startedAt: new Date().toISOString() }),
   );
 }
-
-// --- extractBridgeFlag: pure, argv in, {bridgePid, rest} or throw out ------
-
-describe('extractBridgeFlag', () => {
-  test('absent — bridgePid is null and argv is untouched', () => {
-    assert.deepEqual(extractBridgeFlag(['pause']), { bridgePid: null, rest: ['pause'] });
-  });
-
-  test('present — pulled out from wherever it sits in argv', () => {
-    assert.deepEqual(extractBridgeFlag(['--bridge', '123', 'pause']), {
-      bridgePid: 123,
-      rest: ['pause'],
-    });
-    assert.deepEqual(extractBridgeFlag(['pause', '--bridge', '123']), {
-      bridgePid: 123,
-      rest: ['pause'],
-    });
-  });
-
-  test('missing a value throws', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge']), /needs a pid/);
-  });
-
-  test('a non-numeric value throws', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge', 'nope']), /numeric pid/);
-  });
-
-  test('zero and negative pids throw — a pid is never <= 0', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge', '0']));
-    assert.throws(() => extractBridgeFlag(['--bridge', '-5']));
-  });
-});
 
 // --- findLiveBridges: enumerate the registry dir, keep only what answers --
 
@@ -324,4 +292,43 @@ describe('sendCommand', () => {
       return true;
     });
   });
+});
+
+import { extractGlobals } from '../lib/bridge.mjs';
+
+test('extractGlobals 가 전역 플래그를 걷고 나머지를 남긴다', () => {
+  assert.deepEqual(extractGlobals(['site', 'add', 'a.com', '--json']), {
+    globals: {
+      bridgePid: null,
+      json: true,
+      quiet: false,
+      noColor: false,
+      noInput: false,
+      force: false,
+      help: false,
+      version: false,
+      error: null,
+    },
+    rest: ['site', 'add', 'a.com'],
+  });
+});
+
+test('extractGlobals 가 --bridge 의 pid 를 걷는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', '42', 'pause']);
+  assert.equal(globals.bridgePid, 42);
+  assert.deepEqual(rest, ['pause']);
+});
+
+test('extractGlobals 는 던지지 않고 error 로 답한다', () => {
+  assert.equal(extractGlobals(['--bridge']).globals.error, '--bridge needs a pid');
+  assert.equal(
+    extractGlobals(['--bridge', 'x']).globals.error,
+    '--bridge needs a numeric pid, got: x',
+  );
+});
+
+test('extractGlobals 가 짧은 이름도 받는다', () => {
+  assert.equal(extractGlobals(['-h']).globals.help, true);
+  assert.equal(extractGlobals(['-q', 'pause']).globals.quiet, true);
+  assert.equal(extractGlobals(['-f', 'pause']).globals.force, true);
 });

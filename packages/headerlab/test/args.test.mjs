@@ -321,3 +321,41 @@ describe('bridge', () => {
     assert.match(result.error.message, /reinstall/);
   });
 });
+
+// The brief this test comes from expected the bare parseArgs message,
+// `"Unknown option '--nope'"`. Measured on this repo's pinned Node (24.16.0,
+// per .nvmrc's `24`): node:util's parseArgs appends a second sentence to
+// ERR_PARSE_ARGS_UNKNOWN_OPTION suggesting `--` for a positional starting
+// with `-`, so the actual message is longer. Asserted against the real
+// output rather than the brief's, since a literal transcription would fail
+// on the Node version this repo actually runs.
+test('site add 는 플래그처럼 생긴 토큰을 도메인으로 저장하지 않는다', () => {
+  assert.deepEqual(parse(['site', 'add', 'a.com', '--nope']), {
+    ok: false,
+    error: {
+      code: 'invalid-args',
+      message:
+        "site add: Unknown option '--nope'. To specify a positional argument starting with a " +
+        `'-', place it at the end of the command after '--', as in '-- "--nope"`,
+    },
+  });
+});
+
+test('site rm 도 같다', () => {
+  assert.deepEqual(parse(['site', 'rm', '--nope']), {
+    ok: false,
+    error: {
+      code: 'invalid-args',
+      message:
+        "site rm: Unknown option '--nope'. To specify a positional argument starting with a " +
+        `'-', place it at the end of the command after '--', as in '-- "--nope"`,
+    },
+  });
+});
+
+test('site add 는 여전히 여러 도메인을 받는다', () => {
+  assert.deepEqual(parse(['site', 'add', 'a.com', 'b.com']), {
+    ok: true,
+    command: { cmd: 'site.add', domains: ['a.com', 'b.com'] },
+  });
+});

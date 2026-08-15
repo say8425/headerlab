@@ -72,10 +72,22 @@ function parseNullary(args, cmd, display = cmd) {
 function parseSite(args) {
   const [sub, ...rest] = args;
   if (sub === 'add' || sub === 'rm') {
-    if (rest.length === 0) {
+    // `allowPositionals: true` 로 파싱하는 이유는 도메인을 받기 위해서가
+    // 아니라 **플래그를 거부하기 위해서**다. 이전에는 남은 토큰을 전부
+    // 도메인으로 삼았고, `site add a.com --json` 이 exit 0 으로 성공하며
+    // `--json` 을 도메인으로 저장했다 — `effectiveDomain` 이 그대로 저장하고
+    // `suppressionReason` 이 `unusable-site` 를 돌려주어 프로필 전체가
+    // 컴파일을 멈춘다. 같은 CLI 의 `bridge status` 는 이미 이렇게 거부한다.
+    let positionals;
+    try {
+      ({ positionals } = parseArgs({ args: rest, options: {}, allowPositionals: true }));
+    } catch (error) {
+      return invalidArgs(`site ${sub}: ${error.message}`);
+    }
+    if (positionals.length === 0) {
       return invalidArgs(`site ${sub} needs at least one domain`);
     }
-    return ok({ cmd: sub === 'add' ? 'site.add' : 'site.remove', domains: rest });
+    return ok({ cmd: sub === 'add' ? 'site.add' : 'site.remove', domains: positionals });
   }
   if (sub === 'all-sites') {
     const [state] = rest;

@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { parse } from '../lib/args.mjs';
-import { extractBridgeFlag, resolveTarget, sendCommand } from '../lib/bridge.mjs';
+import { extractGlobals, resolveTarget, sendCommand } from '../lib/bridge.mjs';
 import {
   bridgeStatus,
   defaultInstallPaths,
@@ -138,14 +138,12 @@ async function runBridgeCommand(command) {
 }
 
 async function main() {
-  let bridgePid;
-  let rest;
-  try {
-    ({ bridgePid, rest } = extractBridgeFlag(process.argv.slice(2)));
-  } catch (error) {
-    fail('usage', error.message);
+  const { globals, rest } = extractGlobals(process.argv.slice(2));
+  if (globals.error !== null) {
+    fail('usage', globals.error);
     return;
   }
+  const bridgePid = globals.bridgePid;
 
   const parsed = parse(rest);
   if (!parsed.ok) {

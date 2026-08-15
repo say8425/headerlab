@@ -22,21 +22,67 @@ export function withCode(error, code) {
 }
 
 /**
- * `--bridge <pid>` is a global flag, not part of any single command's
- * grammar — it picks which live bridge to talk to, which is orthogonal to
- * what the command does. So it is pulled out of argv before the rest ever
- * reaches `args.mjs`'s `parse()`, which only knows the nine command shapes.
+ * 전역 플래그는 어느 한 명령의 문법이 아니라 CLI 전체의 것이므로 argv 어디에
+ * 있어도 되고, `args.mjs` 의 `parse()` 가 보기 전에 걷힌다. `--bridge` 가
+ * 원래 이렇게 동작했고, 나머지가 같은 취급을 받는다.
+ *
+ * 던지지 않는다. 이 함수가 던지면 `--help` 를 처리하기도 전에 죽는 경로가
+ * 생기는데, 도움말은 문제가 있을 때 가장 필요한 것이다. 문제는 `error` 로
+ * 실어 보내고 호출부가 도움말을 낼지 실패할지 정한다.
  */
-export function extractBridgeFlag(argv) {
-  const index = argv.indexOf('--bridge');
-  if (index === -1) return { bridgePid: null, rest: argv };
-  const value = argv[index + 1];
-  if (value === undefined) throw new Error('--bridge needs a pid');
-  const bridgePid = Number(value);
-  if (!Number.isInteger(bridgePid) || bridgePid <= 0) {
-    throw new Error(`--bridge needs a numeric pid, got: ${value}`);
+const BOOLEAN_GLOBALS = new Map([
+  ['--json', 'json'],
+  ['--quiet', 'quiet'],
+  ['-q', 'quiet'],
+  ['--no-color', 'noColor'],
+  ['--no-input', 'noInput'],
+  ['--force', 'force'],
+  ['-f', 'force'],
+  ['--help', 'help'],
+  ['-h', 'help'],
+  ['--version', 'version'],
+]);
+
+export function extractGlobals(argv) {
+  const globals = {
+    bridgePid: null,
+    json: false,
+    quiet: false,
+    noColor: false,
+    noInput: false,
+    force: false,
+    help: false,
+    version: false,
+    error: null,
+  };
+  const rest = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    const boolean = BOOLEAN_GLOBALS.get(token);
+    if (boolean !== undefined) {
+      globals[boolean] = true;
+      continue;
+    }
+    if (token === '--bridge') {
+      const value = argv[i + 1];
+      i += 1;
+      if (value === undefined) {
+        globals.error ??= '--bridge needs a pid';
+        continue;
+      }
+      const pid = Number(value);
+      if (!Number.isInteger(pid) || pid <= 0) {
+        globals.error ??= `--bridge needs a numeric pid, got: ${value}`;
+        continue;
+      }
+      globals.bridgePid = pid;
+      continue;
+    }
+    rest.push(token);
   }
-  return { bridgePid, rest: [...argv.slice(0, index), ...argv.slice(index + 2)] };
+
+  return { globals, rest };
 }
 
 const REGISTRY_FILE = /^(\d+)\.json$/;
