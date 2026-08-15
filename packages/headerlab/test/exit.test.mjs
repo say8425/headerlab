@@ -47,7 +47,16 @@ test('소스가 내는 모든 코드가 ERROR_CODES 에 있다', () => {
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(/code:\s*'([a-z-]+)'/g)) found.add(match[1]);
-    for (const match of source.matchAll(/withCode\([^,]+,\s*'([a-z-]+)'\)/g)) found.add(match[1]);
+    // Trailing comma is allowed before the closing paren — lib/bridge.mjs's
+    // multi-line multiple-bridges call has one, and a regex that requires
+    // its absence silently stops seeing that call site.
+    for (const match of source.matchAll(/withCode\([^,]+,\s*'([a-z-]+)'\s*,?\s*\)/g)) {
+      found.add(match[1]);
+    }
+    // lib/install.mjs and bin/headerlab.mjs each mint codes through their own
+    // local `fail(code, message)` helper — a shape neither of the two
+    // patterns above recognizes at all.
+    for (const match of source.matchAll(/\bfail\(\s*'([a-z-]+)'/g)) found.add(match[1]);
   }
 
   const unmapped = [...found].filter((code) => !ERROR_CODES.includes(code));
