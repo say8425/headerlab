@@ -19,6 +19,7 @@ import {
 import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
+import { exitFor } from '../lib/exit.mjs';
 
 // Output is always one JSON object on stdout, success or failure — a human
 // prose default would get parsed by whatever calls this CLI, and the moment
@@ -30,7 +31,7 @@ function printResult(payload) {
 
 function fail(code, message) {
   printResult({ ok: false, error: { code, message } });
-  process.exitCode = 1;
+  process.exitCode = exitFor(code);
 }
 
 /**
@@ -48,6 +49,12 @@ function fail(code, message) {
  * longer visible. `MAX_OUTGOING` is imported from the host's framing
  * module rather than restated here, since 1 MB is that module's number
  * (host → extension) and this command travels exactly that direction.
+ *
+ * 이 세 실패는 `invalid-args` 다. `invalid-command` 였으나, 그 코드는
+ * 확장의 `port.ts` 가 `parseCommand` 실패에 쓰는 것이기도 해서 한 코드에
+ * 뜻이 둘이었다 — 하나는 "당신이 나쁜 파일을 가리켰다"(사용자 입력),
+ * 다른 하나는 "확장이 명령 모양을 거부했다"(버전 어긋남). 종료 코드가
+ * 달라야 하므로(2 대 1) 코드도 달라야 한다.
  */
 async function resolveStateCommand(command) {
   const { source } = command.state;
@@ -59,7 +66,7 @@ async function resolveStateCommand(command) {
       raw = readFileSync(source);
     } catch (error) {
       const wrapped = new Error(`could not read ${source}: ${error.message}`);
-      wrapped.code = 'invalid-command';
+      wrapped.code = 'invalid-args';
       throw wrapped;
     }
   }
@@ -67,7 +74,7 @@ async function resolveStateCommand(command) {
     const wrapped = new Error(
       `state is ${raw.byteLength} bytes, over the ${MAX_OUTGOING}-byte bridge limit`,
     );
-    wrapped.code = 'invalid-command';
+    wrapped.code = 'invalid-args';
     throw wrapped;
   }
   let state;
@@ -75,7 +82,7 @@ async function resolveStateCommand(command) {
     state = JSON.parse(raw.toString('utf8'));
   } catch (error) {
     const wrapped = new Error(`state is not valid JSON: ${error.message}`);
-    wrapped.code = 'invalid-command';
+    wrapped.code = 'invalid-args';
     throw wrapped;
   }
   return { ...command, state };
@@ -156,7 +163,7 @@ async function main() {
     try {
       command = await resolveStateCommand(command);
     } catch (error) {
-      fail(error.code ?? 'invalid-command', error.message);
+      fail(error.code ?? 'invalid-args', error.message);
       return;
     }
   }
@@ -181,7 +188,7 @@ async function main() {
   try {
     const result = await sendCommand(target.socketPath, command);
     printResult(result);
-    if (result.ok === false) process.exitCode = 1;
+    if (result.ok === false) process.exitCode = exitFor(result.error?.code ?? 'bridge-error');
   } catch (error) {
     fail(error.code ?? 'bridge-error', error.message);
   }

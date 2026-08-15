@@ -55,13 +55,13 @@ const scratch = mkdtempSync(path.join(tmpdir(), 'hl-cli-bin-test-'));
 
 // --- resolveStateCommand's three failure branches ---------------------------
 
-test('state set on a file that cannot be read fails with invalid-command, not a crash', async () => {
+test('state set on a file that cannot be read fails with invalid-args, not a crash', async () => {
   const missing = path.join(scratch, 'does-not-exist.json');
   const { code, stdout } = await runCli(['state', 'set', missing]);
   const result = JSON.parse(stdout);
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(result.ok, false);
-  assert.equal(result.error.code, 'invalid-command');
+  assert.equal(result.error.code, 'invalid-args');
   assert.match(result.error.message, /could not read/);
 });
 
@@ -70,20 +70,20 @@ test('state set refuses a payload over the bridge byte cap before ever touching 
   writeFileSync(bigFile, 'x'.repeat(MAX_OUTGOING + 1));
   const { code, stdout } = await runCli(['state', 'set', bigFile]);
   const result = JSON.parse(stdout);
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(result.ok, false);
-  assert.equal(result.error.code, 'invalid-command');
+  assert.equal(result.error.code, 'invalid-args');
   assert.match(result.error.message, new RegExp(String(MAX_OUTGOING)));
 });
 
-test('state set on invalid JSON fails with invalid-command, naming the problem', async () => {
+test('state set on invalid JSON fails with invalid-args, naming the problem', async () => {
   const badFile = path.join(scratch, 'bad.json');
   writeFileSync(badFile, 'not json{');
   const { code, stdout } = await runCli(['state', 'set', badFile]);
   const result = JSON.parse(stdout);
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(result.ok, false);
-  assert.equal(result.error.code, 'invalid-command');
+  assert.equal(result.error.code, 'invalid-args');
   assert.match(result.error.message, /not valid JSON/);
 });
 
@@ -92,7 +92,7 @@ test('state set on invalid JSON fails with invalid-command, naming the problem',
 test("an unparseable command fails with the parser's own code, before any bridge lookup", async () => {
   const { code, stdout } = await runCli(['teleport']);
   const result = JSON.parse(stdout);
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'unknown-command');
 });
@@ -108,7 +108,7 @@ test('a valid command naming a bridge that does not exist fails with bridge-off,
   const impossiblePid = 100000 + Math.floor(Math.random() * 900000);
   const { code, stdout } = await runCli(['--bridge', String(impossiblePid), 'pause']);
   const result = JSON.parse(stdout);
-  assert.equal(code, 1);
+  assert.equal(code, 3);
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'bridge-off');
 });
