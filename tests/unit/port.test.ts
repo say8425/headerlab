@@ -423,6 +423,7 @@ describe('handleMessage routes reads before writes', () => {
     const port = ports[0]!;
     const { stateItem } = await import('@/lib/storage/state');
     const setValueSpy = vi.spyOn(stateItem, 'setValue');
+    const bridgeStatusSpy = vi.spyOn(bridgeStatusItem, 'setValue');
 
     port.send({ id: '1', command: { cmd: 'status' } });
     await settle();
@@ -431,6 +432,11 @@ describe('handleMessage routes reads before writes', () => {
     // stateItem.watch() → reconcile(), replacing every DNR rule for a
     // command that only asked to look.
     expect(setValueSpy).not.toHaveBeenCalled();
+    // Absence, second guarantee: a read must not move `lastCommandAt` either
+    // — patchBridgeStatus() is the only writer of bridgeStatusItem, and if a
+    // read moved the "last command" timestamp the popup would report a
+    // command that never happened.
+    expect(bridgeStatusSpy).not.toHaveBeenCalled();
 
     expect(port.messages).toHaveLength(1);
     expect(port.messages[0]).toMatchObject({
