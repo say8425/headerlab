@@ -64,7 +64,13 @@ export const COMMANDS = [
     path: ['state', 'set'],
     args: '<file|->',
     summary: 'replace the entire stored state',
-    examples: ['headerlab state set state.json'],
+    flags: [
+      { name: '--force', summary: 'confirm the overwrite (required when not on a terminal)' },
+    ],
+    examples: [
+      'headerlab state set state.json --force',
+      'headerlab state get --json | jq .state | headerlab state set - --force',
+    ],
   },
   {
     path: ['bridge', 'install'],

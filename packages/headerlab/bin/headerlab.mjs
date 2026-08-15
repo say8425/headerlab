@@ -58,6 +58,41 @@ function emitPlain(text) {
   process.stdout.write(`${text}\n`);
 }
 
+const STATE_SET_CONFIRM =
+  'state set replaces the entire stored state and cannot be undone; pass --force to confirm';
+
+/**
+ * `state set` 은 되돌릴 수 없는 전체 덮어쓰기다 (clig Arguments §10).
+ *
+ * 비대화형에서 조용히 진행하지 않고 `--force` 를 요구하는 쪽을 택했다.
+ * 반대쪽 — 파이프면 그냥 진행 — 은 확인이 사람에게만 걸리고 스크립트에는
+ * 안 걸린다는 뜻이고, 스크립트가 훨씬 더 많은 상태를 훨씬 더 빨리 지운다.
+ * clig Interactivity §2 가 "물어볼 수 없으면 어떤 플래그를 치라고 알려주며
+ * 실패하라" 고 말하는 것이 정확히 이 경우다.
+ */
+async function confirmStateSet(source) {
+  if (GLOBALS.force) return true;
+  if (GLOBALS.noInput) {
+    emitFail('usage', STATE_SET_CONFIRM);
+    return false;
+  }
+  // 소스가 `-` 이면 stdin 은 payload 이므로 물어볼 데가 없다.
+  if (source === '-' || !process.stdin.isTTY) {
+    emitFail('usage', STATE_SET_CONFIRM);
+    return false;
+  }
+
+  process.stderr.write('This replaces the entire stored state and cannot be undone.\n');
+  process.stderr.write('Continue? [y/N] ');
+  const answer = await new Promise((resolve) => {
+    process.stdin.setEncoding('utf8');
+    process.stdin.once('data', (chunk) => resolve(chunk.trim().toLowerCase()));
+  });
+  if (answer === 'y' || answer === 'yes') return true;
+  emitFail('usage', 'cancelled');
+  return false;
+}
+
 /**
  * Resolves `state.set`'s `{ source }` placeholder (see args.mjs's docblock)
  * into the real payload by reading the named file or, for `-`, stdin. This
@@ -113,6 +148,14 @@ async function resolveStateCommand(command) {
 }
 
 function readStdin() {
+  // 측정된 결함: 가드가 없으면 실제 pty 에서 영원히 멈춘다. 5초 뒤에도
+  // 실행 중이고 stdout·stderr 둘 다 0바이트라, 사용자는 뭘 기다리는지
+  // 알 방법 없이 커서만 본다. clig Help §11.
+  if (process.stdin.isTTY) {
+    const error = new Error('state set - reads JSON from stdin; pipe it in or pass a file path');
+    error.code = 'usage';
+    return Promise.reject(error);
+  }
   return new Promise((resolve, reject) => {
     const chunks = [];
     process.stdin.on('data', (chunk) => chunks.push(chunk));
@@ -221,10 +264,11 @@ async function main() {
 
   let command = parsed.command;
   if (command.cmd === 'state.set') {
+    if (!(await confirmStateSet(command.state.source))) return;
     try {
       command = await resolveStateCommand(command);
     } catch (error) {
-      emitFail(error.code ?? 'invalid-args', error.message, rest);
+      emitFail(error.code ?? 'invalid-args', error.message);
       return;
     }
   }

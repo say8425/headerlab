@@ -57,7 +57,7 @@ const scratch = mkdtempSync(path.join(tmpdir(), 'hl-cli-bin-test-'));
 
 test('state set on a file that cannot be read fails with invalid-args, not a crash', async () => {
   const missing = path.join(scratch, 'does-not-exist.json');
-  const { code, stdout } = await runCli(['state', 'set', missing]);
+  const { code, stdout } = await runCli(['state', 'set', missing, '--force']);
   const result = JSON.parse(stdout);
   assert.equal(code, 2);
   assert.equal(result.ok, false);
@@ -68,7 +68,7 @@ test('state set on a file that cannot be read fails with invalid-args, not a cra
 test('state set refuses a payload over the bridge byte cap before ever touching the socket', async () => {
   const bigFile = path.join(scratch, 'too-big.json');
   writeFileSync(bigFile, 'x'.repeat(MAX_OUTGOING + 1));
-  const { code, stdout } = await runCli(['state', 'set', bigFile]);
+  const { code, stdout } = await runCli(['state', 'set', bigFile, '--force']);
   const result = JSON.parse(stdout);
   assert.equal(code, 2);
   assert.equal(result.ok, false);
@@ -79,12 +79,42 @@ test('state set refuses a payload over the bridge byte cap before ever touching 
 test('state set on invalid JSON fails with invalid-args, naming the problem', async () => {
   const badFile = path.join(scratch, 'bad.json');
   writeFileSync(badFile, 'not json{');
-  const { code, stdout } = await runCli(['state', 'set', badFile]);
+  const { code, stdout } = await runCli(['state', 'set', badFile, '--force']);
   const result = JSON.parse(stdout);
   assert.equal(code, 2);
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'invalid-args');
   assert.match(result.error.message, /not valid JSON/);
+});
+
+test('비대화형 state set 은 --force 를 요구한다', async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), 'hl-')), 'state.json');
+  writeFileSync(file, JSON.stringify({ profiles: [] }));
+  const { code, stdout } = await runCli(['state', 'set', file]);
+  assert.equal(code, 2);
+  const parsed = JSON.parse(stdout);
+  assert.equal(parsed.error.code, 'usage');
+  assert.equal(
+    parsed.error.message,
+    'state set replaces the entire stored state and cannot be undone; pass --force to confirm',
+  );
+});
+
+test('--force 를 주면 통과해 브릿지까지 간다', async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), 'hl-')), 'state.json');
+  writeFileSync(file, JSON.stringify({ profiles: [] }));
+  const { code, stdout } = await runCli(['state', 'set', file, '--force']);
+  // 브릿지가 없으므로 bridge-off 까지 갔다는 것이 확인의 증거다.
+  assert.equal(code, 3);
+  assert.equal(JSON.parse(stdout).error.code, 'bridge-off');
+});
+
+test('--no-input 은 어떤 플래그를 치라고 말한다', async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), 'hl-')), 'state.json');
+  writeFileSync(file, JSON.stringify({ profiles: [] }));
+  const { code, stdout } = await runCli(['state', 'set', file, '--no-input']);
+  assert.equal(code, 2);
+  assert.equal(JSON.parse(stdout).error.message.includes('--force'), true);
 });
 
 // --- main()'s argv-to-exit-code wiring --------------------------------------

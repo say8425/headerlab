@@ -28,6 +28,7 @@ test('표의 모든 예제가 실제로 파싱된다', () => {
   const broken = [];
   for (const command of COMMANDS) {
     for (const example of command.examples ?? []) {
+      if (example.includes('|')) continue; // 파이프라인 예제는 argv 하나가 아니다
       const argv = example.split(' ').slice(1); // 'headerlab' 을 뗀다
       const result = parse(argv);
       if (!result.ok) broken.push(`${example} → ${result.error.message}`);

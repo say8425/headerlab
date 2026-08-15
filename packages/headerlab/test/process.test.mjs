@@ -45,3 +45,22 @@ test('SIGINT 가 한 줄을 남기고 130 으로 나간다', async () => {
   assert.equal(stderr.includes('interrupted'), true);
   assert.equal(code, 130);
 });
+
+test('state set - 은 터미널에서 멈추지 않는다', async () => {
+  // stdin 을 상속시키면 부모의 stdin 이 붙는데, node:test 아래에서는
+  // TTY 가 아니다. isTTY 를 강제하는 대신 `-` 에 아무것도 안 보내고
+  // 닫아서, 멈추지 않고 답이 나오는지만 본다. TTY 경로는 아래 손 확인.
+  const child = spawn(process.execPath, [cliPath, 'state', 'set', '-', '--force'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  child.stdin.end();
+  const finished = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve('hung'), 3000);
+    child.on('close', () => {
+      clearTimeout(timer);
+      resolve('exited');
+    });
+  });
+  child.kill();
+  assert.equal(finished, 'exited');
+});
