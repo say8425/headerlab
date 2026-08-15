@@ -326,16 +326,24 @@ describe('sendCommand', () => {
     });
 
     let calls = 0;
+    const slowAfterMs = 50;
     const result = await sendCommand(
       socketPath,
       { cmd: 'pause' },
       {
         timeoutMs: 1000,
-        slowAfterMs: 500,
+        slowAfterMs,
         onSlow: () => (calls += 1),
       },
     );
     assert.deepEqual(result, { ok: true, changed: false });
+    // The reply resolves well inside slowAfterMs, which only proves the
+    // regression window in this file's own review found: settle() dropped
+    // `clearTimeout(slowTimer)` would still leave that timer running past
+    // this point, and onSlow would fire ~slowAfterMs later — after a bare
+    // assert.equal(calls, 0) taken right after await would already have
+    // passed. Waiting past slowAfterMs before asserting closes that window.
+    await new Promise((resolve) => setTimeout(resolve, slowAfterMs + 100));
     assert.equal(calls, 0);
   });
 });
