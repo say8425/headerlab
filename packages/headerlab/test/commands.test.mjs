@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { COMMANDS, GROUPS, commandPaths, findCommand } from '../lib/commands.mjs';
+import { EXAMPLES } from '../lib/help.mjs';
+import { parse } from '../lib/args.mjs';
 
 // 지금 파서가 아는 아홉 가지. lib/args.mjs 의 switch 와
 // lib/bridge/protocol.ts 의 commandSchema 에서 손으로 옮긴 것이며,
@@ -48,4 +50,20 @@ test('모든 항목이 한 줄 요약을 갖는다', () => {
 
 test('GROUPS 가 실제 그룹 이름들이다', () => {
   assert.deepEqual([...GROUPS].sort(), ['bridge', 'pause', 'resume', 'rule', 'site', 'state']);
+});
+
+// help.mjs 리뷰가 잡은 결함: 최상위 도움말의 EXAMPLES 는 COMMANDS 안의
+// 예제와 별개로 손으로 고른 배열이라, 위 '표의 모든 예제가 실제로
+// 파싱된다' 테스트는 이 배열을 보지 못한다. 실제로 이 틈으로
+// `headerlab status`, `headerlab state get --json | jq .state` 처럼
+// 파서가 모르는 명령이 최상위 도움말 예제로 살아 있었다 — 직접 파서에
+// 먹여서 잡는다.
+test('최상위 도움말의 EXAMPLES 도 실제로 파싱된다', () => {
+  const broken = [];
+  for (const [cmd] of EXAMPLES) {
+    const argv = cmd.split(' ').slice(1); // 'headerlab' 을 뗀다
+    const result = parse(argv);
+    if (!result.ok) broken.push(`${cmd} → ${result.error.message}`);
+  }
+  assert.deepEqual(broken, []);
 });
