@@ -45,3 +45,25 @@ export const ERROR_CODES = [...BY_CODE.keys()];
 export function exitFor(code) {
   return BY_CODE.get(code) ?? EXIT.FAILED;
 }
+
+/**
+ * 던져진 에러를 **봉투에 실을 코드**로 옮긴다. 소켓으로 나갔다가 실패한
+ * 자리에서만 쓴다.
+ *
+ * 측정해서 알게 된 것: `error.code ?? 'bridge-error'` 는 코드가 **없는**
+ * 에러만 걸러 낸다. 소켓이 내는 에러에는 코드가 있고, 그것이 errno 다 —
+ * 연결하자마자 끊는 호스트에 명령을 쓰면 5/5 로 `EPIPE` 가 나온다. 그러면
+ * 봉투의 `error.code` 가 `"EPIPE"` 로 나가는데, 그것은 이 파일의 표에
+ * 없으므로 `exitFor` 의 기본값을 타고 1("목적지가 요청을 거부했다")이 된다.
+ * 아무것도 목적지에 닿은 적이 없는데도.
+ *
+ * 그래서 표에 있는 코드만 통과시키고 나머지는 전부 `bridge-error`(4,
+ * "연결은 됐으나 교환이 실패했다")로 접는다. errno 는 봉투의 계약이 아니다 —
+ * `ERROR_CODES` 가 계약이고, 그 목록에 없는 문자열이 `error.code` 로 나가면
+ * 그것을 읽는 쪽은 분기할 것이 없다. 원래 메시지는 그대로 실려 나가므로
+ * 어느 errno 였는지는 사람이 여전히 읽을 수 있다.
+ */
+export function codeForThrown(error) {
+  const code = error?.code;
+  return typeof code === 'string' && BY_CODE.has(code) ? code : 'bridge-error';
+}

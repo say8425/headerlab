@@ -198,8 +198,8 @@ after(() => {
 });
 
 /** A minimal fake host: newline-JSON in, one reply out, id echoed back. */
-async function fakeHost(socketPath, reply) {
-  const server = createServer((socket) => {
+function replyHandler(reply) {
+  return (socket) => {
     let buffer = '';
     socket.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
@@ -212,7 +212,11 @@ async function fakeHost(socketPath, reply) {
         socket.write(`${JSON.stringify({ id: envelope.id, ...reply(envelope.command) })}\n`);
       }
     });
-  });
+  };
+}
+
+async function fakeHost(socketPath, reply) {
+  const server = createServer(replyHandler(reply));
   await listenWithRestrictedPermissions(server, socketPath);
   return server;
 }
@@ -707,18 +711,28 @@ const fakeStatus = {
   globalPause: false,
 };
 
-/** 소켓·레지스트리를 띄우고 pid 를 돌려준다. 정리는 `t.after` 에 건다. */
-async function liveFakeBridge(t, reply) {
-  const dir = socketDir();
+const BRIDGE_ORIGIN = 'chrome-extension://cli-read-test/';
+
+/**
+ * 소켓·레지스트리를 `dir` 에 띄우고 pid 를 돌려준다. 정리는 `t.after` 에
+ * 건다 — 어서션이 중간에 실패하면 그 뒤의 정리 호출은 실행되지 않으므로
+ * (CLAUDE.md, 설치기 변이 테스트 항목).
+ *
+ * 연결 핸들러를 인자로 받는 이유는 답하는 브릿지만이 검사 대상이 아니기
+ * 때문이다: 연결은 받고 답하지 않는 브릿지도, 둘이 동시에 떠 있는 것도
+ * `status` 가 구분해야 하는 서로 다른 사실이다.
+ */
+async function bridgeAt(t, dir, onConnection) {
   ensureSocketDir(dir);
   const pid = 100000 + Math.floor(Math.random() * 900000);
   const socketPath = socketPathFor(dir, pid);
   const registryPath = registryPathFor(dir, pid);
   writeRegistryEntry(dir, pid, {
-    origin: 'chrome-extension://cli-read-test/',
+    origin: BRIDGE_ORIGIN,
     startedAt: new Date().toISOString(),
   });
-  const server = await fakeHost(socketPath, reply);
+  const server = createServer(onConnection);
+  await listenWithRestrictedPermissions(server, socketPath);
   t.after(() => {
     server.close();
     for (const p of [socketPath, registryPath]) {
@@ -730,6 +744,17 @@ async function liveFakeBridge(t, reply) {
     }
   });
   return pid;
+}
+
+/** 진짜 socketDir() 에 뜨는, 답하는 브릿지. */
+function liveFakeBridge(t, reply) {
+  return bridgeAt(t, socketDir(), replyHandler(reply));
+}
+
+/** 이 파일의 다른 브릿지 테스트와 섞이지 않는 빈 소켓 디렉터리 하나. */
+function freshSocketEnv() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hl-cli-status-sockets-'));
+  return { dir, env: { ...process.env, HEADERLAB_SOCKET_DIR: dir } };
 }
 
 // 넷이 같은 `{cmd:'status'}` 를 보내고 **렌더만 다르다** 는 주장은 여기서만
@@ -778,4 +803,113 @@ test('status 는 브릿지가 거부한 응답을 삼키지 않는다', async (t
   assert.equal(stderr, '');
   assert.deepEqual(JSON.parse(stdout), refusal);
   assert.equal(code, 1);
+});
+
+// 거부한 응답과 같은 이유로, **던져진** 실패도 삼키지 않는다. `catch {}` 는
+// `bridge-off` 만이 아니라 `resolveTarget`/`sendCommand` 가 내는 코드 전부를
+// "not running" 으로 번역하고, 그 봉투는 스스로 모순된다 — `liveBridges` 가
+// 세고 있는 브릿지를 같은 줄에서 `live:false` 라고 부른다. 아래 셋이 그
+// 갈래 하나씩이며, `catch {}` 로 되돌리면 셋 다 빨개진다.
+//
+// `timeout` 은 여기서 재지 않는다. 그 코드는 `bridge.test.mjs` 가 짧은
+// `timeoutMs` 로, 그 코드의 종료 코드 4 는 `exit.test.mjs` 가 이미 못박고
+// 있고, CLI 밖에서 그 타이머를 줄일 방법이 없어 이 파일에 넣으면 실제로
+// 10초를 기다린다 (측정: 이 패키지의 전체 스위트가 7.9초다). 갈래는
+// `bridge-closed` 가 같은 `catch` 의 같은 줄로 지나가며 즉시 증명한다.
+test('status 는 답하지 않는 브릿지를 not running 이라 부르지 않는다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  // 명령을 **받고** 나서 끊는다 — `isSocketAlive` 에는 살아 있고, 쓰기는
+  // 성공하고, 답 없이 닫히므로 `sendCommand` 에게는 `bridge-closed` 다.
+  // (받기 전에 끊으면 쓰기가 EPIPE 로 죽는다 — 바로 아래 테스트가 그쪽이다.)
+  const pid = await bridgeAt(t, dir, (socket) => socket.once('data', () => socket.destroy()));
+
+  const { code, stdout, stderr } = await runCli(['--bridge', String(pid), 'status'], { env });
+  assert.equal(stderr, '');
+  const payload = JSON.parse(stdout);
+  // 부재 먼저: 성공 봉투의 필드가 하나도 실려 나가지 않는다.
+  assert.equal('live' in payload, false);
+  assert.equal('liveBridges' in payload, false);
+  assert.deepEqual(payload, {
+    ok: false,
+    error: {
+      code: 'bridge-closed',
+      message: 'the bridge closed the connection before replying',
+    },
+  });
+  assert.equal(code, 4);
+});
+
+// 소켓이 **날것의 errno** 를 던지는 갈래. 측정: 연결하자마자 끊는 호스트에
+// 명령을 쓰면 5/5 로 `EPIPE` 다. 그 문자열이 그대로 봉투에 실리면 `error.code`
+// 가 `ERROR_CODES` 밖의 값이 되고 — 읽는 쪽이 분기할 것이 없다 — 종료 코드는
+// 기본값 1, 즉 "목적지가 요청을 거부했다" 가 된다. 목적지에 닿은 적이 없는데도.
+test('status 는 소켓 errno 를 봉투에 그대로 흘리지 않는다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  const pid = await bridgeAt(t, dir, (socket) => socket.destroy());
+
+  const { code, stdout, stderr } = await runCli(['--bridge', String(pid), 'status'], { env });
+  assert.equal(stderr, '');
+  const payload = JSON.parse(stdout);
+  assert.equal('live' in payload, false);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, 'bridge-error');
+  assert.equal(code, 4);
+  // 메시지는 errno 의 것 그대로 나간다 — 어느 errno 였는지는 사람이 여전히
+  // 읽을 수 있어야 한다. 정확한 문자열은 커널이 정하므로(`write EPIPE`,
+  // `read ECONNRESET`) 값이 아니라 비어 있지 않음을 잰다.
+  assert.equal(typeof payload.error.message, 'string');
+  assert.equal(payload.error.message.length > 0, true);
+});
+
+test('status 는 브릿지가 둘이면 하나를 고르지도, 없다고 하지도 않는다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  const first = await bridgeAt(
+    t,
+    dir,
+    replyHandler(() => fakeStatus),
+  );
+  const second = await bridgeAt(
+    t,
+    dir,
+    replyHandler(() => fakeStatus),
+  );
+
+  const { code, stdout, stderr } = await runCli(['status'], { env });
+  assert.equal(stderr, '');
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, 'multiple-bridges');
+
+  // 두 pid 를 **둘 다** 댄다. 디렉터리 열거 순서는 정해져 있지 않으므로
+  // 줄을 정렬해 비교한다 — `includes` 로 느슨하게 재면 한쪽만 대는 구현이
+  // 통과한다.
+  const [head, ...rows] = payload.error.message.split('\n');
+  assert.equal(head, 'more than one bridge is running — pick one with --bridge <pid>:');
+  assert.deepEqual(
+    rows.sort(),
+    [first, second].map((pid) => `  pid ${pid} (${BRIDGE_ORIGIN})`).sort(),
+  );
+  assert.equal(code, 3);
+});
+
+// 리포트의 concern #2 를 결정으로 바꾼다. `--bridge <pid>` 는 "이 브릿지에
+// 말하라" 는 지목이므로, 그 브릿지가 없는 것은 "브릿지가 하나도 없다" 와
+// 다른 사실이다 — 특히 다른 브릿지가 살아 있을 때 exit 0 으로 "not running"
+// 이라 답하면 같은 봉투의 `liveBridges` 가 그것을 세고 있는 채로 지목이
+// 무시된 것처럼 보인다. exit 0 예외는 아무것도 지목하지 않은 경우까지다.
+test('status 는 지목한 pid 가 없으면 지목을 무시하지 않는다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  const alive = await bridgeAt(
+    t,
+    dir,
+    replyHandler(() => fakeStatus),
+  );
+
+  const { code, stdout, stderr } = await runCli(['--bridge', String(alive + 1), 'status'], { env });
+  assert.equal(stderr, '');
+  assert.deepEqual(JSON.parse(stdout), {
+    ok: false,
+    error: { code: 'bridge-off', message: `no live bridge with pid ${alive + 1}` },
+  });
+  assert.equal(code, 3);
 });

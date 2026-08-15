@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ERROR_CODES, EXIT, exitFor } from '../lib/exit.mjs';
+import { codeForThrown, ERROR_CODES, EXIT, exitFor } from '../lib/exit.mjs';
 
 test('각 코드가 정해진 종료 코드로 간다', () => {
   assert.equal(exitFor('usage'), 2);
@@ -22,6 +22,39 @@ test('각 코드가 정해진 종료 코드로 간다', () => {
 
 test('모르는 코드는 1 이다', () => {
   assert.equal(exitFor('something-nobody-declared'), 1);
+});
+
+// `codeForThrown` 은 소켓이 던진 것을 봉투의 코드로 옮기는 유일한 곳이다.
+// 통과와 접기를 한 테스트에서 같이 재야 의미가 있다 — 전부 통과시키는
+// 구현과 전부 접는 구현이 각각 한쪽만으로는 통과하기 때문이다.
+test('던져진 에러는 표에 있는 코드만 그대로 나가고 나머지는 bridge-error 다', () => {
+  // 표에 있는 것: 그대로. 이것이 없으면 timeout·bridge-closed 가 전부
+  // 한 코드로 뭉개져 호출자가 구분할 것을 잃는다.
+  assert.equal(codeForThrown({ code: 'timeout' }), 'timeout');
+  assert.equal(codeForThrown({ code: 'bridge-closed' }), 'bridge-closed');
+  assert.equal(codeForThrown({ code: 'multiple-bridges' }), 'multiple-bridges');
+  // errno: 봉투의 계약이 아니다. 측정된 실제 값 둘.
+  assert.equal(codeForThrown({ code: 'EPIPE' }), 'bridge-error');
+  assert.equal(codeForThrown({ code: 'ECONNREFUSED' }), 'bridge-error');
+  // 코드가 아예 없거나 코드가 아닌 것.
+  assert.equal(codeForThrown(new Error('nothing at all')), 'bridge-error');
+  assert.equal(codeForThrown({ code: 7 }), 'bridge-error');
+  assert.equal(codeForThrown(undefined), 'bridge-error');
+});
+
+// 위 테스트가 지키는 성질을 한 줄로: 이 함수가 무엇을 받든 그 결과는
+// 항상 종료 코드가 정해진 코드다. errno 를 그대로 흘리는 구현은 여기서
+// 빨개진다 — `EPIPE` 는 `ERROR_CODES` 에 없다.
+test('codeForThrown 의 결과는 언제나 ERROR_CODES 안에 있다', () => {
+  for (const thrown of [
+    { code: 'EPIPE' },
+    { code: 'ECONNRESET' },
+    { code: 'ENOENT' },
+    { code: 'timeout' },
+    new Error('no code'),
+  ]) {
+    assert.equal(ERROR_CODES.includes(codeForThrown(thrown)), true, String(thrown.code));
+  }
 });
 
 test('EXIT.OK 은 0 이고 다른 어떤 것도 0 이 아니다', () => {

@@ -24,7 +24,7 @@ import { findCommand, GROUPS, pathKey } from '../lib/commands.mjs';
 import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
 import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
-import { EXIT, exitFor } from '../lib/exit.mjs';
+import { codeForThrown, EXIT, exitFor } from '../lib/exit.mjs';
 
 // 모드는 한 번만 정하고 프로세스 수명 동안 유지한다. 명령마다 다시
 // 정하면 같은 실행 안에서 두 형식이 섞일 수 있고, 그건 파싱하는 쪽에
@@ -248,10 +248,22 @@ async function runBridgeCommand(command, commandPath) {
  * 보내면서도 여전히 `bridge-off` 로 3 을 내고 나간다 — 그래서 이 갈래는
  * `command.cmd` 가 아니라 **사람이 친 이름**(`commandPath`)으로 갈린다.
  *
- * 예외는 "브릿지가 없다" 까지다. 브릿지가 답했는데 거부했다면 그것은 다른
+ * 예외는 "브릿지가 하나도 없다" 까지이며, 그 경계는 **응답만이 아니라
+ * 던져진 실패에도** 걸린다. 브릿지가 답했는데 거부했다면 그것은 다른
  * 사실이고, 다른 명령과 똑같이 봉투 그대로 나가며 종료 코드도 산다 —
  * 읽을 수 없는 저장소를 "not running" 으로 번역하는 것은 이 저장소가
- * 금지하는 조용한 실패다.
+ * 금지하는 조용한 실패다. 던져지는 쪽도 마찬가지다: `resolveTarget` 과
+ * `sendCommand` 는 `bridge-off` 말고도 `multiple-bridges`(3),
+ * `timeout`·`bridge-closed`(4), 그리고 소켓이 날것으로 내는 errno 를
+ * 던지고, 그 전부를 삼키면 봉투가 스스로 모순된다 — `bridgeStatus` 는
+ * 자기 `findLiveBridges` 를 돌리므로 `liveBridges` 가 두 pid 를 세고 있는
+ * 채로 `live:false` 가 0 으로 나간다. 열 초 매달린 확장과 아무것도 설치되지
+ * 않은 기계를 종료 코드로 구분할 수 없게 되는 것이 그 대가다.
+ *
+ * `--bridge <pid>` 로 하나를 지목했는데 그것이 없는 것도 예외가 아니다.
+ * 지목은 "이 브릿지에 말하라" 이므로, 다른 브릿지가 살아 있는데 exit 0 으로
+ * "not running" 이라 답하면 지목이 조용히 무시된 것처럼 보인다. 예외는
+ * 아무것도 지목하지 않았고 아무것도 뜨지 않은 경우까지다.
  */
 async function runStatus(command, commandPath, bridgePid) {
   const paths = defaultInstallPaths({ userDataDir: null, browser: 'chrome' });
@@ -261,8 +273,13 @@ async function runStatus(command, commandPath, bridgePid) {
   try {
     const target = await resolveTarget(socketDir(), bridgePid);
     remote = await sendCommand(target.socketPath, command);
-  } catch {
-    // 브릿지가 없다(또는 닿지 못했다). local 만으로 답한다.
+  } catch (error) {
+    const code = codeForThrown(error);
+    if (code !== 'bridge-off' || bridgePid !== null) {
+      emitFail(code, error.message);
+      return;
+    }
+    // 브릿지가 하나도 없다. local 만으로 답한다.
   }
 
   if (remote !== null && remote.ok !== true) {
@@ -382,7 +399,10 @@ async function main() {
     }
     emitOk(result, commandPath);
   } catch (error) {
-    emitFail(error.code ?? 'bridge-error', error.message);
+    // `runStatus` 의 같은 자리와 **같은 함수**를 쓴다. 소켓이 던진 EPIPE 를
+    // 한쪽은 `bridge-error` 로, 다른 쪽은 `EPIPE` 로 부르면 같은 실패가
+    // 명령마다 다른 코드로 나간다.
+    emitFail(codeForThrown(error), error.message);
   }
 }
 
