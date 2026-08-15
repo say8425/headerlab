@@ -10,11 +10,11 @@
  */
 
 export const COLORS = {
-  reset: '[0m',
-  dim: '[2m',
-  red: '[31m',
-  green: '[32m',
-  amber: '[33m',
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  amber: '\x1b[33m',
 };
 
 const paint = (text, color, on) => (on ? `${color}${text}${COLORS.reset}` : text);

@@ -107,9 +107,12 @@ test('bridge-off 는 다음에 칠 명령을 붙인다', () => {
   );
 });
 
-test('색이 꺼지면 이스케이프가 한 바이트도 없다', () => {
+test('색이 켜지면 진짜 ESC 바이트(0x1b)를 낸다 — 대괄호 문자만으로는 안 속는다', () => {
   const on = renderError({ code: 'store-unreadable', message: 'boom' }, { color: true });
   const off = renderError({ code: 'store-unreadable', message: 'boom' }, { color: false });
-  assert.equal(/\[/.test(off), false);
-  assert.equal(/\[/.test(on), true);
+  assert.equal(off.includes('\x1b'), false);
+  assert.equal(on.includes('\x1b'), true);
+  assert.equal(on, '\x1b[31mboom\x1b[0m');
+  // 리터럴 대괄호로 시작하는 오탐(예: '[31m')을 잡기 위해 이스케이프 바이트를 직접 확인한다.
+  assert.equal(on.charCodeAt(0), 0x1b);
 });
