@@ -292,6 +292,52 @@ describe('sendCommand', () => {
       return true;
     });
   });
+
+  test('응답이 늦으면 onSlow 가 한 번 불린다', async () => {
+    // 연결은 받되 답하지 않는 소켓. 이 파일에 이미 그런 헬퍼가 있으면
+    // 그것을 쓴다.
+    const dir = freshDir();
+    const pid = freshPid();
+    const socketPath = socketPathFor(dir, pid);
+    await listeningServer(socketPath); // accepts, never writes anything back
+
+    let calls = 0;
+    await assert.rejects(
+      sendCommand(
+        socketPath,
+        { cmd: 'pause' },
+        {
+          timeoutMs: 300,
+          slowAfterMs: 50,
+          onSlow: () => (calls += 1),
+        },
+      ),
+      (error) => error.code === 'timeout',
+    );
+    assert.equal(calls, 1);
+  });
+
+  test('빨리 답하면 onSlow 는 안 불린다', async () => {
+    const dir = freshDir();
+    const pid = freshPid();
+    const socketPath = socketPathFor(dir, pid);
+    await listeningServer(socketPath, (socket, envelope) => {
+      socket.write(`${JSON.stringify({ id: envelope.id, ok: true, changed: false })}\n`);
+    });
+
+    let calls = 0;
+    const result = await sendCommand(
+      socketPath,
+      { cmd: 'pause' },
+      {
+        timeoutMs: 1000,
+        slowAfterMs: 500,
+        onSlow: () => (calls += 1),
+      },
+    );
+    assert.deepEqual(result, { ok: true, changed: false });
+    assert.equal(calls, 0);
+  });
 });
 
 import { extractGlobals } from '../lib/bridge.mjs';

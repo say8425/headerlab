@@ -213,7 +213,11 @@ export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  * enforced end to end, from outside both files rather than from within
  * either one.
  */
-export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS } = {}) {
+export function sendCommand(
+  socketPath,
+  command,
+  { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS, slowAfterMs = 1000, onSlow } = {},
+) {
   return new Promise((resolve, reject) => {
     const id = randomUUID();
     const socket = createConnection(socketPath);
@@ -224,9 +228,15 @@ export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIM
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(slowTimer);
       socket.destroy();
       action(value);
     }
+
+    // 측정된 결함: 브릿지가 연결을 받고 답하지 않으면 10초 동안 어느
+    // 스트림에도 한 바이트도 나오지 않는다. 그 사이 유일한 신호는
+    // 터미널이 안 돌아온다는 것뿐이다 (clig Robustness §2).
+    const slowTimer = setTimeout(() => onSlow?.(timeoutMs), slowAfterMs);
 
     const timer = setTimeout(() => {
       settle(

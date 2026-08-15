@@ -328,7 +328,17 @@ async function main() {
   }
 
   try {
-    const result = await sendCommand(target.socketPath, command);
+    const result = await sendCommand(target.socketPath, command, {
+      onSlow: (timeoutMs) => {
+        // 사람용일 때만. 파이프로 받는 쪽에 없던 줄을 흘리지 않는다
+        // (clig Output §14). stdout 은 어느 모드에서도 손대지 않는다.
+        if (MODE === 'human' && !GLOBALS.quiet && process.stderr.isTTY) {
+          process.stderr.write(
+            `waiting for the extension to reply (${timeoutMs / 1000}s timeout)…\n`,
+          );
+        }
+      },
+    });
     if (result.ok === false) {
       emitRefusal(result);
       return;
