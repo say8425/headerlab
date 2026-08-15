@@ -65,6 +65,52 @@ test('a CLI command reaches storage through the bridge', async ({
   expect(stored.profiles[0]!.filter.domains).toEqual(['example.com']);
 });
 
+test('a read command comes back through the bridge with what the popup would show', async ({
+  serviceWorker,
+  extensionId,
+  bridgeSocketDir,
+}) => {
+  const origin = `chrome-extension://${extensionId}/`;
+  await expect
+    .poll(() => findBridgePid(bridgeSocketDir, origin), { timeout: 15_000 })
+    .not.toBeNull();
+  const pid = findBridgePid(bridgeSocketDir, origin);
+
+  // Write first — there has to be something to read for reading to prove anything.
+  const addStdout = execFileSync(
+    process.execPath,
+    [
+      'packages/headerlab/bin/headerlab.mjs',
+      '--bridge',
+      String(pid),
+      'site',
+      'add',
+      'read-me.example.com',
+    ],
+    { encoding: 'utf8' },
+  );
+  expect(JSON.parse(addStdout).ok).toBe(true);
+
+  const stdout = execFileSync(
+    process.execPath,
+    ['packages/headerlab/bin/headerlab.mjs', '--bridge', String(pid), 'rule', 'ls', '--json'],
+    { encoding: 'utf8' },
+  );
+  const payload = JSON.parse(stdout);
+
+  // Absence first: the read did not change what is stored.
+  const stored = (await serviceWorker.evaluate(async () => {
+    const { state } = await chrome.storage.local.get('state');
+    return state;
+  })) as { profiles: Array<{ filter: { domains: string[] } }> };
+  expect(stored.profiles[0]!.filter.domains).toEqual(['read-me.example.com']);
+
+  // Match what the extension actually holds, not the CLI's own claim about it.
+  expect(payload.ok).toBe(true);
+  expect(payload.scopingHosts).toEqual(['read-me.example.com']);
+  expect(payload.state.profiles[0].filter.domains).toEqual(['read-me.example.com']);
+});
+
 test('the popup says the bridge is live', async ({ context, extensionId, bridgeSocketDir }) => {
   await expect
     .poll(() => findBridgePid(bridgeSocketDir, `chrome-extension://${extensionId}/`), {
