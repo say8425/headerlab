@@ -634,3 +634,148 @@ test('맨손 --help 는 경고가 없다', async () => {
   assert.equal(stderr, '');
   assert.equal(stdout.includes('USAGE'), true);
 });
+
+// --- 읽기 명령 넷: 종료 코드 표의 의도적 예외 하나 --------------------------
+
+test('status 는 브릿지가 없어도 0 으로 나가고 사실을 보고한다', async () => {
+  // `git status` 가 커밋 없는 저장소에서 그렇게 하듯이. 다른 어떤 명령도
+  // 이 예외를 갖지 않는다 — 바로 아래 테스트가 그 경계를 지킨다.
+  const { code, stdout, stderr } = await runCli(['status'], { env: cleanEnv });
+  assert.equal(stderr, '');
+  assert.equal(code, 0);
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.live, false);
+  // 브릿지가 없으니 확장의 상태는 오지 않는다. 있는 척하는 필드가 봉투에
+  // 섞이면 `jq .state` 가 조용히 `null` 을 받는다.
+  assert.equal('state' in payload, false);
+  // 소켓 없이도 아는 절반 — 매니페스트가 어디에 있고 설치돼 있는지 — 은
+  // 그대로 실려 있다. `installed` 의 **값**은 이 기계에 무엇이 깔려 있는지에
+  // 달렸으므로 재지 않는다: 브릿지를 실제로 설치해 둔 개발자에게만 빨개지는
+  // 어서션은 이 파일이 위쪽에서 이미 피한 함정이다.
+  assert.equal(typeof payload.manifestPath, 'string');
+  assert.equal(typeof payload.launcherPath, 'string');
+  assert.equal(typeof payload.installed, 'boolean');
+});
+
+// 예외는 `status` 하나다. 나머지 셋은 브릿지가 없으면 3 으로 나간다 —
+// `cmd` 만 보고 분기하는 구현(넷이 다 `{cmd:'status'}` 다)은 여기서
+// 빨개진다.
+test('나머지 읽기 셋은 브릿지가 없으면 여전히 bridge-off 다', async () => {
+  for (const argv of [
+    ['rule', 'ls'],
+    ['site', 'ls'],
+    ['state', 'get'],
+  ]) {
+    const { code, stdout } = await runCli(argv, { env: cleanEnv });
+    assert.deepEqual(
+      JSON.parse(stdout),
+      { ok: false, error: { code: 'bridge-off', message: 'no bridge is running' } },
+      argv.join(' '),
+    );
+    assert.equal(code, 3, argv.join(' '));
+  }
+});
+
+test('사람용 status 는 브릿지 줄을 내고 나머지를 지어내지 않는다', async () => {
+  const { code, stdout, stderr } = await runCli(['--human', 'status'], { env: cleanEnv });
+  assert.equal(stderr, '');
+  assert.equal(code, 0);
+  assert.equal(stdout.includes('bridge    not running'), true);
+  assert.equal(stdout.includes('headers   '), false);
+});
+
+/**
+ * 살아 있는 브릿지가 답하는 status payload. `lib/bridge/query.ts` 의
+ * `StatusPayload` 모양 그대로다.
+ */
+const fakeStatus = {
+  ok: true,
+  state: { version: 2, globalPause: false, profiles: [] },
+  profile: {
+    id: 'p1',
+    filter: { domains: ['a.com'], allSites: false },
+    headers: [
+      { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+    ],
+  },
+  diagnostics: { byRow: [], byHost: [], scope: [] },
+  tally: { total: 1, live: 1, off: 0, unfinished: 0, blocked: 0 },
+  scopingHosts: ['a.com'],
+  suppression: null,
+  requiredOrigins: ['https://a.com/*'],
+  globalPause: false,
+};
+
+/** 소켓·레지스트리를 띄우고 pid 를 돌려준다. 정리는 `t.after` 에 건다. */
+async function liveFakeBridge(t, reply) {
+  const dir = socketDir();
+  ensureSocketDir(dir);
+  const pid = 100000 + Math.floor(Math.random() * 900000);
+  const socketPath = socketPathFor(dir, pid);
+  const registryPath = registryPathFor(dir, pid);
+  writeRegistryEntry(dir, pid, {
+    origin: 'chrome-extension://cli-read-test/',
+    startedAt: new Date().toISOString(),
+  });
+  const server = await fakeHost(socketPath, reply);
+  t.after(() => {
+    server.close();
+    for (const p of [socketPath, registryPath]) {
+      try {
+        unlinkSync(p);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+  });
+  return pid;
+}
+
+// 넷이 같은 `{cmd:'status'}` 를 보내고 **렌더만 다르다** 는 주장은 여기서만
+// 끝까지 검사된다: 명령 경로가 `findCommand` 에서 나와 `renderResult` 까지
+// 이어지는 배선은 프로세스 밖에서 볼 수 없다.
+test('살아 있는 브릿지에서 읽기 셋이 같은 쿼리를 보내고 서로 다르게 그린다', async (t) => {
+  const sent = [];
+  const pid = await liveFakeBridge(t, (command) => {
+    sent.push(command);
+    return fakeStatus;
+  });
+
+  const rules = await runCli(['--human', '--bridge', String(pid), 'rule', 'ls']);
+  assert.equal(rules.code, 0);
+  assert.equal(rules.stdout, 'r1  on   request  set  A → 1\n');
+
+  const sites = await runCli(['--human', '--bridge', String(pid), 'site', 'ls']);
+  assert.equal(sites.stdout, 'a.com\n');
+
+  const state = await runCli(['--human', '--bridge', String(pid), 'state', 'get']);
+  assert.equal(state.stdout, `${JSON.stringify(fakeStatus.state, null, 2)}\n`);
+
+  const status = await runCli(['--human', '--bridge', String(pid), 'status']);
+  assert.equal(status.stdout.includes('bridge    live'), true);
+  assert.equal(status.stdout.includes('rules     1 total, 1 on'), true);
+
+  assert.deepEqual(sent, [
+    { cmd: 'status' },
+    { cmd: 'status' },
+    { cmd: 'status' },
+    { cmd: 'status' },
+  ]);
+});
+
+// 브릿지가 **답했는데 거부한** 것은 "브릿지가 없다" 와 다른 사실이다.
+// exit 0 예외를 `status` 전체에 두면 읽을 수 없는 저장소가 "not running"
+// 으로 조용히 번역된다 — 이 저장소가 금지하는 그 모양이다.
+test('status 는 브릿지가 거부한 응답을 삼키지 않는다', async (t) => {
+  const refusal = {
+    ok: false,
+    error: { code: 'store-unreadable', message: 'the stored state does not match' },
+  };
+  const pid = await liveFakeBridge(t, () => refusal);
+
+  const { code, stdout, stderr } = await runCli(['--bridge', String(pid), 'status']);
+  assert.equal(stderr, '');
+  assert.deepEqual(JSON.parse(stdout), refusal);
+  assert.equal(code, 1);
+});

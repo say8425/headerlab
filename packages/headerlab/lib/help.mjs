@@ -14,9 +14,12 @@ export const ISSUES_URL = 'https://github.com/say8425/headerlab/issues';
  * 수 없다 — 그래서 `test/commands.test.mjs`가 이 배열 자체를 파서에
  * 먹여서 전부 파싱되는지를 따로 검사한다. COMMANDS 안의 예제만 검사하던
  * 이전 가드는 이 배열을 보지 못했고, 그 틈으로 존재하지 않는 `status`와
- * `state get`이 여기 살아 있었다.
+ * `state get`이 여기 살아 있었다. 지금 `headerlab status`가 다시 첫 줄에
+ * 있는 것은 그때와 반대 방향이다 — 명령이 먼저 생겼고 파서와 표가 그것을
+ * 알며, 그 사실을 지키는 것은 이 주석이 아니라 그 테스트다.
  */
 export const EXAMPLES = [
+  ['headerlab status', 'what is installed, live, and configured'],
   ['headerlab site add example.com', 'scope the rules to a site'],
   ['headerlab rule add --target request --op set --name X-Debug --value 1', ''],
   ['headerlab bridge status', 'what the native-messaging host has installed'],
@@ -30,9 +33,13 @@ export const EXAMPLES = [
  * 없는 서브커맨드를 여기서 새로 지어낼 길이 없다. `status`가 최상위
  * 그룹으로, `ls`가 `site`/`rule`의 서브커맨드로, `get`이 `state`의
  * 서브커맨드로 예전에 하드코딩되어 있던 것이 바로 이 표에 없는 이름을
- * 손으로 지어낸 사례다 — 셋 다 `commands.mjs`에 없고 파서도 모른다.
+ * 손으로 지어낸 사례다. 넷은 그 뒤 **실제로** 만들어져 `commands.mjs`에
+ * 들어갔고 파서도 안다 — 그래서 지금 여기 있는 것은 지어낸 이름이 아니라
+ * 표에서 온 이름이며, 이 문단이 남아 있는 이유는 그 순서가 반대였던 적이
+ * 있기 때문이다.
  */
 const GROUP_NOTES = {
+  status: 'what is installed, live, and configured',
   site: 'which sites the rules apply to',
   rule: 'the header rules themselves',
   pause: 'stop modifying headers, without changing any rule',

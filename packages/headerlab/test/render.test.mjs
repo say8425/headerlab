@@ -254,3 +254,198 @@ test('가장 긴 일치를 고른다', () => {
     'headerlab site all-sites on|off',
   );
 });
+
+// --- 읽기 명령 넷: 같은 payload, 네 가지 그림 --------------------------------
+//
+// `lib/bridge/query.ts` 의 `StatusPayload` 를 그대로 옮긴 fixture 다 —
+// 필드 이름이 어긋나면 여기가 아니라 실제 소켓 너머에서 조용히 undefined 가
+// 되므로, 이름은 그 파일에서 손으로 베낀 것이다.
+const statusPayload = {
+  ok: true,
+  globalPause: false,
+  scopingHosts: ['a.com'],
+  suppression: null,
+  tally: { total: 2, live: 1, off: 1, unfinished: 0, blocked: 0 },
+  profile: {
+    id: 'p1',
+    filter: { domains: ['a.com'], allSites: false },
+    headers: [
+      { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+      { id: 'r2', enabled: false, target: 'response', operation: 'remove', name: 'B', value: '' },
+    ],
+  },
+  diagnostics: { byRow: [], byHost: [], scope: [] },
+  state: { version: 2, globalPause: false, profiles: [] },
+};
+
+test('rule ls 가 규칙마다 한 줄을 그린다', () => {
+  const text = renderResult(statusPayload, { command: ['rule', 'ls'], ...plain });
+  const lines = text.split('\n');
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0], 'r1  on   request   set     A → 1');
+  assert.equal(lines[1], 'r2  off  response  remove  B');
+});
+
+test('rule ls 가 규칙이 하나도 없으면 그렇게 말한다', () => {
+  const payload = { ...statusPayload, profile: { ...statusPayload.profile, headers: [] } };
+  assert.equal(renderResult(payload, { command: ['rule', 'ls'], ...plain }), 'no rules yet');
+});
+
+// `byRow` 의 키는 `rowKey(profileId, headerRuleId)` = `'p1 r1'` 이다
+// (lib/compile/validate.ts). 키를 `endsWith(rule.id)` 로 찾는 구현은 `r1`
+// 이 `xr1` 의 접미사이므로 **다른 줄의 문제를 뒤집어쓴다** — 위 테스트들은
+// 전부 통과한 채로. 정확한 키를 짓는 구현만 여기서 살아남는다.
+test('rule ls 의 진단은 그 진단이 이름 댄 줄에만 붙는다', () => {
+  const payload = {
+    ...statusPayload,
+    profile: {
+      ...statusPayload.profile,
+      headers: [
+        { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+        { id: 'xr1', enabled: true, target: 'request', operation: 'set', name: 'B', value: '2' },
+      ],
+    },
+    diagnostics: {
+      byRow: [['p1 xr1', [{ severity: 'error', message: 'not a valid header name' }]]],
+      byHost: [],
+      scope: [],
+    },
+  };
+  const lines = renderResult(payload, { command: ['rule', 'ls'], ...plain }).split('\n');
+  assert.equal(lines[0].includes('not a valid header name'), false);
+  assert.equal(lines[1].includes('not a valid header name'), true);
+});
+
+test('site ls 가 도메인마다 한 줄을 그린다', () => {
+  assert.equal(renderResult(statusPayload, { command: ['site', 'ls'], ...plain }), 'a.com');
+});
+
+test('site ls 가 all-sites 를 모드로 말한다', () => {
+  const payload = {
+    ...statusPayload,
+    scopingHosts: [],
+    profile: { ...statusPayload.profile, filter: { domains: ['a.com'], allSites: true } },
+  };
+  assert.equal(
+    renderResult(payload, { command: ['site', 'ls'], ...plain }),
+    'all sites (1 saved site is not scoping anything while this mode is on)',
+  );
+});
+
+test('site ls 가 all-sites 에서 저장된 사이트 수를 복수로도 센다', () => {
+  const payload = {
+    ...statusPayload,
+    scopingHosts: [],
+    profile: { ...statusPayload.profile, filter: { domains: ['a.com', 'b.com'], allSites: true } },
+  };
+  assert.equal(
+    renderResult(payload, { command: ['site', 'ls'], ...plain }),
+    'all sites (2 saved sites are not scoping anything while this mode is on)',
+  );
+});
+
+test('site ls 가 빈 스코프를 조용히 빈 줄로 내지 않는다', () => {
+  const payload = { ...statusPayload, scopingHosts: [] };
+  assert.equal(renderResult(payload, { command: ['site', 'ls'], ...plain }), 'nothing in scope');
+});
+
+test('state get 이 상태를 보기 좋게 찍는다', () => {
+  const text = renderResult(statusPayload, { command: ['state', 'get'], ...plain });
+  assert.equal(text, JSON.stringify(statusPayload.state, null, 2));
+});
+
+test('status 가 요약 넷을 그린다', () => {
+  const text = renderResult({ ...statusPayload, live: true }, { command: ['status'], ...plain });
+  assert.equal(text.includes('rules     2 total, 1 on'), true);
+  assert.equal(text.includes('scope     a.com'), true);
+  assert.equal(text.includes('headers   running'), true);
+  assert.equal(text.includes('bridge    live'), true);
+});
+
+test('status 가 일시정지를 running 이라 부르지 않는다', () => {
+  const text = renderResult(
+    { ...statusPayload, live: true, globalPause: true },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(text.includes('headers   running'), false);
+  assert.equal(text.includes('headers   paused'), true);
+});
+
+// 브릿지가 없으면 상태를 **모른다**. 세 줄을 기본값으로 채우는 구현은
+// "헤더가 돌고 있고 규칙이 없고 스코프가 비었다" 고 단언하는데, 셋 다
+// 확인된 적이 없다 — 이 저장소가 금지하는 조용한 거짓말이다.
+// 기본값으로 채우는 구현은 정확히 이 세 줄을 낸다 — 라벨과 패딩까지
+// 그대로다. 산문에 'rules' 라는 낱말이 들어가는 것과는 다르므로, 낱말이
+// 아니라 그 줄 모양을 잰다.
+test('status 는 브릿지가 없으면 모르는 것을 지어내지 않는다', () => {
+  const text = renderResult({ ok: true, live: false }, { command: ['status'], ...plain });
+  assert.equal(text.includes('headers   '), false);
+  assert.equal(text.includes('rules     '), false);
+  assert.equal(text.includes('scope     '), false);
+  assert.equal(text.includes('not running'), true);
+  assert.equal(text.includes('bridge status'), true);
+});
+
+test('status 가 프로필이 없는 상태를 none yet 으로 말한다', () => {
+  const text = renderResult(
+    { ...statusPayload, live: true, tally: null, profile: null, scopingHosts: [] },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(text.includes('rules     none yet'), true);
+  assert.equal(text.includes('scope     nothing in scope'), true);
+});
+
+test('status 가 all-sites 를 모드로 말한다', () => {
+  const text = renderResult(
+    {
+      ...statusPayload,
+      live: true,
+      scopingHosts: [],
+      profile: { ...statusPayload.profile, filter: { domains: ['a.com'], allSites: true } },
+    },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(text.includes('scope     all sites'), true);
+});
+
+// 억눌린 프로필은 규칙이 멀쩡해 보이면서 아무것도 내보내지 않는다. 그
+// 사실이 화면에 닿아야 한다는 것이 이 저장소의 규칙이고, 닿는 문장은
+// 슬러그(`no-scope`)가 아니라 사람의 말이어야 한다.
+test('status 가 억눌린 이유를 사람 말로 말한다', () => {
+  const noScope = renderResult(
+    { ...statusPayload, live: true, suppression: 'no-scope' },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(noScope.includes('no-scope'), false);
+  assert.equal(noScope.includes('not applying — no site is set'), true);
+
+  const unusable = renderResult(
+    { ...statusPayload, live: true, suppression: 'unusable-site' },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(unusable.includes('unusable-site'), false);
+  assert.equal(unusable.includes('not applying — a listed site cannot be used'), true);
+});
+
+// 이유가 하나 늘고 여기 말이 안 늘면, 표를 못 찾은 구현은 조용히 아무것도
+// 안 찍을 수 있다. 모르는 이유는 슬러그 그대로라도 화면에 닿는다.
+test('status 가 모르는 억눌림 이유도 삼키지 않는다', () => {
+  const text = renderResult(
+    { ...statusPayload, live: true, suppression: 'brand-new-reason' },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(text.includes('brand-new-reason'), true);
+});
+
+test('status 는 색을 켜도 벗기면 끈 것과 같다', () => {
+  const on = renderResult(
+    { ...statusPayload, live: true, suppression: 'no-scope' },
+    { command: ['status'], color: true },
+  );
+  const off = renderResult(
+    { ...statusPayload, live: true, suppression: 'no-scope' },
+    { command: ['status'], color: false },
+  );
+  assert.equal(stripAnsi(on), off);
+  assert.equal(on.includes('\x1b'), true);
+});

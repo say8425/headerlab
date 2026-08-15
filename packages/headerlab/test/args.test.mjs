@@ -435,3 +435,58 @@ test('site add 는 여전히 여러 도메인을 받는다', () => {
     command: { cmd: 'site.add', domains: ['a.com', 'b.com'] },
   });
 });
+
+// --- 읽기 명령 넷 -----------------------------------------------------------
+//
+// `status`·`site ls`·`rule ls`·`state get` 은 파서 입장에서 한 명령이다:
+// 넷 다 `{cmd:'status'}` 를 내고, 다른 것은 `render.mjs` 가 같은 payload 를
+// 어떻게 그리느냐뿐이다. 확장의 `querySchema` 도 모양이 하나뿐이다
+// (`lib/bridge/protocol.ts`).
+
+test('읽기 명령 넷이 모두 같은 status 쿼리를 낸다', () => {
+  for (const argv of [['status'], ['rule', 'ls'], ['site', 'ls'], ['state', 'get']]) {
+    assert.deepEqual(parse(argv), { ok: true, command: { cmd: 'status' } }, argv.join(' '));
+  }
+});
+
+test('읽기 명령은 인자를 받지 않는다', () => {
+  assert.deepEqual(parse(['status', 'extra']), {
+    ok: false,
+    error: { code: 'invalid-args', message: 'status takes no arguments, got: extra' },
+  });
+});
+
+// 넷이 같은 `cmd` 를 내되 에러는 **사람이 친 이름**으로 나와야 한다.
+// `parseNullary(rest, 'status')` 를 display 인자 없이 부르는 구현은 위
+// 테스트를 통과하면서 여기서만 빨개진다 — `rule ls extra` 에 대고
+// "status takes no arguments" 라고 답하는 것은 치지도 않은 명령을 나무라는
+// 것이다.
+test('읽기 명령의 거절은 사람이 친 이름으로 말한다', () => {
+  assert.deepEqual(parse(['rule', 'ls', 'extra']).error, {
+    code: 'invalid-args',
+    message: 'rule ls takes no arguments, got: extra',
+  });
+  assert.deepEqual(parse(['site', 'ls', '--json']).error, {
+    code: 'invalid-args',
+    message: 'site ls takes no arguments, got: --json',
+  });
+  assert.deepEqual(parse(['state', 'get', 'x']).error, {
+    code: 'invalid-args',
+    message: 'state get takes no arguments, got: x',
+  });
+});
+
+// `state get` 을 더하면서 `state` 의 다른 서브커맨드가 조용해지면 안 된다.
+test('state 는 여전히 모르는 서브커맨드를 이름으로 거절한다', () => {
+  const result = parse(['state', 'teleport']);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.error, {
+    code: 'invalid-args',
+    message: 'unknown state command: teleport',
+  });
+});
+
+test('site 와 rule 의 모르는 서브커맨드도 그대로다', () => {
+  assert.equal(parse(['site', 'list']).error.message, 'unknown site command: list');
+  assert.equal(parse(['rule', 'list']).error.message, 'unknown rule command: list');
+});

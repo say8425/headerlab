@@ -4,10 +4,14 @@ import { COMMANDS, GROUPS, commandPaths, findCommand } from '../lib/commands.mjs
 import { EXAMPLES } from '../lib/help.mjs';
 import { parse } from '../lib/args.mjs';
 
-// 지금 파서가 아는 아홉 가지. lib/args.mjs 의 switch 와
-// lib/bridge/protocol.ts 의 commandSchema 에서 손으로 옮긴 것이며,
-// 아래 두 테스트가 이 목록과 표를 양방향으로 묶는다.
+// 지금 파서가 아는 것들. lib/args.mjs 의 switch 와
+// lib/bridge/protocol.ts 의 commandSchema·querySchema 에서 손으로 옮긴
+// 것이며, 아래 두 테스트가 이 목록과 표를 양방향으로 묶는다.
 const PARSER_KNOWS = [
+  'status',
+  'site ls',
+  'rule ls',
+  'state get',
   'site add',
   'site rm',
   'site all-sites',
@@ -49,7 +53,15 @@ test('모든 항목이 한 줄 요약을 갖는다', () => {
 });
 
 test('GROUPS 가 실제 그룹 이름들이다', () => {
-  assert.deepEqual([...GROUPS].sort(), ['bridge', 'pause', 'resume', 'rule', 'site', 'state']);
+  assert.deepEqual([...GROUPS].sort(), [
+    'bridge',
+    'pause',
+    'resume',
+    'rule',
+    'site',
+    'state',
+    'status',
+  ]);
 });
 
 // help.mjs 리뷰가 잡은 결함: 최상위 도움말의 EXAMPLES 는 COMMANDS 안의

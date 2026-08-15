@@ -20,7 +20,7 @@ import {
 import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
-import { findCommand, GROUPS } from '../lib/commands.mjs';
+import { findCommand, GROUPS, pathKey } from '../lib/commands.mjs';
 import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
 import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
@@ -240,6 +240,38 @@ async function runBridgeCommand(command, commandPath) {
   );
 }
 
+/**
+ * `headerlab status` 는 종료 코드 표의 의도적 예외다. 브릿지가 없다는 것은
+ * 이 명령에게 에러가 아니라 **보고할 사실**이므로, 커밋 없는 저장소의
+ * `git status` 처럼 exit 0 으로 그것을 그린다. 다른 어떤 명령도 이 예외를
+ * 갖지 않으며 — `rule ls`·`site ls`·`state get` 은 같은 `{cmd:'status'}` 를
+ * 보내면서도 여전히 `bridge-off` 로 3 을 내고 나간다 — 그래서 이 갈래는
+ * `command.cmd` 가 아니라 **사람이 친 이름**(`commandPath`)으로 갈린다.
+ *
+ * 예외는 "브릿지가 없다" 까지다. 브릿지가 답했는데 거부했다면 그것은 다른
+ * 사실이고, 다른 명령과 똑같이 봉투 그대로 나가며 종료 코드도 산다 —
+ * 읽을 수 없는 저장소를 "not running" 으로 번역하는 것은 이 저장소가
+ * 금지하는 조용한 실패다.
+ */
+async function runStatus(command, commandPath, bridgePid) {
+  const paths = defaultInstallPaths({ userDataDir: null, browser: 'chrome' });
+  const local = await bridgeStatus(paths);
+
+  let remote = null;
+  try {
+    const target = await resolveTarget(socketDir(), bridgePid);
+    remote = await sendCommand(target.socketPath, command);
+  } catch {
+    // 브릿지가 없다(또는 닿지 못했다). local 만으로 답한다.
+  }
+
+  if (remote !== null && remote.ok !== true) {
+    emitRefusal(remote);
+    return;
+  }
+  emitOk({ ...local, ...remote, live: remote !== null }, commandPath);
+}
+
 async function main() {
   const { globals, rest } = extractGlobals(process.argv.slice(2));
   GLOBALS = globals;
@@ -316,6 +348,11 @@ async function main() {
   // command exists to fix.
   if (command.cmd.startsWith('bridge.')) {
     await runBridgeCommand(command, commandPath);
+    return;
+  }
+
+  if (pathKey(commandPath) === 'status') {
+    await runStatus(command, commandPath, bridgePid);
     return;
   }
 

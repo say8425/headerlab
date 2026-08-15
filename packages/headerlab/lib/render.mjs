@@ -115,8 +115,109 @@ function renderBridgeInstall(payload, color) {
   return lines.join('\n');
 }
 
+/**
+ * 아래 셋은 같은 payload(`lib/bridge/query.ts` 의 `StatusPayload`)를 서로
+ * 다르게 읽는다. 넷째인 `state get` 은 그 payload 의 `state` 를 그대로
+ * 찍는 한 줄이라 함수가 없다.
+ */
+function renderRuleList(payload, color) {
+  const rules = payload.profile?.headers ?? [];
+  if (rules.length === 0) return 'no rules yet';
+  const width = {
+    id: Math.max(...rules.map((r) => r.id.length)),
+    target: Math.max(...rules.map((r) => r.target.length)),
+    op: Math.max(...rules.map((r) => r.operation.length)),
+  };
+  // 키는 `rowKey(profileId, headerRuleId)` = `'<profile> <rule>'` 이다
+  // (lib/compile/validate.ts). 브리프는 `key.endsWith(rule.id)` 였는데,
+  // 그러면 `r1` 이 `xr1` 의 접미사라 다른 줄의 문제를 뒤집어쓴다 — 키를
+  // 지어서 정확히 찾는다. `byRow` 는 모든 프로필의 진단을 담으므로
+  // 프로필 id 를 빼면 남의 프로필 문제까지 붙는다.
+  const problems = new Map(payload.diagnostics?.byRow ?? []);
+  return rules
+    .map((rule) => {
+      const state = rule.enabled
+        ? paint('on ', COLORS.green, color)
+        : paint('off', COLORS.dim, color);
+      const body = rule.operation === 'remove' ? rule.name : `${rule.name} → ${rule.value}`;
+      const trouble = problems.get(`${payload.profile?.id} ${rule.id}`);
+      const suffix = trouble?.length ? `  ${paint(trouble[0].message, COLORS.red, color)}` : '';
+      return `${pad(rule.id, width.id)}  ${state}  ${pad(rule.target, width.target)}  ${pad(rule.operation, width.op)}  ${body}${suffix}`;
+    })
+    .join('\n');
+}
+
+/**
+ * 저장된 목록이 아니라 **실제로 스코프를 정하는 것**을 답한다. all-sites
+ * 는 목록을 지우지 않고 컴파일만 안 하므로, 목록을 그대로 찍으면 아무것도
+ * 스코프하지 않는 이름들을 스코프라고 말하게 된다 (query.ts 의 같은 주석).
+ */
+function renderSiteList(payload) {
+  if (payload.profile?.filter.allSites) {
+    const saved = payload.profile.filter.domains.length;
+    const noun = saved === 1 ? 'site is' : 'sites are';
+    return `all sites (${saved} saved ${noun} not scoping anything while this mode is on)`;
+  }
+  const hosts = payload.scopingHosts ?? [];
+  return hosts.length === 0 ? 'nothing in scope' : hosts.join('\n');
+}
+
+/**
+ * 억눌림 이유를 사람의 말로 옮긴다. 슬러그(`no-scope`)는 이 저장소 안의
+ * 이름이지 사용자에게 한 말이 아니다. 모르는 이유는 **슬러그 그대로**
+ * 흘려보낸다 — 이유가 하나 늘었을 때 조용히 아무 말도 안 하는 것이 여기서
+ * 가장 나쁜 결과다.
+ */
+const SUPPRESSION_WORDS = {
+  'no-scope': 'no site is set, and all-sites is off',
+  'unusable-site': 'a listed site cannot be used, so the whole rule set fails closed',
+};
+
+function renderStatus(payload, color) {
+  const lines = [
+    `bridge    ${payload.live ? paint('live', COLORS.green, color) : paint('not running', COLORS.amber, color)}`,
+  ];
+
+  // 브릿지가 답하지 않았으면 나머지는 **모른다**. 기본값으로 채우면
+  // "헤더가 돌고 있고 규칙이 없다" 고 단언하게 되는데, 확인된 적 없는
+  // 문장이다. 브리프는 이 갈래를 `tally ?? null` 로만 다뤘고, 그러면
+  // 세 줄이 전부 기본값으로 나온다.
+  if (payload.state === undefined) {
+    lines.push(
+      '',
+      'The extension holds the rules, so nothing else can be read without a bridge.',
+      'Run `headerlab bridge status` to see what is installed.',
+    );
+    return lines.join('\n');
+  }
+
+  const tally = payload.tally ?? null;
+  const rules = tally === null ? 'none yet' : `${tally.total} total, ${tally.live} on`;
+  const hosts = payload.scopingHosts ?? [];
+  const scope = payload.profile?.filter.allSites
+    ? 'all sites'
+    : hosts.length === 0
+      ? paint('nothing in scope', COLORS.amber, color)
+      : hosts.join(', ');
+  const headers = payload.globalPause
+    ? paint('paused', COLORS.amber, color)
+    : paint('running', COLORS.green, color);
+
+  lines.push(`headers   ${headers}`, `rules     ${rules}`, `scope     ${scope}`);
+  if (payload.suppression !== null && payload.suppression !== undefined) {
+    const why = SUPPRESSION_WORDS[payload.suppression] ?? payload.suppression;
+    lines.push('', paint(`not applying — ${why}`, COLORS.amber, color));
+  }
+  lines.push('', 'Location-specific detail: headerlab bridge status');
+  return lines.join('\n');
+}
+
 export function renderResult(payload, { command, color }) {
   const key = command.join(' ');
+  if (key === 'status') return renderStatus(payload, color);
+  if (key === 'rule ls') return renderRuleList(payload, color);
+  if (key === 'site ls') return renderSiteList(payload);
+  if (key === 'state get') return JSON.stringify(payload.state, null, 2);
   if (key === 'bridge status') return renderBridgeStatus(payload, color);
   if (key === 'bridge install') return renderBridgeInstall(payload, color);
   if (key === 'bridge uninstall') {

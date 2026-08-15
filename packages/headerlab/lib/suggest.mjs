@@ -27,20 +27,31 @@ function distance(a, b) {
  * 문턱이 둘인 이유: 절대 거리 2 만 쓰면 짧은 이름끼리 우연히 걸린다
  * (`on` 과 `off` 는 거리 2 다). 후보 길이의 40% 도 함께 넘어야 제안한다.
  * 정확히 일치하는 입력에는 제안하지 않는다 — 그건 오타가 아니다.
+ *
+ * **동점은 후보 배열의 순서로 깨지 않는다.** 측정된 예가 하나 있다:
+ * `statu` 는 `state` 에서 한 글자를 바꾼 것이자 `status` 에서 한 글자를
+ * 뺀 것이라 거리가 둘 다 1 이고, `d < bestDistance` 만 보는 구현에서는
+ * `commands.mjs` 의 줄 순서가 답을 정했다 — 표를 재배열한 사람이 오타
+ * 제안을 바꿨다는 것을 알 길이 없다. 동점에서는 **친 글자로 시작하는**
+ * 후보를 고른다: 사람이 이름을 끝까지 안 친 쪽이 글자를 잘못 친 쪽보다
+ * 흔하다. 그래도 남는 동점만 첫 후보다.
  */
 export function suggest(input, candidates) {
   if (input.length === 0) return null;
   if (candidates.includes(input)) return null;
 
-  let best = null;
+  let tied = [];
   let bestDistance = Infinity;
   for (const candidate of candidates) {
     const d = distance(input, candidate);
     if (d < bestDistance) {
       bestDistance = d;
-      best = candidate;
+      tied = [candidate];
+    } else if (d === bestDistance) {
+      tied.push(candidate);
     }
   }
+  const best = tied.find((candidate) => candidate.startsWith(input)) ?? tied[0] ?? null;
   if (best === null) return null;
   if (bestDistance > 2) return null;
   if (bestDistance > Math.floor(best.length * 0.4)) return null;

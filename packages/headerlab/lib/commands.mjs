@@ -9,6 +9,29 @@
  */
 
 export const COMMANDS = [
+  // 읽기 넷이 먼저다 (clig Help §8, "흔한 것을 앞에"). 파서에게는 넷이
+  // 한 명령(`{cmd:'status'}`)이지만 표에게는 넷이다 — 사람이 치는 이름이
+  // 넷이고, 도움말·usage 줄·오타 제안이 전부 이 표에서 나온다.
+  {
+    path: ['status'],
+    summary: 'what is installed, live, and configured',
+    examples: ['headerlab status'],
+  },
+  {
+    path: ['site', 'ls'],
+    summary: 'list the sites the rules are scoped to',
+    examples: ['headerlab site ls'],
+  },
+  {
+    path: ['rule', 'ls'],
+    summary: 'list the header rules',
+    examples: ['headerlab rule ls'],
+  },
+  {
+    path: ['state', 'get'],
+    summary: 'print the entire stored state',
+    examples: ['headerlab state get', 'headerlab state get --json | jq .state'],
+  },
   {
     path: ['site', 'add'],
     args: '<domain>...',

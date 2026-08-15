@@ -32,3 +32,29 @@ test('빈 입력에는 아무것도 제안하지 않는다', () => {
 test('정확히 일치하면 제안하지 않는다 — 제안할 오타가 없다', () => {
   assert.equal(suggest('site', GROUPS), null);
 });
+
+// 측정된 동점: `statu` 는 `state` 에서 한 글자를 바꾼 것이자 `status` 에서
+// 한 글자를 뺀 것이라, 편집거리가 둘 다 1 이다. 배열 순서로 이기는
+// 구현에서는 `commands.mjs` 의 줄 순서가 답을 정한다 — 표를 재배열한
+// 사람은 자기가 오타 제안을 바꿨다는 것을 알 길이 없다.
+//
+// 그래서 동점은 **접두사**로 깬다: 친 글자가 후보의 시작과 그대로 겹치면
+// 그 후보가 이긴다 (`statu` → `status`). 아래는 후보 순서를 뒤집어서도
+// 같은 답을 요구하므로, 배열 순서에 기대는 구현은 둘 중 하나에서 반드시
+// 빨개진다.
+test('동점은 배열 순서가 아니라 접두사로 깬다', () => {
+  assert.equal(suggest('statu', ['state', 'status']), 'status');
+  assert.equal(suggest('statu', ['status', 'state']), 'status');
+});
+
+// 접두사가 관여하지 않는 동점은 여전히 첫 후보다 — 규칙이 하나 더 늘지
+// 않았다는 것을 못박는다.
+test('접두사가 없는 동점은 첫 후보 그대로다', () => {
+  assert.equal(suggest('bare', ['bore', 'bard']), 'bore');
+});
+
+// 실제 그룹 목록에서도 같아야 한다. GROUPS 는 표에서 파생되므로 이
+// 테스트가 표의 줄 순서로부터 오타 제안을 떼어 놓는다.
+test('실제 그룹 목록에서도 statu 는 status 다', () => {
+  assert.equal(suggest('statu', [...GROUPS, 'status']), 'status');
+});
