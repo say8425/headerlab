@@ -27,7 +27,7 @@ import {
 // reading its stdout and exit code.
 const cliPath = fileURLToPath(new URL('../bin/headerlab.mjs', import.meta.url));
 
-function runCli(args, { env = process.env, nodeArgs = [], onStderr = null } = {}) {
+function runCli(args, { env = process.env, nodeArgs = [], onStderr = null, stdin = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [...nodeArgs, cliPath, ...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -47,11 +47,10 @@ function runCli(args, { env = process.env, nodeArgs = [], onStderr = null } = {}
     });
     child.once('exit', (code) => resolve({ code, stdout, stderr }));
     child.once('error', reject);
-    // None of this file's commands read stdin (`state set -` is the only
-    // one that does, and no test here uses it) — closed regardless so a
-    // wrong implementation that unexpectedly waits on stdin fails fast
-    // instead of hanging the test.
-    child.stdin.end();
+    // Closed either way, so a wrong implementation that unexpectedly waits
+    // on stdin fails fast instead of hanging the test. Two commands here do
+    // read it — `state set -` and `--value-file -` — and those pass content.
+    child.stdin.end(stdin ?? '');
   });
 }
 
@@ -675,13 +674,27 @@ test('아는 명령에 --help 를 붙이면 stderr 가 완전히 비어 있다',
 });
 
 // 그룹 이름 단독(`site`)은 `site add` 도 `site rm` 도 아니지만 실제
-// 그룹이다 — `helpTextFor` 가 최상위로 떨어지는 것과 별개로, 이것을
-// "모르는 명령" 취급해 경고하면 사용자가 안 친 오타를 지어내는 것이다.
-test('그룹 이름 단독에 --help 를 붙이면 경고가 없다', async () => {
+// 그룹이다 — 이것을 "모르는 명령" 취급해 경고하면 사용자가 안 친 오타를
+// 지어내는 것이다. 그리고 도움말은 **그 그룹의 것**이 나온다: 예전에는
+// 최상위로 떨어져 방금 읽던 화면이 그대로 다시 나왔고, 그 그룹에
+// 서브커맨드가 있다는 사실조차 어디에도 안 적혔다.
+test('그룹 이름 단독에 --help 를 붙이면 경고 없이 그 그룹의 목록이 나온다', async () => {
   const { code, stdout, stderr } = await runCli(['site', '--help']);
   assert.equal(code, 0);
   assert.equal(stderr, '');
-  assert.equal(stdout.includes('USAGE'), true);
+  // 부재를 먼저: 최상위 도움말로 떨어지지 않았다.
+  assert.equal(stdout.includes('FLAGS'), false);
+  assert.equal(stdout.includes('headerlab site <command>'), true);
+  assert.equal(stdout.includes('all-sites'), true);
+});
+
+test('help <group> 도 같은 그룹 페이지를 낸다', async () => {
+  const { code, stdout } = await runCli(['help', 'bridge']);
+  assert.equal(code, 0);
+  assert.equal(stdout.includes('headerlab bridge <command>'), true);
+  assert.equal(stdout.includes('uninstall'), true);
+  // 남의 그룹이 새어 들어오면 그것은 최상위 도움말이다.
+  assert.equal(stdout.includes('all-sites'), false);
 });
 
 // 그룹은 맞는데 그 아래 서브커맨드가 없는 경우(`headerlab site bogus`)는
@@ -698,10 +711,41 @@ test('실제 그룹 아래 모르는 서브커맨드에 --help 를 붙이면 std
 
 test('그 서브커맨드 오타에 제안이 있으면 stderr 줄에 붙고, 후보는 그 그룹 소속뿐이다', async () => {
   // 'ad' 는 site 소속 네 후보(ls·add·rm·all-sites) 안에서 'add' 와 거리 1 —
-  // 최상위 오타 제안(GROUPS·allPaths)이 대신 끼어들면 다른 답이 나온다.
+  // 최상위 오타 제안(GROUPS·commandPaths)이 대신 끼어들면 다른 답이 나온다.
   const { code, stdout, stderr } = await runCli(['site', 'ad', '--help']);
   assert.equal(code, 0);
   assert.equal(stderr, 'unknown site command: ad — did you mean "add"?\n');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+/**
+ * 그리고 **`--help` 없이도** 같은 제안이 붙는다. 그쪽이 훨씬 흔한 호출인데,
+ * 제안기가 `unknown-command` 에만 걸려 있어서 한 번도 불리지 않았다:
+ * 그룹 아래 서브커맨드 오타는 파서가 `invalid-args` 로 내기 때문이다.
+ * `headerlab site addd x` 는 맨 문장만 받고, 같은 줄에 `--help` 를 덧붙이면
+ * 제대로 제안하는 — 설명할 수 없는 — 차이가 있었다.
+ */
+test('--help 없이도 서브커맨드 오타에 제안이 붙는다', async () => {
+  const { code, stdout } = await runCli(['site', 'addd', 'example.com']);
+  const result = JSON.parse(stdout);
+  assert.equal(result.error.code, 'invalid-args');
+  assert.equal(result.error.message, 'unknown site command: addd — did you mean "add"?');
+  assert.equal(code, 2);
+});
+
+test('제안할 것이 없으면 문장은 그대로다', async () => {
+  const { stdout } = await runCli(['rule', 'zzzzzzzz']);
+  assert.equal(JSON.parse(stdout).error.message, 'unknown rule command: zzzzzzzz');
+});
+
+/**
+ * `--bridge` 가 다음 토큰을 조건 없이 먹고 `rest` 에서도 지우던 동안,
+ * 플래그 문법이 헷갈릴 때 사람이 치는 바로 그 줄이 도움말 대신 에러를 냈다.
+ */
+test('--bridge --help 는 도움말을 삼키지 않는다', async () => {
+  const { code, stdout, stderr } = await runCli(['--bridge', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
   assert.equal(stdout.includes('USAGE'), true);
 });
 
@@ -829,6 +873,51 @@ function freshSocketEnv() {
   const dir = mkdtempSync(path.join(tmpdir(), 'hl-cli-status-sockets-'));
   return { dir, env: { ...process.env, HEADERLAB_SOCKET_DIR: dir } };
 }
+
+/**
+ * `--value-file -` 은 stdin 을 읽는다.
+ *
+ * SKILL.md 와 설계 §3.2·§7.4·TO-BE #11 이 전부 `<path|->` 라고 적어 온 동안
+ * 구현은 그 토큰을 `readFileSync` 에 그대로 넘겼고 — `-` 라는 **이름의 파일**을
+ * 찾는다 — 스킬을 따르는 에이전트는 영문 모를 ENOENT 를 받았다. 거기서 손이
+ * 가는 복구는 `--value` 이고, 그것이 정확히 이 플래그가 막으려던 노출이다.
+ *
+ * 값이 **소켓에 실제로 실려 나간 것**을 본다. 종료 코드만 보면 stdin 을 읽고
+ * 버리는 구현도 통과한다.
+ */
+test('--value-file - 는 stdin 을 값으로 읽어 소켓으로 보낸다', async (t) => {
+  const sent = [];
+  const pid = await liveFakeBridge(t, (command) => {
+    sent.push(command);
+    return { ok: true, changed: true, state: { globalPause: false, profiles: [] } };
+  });
+
+  const { code } = await runCli(
+    [
+      '--bridge',
+      String(pid),
+      'rule',
+      'add',
+      '--target',
+      'request',
+      '--op',
+      'set',
+      '--name',
+      'Authorization',
+      '--value-file',
+      '-',
+    ],
+    // 끝의 개행 하나는 떨어진다 — `echo 'x' | …` 가 흔하기 때문이고, 그
+    // 이상은 안 다듬는다(헤더 값의 공백은 뜻을 가질 수 있다).
+    { stdin: 'Bearer FROM-STDIN\n' },
+  );
+
+  assert.equal(code, 0);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].value, 'Bearer FROM-STDIN');
+  // 부재를 먼저 세운 짝: 토큰이 그대로 실려 나가는 구현이 아니다.
+  assert.equal(sent[0].value === '-', false);
+});
 
 // 넷이 같은 `{cmd:'status'}` 를 보내고 **렌더만 다르다** 는 주장은 여기서만
 // 끝까지 검사된다: 명령 경로가 `findCommand` 에서 나와 `renderResult` 까지
@@ -1082,6 +1171,30 @@ test('status 도 소켓 디렉터리를 열 수 없을 때 크래시로 가지 �
   assert.equal(stderr.includes('issues/new'), false);
   assert.deepEqual(JSON.parse(stdout).ok, false);
   assert.equal(JSON.parse(stdout).error.code, 'bridge-error');
+  assert.equal(code, 4);
+});
+
+/**
+ * 그리고 그 가드는 **형제에게도** 걸려야 한다. 같은 `bridgeStatus(paths)` 를
+ * 부르는 `bridge status`·`bridge uninstall`·`bridge install` 은 통째로 어떤
+ * 에러 경계 밖에 있었고, 같은 입력에 대해 위 테스트가 지키는 것과 정반대로
+ * 크래시 핸들러("이건 버그다, 이 URL 로 신고하라")를 내고 1 로 나갔다. 같은
+ * 실패를 두 명령이 다르게 부르는 것이 여기서 가장 나쁘다 — `install-failed`
+ * 는 정확히 이 부류를 위해 이미 표에 있다.
+ */
+test('bridge status 도 소켓 디렉터리를 열 수 없을 때 크래시로 가지 않는다', async () => {
+  const notADir = path.join(scratch, 'socket-dir-that-is-a-file');
+  writeFileSync(notADir, '');
+  const { code, stdout, stderr } = await runCli(['bridge', 'status'], {
+    env: { ...process.env, HEADERLAB_SOCKET_DIR: notADir },
+  });
+  // 부재 먼저: 크래시 리포트도, 신고 URL 도 없다.
+  assert.equal(stderr.includes('crashed'), false);
+  assert.equal(stderr.includes('issues/new'), false);
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, false);
+  // `status` 가 같은 입력에 내는 것과 **같은 코드**다. 그것이 요점이다.
+  assert.equal(payload.error.code, 'bridge-error');
   assert.equal(code, 4);
 });
 

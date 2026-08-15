@@ -382,6 +382,30 @@ test('extractGlobals 는 던지지 않고 error 로 답한다', () => {
   );
 });
 
+/**
+ * `--bridge` 는 다음 토큰을 조건 없이 먹었고, `extractGlobals` 는 먹은 것을
+ * `rest` 에서도 지운다 — 그래서 삼켜진 플래그는 통째로 사라졌다. 측정:
+ * `headerlab --bridge --help` 는 도움말을 내지 않고 "needs a numeric pid,
+ * got: --help" 로 2 를 냈다. 플래그 문법이 헷갈릴 때 사람이 치는 줄이 하필
+ * 그것이다.
+ */
+test('--bridge 는 뒤따르는 플래그를 먹지 않는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', '--help']);
+  // 부재를 먼저: `--help` 가 사라지지 않았다.
+  assert.equal(globals.help, true);
+  assert.equal(globals.bridgePid, null);
+  assert.equal(globals.error, '--bridge needs a pid');
+  assert.deepEqual(rest, []);
+});
+
+test('--bridge 뒤의 명령도 먹지 않는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', 'pause']);
+  // 이쪽은 여전히 값으로 보고 숫자가 아니라고 말한다 — 플래그가 아니므로
+  // 사람이 pid 를 치려다 만 것으로 읽는 편이 맞다.
+  assert.equal(globals.error, '--bridge needs a numeric pid, got: pause');
+  assert.deepEqual(rest, []);
+});
+
 test('extractGlobals 가 짧은 이름도 받는다', () => {
   assert.equal(extractGlobals(['-h']).globals.help, true);
   assert.equal(extractGlobals(['-q', 'pause']).globals.quiet, true);

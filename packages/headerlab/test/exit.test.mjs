@@ -66,9 +66,26 @@ test('EXIT.OK 은 0 이고 다른 어떤 것도 0 이 아니다', () => {
   );
 });
 
-// 이 테스트가 이 파일의 존재 이유다. 코드를 새로 만들고 종료 코드를 안
-// 정하는 것이 이 설계에서 가장 쉬운 퇴행이라, 소스에서 실제로 쓰이는
-// 코드 문자열을 긁어 목록과 맞춘다.
+/**
+ * 이 테스트가 이 파일의 존재 이유다. 코드를 새로 만들고 종료 코드를 안
+ * 정하는 것이 이 설계에서 가장 쉬운 퇴행이라, 소스에서 실제로 쓰이는
+ * 코드 문자열을 긁어 목록과 맞춘다.
+ *
+ * **긁는 모양은 다섯이고, 다섯 전부 심어서 확인했다.** 앞선 판본은 셋만
+ * 알았고, 그 셋에 `emitFail('x', …)` 이 없었다 — `bin/headerlab.mjs` 에서
+ * 코드를 만드는 **가장 흔한 모양**이며 리터럴 호출이 여섯 자리 있다. 대입
+ * 형태(`error.code = 'x'` / `wrapped.code = 'x'`)도 네 자리 있었고 역시
+ * 안 보였다. 그러니 그때 이 테스트가 초록이었던 이유는 그 열 자리가 전부
+ * 이미 매핑된 코드를 쓰고 있었기 때문일 뿐, 다음 것을 잡아서가 아니다.
+ * 검사할 수 없는 검사는 이 저장소에서 스타일 문제가 아니라 결함이다.
+ *
+ * 확인 방법(각 모양마다 매핑 안 된 코드를 심고 빨개지는지 본 뒤 되돌림):
+ *   code: 'not-mapped'                       → 잡힘
+ *   withCode(new Error('x'), 'not-mapped')   → 잡힘
+ *   fail('not-mapped', 'x')                  → 잡힘
+ *   emitFail('not-mapped', 'x')              → 잡힘
+ *   error.code = 'not-mapped'                → 잡힘
+ */
 test('소스가 내는 모든 코드가 ERROR_CODES 에 있다', () => {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const files = [
@@ -88,8 +105,14 @@ test('소스가 내는 모든 코드가 ERROR_CODES 에 있다', () => {
     }
     // lib/install.mjs and bin/headerlab.mjs each mint codes through their own
     // local `fail(code, message)` helper — a shape neither of the two
-    // patterns above recognizes at all.
+    // patterns above recognizes at all. `\bfail\(` also matches `emitFail(`'s
+    // tail, but only because `emitFail` ends in `Fail`; spelling that one out
+    // separately below is what keeps this true of a renamed helper.
     for (const match of source.matchAll(/\bfail\(\s*'([a-z-]+)'/g)) found.add(match[1]);
+    for (const match of source.matchAll(/\bemitFail\(\s*'([a-z-]+)'/g)) found.add(match[1]);
+    // The assignment form. `bin/headerlab.mjs` builds an Error and stamps the
+    // code onto it (`wrapped.code = 'invalid-args'`) in four places.
+    for (const match of source.matchAll(/\.code\s*=\s*'([a-z-]+)'/g)) found.add(match[1]);
   }
 
   const unmapped = [...found].filter((code) => !ERROR_CODES.includes(code));

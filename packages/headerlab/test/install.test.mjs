@@ -147,6 +147,25 @@ describe('previewInstall', () => {
     assert.equal(result.extensionId, 'a'.repeat(32));
     assert.deepEqual(result.manifest.allowed_origins, [`chrome-extension://${'a'.repeat(32)}/`]);
   });
+
+  /**
+   * 미리보기가 초록인데 진짜 실행이 빨간 조합은 없어야 한다. `--dry-run` 은
+   * "알려진 함정의 해독제" 로 팔리는데, 진입 파일이 없는 기계에서 완전하고
+   * 그럴듯한 매니페스트를 찍고 성공이라 말하면 그 자리에서 함정을 하나 새로
+   * 판 것이다 — 바로 위 `installBridge` 테스트가 같은 fixture 로 거절을
+   * 확인한다.
+   */
+  it('진짜 실행이 거절하는 것은 미리보기도 거절한다', async () => {
+    const broken = { ...options, entryPath: path.join(root, 'does-not-exist.mjs') };
+    const result = await previewInstall(broken);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'install-failed');
+    assert.match(result.error.message, /does-not-exist\.mjs/);
+    // 그래도 아무것도 쓰지 않는다.
+    assert.equal(existsSync(broken.manifestDir), false);
+    assert.equal(existsSync(broken.launcherDir), false);
+  });
 });
 
 describe('uninstallBridge', () => {

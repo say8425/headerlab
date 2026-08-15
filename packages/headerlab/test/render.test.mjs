@@ -59,6 +59,79 @@ test('all-sites 모드는 도메인 목록 대신 모드를 말한다', () => {
   );
 });
 
+/**
+ * `renderWrite` 의 나머지 세 갈래. `site` 하나만 검사되던 동안 `rule`·
+ * `pause`/`resume`·`state set` 의 사람용 출력은 스위트 어디에서도 실행되지
+ * 않았고, 갈래를 고르는 삼항이 틀려도 아무것도 빨개지지 않았다.
+ */
+const withRules = (rules, extra = {}) => ({
+  ok: true,
+  changed: true,
+  state: {
+    globalPause: false,
+    profiles: [
+      {
+        id: 'p1',
+        enabled: true,
+        filter: { domains: ['a.com'], allSites: false },
+        headers: rules,
+      },
+    ],
+    ...extra,
+  },
+});
+
+const rule = (id, enabled) => ({
+  id,
+  enabled,
+  target: 'request',
+  operation: 'set',
+  name: 'X',
+  value: '1',
+});
+
+test('rule add 는 규칙 수와 켜진 수를 말한다', () => {
+  const text = renderResult(withRules([rule('r1', true), rule('r2', false)]), {
+    command: ['rule', 'add'],
+    ...plain,
+  });
+  assert.equal(text.includes('"headers"'), false);
+  assert.equal(text, '2 rules, 1 on');
+});
+
+test('규칙 하나는 단수로 센다', () => {
+  assert.equal(
+    renderResult(withRules([rule('r1', true)]), { command: ['rule', 'toggle'], ...plain }),
+    '1 rule, 1 on',
+  );
+});
+
+test('pause 와 resume 는 서로 다른 문장을 낸다', () => {
+  const paused = withRules([], { globalPause: true });
+  const running = withRules([]);
+  assert.equal(
+    renderResult(paused, { command: ['pause'], ...plain }),
+    'paused — no headers are being modified',
+  );
+  assert.equal(renderResult(running, { command: ['resume'], ...plain }), 'running');
+});
+
+/**
+ * `state set` 은 갈래가 없어 else 로 떨어졌고, 그래서 되돌릴 수 없는 전체
+ * 덮어쓰기를 확인까지 하고 실행한 사람이 보는 것은 `running` 한 단어였다 —
+ * 아무 일도 안 일어났을 때와 바이트가 같다. 설계 §2.7 의 "무엇이 바뀌었는지
+ * 말한다" 를 그 명령 하나만 안 지키고 있었다.
+ */
+test('state set 은 무엇으로 바뀌었는지 말한다 — pause 상태가 아니라', () => {
+  const text = renderResult(withRules([rule('r1', true), rule('r2', true)]), {
+    command: ['state', 'set'],
+    ...plain,
+  });
+  // 부재를 먼저: 예전 출력이 그대로 나오면 이 테스트는 의미가 없다.
+  assert.equal(text === 'running', false);
+  assert.equal(text, 'replaced — 2 rules, 2 on, 1 site in scope: a.com');
+});
+
 test('bridge status 를 표로 그린다', () => {
   const payload = {
     ok: true,

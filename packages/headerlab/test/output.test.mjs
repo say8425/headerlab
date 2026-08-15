@@ -215,13 +215,11 @@ test('사람용 invalid-args 는 usage 줄을 메시지 아래 한 줄로 붙인
   });
 });
 
-// 기계용 봉투의 `error.message` 는 첫 문장 그대로여야 한다. usage 줄이
-// 봉투 안으로 새면 파싱하는 쪽이 못 보던 줄바꿈을 받는다.
 // --- planSlowReply: 답하지 않는 브릿지에 내는 한 줄 --------------------------
 //
 // 이 판단도 `bin/headerlab.mjs` 의 `onSlow` 클로저 안에 있었고, 같은 이유로
-// (사람용 + stderr 가 TTY) 어떤 테스트도 닿지 못했다. 옮겨 놓으니 네 조합이
-// 표 하나가 된다.
+// (stderr 가 TTY) 어떤 테스트도 닿지 못했다. 옮겨 놓으니 조합이 표 하나가
+// 된다.
 
 const slowCtx = { mode: 'human', quiet: false, stream: tty };
 
@@ -232,10 +230,25 @@ test('사람용 TTY 에서 기다린다는 줄은 stderr 로 간다', () => {
   });
 });
 
-// 기계용은 봉투 하나가 계약이다. 진행 상황 한 줄이 stderr 로라도 나가면
-// 로그를 파싱하는 쪽이 못 보던 줄을 받는다.
-test('기계용에서는 아무것도 내지 않는다', () => {
-  assert.equal(planSlowReply(10_000, { ...slowCtx, mode: 'json' }), null);
+// 기계용 계약은 **stdout 의** 봉투 하나다. 이 줄은 stdout 에 가지 않으므로
+// 그 계약을 건드리지 않으며, 설계 §2.4 도 그렇게 적는다 — 그리고 그것이
+// 모드를 보지 않는 이유다. 한동안 `mode !== 'human'` 이 맨 앞에 있었고,
+// 그래서 터미널에서 `headerlab status --json` 을 치면 §1.1(e) 가 측정한
+// "10초 침묵" 이 그대로 남아 있었다. 파이프로 받는 쪽은 아래 TTY 조건에서
+// 이미 걸린다.
+test('기계용에서도 TTY 면 낸다 — 이 줄은 stdout 이 아니다', () => {
+  assert.deepEqual(planSlowReply(10_000, { ...slowCtx, mode: 'json' }), {
+    stream: 'stderr',
+    text: 'waiting for the extension to reply (10s timeout)…\n',
+  });
+});
+
+// 위 줄이 stdout 을 건드리지 않는다는 것이 그 자체로 성질이다 — 이것이
+// 깨지면 `jq` 로 받는 쪽이 봉투 앞에 산문 한 줄을 받는다.
+test('어느 모드에서도 stdout 으로는 가지 않는다', () => {
+  for (const mode of ['human', 'json']) {
+    assert.equal(planSlowReply(10_000, { ...slowCtx, mode }).stream, 'stderr');
+  }
 });
 
 test('--quiet 은 진행 상황을 지운다 — 실패와 달리 이것은 산문이다', () => {
@@ -257,6 +270,8 @@ test('초는 timeoutMs 에서 계산된다', () => {
   );
 });
 
+// 기계용 봉투의 `error.message` 는 첫 문장 그대로여야 한다. usage 줄이
+// 봉투 안으로 새면 파싱하는 쪽이 못 보던 줄바꿈을 받는다.
 test('기계용 봉투에는 usage 줄이 새지 않는다', () => {
   const plan = planFail(
     { code: 'invalid-args', message: 'rule toggle needs an id' },
