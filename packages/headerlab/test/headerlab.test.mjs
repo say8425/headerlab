@@ -861,6 +861,21 @@ test('status 는 소켓 errno 를 봉투에 그대로 흘리지 않는다', asyn
   assert.equal(payload.error.message.length > 0, true);
 });
 
+// errno 를 접는 것은 `status` 만의 규칙이 아니다. 같은 소켓 실패가 명령마다
+// 다른 코드로 나가면 — `status` 는 `bridge-error`(4), `pause` 는 `EPIPE`(1) —
+// 봉투를 읽는 쪽은 명령별 표를 갖고 있어야 한다. 두 자리가 같은 함수를 쓰는지
+// 검사하는 것은 여기뿐이다.
+test('소켓 errno 를 접는 규칙은 status 만의 것이 아니다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  const pid = await bridgeAt(t, dir, (socket) => socket.destroy());
+
+  const { code, stdout } = await runCli(['--bridge', String(pid), 'pause'], { env });
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, 'bridge-error');
+  assert.equal(code, 4);
+});
+
 test('status 는 브릿지가 둘이면 하나를 고르지도, 없다고 하지도 않는다', async (t) => {
   const { dir, env } = freshSocketEnv();
   const first = await bridgeAt(
