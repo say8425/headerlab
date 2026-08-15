@@ -296,7 +296,8 @@ lib/model/       型、zod スキーマ、既定値、マイグレーション  
 lib/compile/     AppState → DNR ルール + 診断                    純粋
 lib/permissions/ origins.ts, audit.ts は純粋 · probe.ts がブラウザを呼ぶ
 lib/view/        ポップアップのビューモデル                       純粋
-lib/bridge/      protocol.ts (コマンドスキーマ), apply.ts (リデューサ)  純粋
+lib/bridge/      protocol.ts (コマンドスキーマ), apply.ts (リデューサ),
+                 query.ts (状態 → StatusPayload)                      純粋
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      ポップアップ UI

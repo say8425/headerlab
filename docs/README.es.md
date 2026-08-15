@@ -314,7 +314,8 @@ lib/model/       tipos, esquema zod, valores por defecto, migraciones   puro
 lib/compile/     AppState → reglas DNR + diagnósticos                   puro
 lib/permissions/ origins.ts, audit.ts puros · probe.ts llama al navegador
 lib/view/        modelos de vista del popup                             puro
-lib/bridge/      protocol.ts (esquema de comandos), apply.ts (reducer)   puro
+lib/bridge/      protocol.ts (esquema de comandos), apply.ts (reducer),
+                 query.ts (estado → StatusPayload)                        puro
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      UI del popup

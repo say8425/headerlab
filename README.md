@@ -295,7 +295,8 @@ lib/model/       types, zod schema, defaults, migrations   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts calls the browser
 lib/view/        popup view models                         pure
-lib/bridge/      protocol.ts (command schema), apply.ts (reducer)   pure
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer),
+                 query.ts (state → StatusPayload)                  pure
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      popup UI

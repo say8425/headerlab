@@ -87,7 +87,7 @@ that last one when only one is running.
 
 | Command | Effect |
 |---|---|
-| `headerlab status --json` | What is installed, live and configured. **Never fails with `bridge-off`** — it reports that as a fact and exits 0. |
+| `headerlab status --json` | What is installed, live and configured. **A bridge that is simply absent is not a failure here** — it reports that as a fact and exits 0. The exception stops there: `--bridge <pid>` naming a bridge that does not exist still fails with `bridge-off` and exits 3, because ignoring a pid you named would make the CLI answer for something you did not ask about. |
 | `headerlab rule ls --json` | The header rules, with any problem the compiler found. |
 | `headerlab site ls --json` | The sites the rules are scoped to. |
 | `headerlab state get --json` | The entire stored state, under `.state`. |

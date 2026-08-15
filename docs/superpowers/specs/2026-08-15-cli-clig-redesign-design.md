@@ -204,7 +204,8 @@ stdout 은 손대지 않으므로 `jq` 로 받는 쪽은 영향이 없다. TTY �
 줄을 낸다: 오류 한 줄, "이것은 버그다" 한 줄, 그리고 제목과 본문(버전·플랫폼·
 Node 버전·명령줄)이 채워진 이슈 URL 한 줄. `1` 로 나간다. clig Errors §4·§5.
 
-CLI 가 *의도적으로* 내는 실패(§2.3 의 17개 코드)는 이 경로로 오지 않는다. 그것들은
+CLI 가 *의도적으로* 내는 실패(§2.3 의 16개 코드 — 표를 세라, 이 자리가 한동안
+17 이라고 적혀 있었고 표에도 빌드에도 16 뿐이었다)는 이 경로로 오지 않는다. 그것들은
 이미 사람이 읽을 문장으로 다시 쓰인 것이라 버그 신고를 권할 대상이 아니다 — 이
 구분이 clig Errors §1 과 §4 의 차이이며, 감사는 §1 을 이미 적합으로 판정했다.
 
@@ -490,7 +491,16 @@ $ headerlab ste add example.com
 
 맨손 `headerlab` 과 `--help`·`-h`·`help <cmd>` 는 stdout 에 도움말, **exit 0**.
 도움을 청하는 것은 실패가 아니다. 반대로 `headerlab site` 처럼 *틀리게* 친 것은
-stderr 에 에러와 그 그룹의 usage, **exit 2**.
+stderr 에 에러, **exit 2**.
+
+**usage 줄은 argv 가 표의 항목 하나로 풀릴 때만 붙는다.** 이 절은 원래 "그
+그룹의 usage" 라고 적었는데, 구현은 그렇게 하지 않았고 그쪽이 옳다:
+`headerlab site` 는 `site add` 도 `site rm` 도 `site all-sites` 도 아니라서
+고를 usage 가 없고, 셋 중 하나를 골라 보여 주는 것은 사용자가 치려던 것을
+지어내는 일이다 (`render.mjs` 의 `usageFor` 가 그 이유를 담고 있다). 그룹
+이름 하나에는 대신 `headerlab help site` 가 그 그룹의 목록을 낸다. 형제
+경우는 그대로 동작한다 — `headerlab rule add` 를 `--target` 없이 치면
+`headerlab rule add` usage 줄이 붙는다.
 
 `--help` 는 전역 플래그이므로 그룹 파싱 이전에 걷힌다 — 따라서
 `headerlab bridge install --help` 도 동작한다. 현재는 `unknown bridge command:
@@ -527,10 +537,18 @@ ANSI 이스케이프는 손으로 적는다(약 10개 상수). 의존성 없음.
 
 | 맥락 | 동작 |
 |---|---|
-| stdin 이 TTY 이고 소스가 파일 | `This replaces 3 rules and 2 sites. Continue? [y/N]` |
+| stdin 이 TTY 이고 소스가 파일 | `This replaces the entire stored state with 3 rules and 2 sites, and cannot be undone.` / `Continue? [y/N]` |
 | `-f` / `--force` | 프롬프트 없이 진행 |
 | 비대화형 (파이프·에이전트·`state set -`) | **`--force` 를 요구하며 실패**, exit 2 |
 | `--no-input` | 프롬프트 대신 `--force` 를 치라는 메시지와 함께 실패, exit 2 |
+
+**숫자는 들어올 payload 의 것이고, 문장이 그 방향을 말한다.** 지금 저장된 것이
+몇 개인지 알려면 확인 전에 브릿지를 한 번 다녀와야 한다 — 되돌릴 수 없는 명령을
+묻기도 전에 왕복을 하나 끼워 넣는 것이고, 브릿지가 없으면 확인 자체가 불가능해진다.
+이 표의 첫 줄은 처음에 `This replaces 3 rules and 2 sites.` 였는데 그 문장은
+어느 쪽 숫자인지 말하지 않는다. 세는 것 자체가 요점이라는 것은 그대로다: 숫자가
+없는 문장은 모든 실행에서 참이라 아무 신호도 싣지 않고, 빈 상태로 채워진 파일을
+가리켰다는 것을 사람이 알아채는 자리가 여기다.
 
 마지막 두 줄이 이 설계에서 가장 논쟁적이며 **현재 스킬의 `state set` 호출을 전부
 깨뜨린다.** clig Interactivity §2 가 "물어볼 수 없으면 어떤 플래그를 치라고 알려주며
@@ -676,8 +694,16 @@ e2e 는 하나 는다: 실제 브릿지를 통과하는 읽기 명령. `tests/e2
 
 | | |
 |---|---|
-| **바뀜** | 기본 출력 모드(TTY 일 때), 실패 시 스트림(사람용), 종료 코드 0/1 → 0/1/2/3/4, `state set` 이 `--force` 를 요구, `invalid-command` 중 CLI 생산분이 `invalid-args` 로 개명 |
-| **안 바뀜** | JSON payload 의 **구조** — 봉투(`{ok, error?, state?, changed?, note?}`), 필드 이름, 성공 응답의 전체 상태. 파이프나 `--json` 으로 호출하는 소비자가 stdout 에서 받는 바이트는 위 개명 한 건과 종료 코드를 빼면 동일 |
+| **바뀜** | 기본 출력 모드(TTY 일 때), 실패 시 스트림(사람용), 종료 코드 0/1 → 0/1/2/3/4, `state set` 이 `--force` 를 요구, `invalid-command` 중 CLI 생산분이 `invalid-args` 로 개명, **표에 없는 `error.code` 가 `bridge-error` 로 접힘** |
+| **안 바뀜** | JSON payload 의 **구조** — 봉투(`{ok, error?, state?, changed?, note?}`), 필드 이름, 성공 응답의 전체 상태. 파이프나 `--json` 으로 호출하는 소비자가 stdout 에서 받는 바이트는 왼쪽 칸의 `error.code` 변화 **둘**과 종료 코드를 빼면 동일 |
+
+두 번째 `error.code` 변화는 개명이 아니라 **접기**다. `codeForThrown` 이 `BY_CODE` 에
+없는 코드를 전부 `bridge-error` 로 접으므로, 예전에 `{"error":{"code":"EPIPE"}}` 나
+`"ENOTDIR"` 를 보던 소비자는 이제 `"bridge-error"` 를 본다. 바꾼 것이 옳다 — errno 는
+봉투의 계약이었던 적이 없고, `ERROR_CODES` 에 없는 문자열을 받은 쪽은 분기할 것이
+없으며, 원래 메시지는 그대로 실려 나가므로 어느 errno 였는지는 사람이 여전히 읽는다.
+여기 적는 이유는 이 표가 PR 본문과 CHANGELOG 로 그대로 들어가기 때문이다: "개명 한
+건을 빼면 동일" 은 맞춰 보는 사람에게 거짓이 된다.
 
 폐기 경고는 넣을 자리가 없다 — exit 1 만 읽던 스크립트는 이제 3 을 받을 뿐 경고를
 띄울 후크가 없다. 대신 CHANGELOG 와 README 가 표를 그대로 싣는다.

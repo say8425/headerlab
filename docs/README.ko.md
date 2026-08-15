@@ -287,7 +287,8 @@ lib/model/       타입, zod 스키마, 기본값, 마이그레이션          �
 lib/compile/     AppState → DNR 룰 + 진단                      순수
 lib/permissions/ origins.ts, audit.ts 순수 · probe.ts 가 브라우저 호출
 lib/view/        팝업 뷰모델                                   순수
-lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서)     순수
+lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서),
+                 query.ts (상태 → StatusPayload)                   순수
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      팝업 UI

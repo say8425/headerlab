@@ -259,7 +259,8 @@ lib/model/       类型、zod 模式、默认值、迁移                     �
 lib/compile/     AppState → DNR 规则 + 诊断                      纯函数
 lib/permissions/ origins.ts, audit.ts 为纯函数 · probe.ts 调用浏览器
 lib/view/        弹窗视图模型                                    纯函数
-lib/bridge/      protocol.ts (命令模式), apply.ts (reducer)        纯函数
+lib/bridge/      protocol.ts (命令模式), apply.ts (reducer),
+                 query.ts (状态 → StatusPayload)                   纯函数
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      弹窗 UI

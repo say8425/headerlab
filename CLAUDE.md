@@ -44,7 +44,8 @@ lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
-lib/bridge/      protocol.ts (command schema), apply.ts (reducer) pure ·
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer),
+                 query.ts (state → StatusPayload) pure ·
                  port.ts is its one browser caller
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
@@ -74,11 +75,16 @@ constraint produced.
 `tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
 above calls pure.** Two directories are auto-discovered, so a new file in either is
 guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
-of exactly seven files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
+of exactly eight files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
 `lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
-`lib/bridge/apply.ts` and `lib/model/schema.ts`. `lib/permissions/` and `lib/bridge/`
+`lib/bridge/apply.ts`, `lib/bridge/query.ts` and `lib/model/schema.ts`.
+`lib/permissions/` and `lib/bridge/`
 each also hold an adapter that must *not* be guarded — `probe.ts` and `port.ts` — so
-neither directory has a directory-shaped rule to apply. `defaults.ts`
+neither directory has a directory-shaped rule to apply. That is also why
+`lib/bridge/query.ts` — the pure module answering every read command — had to be added
+to the list by hand when it was written; the count above was seven and went stale in the
+same branch that added it, which is the whole hazard this paragraph exists to describe.
+`defaults.ts`
 and `schema.ts` are named individually for the same one-hop reason: the guard only scans
 a file's own source, so if guarded `lib/bridge/apply.ts` imports either as a runtime
 value — `bootstrapProfile`/`newRule` from `defaults.ts`, `parseAppState` from `schema.ts`
@@ -750,21 +756,36 @@ answered from a stale copy is invisible to a test that only asks whether it wrot
 live" once that command has landed. The fifth is a layout guard in the same family as the
 eight above: an unreachable bridge leaves the rail exactly where a live one leaves it.
 
-**The CLI's presentation layer is pure, and the process is reached in exactly one
-file.** `lib/render.mjs`, `lib/help.mjs`, `lib/commands.mjs`, `lib/suggest.mjs` and
+**The CLI's presentation layer is pure, and every decision it makes is testable without
+a terminal.** `lib/render.mjs`, `lib/help.mjs`, `lib/commands.mjs`, `lib/suggest.mjs` and
 `lib/exit.mjs` take their inputs as arguments and return strings, so the human-facing
-output is tested without spawning anything — 33 · 7 · 10 · 8 · 6 tests, none of them a
-subprocess. `lib/output.mjs` decides *where* a string goes and *whether* it is coloured,
+output is tested without spawning anything — none of those tests is a subprocess.
+`lib/output.mjs` decides *where* a string goes and *whether* it is coloured,
 and the plan it returns is what `bin/headerlab.mjs` writes; **it still takes the streams
 and the environment as arguments** (`resolveMode(globals, streams)`,
-`resolveColor(globals, env, stream)`), which is why 30 table-driven tests can reach a
-branch that only lights up when stdout is a pty. Measured, because an earlier draft of
-this paragraph said `output.mjs` reads `process.stdout.isTTY` and `process.env` itself:
-`grep -rn 'isTTY\|process\.env' lib/ bin/` puts every `process.*` read in
-`bin/headerlab.mjs` (lines 102, 196, 337, 338) plus `socket.mjs`'s one
-`HEADERLAB_SOCKET_DIR` lookup, and none in `output.mjs`. What genuinely needs a real
-process is `test/process.test.mjs`'s three: a closed stdout pipe, SIGINT, and
-`state set -` on a terminal.
+`resolveColor(globals, env, stream)`), which is why table-driven tests can reach a
+branch that only lights up when stdout is a pty.
+**Read the grep's real output, not a summary of it.** An earlier draft of this paragraph
+offered `grep -rn 'isTTY\|process\.env' lib/ bin/` and then described output the command
+does not produce — it said the hits are in `bin/headerlab.mjs` and `socket.mjs` and
+"none in `output.mjs`", while `output.mjs` is in fact the first thing that grep prints,
+and the enumeration also omitted `install.mjs:154`. What is true is narrower and worth
+stating carefully: `output.mjs`'s `isTTY` hits are all `streams.stdout?.isTTY` /
+`stream?.isTTY` on **injected arguments**, which is the design being celebrated rather
+than a counterexample; the reads of the real process are `bin/headerlab.mjs`
+(`process.stdin.isTTY`, and `process.env` passed into `resolveColor`), `socket.mjs`'s one
+`HEADERLAB_SOCKET_DIR` lookup, and `install.mjs:154` handing `process.env` to a spawned
+child. Line numbers are deliberately absent except that one: they went stale twice.
+What genuinely needs a real process is `test/process.test.mjs` — a closed stdout pipe,
+SIGINT (both of its two sentences), and the terminal-only branches.
+**The terminal branches are reached without a pty, and how matters.**
+`test/tty-harness.mjs` sets `process.stdin.isTTY = true` on a real pipe and then imports
+the CLI, so `state set -`'s guard and `state set`'s confirmation prompt are ordinary
+subprocess tests. It exercises the branch, not the terminal: line discipline, echo and a
+real Ctrl-C are not simulated. One measured consequence is baked into the CLI —
+`process.stdin.pause()` releases the event loop on a pty but **not** on a pipe, so the
+prompt calls `unref()` too, and without that the y-path hangs forever on a terminal with
+nothing in the suite able to see it.
 
 **The five READMEs are held together by their commands, not by their line counts.**
 `packages/headerlab/test/docs.test.mjs` extracts every line inside a `bash`-tagged fence
