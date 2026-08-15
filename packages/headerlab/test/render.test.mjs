@@ -96,6 +96,37 @@ test('bridge status 가 entryMissing 을 그대로 말한다', () => {
   assert.equal(text.includes('1 live (pid 9)'), true);
 });
 
+// pad(launcher, 15) 가 이미 `paint()` 를 거친 문자열에 적용되면 ANSI
+// 바이트가 너비에 끼어들어 색이 켜졌을 때는 패딩이 하나도 안 붙는다 —
+// 측정: 색 꺼짐 'missing        /l/headerlab-host', 색 켜짐
+// 'missing/l/headerlab-host' (ESC 바이트까지 15자를 채워 공백이 안 남음).
+// ANSI 를 벗겨낸 "켜짐" 이 "꺼짐" 과 바이트까지 같아야 한다는 것이 이
+// 어서션이다 — 너비가 칠하기 전 텍스트로 계산되지 않으면 정렬이 어긋난다.
+// ESC(0x1b) 를 실제로 매치하려는 패턴이다 — ASCII 범위 검사가 아니지만,
+// 이 규칙이 못 보는 것은 같다: "제어 문자를 매치하려는 의도" 그 자체가
+// 여기서는 결함이 아니라 목적이다.
+// oxlint-disable-next-line no-control-regex
+const stripAnsi = (text) => text.replace(/\x1b\[[0-9;]*m/g, '');
+
+test('bridge status 의 launcher 열은 색을 켜도 켜지지 않은 것과 같은 자리에 정렬된다', () => {
+  const payload = {
+    ok: true,
+    installed: true,
+    manifestPath: '/m/x.json',
+    launcherPath: '/l/headerlab-host',
+    launcherMissing: true,
+    entryMissing: false,
+    allowedOrigins: [],
+    liveBridges: [],
+  };
+  const off = renderResult(payload, { command: ['bridge', 'status'], color: false });
+  const on = renderResult(payload, { command: ['bridge', 'status'], color: true });
+  assert.equal(stripAnsi(on), off);
+  // 부재가 아니라 실제로 정렬이 벌어진 채였다는 것도 함께 못박는다: 색을
+  // 켰을 때 'missing' 바로 뒤에 붙던 것이 고쳐지면 공백을 사이에 둔다.
+  assert.equal(off.includes('missing        /l/headerlab-host'), true);
+});
+
 test('에러는 메시지 한 줄이다', () => {
   assert.equal(
     renderError({ code: 'store-unreadable', message: 'the stored state does not match' }, plain),

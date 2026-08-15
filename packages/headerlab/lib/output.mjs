@@ -16,6 +16,7 @@ import { renderError, renderResult, usageFor } from './render.mjs';
  */
 export function resolveMode(globals, streams) {
   if (globals.json) return 'json';
+  if (globals.human) return 'human';
   return streams.stdout?.isTTY ? 'human' : 'json';
 }
 

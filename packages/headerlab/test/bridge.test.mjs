@@ -301,6 +301,7 @@ test('extractGlobals 가 전역 플래그를 걷고 나머지를 남긴다', () 
     globals: {
       bridgePid: null,
       json: true,
+      human: false,
       quiet: false,
       noColor: false,
       noInput: false,
@@ -331,4 +332,25 @@ test('extractGlobals 가 짧은 이름도 받는다', () => {
   assert.equal(extractGlobals(['-h']).globals.help, true);
   assert.equal(extractGlobals(['-q', 'pause']).globals.quiet, true);
   assert.equal(extractGlobals(['-f', 'pause']).globals.force, true);
+});
+
+test('extractGlobals 가 --human 을 걷는다', () => {
+  const { globals, rest } = extractGlobals(['--human', 'pause']);
+  assert.equal(globals.human, true);
+  assert.deepEqual(rest, ['pause']);
+});
+
+// `bridge install` 이 `--extension-id` 와 `--load-path` 를 함께 받으면 하나를
+// 골라 이기게 하지 않고 거부하는 것과 같은 모양이다 — 조용히 하나를 고르면
+// 사용자가 치지 않은 모드로 나갈 수 있다.
+test('--json 과 --human 을 같이 주면 거부한다', () => {
+  const { globals } = extractGlobals(['--json', '--human', 'pause']);
+  assert.equal(globals.error, 'headerlab takes --json or --human, not both');
+});
+
+test('--json 과 --human 을 같이 줘도 다른 플래그 파싱은 계속된다', () => {
+  const { globals, rest } = extractGlobals(['--json', '--human', 'pause']);
+  assert.equal(globals.json, true);
+  assert.equal(globals.human, true);
+  assert.deepEqual(rest, ['pause']);
 });

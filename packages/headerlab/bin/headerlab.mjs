@@ -251,10 +251,12 @@ async function main() {
     return;
   }
   if (globals.help) {
+    warnIfUnknown(rest);
     emitPlain(helpTextFor(rest));
     return;
   }
   if (rest[0] === 'help') {
+    warnIfUnknown(rest.slice(1));
     emitPlain(helpTextFor(rest.slice(1)));
     return;
   }
@@ -357,6 +359,28 @@ function helpTextFor(argv) {
   if (argv.length === 0) return topHelp();
   const entry = findCommand(argv);
   return entry === null ? topHelp() : commandHelp(entry);
+}
+
+/**
+ * `headerlab teleport --help` 는 종료 0 으로 도움말을 낸다 — 도움말을
+ * 청하는 것은 오류가 아니고, `headerlab teleport --help | less` 가 계속
+ * 되어야 한다. 그래도 `teleport` 가 명령이 아니라는 사실 자체는 어디에도
+ * 안 남았었다: 도움말은 최상위로 조용히 떨어지고, 오타 제안기(`suggest`)는
+ * 바로 옆에 있으면서도 이 경로에서는 한 번도 불리지 않았다.
+ *
+ * 그래서 도움말을 찍기 **전에** stderr 에 한 줄만 남긴다. `helpTextFor`
+ * 가 하는 것과 같은 판정(표에 있는 전체 경로, 또는 `GROUPS` 의 그룹
+ * 이름 하나)을 "실제 명령" 으로 치므로 — `headerlab site --help` 는
+ * `site add` 도 `site rm` 도 아니지만 실제 그룹이라 조용하다. argv 가
+ * 비어 있어도(맨손 `--help`) 조용하다.
+ */
+function warnIfUnknown(argv) {
+  if (argv.length === 0) return;
+  if (findCommand(argv) !== null) return;
+  if (GROUPS.includes(argv[0])) return;
+  const hint = suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
+  const base = `unknown command: ${argv[0]}`;
+  process.stderr.write(`${hint === null ? base : `${base} — did you mean "${hint}"?`}\n`);
 }
 
 /**

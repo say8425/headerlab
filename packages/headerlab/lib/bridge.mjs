@@ -32,6 +32,7 @@ export function withCode(error, code) {
  */
 const BOOLEAN_GLOBALS = new Map([
   ['--json', 'json'],
+  ['--human', 'human'],
   ['--quiet', 'quiet'],
   ['-q', 'quiet'],
   ['--no-color', 'noColor'],
@@ -47,6 +48,7 @@ export function extractGlobals(argv) {
   const globals = {
     bridgePid: null,
     json: false,
+    human: false,
     quiet: false,
     noColor: false,
     noInput: false,
@@ -80,6 +82,14 @@ export function extractGlobals(argv) {
       continue;
     }
     rest.push(token);
+  }
+
+  // `bridge install` 이 `--extension-id` 와 `--load-path` 를 함께 주면 하나를
+  // 골라 이기게 하지 않고 거부하는 것과 같은 모양이다(args.mjs) — 둘 다
+  // "출력 형식을 정하는" 플래그이므로 하나를 조용히 이기게 두면 사용자가
+  // 치지 않은 모드로 나갈 수 있다.
+  if (globals.json && globals.human) {
+    globals.error ??= 'headerlab takes --json or --human, not both';
   }
 
   return { globals, rest };

@@ -62,11 +62,20 @@ function pauseSummary(state) {
 
 function renderBridgeStatus(payload, color) {
   const manifest = payload.installed ? 'installed' : 'not installed';
-  const launcher = payload.launcherMissing
-    ? paint('missing', COLORS.red, color)
+  const launcherText = payload.launcherMissing
+    ? 'missing'
     : payload.entryMissing
-      ? paint('entry missing', COLORS.amber, color)
-      : paint('ok', COLORS.green, color);
+      ? 'entry missing'
+      : 'ok';
+  const launcherColor = payload.launcherMissing
+    ? COLORS.red
+    : payload.entryMissing
+      ? COLORS.amber
+      : COLORS.green;
+  // 너비는 칠하기 **전** 텍스트로 잰다 — `paint()` 가 두른 ESC 바이트가
+  // 폭에 끼어들면 색이 켜졌을 때 패딩이 하나도 안 붙는다(측정: 위 테스트).
+  // 색은 이미 패딩까지 채운 문자열 전체를 두른다.
+  const launcher = paint(pad(launcherText, 15), launcherColor, color);
   const live =
     payload.liveBridges.length === 0
       ? 'not running'
@@ -74,7 +83,7 @@ function renderBridgeStatus(payload, color) {
 
   return [
     `manifest  ${pad(manifest, 15)}${paint(payload.manifestPath, COLORS.dim, color)}`,
-    `launcher  ${pad(launcher, 15)}${paint(payload.launcherPath, COLORS.dim, color)}`,
+    `launcher  ${launcher}${paint(payload.launcherPath, COLORS.dim, color)}`,
     `bridge    ${live}`,
   ]
     .map((line) => line.trimEnd())

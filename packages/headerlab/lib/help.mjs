@@ -61,6 +61,7 @@ export function topHelp() {
 
   const flags = [
     ['    --json', 'machine-readable output (the default when not a terminal)'],
+    ['    --human', 'human-readable output (the default on a terminal)'],
     ['-q, --quiet', 'errors only'],
     ['    --no-color', 'disable colour (also honours NO_COLOR, TERM=dumb)'],
     ['-h, --help', "this help, or a command's help"],
@@ -91,7 +92,12 @@ export function topHelp() {
 }
 
 export function commandHelp(entry) {
-  const lines = [`headerlab ${pathKey(entry.path)} — ${entry.summary}`, '', 'USAGE', `  ${usageLine(entry)}`];
+  const lines = [
+    `headerlab ${pathKey(entry.path)} — ${entry.summary}`,
+    '',
+    'USAGE',
+    `  ${usageLine(entry)}`,
+  ];
 
   if (entry.flags?.length) {
     lines.push('', 'FLAGS');

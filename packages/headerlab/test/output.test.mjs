@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
 
-const noGlobals = { json: false, quiet: false, noColor: false };
+const noGlobals = { json: false, human: false, quiet: false, noColor: false };
 const tty = { isTTY: true };
 const pipe = { isTTY: false };
 
@@ -16,6 +16,27 @@ test('파이프면 기계용', () => {
 
 test('--json 은 TTY 여도 기계용', () => {
   assert.equal(resolveMode({ ...noGlobals, json: true }, { stdout: tty }), 'json');
+});
+
+// `--human` 은 `--json` 의 반대 방향 — TTY 가 아니어도(파이프여도) 사람용을
+// 강제한다. 이것이 §7c 가 존재하는 이유다: 사람용 분기는 지금까지 stdout 이
+// TTY 여야만 켜졌고, `node --test` 가 띄우는 자식의 stdout 은 파이프라
+// 실제 pty 없이는 코드로 닿을 수 없었다. `--human` 은 그 분기를 파이프에서도
+// 켜는 손잡이다.
+test('--human 은 파이프여도 사람용', () => {
+  assert.equal(resolveMode({ ...noGlobals, human: true }, { stdout: pipe }), 'human');
+});
+
+test('--human 은 TTY 에서도 사람용 (원래도 그럴 값이지만, 강제 경로를 잰다)', () => {
+  assert.equal(resolveMode({ ...noGlobals, human: true }, { stdout: tty }), 'human');
+});
+
+// 둘 다 켜진 조합은 상위(bin/headerlab.mjs)에서 `extractGlobals`가
+// `globals.error`로 거부하지만, `resolveMode` 자신은 그 거부를 모르는
+// 순수 함수다 — 그래도 어느 하나로는 반드시 결정되어야 하므로(멈추거나
+// undefined 를 내면 안 된다) `--json` 이 앞선다는 것을 못박는다.
+test('--json 과 --human 이 함께 오면(거부되기 전) json 이 앞선다', () => {
+  assert.equal(resolveMode({ ...noGlobals, json: true, human: true }, { stdout: tty }), 'json');
 });
 
 test('모드는 stdout 만 본다 — stderr 는 관계없다', () => {

@@ -526,3 +526,111 @@ test('확장이 거부하면 봉투가 그대로 나오고 종료 코드가 살�
   assert.deepEqual(JSON.parse(stdout), refusal);
   assert.equal(code, 1);
 });
+
+// --- --human (§7c) -----------------------------------------------------------
+//
+// `MODE === 'human'` 은 지금까지 `process.stdout.isTTY` 여야만 켜졌고, Node 는
+// 의존성 없이 pty 를 열 수 없어서(output.test.mjs 위쪽 주석) `emitOk`/`emitFail`
+// 의 사람용 분기와 `--quiet` 억제, §5.3 usage 줄은 손으로 잰 것만이 근거였다.
+// `--human` 은 그 분기를 파이프에서도 여는 손잡이이고, 여기서부터는 스트림이
+// 파이프이므로(`runCli`) 색은 반드시 꺼져 있다 — 그래서 문자열을 정확히 비교할
+// 수 있다.
+
+test('사람용 실패는 stderr 로 가고 stdout 은 비어 있다', async () => {
+  const { code, stdout, stderr } = await runCli(['--human', 'rule', 'toggle']);
+  // 부재를 먼저 본다: 사람용 실패에서 봉투(JSON)가 stdout 으로 새는 구현을 잡는다.
+  assert.equal(stdout, '');
+  assert.equal(stderr, 'rule toggle needs an id\nheaderlab rule toggle <id>\n');
+  assert.equal(code, 2);
+});
+
+test('사람용에서 --quiet 은 성공 줄을 지우지만 실패는 지우지 않는다', async () => {
+  // 성공: 소켓 없이도 답하는 `bridge status` 로, 브릿지가 없다는 사실이
+  // 끼어들지 않게 스크래치 소켓 디렉터리(`cleanEnv`) 아래서 돈다.
+  const success = await runCli(['--human', '--quiet', 'bridge', 'status'], { env: cleanEnv });
+  assert.equal(success.stdout, '');
+  assert.equal(success.stderr, '');
+  assert.equal(success.code, 0);
+
+  // 실패: "errors only" 지 "아무것도 없이" 가 아니다 — --quiet 이어도 남는다.
+  const failure = await runCli(['--human', '--quiet', 'rule', 'toggle']);
+  assert.equal(failure.stdout, '');
+  assert.equal(failure.stderr, 'rule toggle needs an id\nheaderlab rule toggle <id>\n');
+  assert.equal(failure.code, 2);
+});
+
+test('사람용에서 성공 줄이 --quiet 없이는 실제로 나온다', async () => {
+  // 위 테스트가 "지운다" 는 것만 보이므로, 지울 것이 애초에 있었다는 것도
+  // 따로 못박는다 — 그렇지 않으면 아무것도 안 찍는 구현이 두 어서션을 다 속인다.
+  const { stdout, code } = await runCli(['--human', 'bridge', 'status'], { env: cleanEnv });
+  assert.equal(stdout.length > 0, true);
+  assert.equal(stdout.includes('manifest'), true);
+  assert.equal(code, 0);
+});
+
+test('사람용 invalid-args 는 표에 없는 명령이면 usage 줄을 붙이지 않는다', async () => {
+  // `site` 단독은 `site add` 도 `site rm` 도 `site all-sites` 도 아니어서
+  // 표에서 고를 usage 가 없다.
+  const { stdout, stderr, code } = await runCli(['--human', 'site']);
+  assert.equal(stdout, '');
+  assert.equal(stderr, 'unknown site command: (nothing)\n');
+  assert.equal(code, 2);
+});
+
+test('--json 과 --human 을 같이 주면 거부하고, 실패 봉투는 --json 쪽 형식으로 나간다', () =>
+  runCli(['--json', '--human', 'pause']).then(({ code, stdout, stderr }) => {
+    assert.equal(stderr, '');
+    assert.deepEqual(JSON.parse(stdout), {
+      ok: false,
+      error: { code: 'usage', message: 'headerlab takes --json or --human, not both' },
+    });
+    assert.equal(code, 2);
+  }));
+
+// --- <typo> --help (§7d) ------------------------------------------------------
+//
+// 도움말을 청하는 것은 오류가 아니다 — 0 으로 나가고 도움말은 언제나
+// stdout 에 남는다. 그래도 그 명령이 실제로 없다는 사실은 어딘가에 남아야
+// 한다: `suggest()` 가 바로 옆에 있으면서도 이 경로에서는 한 번도 불리지
+// 않았던 것이 이 항목의 결함이다.
+
+test('모르는 명령에 --help 를 붙이면 stderr 에 한 줄 남기고, 그래도 0 으로 나가며 도움말은 stdout 에 남는다', async () => {
+  const { code, stdout, stderr } = await runCli(['teleport', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown command: teleport\n');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+// 'sights' 는 표에 있는 어느 후보와도 거리 2 를 넘어(suggest.test.mjs 의
+// 측정과 같은 문턱) 제안이 붙지 않는 쪽까지 함께 잰다. 제안이 붙는
+// 쪽은 'sites' — 'site' 에서 한 글자 더한 거리 1.
+test('오타에 제안이 있으면 stderr 줄에 붙는다', async () => {
+  const { code, stdout, stderr } = await runCli(['sites', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown command: sites — did you mean "site"?\n');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+test('아는 명령에 --help 를 붙이면 stderr 가 완전히 비어 있다', async () => {
+  const { code, stdout, stderr } = await runCli(['bridge', 'install', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('--extension-id'), true);
+});
+
+// 그룹 이름 단독(`site`)은 `site add` 도 `site rm` 도 아니지만 실제
+// 그룹이다 — `helpTextFor` 가 최상위로 떨어지는 것과 별개로, 이것을
+// "모르는 명령" 취급해 경고하면 사용자가 안 친 오타를 지어내는 것이다.
+test('그룹 이름 단독에 --help 를 붙이면 경고가 없다', async () => {
+  const { code, stdout, stderr } = await runCli(['site', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+test('맨손 --help 는 경고가 없다', async () => {
+  const { code, stdout, stderr } = await runCli(['--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+});
