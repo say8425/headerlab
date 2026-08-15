@@ -20,10 +20,10 @@ import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
 import { findCommand, GROUPS } from '../lib/commands.mjs';
-import { allPaths, commandHelp, topHelp } from '../lib/help.mjs';
+import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
 import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
-import { exitFor } from '../lib/exit.mjs';
+import { EXIT, exitFor } from '../lib/exit.mjs';
 
 // 모드는 한 번만 정하고 프로세스 수명 동안 유지한다. 명령마다 다시
 // 정하면 같은 실행 안에서 두 형식이 섞일 수 있고, 그건 파싱하는 쪽에
@@ -295,5 +295,58 @@ function withSuggestion(error, argv) {
   const hint = suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
   return hint === null ? error.message : `${error.message} — did you mean "${hint}"?`;
 }
+
+/**
+ * 닫힌 파이프는 오류가 아니라 정상 종료다. `headerlab state get --json | head`
+ * 처럼 앞부분만 읽고 그만두는 것은 정당한 사용인데, 핸들러가 없으면 Node 의
+ * 기본 경로가 25줄 1106바이트짜리 스택 트레이스를 stderr 로 쏟는다 — 측정치다.
+ * clig Output §17 과 Errors §4 를 동시에 어긴다.
+ */
+process.stdout.on('error', (error) => {
+  if (error.code === 'EPIPE') process.exit(EXIT.OK);
+  throw error;
+});
+
+/**
+ * Ctrl-C 는 한 줄을 남기고 나간다. 이전에는 exit 130 은 맞았지만 stdout·
+ * stderr 둘 다 0바이트였다 — 이 CLI 가 스스로 약속한 "모든 결과는 봉투
+ * 하나" 조차 안 나왔다. 두 번째 Ctrl-C 는 정리를 건너뛰고 즉시 나간다.
+ */
+let interrupting = false;
+process.on('SIGINT', () => {
+  if (interrupting) process.exit(130);
+  interrupting = true;
+  process.stderr.write('interrupted — no command was delivered\n');
+  process.exit(130);
+});
+
+/**
+ * 여기 오는 것은 이 CLI 가 의도해서 낸 실패가 아니라 버그다. 의도된
+ * 실패 열일곱 가지는 이미 사람이 읽을 문장으로 다시 쓰여 `emitFail` 로
+ * 나가므로, 버그 신고를 권할 대상이 아니다 (clig Errors §1 대 §4).
+ */
+process.on('uncaughtException', (error) => {
+  const title = encodeURIComponent(`crash: ${error.message}`);
+  const body = encodeURIComponent(
+    [
+      `headerlab ${readPackageVersion()}`,
+      `node ${process.version} · ${process.platform} ${process.arch}`,
+      `argv: ${process.argv.slice(2).join(' ')}`,
+      '',
+      '```',
+      error.stack ?? String(error),
+      '```',
+    ].join('\n'),
+  );
+  process.stderr.write(
+    [
+      `headerlab crashed: ${error.message}`,
+      'This is a bug — nothing was left half-done that the next run cannot redo.',
+      `Report it: ${ISSUES_URL}/new?title=${title}&body=${body}`,
+      '',
+    ].join('\n'),
+  );
+  process.exit(EXIT.FAILED);
+});
 
 await main();
