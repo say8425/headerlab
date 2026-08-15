@@ -248,13 +248,22 @@ async function shutdown(child, exited) {
  * 영원히 연결되지 않으며, Chrome 은 매니페스트가 아예 없을 때와 같은
  * 메시지를 낸다. `allowed_origins` 는 와일드카드를 받지 않으므로 오타 한
  * 글자가 조용한 실패가 된다. 쓰기 전에 눈으로 대조할 기회를 준다.
+ *
+ * **`installBridge` 가 거절하는 것은 여기서도 거절한다.** 진입 파일이 없으면
+ * 진짜 실행은 `install-failed` 로 멈추는데, 그 조건을 안 보는 미리보기는
+ * 진짜 실행이 빨간 자리에서 완전하고 그럴듯한 매니페스트를 초록으로 찍는다 —
+ * "알려진 함정의 해독제" 라고 팔면서 함정 하나를 새로 파는 셈이다.
  */
 export async function previewInstall({
   manifestDir,
   launcherDir,
+  entryPath,
   socketDirPath: _socketDirPath,
   extensionId,
 }) {
+  if (!existsSync(entryPath)) {
+    return fail('install-failed', `the host entry does not exist: ${entryPath}`);
+  }
   const manifestPath = manifestPathIn(manifestDir);
   const launcherPath = launcherPathIn(launcherDir);
   return {

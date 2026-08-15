@@ -37,15 +37,27 @@ function scopeSummary(state) {
   return `${domains.length} ${noun} in scope: ${domains.join(', ')}`;
 }
 
+/**
+ * 쓰기 응답의 한 줄 요약. 갈래는 넷이고, `state` 가 넷째다 — 없던 동안
+ * `state set` 은 else 로 떨어져 `pauseSummary` 를 탔고, 되돌릴 수 없는 전체
+ * 덮어쓰기를 확인까지 하고 실행한 사람이 보는 것은 `running` 한 단어였다.
+ * 아무 일도 안 일어났을 때와 바이트가 같은 문장이다.
+ */
 function renderWrite(payload, command) {
   const summary =
     command[0] === 'site'
       ? scopeSummary(payload.state)
       : command[0] === 'rule'
         ? ruleSummary(payload.state)
-        : pauseSummary(payload.state);
+        : command[0] === 'state'
+          ? stateSummary(payload.state)
+          : pauseSummary(payload.state);
   if (payload.changed === false) return `nothing changed — ${summary}`;
   return summary;
+}
+
+function stateSummary(state) {
+  return `replaced — ${ruleSummary(state)}, ${scopeSummary(state)}`;
 }
 
 function ruleSummary(state) {

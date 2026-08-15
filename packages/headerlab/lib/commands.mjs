@@ -8,6 +8,57 @@
  * 같은 모양이다. `test/commands.test.mjs` 가 표와 파서를 양방향으로 묶는다.
  */
 
+/**
+ * 전역 플래그의 표. 명령표와 같은 이유로 여기 있다: 이 목록은
+ * `lib/bridge.mjs` 의 `extractGlobals` 가 파싱하는 것이자 `lib/help.mjs` 의
+ * 최상위 FLAGS 블록이 찍는 것이고, 두 곳에 손으로 적혀 있는 동안 실제로
+ * 갈라졌다 — `--no-input` 은 파서가 알고 도움말이 모르는 플래그였고,
+ * `-f`/`--force` 도 최상위 목록에서 빠져 있었다. 스킬(SKILL.md)이
+ * 에이전트에게 쓰라고 알려주는 플래그를 사람이 `--help` 로는 찾을 수 없는
+ * 상태였다는 뜻이다.
+ *
+ * `arg` 가 있는 항목은 값을 하나 먹는다(`--bridge <pid>`). 나머지는 전부
+ * 불리언이며 `extractGlobals` 가 이 표에서 자기 맵을 만든다 — 여기 한 줄을
+ * 더하는 것이 파서와 도움말 양쪽을 동시에 늘리는 유일한 방법이다.
+ * `test/commands.test.mjs` 가 두 방향을 묶는다.
+ */
+export const GLOBAL_FLAGS = [
+  {
+    names: ['--json'],
+    key: 'json',
+    summary: 'machine-readable output (the default when not a terminal)',
+  },
+  {
+    names: ['--human'],
+    key: 'human',
+    summary: 'human-readable output (the default on a terminal)',
+  },
+  { names: ['-q', '--quiet'], key: 'quiet', summary: 'errors only' },
+  {
+    names: ['--no-color'],
+    key: 'noColor',
+    summary: 'disable colour (also honours NO_COLOR, TERM=dumb)',
+  },
+  {
+    names: ['--no-input'],
+    key: 'noInput',
+    summary: 'never prompt — fail and name the flag to pass instead',
+  },
+  {
+    names: ['-f', '--force'],
+    key: 'force',
+    summary: 'confirm a destructive command without asking',
+  },
+  { names: ['-h', '--help'], key: 'help', summary: "this help, or a command's help" },
+  { names: ['--version'], key: 'version', summary: 'print the version' },
+  {
+    names: ['--bridge'],
+    key: 'bridgePid',
+    arg: '<pid>',
+    summary: 'pick a bridge when more than one is running',
+  },
+];
+
 export const COMMANDS = [
   // 읽기 넷이 먼저다 (clig Help §8, "흔한 것을 앞에"). 파서에게는 넷이
   // 한 명령(`{cmd:'status'}`)이지만 표에게는 넷이다 — 사람이 치는 이름이
@@ -16,6 +67,12 @@ export const COMMANDS = [
     path: ['status'],
     summary: 'what is installed, live, and configured',
     examples: ['headerlab status'],
+    // 설계 §3.1 은 `status` 의 **도움말**과 사람용 출력 끝줄이 둘 다 이
+    // 구분을 한 줄로 적기를 요구한다 (clig Subcommands §4 의 모호함 위험).
+    // 사람용 끝줄은 `render.mjs` 가 이미 붙이고 있었고, 도움말 쪽이 비어
+    // 있었다 — 두 이름을 나란히 놓고 구분하지 못하는 사람이 손을 뻗는
+    // 곳이 바로 도움말이다.
+    notes: '`headerlab bridge status` reports one install location; this reports everything.',
   },
   {
     path: ['site', 'ls'],
@@ -64,8 +121,8 @@ export const COMMANDS = [
       },
       {
         name: '--value-file',
-        arg: '<path>',
-        summary: 'read the value from a file — use this for secrets',
+        arg: '<path|->',
+        summary: 'read the value from a file, or from stdin with - — use this for secrets',
       },
     ],
     examples: ['headerlab rule add --target request --op set --name X-Debug --value 1'],
@@ -115,6 +172,13 @@ export const COMMANDS = [
       { name: '-n, --dry-run', summary: 'show what would be written and write nothing' },
     ],
     examples: ['headerlab bridge install --extension-id abcdefghijklmnopabcdefghijklmnop'],
+    // 최상위 도움말의 마지막 줄이 이 자리를 "왜 CLI 가 브릿지를 켤 수
+    // 없는지" 의 설명으로 가리킨다. 가리키는 곳에 설명이 없으면 그 줄은
+    // 검사할 수 없는 주장이고, 이 저장소는 그것을 결함으로 친다.
+    notes:
+      'Writing the manifest is not turning the bridge on. A person must open the HeaderLab\n' +
+      'popup and press Enable on the bridge row — the CLI can write this file, but it cannot\n' +
+      'grant the nativeMessaging permission or flip that switch.',
   },
   {
     path: ['bridge', 'uninstall'],

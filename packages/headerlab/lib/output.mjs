@@ -91,17 +91,25 @@ export function planFail({ code, message }, { mode, color, argv = null }) {
  * 바이트도 나오지 않는다는 것이고(clig Robustness §2), 유일한 신호가
  * 터미널이 안 돌아온다는 것뿐이었다.
  *
- * 세 조건 전부가 "없던 줄을 흘리지 않는다"(clig Output §14)이다:
- * 기계용 모드에서는 봉투 하나만 나가야 하고, `--quiet` 은 산문을 지우라는
- * 요구이며, stderr 를 파일이나 파이프로 받는 쪽에게 진행 상황은 잡음이다.
- * **stdout 은 어느 조합에서도 손대지 않는다.**
+ * 두 조건 다 "없던 줄을 흘리지 않는다"(clig Output §14)이다: `--quiet` 은
+ * 산문을 지우라는 요구이고, stderr 를 파일이나 파이프로 받는 쪽에게 진행
+ * 상황은 잡음이다. **stdout 은 어느 조합에서도 손대지 않는다.**
+ *
+ * **모드는 보지 않는다.** 한동안 `mode !== 'human'` 이 맨 앞에 있었고, 그
+ * 줄이 설계 §2.4 가 없애려던 결함을 `--json` 쪽에 그대로 남겼다 — 터미널에서
+ * `headerlab status --json` 을 치고 확장이 매달리면 두 스트림 어디에도 십
+ * 초 동안 한 바이트도 나오지 않는다. §2.4 의 문장은 정확히 반대다:
+ * "사람용·기계용 어느 모드든 stdout 은 손대지 않으므로 `jq` 로 받는 쪽은
+ * 영향이 없다. TTY 가 아니면 이 줄도 내지 않는다." 즉 stdout 을 안 건드린다는
+ * 것이 모드 검사를 **하지 않아도 되는 이유**였는데 그것이 모드 검사의
+ * 근거로 뒤집혀 들어가 있었다. 파이프로 받는 소비자는 `stream.isTTY` 에서
+ * 이미 걸린다.
  *
  * 판단이 여기 있는 이유는 `planOk`/`planFail` 과 같다: bin/ 에 두면
  * `MODE`/`GLOBALS`/`process.stderr` 를 전역으로 읽는 분기가 되어 pty 없이
  * 닿을 수 없다. 여기서는 표로 잰다.
  */
-export function planSlowReply(timeoutMs, { mode, quiet, stream }) {
-  if (mode !== 'human') return null;
+export function planSlowReply(timeoutMs, { quiet, stream }) {
   if (quiet) return null;
   if (!stream?.isTTY) return null;
   return {
