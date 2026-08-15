@@ -766,21 +766,22 @@ and the environment as arguments** (`resolveMode(globals, streams)`,
 `resolveColor(globals, env, stream)`), which is why table-driven tests can reach a
 branch that only lights up when stdout is a pty.
 **Read the grep's real output, not a summary of it.** An earlier draft of this paragraph
-offered `grep -rn 'isTTY\|process\.env' lib/ bin/` and then described output the command
-does not produce — it said the hits are in `bin/headerlab.mjs` and `socket.mjs` and
-"none in `output.mjs`", while `output.mjs` is in fact the first thing that grep prints,
-and the enumeration also omitted `install.mjs:154`. What is true is narrower and worth
-stating carefully: `output.mjs`'s `isTTY` hits are all `streams.stdout?.isTTY` /
-`stream?.isTTY` on **injected arguments**, which is the design being celebrated rather
-than a counterexample; the reads of the real process are `bin/headerlab.mjs`
-(`process.stdin.isTTY`, and `process.env` passed into `resolveColor`), `socket.mjs`'s one
-`HEADERLAB_SOCKET_DIR` lookup, and `install.mjs:154` handing `process.env` to a spawned
-child. Line numbers are deliberately absent except that one: they went stale twice.
+offered `grep -rn 'isTTY\|process\.env' lib/ bin/`, run from `packages/headerlab`, and
+then described output the command does not produce — it said the hits are in
+`bin/headerlab.mjs` and `socket.mjs` and "none in `output.mjs`", while `socket.mjs` is in
+fact the first thing that grep prints, and the enumeration also omitted `install.mjs:154`.
+What is true is narrower and worth stating carefully: `output.mjs`'s `isTTY` hits are all
+`streams.stdout?.isTTY` / `stream?.isTTY` on **injected arguments**, which is the design
+being celebrated rather than a counterexample; the reads of the real process are
+`bin/headerlab.mjs` (`process.stdin.isTTY`, and `process.env` passed into `resolveColor`),
+`socket.mjs`'s one `HEADERLAB_SOCKET_DIR` lookup, and `install.mjs:154` handing
+`process.env` to a spawned child. Line numbers are deliberately absent except that one:
+they went stale twice.
 What genuinely needs a real process is `test/process.test.mjs` — a closed stdout pipe,
 SIGINT (both of its two sentences), and the terminal-only branches.
 **The terminal branches are reached without a pty, and how matters.**
-`test/tty-harness.mjs` sets `process.stdin.isTTY = true` on a real pipe and then imports
-the CLI, so `state set -`'s guard and `state set`'s confirmation prompt are ordinary
+`test-support/tty-harness.mjs` sets `process.stdin.isTTY = true` on a real pipe and then
+imports the CLI, so `state set -`'s guard and `state set`'s confirmation prompt are ordinary
 subprocess tests. It exercises the branch, not the terminal: line discipline, echo and a
 real Ctrl-C are not simulated. One measured consequence is baked into the CLI —
 `process.stdin.pause()` releases the event loop on a pty but **not** on a pipe, so the
