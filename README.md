@@ -145,8 +145,16 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-Every reply is one JSON object on stdout — success or failure — with the exit code
-following it. There is no human-readable output to parse instead.
+On a terminal it prints for people; piped or with `--json` it prints one JSON object,
+success or failure. The exit code names the failure class:
+
+| Exit | Meaning |
+|---|---|
+| `0` | Success |
+| `2` | Your input — the CLI refused it and nothing left the machine |
+| `3` | No bridge to talk to |
+| `4` | Connected, but the exchange failed |
+| `1` | The extension refused the request |
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -174,9 +182,23 @@ funnels into: **a new trigger, not a new writer.**
 
 ### Commands
 
-Nine travel over the bridge socket: `site add|rm` and `site all-sites on|off` to scope the
-rule set, `rule add|rm|toggle` to edit header rules, `pause`/`resume` to stop and restart
-the whole set, and `state set <file|->` to replace stored state wholesale.
+Four read and change nothing: `status`, `site ls`, `rule ls` and `state get`. They send
+one query and answer from the same pure functions the popup renders from, so what the CLI
+says and what the rail shows cannot drift apart.
+
+```bash
+headerlab status
+headerlab state get --json | jq .state | headerlab state set - --force
+```
+
+`status` is the one command that treats a missing bridge as a fact rather than an error —
+it answers from what is installed locally, says `live: false`, and exits 0, the way `git
+status` works in a repository with no commits. The other three exit 3.
+
+Nine travel over the bridge socket as writes: `site add|rm` and `site all-sites on|off` to
+scope the rule set, `rule add|rm|toggle` to edit header rules, `pause`/`resume` to stop and
+restart the whole set, and `state set <file|->` to replace stored state wholesale — which
+requires `--force` when stdin is not a terminal, because it is an overwrite with no undo.
 
 Three more never touch that socket — they manage the native-messaging host manifest and the
 launcher script Chrome runs, which is what makes a socket possible in the first place:
@@ -260,9 +282,11 @@ machine — and Chrome reports the resulting failure the same way it reports a r
 manifest or a mismatched id. Shipping both from the one tarball makes that failure mode
 structurally impossible.
 
-The command surface is smaller than the design's own §2/§3 — `headerlab status`,
-`diagnostics`, `state get`, `rule ls`, and the snapshot-before-every-raw-write do not exist
-([#35](../../issues/35)).
+Two things the design's own §2/§3 named still do not exist: `headerlab diagnostics`, which
+will not be built because `status` carries the same payload and a second name for one query
+is not a feature, and the snapshot-before-every-raw-write that `state snapshots`/`state
+restore <id>` would read back ([#35](../../issues/35)). `state set` validates against the
+schema and requires `--force`; it keeps no history.
 
 ## Architecture
 

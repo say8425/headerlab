@@ -288,6 +288,7 @@ headerlab state get --json | jq .state | headerlab state set - --force
 | 플래그 | 뜻 |
 |---|---|
 | `--json` | 기계용 출력으로 고정 |
+| `--human` | 사람용 출력으로 고정 — `--json` 의 역. 둘을 같이 주면 거부한다 (`usage`, exit 2) |
 | `-q`, `--quiet` | 성공 렌더를 억제. 에러는 그대로. 종료 코드가 결과를 나른다 |
 | `--no-color` | 색 끄기 |
 | `--no-input` | 프롬프트 금지. 프롬프트가 필요한 상황이면 어떤 플래그를 치라고 알려주며 실패 |
@@ -297,6 +298,11 @@ headerlab state get --json | jq .state | headerlab state set - --force
 | `--bridge <pid>` | 브릿지가 여럿일 때 지정 (기존) |
 
 전부 clig Arguments §6 의 표준 이름이다. 새 이름을 발명하지 않았다.
+
+`--human` 은 이 표의 첫 판에 없었고 구현하며 생겼다. 없으면 "터미널이면 사람용" 이
+**되돌릴 수 없는** 규칙이 된다 — 파이프 뒤에서 사람용 출력을 한 번 보고 싶은 사람에게
+방법이 없고, 반대로 `--json` 만 있으면 기본값이 바뀌었을 때 스크립트가 조용히 형식을
+바꿔 받는다. 두 방향의 고정이 있어야 기본값이 추측이 아니라 기본값이 된다.
 
 **`-n`/`--dry-run` 은 전역이 아니라 `bridge install` 의 플래그다.** 이 CLI 에서
 파일을 쓰는 명령은 그것 하나뿐이라, 전역으로 두면 나머지 열몇 개가 전부 "이
@@ -457,10 +463,26 @@ Report a problem: https://github.com/say8425/headerlab/issues
 Levenshtein 거리 ≤ 2 이고 후보 길이의 40% 이하일 때만 제안하며, 최대 하나만 낸다.
 
 ```
-$ headerlab sight add example.com
-  unknown command: sight
-  did you mean "site"?          exit 2
+$ headerlab ste add example.com
+  unknown command: ste — did you mean "site"?          exit 2
 ```
+
+**이 절의 첫 판은 예제를 `headerlab sight add example.com` → `did you mean "site"?` 로
+적었고, 그것은 틀렸다.** 세 가지로 측정했다: `distance('sight','site')` 는 3 이라 절대
+문턱 2 를 이미 넘고, 네 글자 후보의 40% 는 `Math.floor(4 * 0.4) = 1` 이라 상대 문턱은
+더 좁다. 그래서 `sight` 에는 **아무 제안도 나가지 않는다** — 실제로 그렇게 동작한다.
+제안이 나가는 것은 한 글자가 미끄러진 경우다: `ste`/`sit`→`site`, `rul`→`rule`,
+`bridg`→`bridge`, `pasue`→`pause`.
+
+**문턱을 느슨하게 하는 것이 답이 아니다.** `rule` 과 `site` 자체가 서로 거리 4 이므로,
+`sight` 를 잡으려고 문턱을 3 으로 올리면 짧은 그룹 이름끼리 서로를 제안하기 시작한다.
+틀린 제안은 제안 없음보다 나쁘다.
+
+**동점은 입력이 접두사인 후보를 고른다.** `statu` 는 `state` 에서 한 글자를 바꾼 것이자
+`status` 에서 한 글자를 뺀 것이라 거리가 둘 다 1 이고, 먼저 찾은 쪽을 고르는 구현에서는
+`commands.mjs` 의 줄 순서가 답을 정했다 — 표를 재배열한 사람이 오타 제안을 바꿨다는 것을
+알 길이 없다. 지금은 `statu`→`status` 가 나가며, 그 이유는 표의 순서가 아니라 "사람이
+이름을 끝까지 안 친 쪽이 글자를 잘못 친 쪽보다 흔하다" 는 규칙이다.
 
 손으로 짠 순수 함수(약 15줄)라 의존성이 늘지 않는다.
 

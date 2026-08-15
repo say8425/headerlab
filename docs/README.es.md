@@ -155,8 +155,16 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-Cada respuesta es un único objeto JSON en stdout — éxito o fallo — con el código de salida
-detrás. No hay una salida legible para personas que haya que analizar en su lugar.
+En una terminal imprime para personas; por una tubería o con `--json` imprime un único
+objeto JSON, éxito o fallo. El código de salida nombra la clase de fallo:
+
+| Código | Significado |
+|---|---|
+| `0` | Éxito |
+| `2` | Tu entrada — la CLI la rechazó y nada salió de la máquina |
+| `3` | No hay puente con el que hablar |
+| `4` | Conectó, pero el intercambio falló |
+| `1` | La extensión rechazó la petición |
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -185,10 +193,24 @@ nuevo.**
 
 ### Comandos
 
-Nueve viajan por el socket del puente: `site add|rm` y `site all-sites on|off` para acotar
-el conjunto de reglas, `rule add|rm|toggle` para editar reglas de cabecera, `pause`/`resume`
-para parar y reanudar el conjunto entero, y `state set <file|->` para reemplazar el estado
-guardado por completo.
+Cuatro leen y no cambian nada: `status`, `site ls`, `rule ls` y `state get`. Envían una
+única consulta y responden desde **las mismas funciones puras** con las que se pinta el
+popup, así que lo que dice la CLI y lo que muestra la barra no pueden separarse.
+
+```bash
+headerlab status
+headerlab state get --json | jq .state | headerlab state set - --force
+```
+
+`status` es el único comando que trata la ausencia de puente como un hecho y no como un
+error — responde con lo que hay instalado localmente, dice `live: false` y sale con 0, igual
+que `git status` en un repositorio sin commits. Los otros tres salen con 3.
+
+Nueve viajan por el socket del puente como escrituras: `site add|rm` y
+`site all-sites on|off` para acotar el conjunto de reglas, `rule add|rm|toggle` para editar
+reglas de cabecera, `pause`/`resume` para parar y reanudar el conjunto entero, y
+`state set <file|->` para reemplazar el estado guardado por completo — este último exige
+`--force` cuando stdin no es una terminal, porque es una sobrescritura sin vuelta atrás.
 
 Otros tres no tocan ese socket en absoluto — gestionan el manifiesto del host de native
 messaging y el script lanzador que Chrome ejecuta, que es lo que hace posible el socket en
@@ -278,9 +300,12 @@ mismo mensaje que usa para un manifiesto rechazado o un id que no casa. Publicar
 el mismo tarball vuelve ese modo de fallo estructuralmente imposible en lugar de meramente
 documentado.
 
-La superficie de comandos es más pequeña que el §2/§3 del propio diseño — `headerlab
-status`, `diagnostics`, `state get`, `rule ls` y el snapshot-antes-de-cada-escritura-cruda
-no existen ([#35](https://github.com/say8425/headerlab/issues/35)).
+De lo que nombraba el §2/§3 del propio diseño, dos cosas siguen sin existir: `headerlab
+diagnostics`, que no se va a construir porque `status` ya lleva la misma carga y un segundo
+nombre para una sola consulta no es una función, y el snapshot-antes-de-cada-escritura-cruda
+que leerían `state snapshots`/`state restore <id>`
+([#35](https://github.com/say8425/headerlab/issues/35)). `state set` valida contra el
+esquema y exige `--force`; no guarda ningún historial.
 
 ## Arquitectura
 

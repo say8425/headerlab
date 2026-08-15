@@ -277,10 +277,20 @@ running. And an override's `plugins` key does **not** enable a plugin — measur
 reported nothing while `oxlint --vitest-plugin` on the same file reported four. Overrides
 retune rules; only the top-level list turns a plugin on.
 
-**Suppressions are per-site and carry a reason.** Four exist, and each is a rule that
-cannot see the intent rather than a rule this repo disagrees with: two `no-control-regex`
-on `/^[\x00-\x7F]/` ASCII range checks, one `no-empty-pattern` on Playwright's
-`async ({}, use)` fixture idiom, one `react-hooks/exhaustive-deps` on the truncating
+**Suppressions are per-site and carry a reason.** Eight exist — counted by grepping for the
+disable comments themselves (`grep -rn "oxlint-disable"`) rather than trusting a stated
+number, which is how this count was corrected twice: an earlier version of this line said
+four, naming only one `no-empty-pattern` site when the tree already carried four, and Task 7b
+then added a fifth `no-control-regex` site without updating the total at all. Each of the
+eight is a rule that cannot see the intent rather than a rule this repo disagrees with:
+three `no-control-regex` — two on `/^[\x00-\x7F]/` ASCII range checks
+(`lib/permissions/origins.ts`, `lib/compile/filterDiagnostics.ts`) and a third on
+`packages/headerlab/test/render.test.mjs`'s ANSI-stripping regex, which means to match the
+ESC control byte rather than check a range, so the same rule and the same "cannot see the
+intent" reason cover a genuinely different pattern; four `no-empty-pattern` on Playwright's
+`async ({}, use)` fixture idiom, one per fixture that declares no dependency
+(`tests/e2e/fixtures.ts`'s `context`; `tests/e2e/bridge-fixtures.ts`'s `context`,
+`derivedId`, `bridgeSocketDir`); and one `react-hooks/exhaustive-deps` on the truncating
 effect in App.tsx. The disable comment must be the line *immediately* before its subject —
 a two-line comment ending in the directive suppresses the second comment line and nothing
 else, which reads as working and is not.
@@ -703,7 +713,7 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the sixteen e2e tests drive a real request through the
+against a loaded extension. Two of the seventeen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
 never reaches declarativeNetRequest while its sibling still does. Nine more cover
@@ -715,15 +725,49 @@ row's height, the badge and the chip each keep a focus ring that reaches the scr
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
 
-The remaining four are the bridge's own, in `tests/e2e/bridge.spec.ts` and
+The remaining five are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
 `--load-path` is byte-for-byte the id Chrome actually assigned the loaded extension —
 design §8.3's self-verification, performed against a running browser rather than argued
 for. One drives a real `headerlab site add` through a real installed host, through the
 socket, into real storage, and reads the result back off `chrome.storage` rather than off
-the CLI's own reply. One confirms the popup reads "Bridge live" once that command has
-landed. The fourth is a layout guard in the same family as the eight above: an
-unreachable bridge leaves the rail exactly where a live one leaves it.
+the CLI's own reply. One drives a *read* the same way — `rule ls` after a `site add` —
+and asserts absence before presence: first that `chrome.storage` still holds exactly what
+the write left, then that the reply's `scopingHosts` and `state` match it. Checking the
+reply against storage rather than against the CLI's own claim is the point; a read that
+answered from a stale copy is invisible to a test that only asks whether it wrote nothing. One confirms the popup reads "Bridge
+live" once that command has landed. The fifth is a layout guard in the same family as the
+eight above: an unreachable bridge leaves the rail exactly where a live one leaves it.
+
+**The CLI's presentation layer is pure, and the process is reached in exactly one
+file.** `lib/render.mjs`, `lib/help.mjs`, `lib/commands.mjs`, `lib/suggest.mjs` and
+`lib/exit.mjs` take their inputs as arguments and return strings, so the human-facing
+output is tested without spawning anything — 33 · 7 · 10 · 8 · 6 tests, none of them a
+subprocess. `lib/output.mjs` decides *where* a string goes and *whether* it is coloured,
+and the plan it returns is what `bin/headerlab.mjs` writes; **it still takes the streams
+and the environment as arguments** (`resolveMode(globals, streams)`,
+`resolveColor(globals, env, stream)`), which is why 30 table-driven tests can reach a
+branch that only lights up when stdout is a pty. Measured, because an earlier draft of
+this paragraph said `output.mjs` reads `process.stdout.isTTY` and `process.env` itself:
+`grep -rn 'isTTY\|process\.env' lib/ bin/` puts every `process.*` read in
+`bin/headerlab.mjs` (lines 102, 196, 337, 338) plus `socket.mjs`'s one
+`HEADERLAB_SOCKET_DIR` lookup, and none in `output.mjs`. What genuinely needs a real
+process is `test/process.test.mjs`'s three: a closed stdout pipe, SIGINT, and
+`state set -` on a terminal.
+
+**The five READMEs are held together by their commands, not by their line counts.**
+`packages/headerlab/test/docs.test.mjs` extracts every line inside a `bash`-tagged fence
+that starts with `headerlab ` and asserts all five files produce the same list, byte for byte
+— prose is translated and commands are not. Counting `grep -c 'headerlab '` per file was
+the obvious check and it is wrong: it counts prose mentions, which the four translations
+render differently by construction, so the counts are unequal on a tree where nothing is
+broken. Two narrowings in that extractor were each found by measurement rather than
+reasoned to: it must restrict to `bash`-tagged fences, because the Spanish architecture
+block (untagged) contains the prose line `headerlab (la CLI más…`; and it must strip
+indentation, because the `bridge install` example sits inside a numbered list and is
+indented three spaces in all five. The same file asserts every path in `commands.mjs`
+appears in `SKILL.md`, so a command can no longer exist with nothing telling an agent
+about it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -864,9 +908,9 @@ that no longer renders, passing while describing nothing.
   upgrade, or an nvm switch that moves the global prefix. Nothing in Chrome or the
   extension will ever say so — `headerlab bridge status` is the only thing that reads
   the launcher back and reports `entryMissing`.
-- **`headerlab status`, `diagnostics`, `state get` and `rule ls` are not built.** Only
-  `state.set` exists on the `state` group. §2 and §3 of the design spec promise a
-  snapshot taken before every raw `state set` write, with `state snapshots`/`state
-  restore <id>` to read it back — none of that exists either; `state.set` passes zod
-  validation and nothing else. The README makes no such promise, so nothing false has
-  shipped publicly, but the design spec did until this note.
+- **`headerlab diagnostics` is not built and will not be.** `status` carries
+  the same payload; a second name for one query is not a feature. `state
+  snapshots`/`state restore <id>`, which design spec §2 and §3 promise, do
+  not exist either — `state set` passes zod validation and nothing else, and
+  now also requires `--force`. The README makes no such promise, so nothing
+  false has shipped publicly.

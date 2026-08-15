@@ -9,6 +9,7 @@
     "native-messaging"
   ],
   "homepage": "https://github.com/say8425/headerlab",
+  "bugs": "https://github.com/say8425/headerlab/issues",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
