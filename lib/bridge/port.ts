@@ -209,10 +209,16 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
     try {
       loaded = await loadState();
     } catch (error) {
+      // `store-unreadable`, not the write path's `store-unwritable` this
+      // guard was copied from. A read issues no write, so a consumer
+      // branching on the envelope's code — which is the whole reason
+      // `ERROR_CODES` distinguishes the two (protocol.ts) — would conclude a
+      // write failed on a command that never attempted one. Both map to exit
+      // 1, so the exit code cannot disambiguate them either.
       reply(current, id, {
         ok: false,
         error: {
-          code: 'store-unwritable',
+          code: 'store-unreadable',
           message: `the store could not be read: ${error instanceof Error ? error.message : String(error)}`,
         },
       });

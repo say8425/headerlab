@@ -115,6 +115,169 @@ describe('status', () => {
     expect(tally!.blocked).toBe(1);
   });
 
+  /**
+   * The pause test above claims to close the "is this rule live" hole and
+   * closes one third of it: `live` has three terms in the popup
+   * (`active.enabled && !state.globalPause && !isSuppressed(active)`) and
+   * only the middle one was wired. These two pin the other two terms.
+   *
+   * The suppressed case is not an edge case. `createProfile` ships a *new*
+   * rule set unscoped on purpose, so `headerlab rule add` before
+   * `site add` on a fresh install lands exactly here — and for a suppressed
+   * set `render.mjs` at least prints a suppression line beside the count,
+   * while for a disabled one there is nothing at all to contradict it.
+   */
+  it('does not count a rule as live in a rule set compile() suppresses', () => {
+    const profile = bootstrapProfile();
+    const state: AppState = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          ...profile,
+          // No domain and all-sites off: `suppressionReason` is `no-scope`,
+          // and compile() emits nothing for the whole set.
+          filter: { ...profile.filter, domains: [], allSites: false },
+          headers: [
+            { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+          ],
+        },
+      ],
+    };
+    const payload = status(state);
+    // The suppression is reported, so the count contradicting it is visible
+    // as a contradiction rather than merely wrong.
+    expect(payload.suppression).toBe('no-scope');
+    expect(payload.tally).toEqual({ total: 1, live: 0, off: 0, unfinished: 0, blocked: 1 });
+  });
+
+  it('does not count a rule as live in a switched-off rule set', () => {
+    const profile = bootstrapProfile();
+    const state: AppState = {
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [
+        {
+          ...profile,
+          enabled: false,
+          filter: { ...profile.filter, domains: ['a.com'] },
+          headers: [
+            { id: 'r1', enabled: true, target: 'request', operation: 'set', name: 'A', value: '1' },
+          ],
+        },
+      ],
+    };
+    const payload = status(state);
+    // Nothing else in the payload says the set is off — `suppression` is
+    // null, because a switched-off set is not suppressed — so a wrong count
+    // here is a bare false claim about whether headers are being modified.
+    expect(payload.suppression).toBeNull();
+    expect(payload.tally).toEqual({ total: 1, live: 0, off: 0, unfinished: 0, blocked: 1 });
+  });
+
+  /**
+   * `resolveSingleProfile` returns the rule sets it could not report, and its
+   * docblock says the caller must deal with them. A read command cannot
+   * remove them, so it names them.
+   */
+  it('names the rule sets it is not reporting', () => {
+    const first = bootstrapProfile();
+    const second = { ...bootstrapProfile(), id: 'left-behind' };
+    const payload = status({
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [first, second],
+    });
+    expect(payload.profile?.id).toBe(first.id);
+    expect(payload.dropped).toEqual(['left-behind']);
+  });
+
+  it('reports no dropped rule sets when there is nothing to drop', () => {
+    expect(status(emptyState()).dropped).toEqual([]);
+    expect(status({ ...emptyState(), profiles: [bootstrapProfile()] }).dropped).toEqual([]);
+  });
+
+  /**
+   * Diagnostics belonging to a rule set this payload does not describe must
+   * not ride along. `render.mjs` already knew this for rows — it keys by
+   * profile id precisely so another rule set's problem does not land on this
+   * one's row — and the same leak was open on `byHost` and `scope`.
+   */
+  it('carries only the reported rule set’s diagnostics', () => {
+    const shown = {
+      ...bootstrapProfile(),
+      filter: { ...bootstrapProfile().filter, domains: ['a.com'] },
+    };
+    const hidden = {
+      ...bootstrapProfile(),
+      id: 'hidden',
+      // An unusable domain: this produces diagnostics of its own.
+      filter: { ...bootstrapProfile().filter, domains: ['not a domain'] },
+      headers: [
+        {
+          id: 'h1',
+          enabled: true,
+          target: 'request' as const,
+          operation: 'set' as const,
+          name: '',
+          value: '',
+        },
+      ],
+    };
+    const payload = status({
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [shown, hidden],
+    });
+
+    const owners = (p: ReturnType<typeof status>) =>
+      [
+        ...p.diagnostics.byRow.flatMap(([, ds]) => ds),
+        ...p.diagnostics.byHost.flatMap(([, ds]) => ds),
+        ...p.diagnostics.scope,
+      ].map((d) => d.profileId);
+
+    // Absence first: nothing from the rule set this payload never mentions.
+    expect(owners(payload).filter((id) => id !== shown.id)).toEqual([]);
+
+    // And the fixture really does produce them, so the check above is not
+    // passing on an empty set. Measured: they land in `byRow` (the unnamed
+    // header) and `scope` (the unusable domain) — `scope` being exactly the
+    // bucket `render.mjs` had no profile id to key by.
+    const alone = status({ version: 2, globalPause: false, theme: 'system', profiles: [hidden] });
+    expect(owners(alone)).toEqual(['hidden', 'hidden']);
+    expect(alone.diagnostics.scope).toHaveLength(1);
+  });
+
+  /**
+   * `requiredOrigins` answers for the rule set this payload describes, not
+   * for every rule set in storage.
+   */
+  it('reports the origins the shown rule set needs, not the union', () => {
+    const shown = {
+      ...bootstrapProfile(),
+      filter: { ...bootstrapProfile().filter, domains: ['a.com'] },
+    };
+    const hidden = {
+      ...bootstrapProfile(),
+      id: 'hidden',
+      filter: { ...bootstrapProfile().filter, domains: ['b.com'] },
+    };
+    const payload = status({
+      version: 2,
+      globalPause: false,
+      theme: 'system',
+      profiles: [shown, hidden],
+    });
+    expect(payload.requiredOrigins.some((o) => o.includes('b.com'))).toBe(false);
+    expect(payload.requiredOrigins.every((o) => o.includes('a.com'))).toBe(true);
+    expect(payload.requiredOrigins.length).toBeGreaterThan(0);
+  });
+
   it('serialises the diagnostic maps as pairs so they survive JSON', () => {
     const payload = status(emptyState());
     expect(Array.isArray(payload.diagnostics.byRow)).toBe(true);

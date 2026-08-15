@@ -1,6 +1,6 @@
 import { compile } from '@/lib/compile/compile';
-import { suppressionReason } from '@/lib/compile/suppression';
-import { scopingHosts } from '@/lib/permissions/origins';
+import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
+import { originsForFilter, scopingHosts } from '@/lib/permissions/origins';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import type { SuppressionReason } from '@/lib/compile/suppression';
@@ -24,6 +24,18 @@ import type { RuleTally } from '@/lib/view/rules';
 export interface StatusPayload {
   state: AppState;
   profile: Profile | null;
+  /**
+   * Rule sets that exist in storage and are **not** described by any other
+   * field here — their ids, so the CLI can say so.
+   *
+   * `resolveSingleProfile`'s docblock tells its caller to remove these from
+   * storage, because compile() reads storage rather than the popup and a rule
+   * set left behind goes on modifying headers with nothing able to show it.
+   * This caller cannot honour that — a read command must not write — so it
+   * does the only other honest thing and reports them. `state set --force`
+   * can plant one without the popup ever being opened to truncate it.
+   */
+  dropped: string[];
   diagnostics: {
     byRow: [string, Diagnostic[]][];
     byHost: [string, Diagnostic[]][];
@@ -37,13 +49,20 @@ export interface StatusPayload {
 }
 
 export function status(state: AppState): StatusPayload {
-  const { profile } = resolveSingleProfile(state.profiles);
+  const { profile, dropped } = resolveSingleProfile(state.profiles);
   const compiled = compile(state);
-  const routed = routeDiagnostics(compiled.diagnostics);
+  // 보고하는 프로필의 진단만 태운다 — 팝업이 하는 것과 같다 (App.tsx 의
+  // `allDiagnostics.filter((d) => d.profileId === active.id)`). 전부를 태우면
+  // `byHost`·`scope` 에 이 payload 의 `profile` 이 아무 말도 하지 않는 규칙
+  // 세트의 오류가 섞여 들어가고, 기계로 받는 쪽은 그것을 누구의 문제인지
+  // 물을 데가 없다. `render.mjs` 는 행(byRow)에 대해서만 이 사실을 알고
+  // 프로필 id 로 키를 지어 피하고 있었다.
+  const routed = routeDiagnostics(compiled.diagnostics.filter((d) => d.profileId === profile?.id));
 
   return {
     state,
     profile: profile ?? null,
+    dropped: dropped.map((p) => p.id),
     // Map 을 쌍 배열로 편다. JSON.stringify(new Map()) 은 '{}' 이므로,
     // 지도를 그대로 실으면 소켓 건너편에서 조용히 빈 객체가 된다.
     diagnostics: {
@@ -51,15 +70,28 @@ export function status(state: AppState): StatusPayload {
       byHost: [...routed.byHost],
       scope: routed.scope,
     },
+    // 팝업이 세는 그 술어 그대로다 (App.tsx: `active.enabled &&
+    // !state.globalPause && !isSuppressed(active)`). `!state.globalPause` 만
+    // 넘기던 동안 세 항 중 둘이 빠져 있었고, 그래서 compile() 이 규칙을 하나도
+    // 내지 않는 상태에 대해 `tally.live` 가 살아 있다고 셌다 — `render.mjs`
+    // 가 그것을 "3 total, 3 on" 으로 찍으므로, 헤더가 실제로 고쳐지고 있는지에
+    // 대한 거짓 문장이 사람에게 닿는다. 빈 화면 얘기가 아니다: `createProfile`
+    // 은 새 규칙 세트를 **일부러** 스코프 없이 만들므로, 갓 설치한 확장에
+    // `rule add` 를 `site add` 보다 먼저 치면 바로 이 상태다.
     tally: profile
-      ? ruleTally(profile.headers, profile.id, routed.byRow, { live: !state.globalPause })
+      ? ruleTally(profile.headers, profile.id, routed.byRow, {
+          live: profile.enabled && !state.globalPause && !isSuppressed(profile),
+        })
       : null,
     // `filter.domains` 가 아니라 `scopingHosts` 다. all-sites 는 저장된
     // 목록을 지우지 않고 컴파일만 안 하므로, 목록을 직접 읽으면 all-sites
     // 프로필을 좁은 것으로 오판한다.
     scopingHosts: profile ? scopingHosts(profile.filter) : [],
     suppression: profile ? suppressionReason(profile) : null,
-    requiredOrigins: compiled.requiredOrigins,
+    // 보고하는 프로필이 필요로 하는 것. `compiled.requiredOrigins` 는 모든
+    // 프로필의 합집합이라, 화면에 없는 규칙 세트의 호스트까지 "이 프로필에
+    // 필요하다" 고 말하게 된다. compile() 이 부르는 바로 그 함수를 부른다.
+    requiredOrigins: profile?.enabled ? originsForFilter(profile.filter) : [],
     globalPause: state.globalPause,
   };
 }
