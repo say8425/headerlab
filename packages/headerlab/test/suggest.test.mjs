@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { GROUPS as TABLE_GROUPS } from '../lib/commands.mjs';
 import { suggest } from '../lib/suggest.mjs';
 
+// 이 파일이 손으로 적은 후보들. 표(`lib/commands.mjs`)와 일부러 분리해
+// 둔다 — 거리·문턱·동점 규칙은 표와 무관한 성질이고, 표가 바뀔 때마다
+// 이 파일의 기대값이 흔들리면 재는 것이 규칙이 아니라 표가 된다. 표에
+// 대한 주장은 맨 아래 `TABLE_GROUPS` 하나가 맡는다.
 const GROUPS = ['bridge', 'site', 'rule', 'pause', 'resume', 'state'];
 
 // 브리프 원문은 'sight' 를 썼지만, 이 파일의 손으로 짠 Wagner–Fischer
@@ -53,8 +58,18 @@ test('접두사가 없는 동점은 첫 후보 그대로다', () => {
   assert.equal(suggest('bare', ['bore', 'bard']), 'bore');
 });
 
-// 실제 그룹 목록에서도 같아야 한다. GROUPS 는 표에서 파생되므로 이
-// 테스트가 표의 줄 순서로부터 오타 제안을 떼어 놓는다.
-test('실제 그룹 목록에서도 statu 는 status 다', () => {
-  assert.equal(suggest('statu', [...GROUPS, 'status']), 'status');
+// 실제 표에서도 같아야 한다. 위의 `GROUPS` 는 이 파일이 손으로 적은
+// 목록이라 표를 재배열해도 움직이지 않으므로, 표에서 **파생된** 목록으로
+// 한 번 더 잰다.
+//
+// **양쪽 순서로 넣는 것이 이 테스트의 전부다.** 재 보면 `TABLE_GROUPS` 는
+// `status` 를 첫 줄에 두고 있고(`COMMANDS` 의 읽기 넷이 맨 앞이다),
+// 그 순서에서는 동점의 첫 후보가 이미 `status` 라 옛 구현("첫 개선을
+// 유지한다")도 통과한다 — 즉 한쪽 순서만 재는 어서션은 접두사 규칙에 대해
+// 아무것도 말하지 않는다. 뒤집으면 `state` 가 앞서므로(측정: 옛 구현이
+// `state` 를 낸다) 그쪽이 규칙을 강제한다. 표의 줄 순서가 바뀌면 두 어서션이
+// 역할을 맞바꿀 뿐, 규칙이 검사되지 않는 순서는 없다.
+test('표에서 파생된 그룹 목록에서도, 줄 순서와 무관하게 statu 는 status 다', () => {
+  assert.equal(suggest('statu', TABLE_GROUPS), 'status');
+  assert.equal(suggest('statu', [...TABLE_GROUPS].reverse()), 'status');
 });

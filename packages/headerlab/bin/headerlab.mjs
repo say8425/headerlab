@@ -22,7 +22,7 @@ import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
 import { findCommand, GROUPS, pathKey } from '../lib/commands.mjs';
 import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
-import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
+import { planFail, planOk, planSlowReply, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
 import { codeForThrown, EXIT, exitFor } from '../lib/exit.mjs';
 
@@ -57,6 +57,27 @@ function emitFail(code, message, argv = null) {
 
 function emitPlain(text) {
   process.stdout.write(`${text}\n`);
+}
+
+/**
+ * 소켓으로 명령을 보내는 **유일한 자리**. `runStatus` 와 `main` 이 각자
+ * `sendCommand` 를 부르던 동안 `onSlow` 는 한쪽에만 달려 있었고, 그래서
+ * 답하지 않는 브릿지에 `pause` 를 보내면 1초 뒤 기다린다는 줄이 나오는데
+ * `status` 를 보내면 10초 동안 한 바이트도 나오지 않았다 — 사람이 가장
+ * 많이 치는 명령이 하필 그 결함을 다시 가진 쪽이었다. 두 자리가 다시
+ * 갈라지지 않는 방법은 자리를 하나로 만드는 것이다.
+ */
+function send(socketPath, command) {
+  return sendCommand(socketPath, command, { onSlow: slowReplyNotice });
+}
+
+/**
+ * `sendCommand` 의 느린 응답 통보. 무엇을 어디에 쓸지는 `planSlowReply` 가
+ * 정하고 (`emitOk`/`emitFail` 과 같은 이유로 — 그 판단은 pty 없이 닿을 수
+ * 없는 분기가 되므로 lib/ 에서 표로 잰다), 여기 남는 것은 쓰는 한 줄이다.
+ */
+function slowReplyNotice(timeoutMs) {
+  write(planSlowReply(timeoutMs, { mode: MODE, quiet: GLOBALS.quiet, stream: process.stderr }));
 }
 
 const STATE_SET_CONFIRM =
@@ -267,12 +288,25 @@ async function runBridgeCommand(command, commandPath) {
  */
 async function runStatus(command, commandPath, bridgePid) {
   const paths = defaultInstallPaths({ userDataDir: null, browser: 'chrome' });
-  const local = await bridgeStatus(paths);
+
+  // 측정해서 알게 된 것: `bridgeStatus` 도 자기 `findLiveBridges` 를 돌리므로
+  // 소켓 디렉터리를 열 수 없으면(그 자리에 파일이 있으면 ENOTDIR, 권한이
+  // 없으면 EACCES) **여기서** 던진다 — 아래 try 밖이라, 같은 입력에 대해
+  // 다른 명령이 `bridge-error`(4) 를 낼 때 `status` 만 크래시 핸들러로 가서
+  // "headerlab crashed … 이건 버그다, 신고하라" 를 내고 1 로 나갔다. 읽을 수
+  // 없는 디렉터리는 이 CLI 의 버그가 아니라 보고할 사실이다.
+  let local;
+  try {
+    local = await bridgeStatus(paths);
+  } catch (error) {
+    emitFail(codeForThrown(error), error.message);
+    return;
+  }
 
   let remote = null;
   try {
     const target = await resolveTarget(socketDir(), bridgePid);
-    remote = await sendCommand(target.socketPath, command);
+    remote = await send(target.socketPath, command);
   } catch (error) {
     const code = codeForThrown(error);
     if (code !== 'bridge-off' || bridgePid !== null) {
@@ -375,24 +409,23 @@ async function main() {
 
   let target;
   try {
+    // `?? 'bridge-off'` 가 아닌 이유는 `runStatus` 의 같은 자리와 같다:
+    // `findLiveBridges` 는 ENOENT 아닌 `readdir` 실패를 **다시 던지므로**
+    // (소켓 디렉터리 자리에 파일이 있으면 ENOTDIR, 권한이 없으면 EACCES)
+    // errno 가 그대로 봉투의 `error.code` 로 나가고, 표에 없는 코드는
+    // `exitFor` 의 기본값을 타고 1("목적지가 요청을 거부했다")이 된다 —
+    // 목적지에 닿은 적이 없는데도. 측정: 없는 브릿지에 대해 `resolveTarget`
+    // 이 던지는 것은 `code:'bridge-off'` 이고 그것은 `BY_CODE` 에 있으므로
+    // `codeForThrown` 이 그대로 통과시킨다. 즉 이 교체는 모든 명령의
+    // bridge-off 기본값을 건드리지 않고, errno 만 접는다.
     target = await resolveTarget(socketDir(), bridgePid);
   } catch (error) {
-    emitFail(error.code ?? 'bridge-off', error.message);
+    emitFail(codeForThrown(error), error.message);
     return;
   }
 
   try {
-    const result = await sendCommand(target.socketPath, command, {
-      onSlow: (timeoutMs) => {
-        // 사람용일 때만. 파이프로 받는 쪽에 없던 줄을 흘리지 않는다
-        // (clig Output §14). stdout 은 어느 모드에서도 손대지 않는다.
-        if (MODE === 'human' && !GLOBALS.quiet && process.stderr.isTTY) {
-          process.stderr.write(
-            `waiting for the extension to reply (${timeoutMs / 1000}s timeout)…\n`,
-          );
-        }
-      },
-    });
+    const result = await send(target.socketPath, command);
     if (result.ok === false) {
       emitRefusal(result);
       return;
@@ -401,7 +434,7 @@ async function main() {
   } catch (error) {
     // `runStatus` 의 같은 자리와 **같은 함수**를 쓴다. 소켓이 던진 EPIPE 를
     // 한쪽은 `bridge-error` 로, 다른 쪽은 `EPIPE` 로 부르면 같은 실패가
-    // 명령마다 다른 코드로 나간다.
+    // 명령마다 다른 코드로 나간다. 위의 `resolveTarget` 도 같은 함수다.
     emitFail(codeForThrown(error), error.message);
   }
 }

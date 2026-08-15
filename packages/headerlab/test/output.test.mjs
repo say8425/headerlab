@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
+import { planFail, planOk, planSlowReply, resolveColor, resolveMode } from '../lib/output.mjs';
 
 const noGlobals = { json: false, human: false, quiet: false, noColor: false };
 const tty = { isTTY: true };
@@ -217,6 +217,46 @@ test('사람용 invalid-args 는 usage 줄을 메시지 아래 한 줄로 붙인
 
 // 기계용 봉투의 `error.message` 는 첫 문장 그대로여야 한다. usage 줄이
 // 봉투 안으로 새면 파싱하는 쪽이 못 보던 줄바꿈을 받는다.
+// --- planSlowReply: 답하지 않는 브릿지에 내는 한 줄 --------------------------
+//
+// 이 판단도 `bin/headerlab.mjs` 의 `onSlow` 클로저 안에 있었고, 같은 이유로
+// (사람용 + stderr 가 TTY) 어떤 테스트도 닿지 못했다. 옮겨 놓으니 네 조합이
+// 표 하나가 된다.
+
+const slowCtx = { mode: 'human', quiet: false, stream: tty };
+
+test('사람용 TTY 에서 기다린다는 줄은 stderr 로 간다', () => {
+  assert.deepEqual(planSlowReply(10_000, slowCtx), {
+    stream: 'stderr',
+    text: 'waiting for the extension to reply (10s timeout)…\n',
+  });
+});
+
+// 기계용은 봉투 하나가 계약이다. 진행 상황 한 줄이 stderr 로라도 나가면
+// 로그를 파싱하는 쪽이 못 보던 줄을 받는다.
+test('기계용에서는 아무것도 내지 않는다', () => {
+  assert.equal(planSlowReply(10_000, { ...slowCtx, mode: 'json' }), null);
+});
+
+test('--quiet 은 진행 상황을 지운다 — 실패와 달리 이것은 산문이다', () => {
+  assert.equal(planSlowReply(10_000, { ...slowCtx, quiet: true }), null);
+});
+
+// stderr 를 파일이나 파이프로 받는 쪽에게 진행 상황은 잡음이다 (clig Output §14).
+test('stderr 가 TTY 가 아니면 내지 않는다', () => {
+  assert.equal(planSlowReply(10_000, { ...slowCtx, stream: pipe }), null);
+  assert.equal(planSlowReply(10_000, { ...slowCtx, stream: undefined }), null);
+});
+
+// 초는 넘겨받은 `timeoutMs` 에서 나온다. 여기에 10 을 다시 적으면
+// `sendCommand` 의 기본값을 바꾼 사람이 거짓말하는 줄을 얻는다.
+test('초는 timeoutMs 에서 계산된다', () => {
+  assert.equal(
+    planSlowReply(2000, slowCtx).text,
+    'waiting for the extension to reply (2s timeout)…\n',
+  );
+});
+
 test('기계용 봉투에는 usage 줄이 새지 않는다', () => {
   const plan = planFail(
     { code: 'invalid-args', message: 'rule toggle needs an id' },

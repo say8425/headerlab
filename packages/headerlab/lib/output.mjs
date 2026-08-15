@@ -84,3 +84,28 @@ export function planFail({ code, message }, { mode, color, argv = null }) {
   if (usage !== null) lines.push(usage);
   return { stream: 'stderr', text: `${lines.join('\n')}\n` };
 }
+
+/**
+ * 브릿지가 연결은 받았는데 답하지 않을 때 낼 한 줄. `sendCommand` 의
+ * `onSlow` 가 이것을 낸다 — 측정된 결함은 그 사이 어느 스트림에도 한
+ * 바이트도 나오지 않는다는 것이고(clig Robustness §2), 유일한 신호가
+ * 터미널이 안 돌아온다는 것뿐이었다.
+ *
+ * 세 조건 전부가 "없던 줄을 흘리지 않는다"(clig Output §14)이다:
+ * 기계용 모드에서는 봉투 하나만 나가야 하고, `--quiet` 은 산문을 지우라는
+ * 요구이며, stderr 를 파일이나 파이프로 받는 쪽에게 진행 상황은 잡음이다.
+ * **stdout 은 어느 조합에서도 손대지 않는다.**
+ *
+ * 판단이 여기 있는 이유는 `planOk`/`planFail` 과 같다: bin/ 에 두면
+ * `MODE`/`GLOBALS`/`process.stderr` 를 전역으로 읽는 분기가 되어 pty 없이
+ * 닿을 수 없다. 여기서는 표로 잰다.
+ */
+export function planSlowReply(timeoutMs, { mode, quiet, stream }) {
+  if (mode !== 'human') return null;
+  if (quiet) return null;
+  if (!stream?.isTTY) return null;
+  return {
+    stream: 'stderr',
+    text: `waiting for the extension to reply (${timeoutMs / 1000}s timeout)…\n`,
+  };
+}

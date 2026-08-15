@@ -27,9 +27,9 @@ import {
 // reading its stdout and exit code.
 const cliPath = fileURLToPath(new URL('../bin/headerlab.mjs', import.meta.url));
 
-function runCli(args, { env = process.env } = {}) {
+function runCli(args, { env = process.env, nodeArgs = [], onStderr = null } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cliPath, ...args], {
+    const child = spawn(process.execPath, [...nodeArgs, cliPath, ...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
     });
@@ -40,6 +40,10 @@ function runCli(args, { env = process.env } = {}) {
     });
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString('utf8');
+      // 자식이 **끝나기 전에** stderr 를 읽어야 하는 테스트가 하나 있다:
+      // 기다린다는 줄은 명령이 아직 매달려 있는 동안 나오는 것이 전부이므로,
+      // 그것을 본 뒤에 매달림을 풀어 주어야 10초를 기다리지 않는다.
+      onStderr?.(stderr);
     });
     child.once('exit', (code) => resolve({ code, stdout, stderr }));
     child.once('error', reject);
@@ -925,6 +929,103 @@ test('status 는 지목한 pid 가 없으면 지목을 무시하지 않는다', 
   assert.deepEqual(JSON.parse(stdout), {
     ok: false,
     error: { code: 'bridge-off', message: `no live bridge with pid ${alive + 1}` },
+  });
+  assert.equal(code, 3);
+});
+
+// 답하지 않는 브릿지 앞에서 `status` 는 10초 동안 어느 스트림에도 한 바이트도
+// 내지 않았다. `sendCommand` 의 `onSlow` — 그 침묵을 재서 만든 안전장치 — 가
+// `main` 의 send 자리에만 달려 있었고 `runStatus` 는 옵션 없이 불렀기 때문이다.
+// 같은 상황에서 `pause` 는 1초 뒤 줄을 내는데, 사람이 가장 많이 치는 명령만
+// 조용했다. 이제 두 자리가 하나(`send`)이므로 갈라질 자리가 없다.
+//
+// pty 없이 사람용 stderr 분기를 켜는 방법: 자식의 `process.stderr.isTTY` 를
+// preload 한 줄로 켠다. 진짜 pty 는 이 러너에서 열 수 없고(output.test.mjs
+// 의 `script` 측정), 그 플래그 하나 말고는 전부 진짜다 — 진짜 소켓, 진짜
+// `resolveTarget`, 진짜 `sendCommand`, 진짜 1초 타이머.
+test('답하지 않는 브릿지에서 status 도 기다린다는 줄을 낸다', async (t) => {
+  const { dir, env } = freshSocketEnv();
+  // 연결은 받고 **답하지 않는다**. `isSocketAlive` 의 탐색 연결도 여기로
+  // 오므로 마지막 것(명령을 실은 연결)만 들고 있는다.
+  let held = null;
+  const pid = await bridgeAt(t, dir, (socket) => {
+    held = socket;
+  });
+
+  const notice = 'waiting for the extension to reply (10s timeout)…';
+  const { code, stdout, stderr } = await runCli(
+    ['--human', '--no-color', '--bridge', String(pid), 'status'],
+    {
+      env,
+      nodeArgs: ['--import', 'data:text/javascript,process.stderr.isTTY=true'],
+      // 줄이 나오면 매달림을 푼다. 이 테스트가 재는 것은 1초 타이머이지
+      // 10초 타임아웃이 아니다 — 끊으면 같은 catch 를 `bridge-closed` 로
+      // 즉시 지나간다. (줄이 안 나오는 구현은 여기서 10초를 다 기다린 뒤
+      // 아래 어서션에서 빨개진다.)
+      onStderr: (all) => {
+        if (all.includes(notice)) held?.destroy();
+      },
+    },
+  );
+
+  // 부재 먼저: 진행 상황은 stdout 을 어느 모드에서도 건드리지 않는다.
+  assert.equal(stdout, '');
+  // 첫 줄이어야 한다 — 뒤에 실패 렌더가 붙으므로 `includes` 로 재면
+  // "끝나고 나서 한 번에 쏟아내는" 구현도 통과한다.
+  assert.equal(stderr.split('\n')[0], notice);
+  assert.equal(code, 4);
+});
+
+// `resolveTarget` 을 감싸는 catch 의 `?? 'bridge-off'` 는 코드가 **없는**
+// 에러만 걸렀다. `findLiveBridges` 는 ENOENT 아닌 `readdir` 실패를 다시
+// 던지므로 그 errno 가 그대로 봉투의 `error.code` 로 나가고, 표에 없는
+// 코드는 `exitFor` 의 기본값을 타고 1("목적지가 요청을 거부했다")이 된다 —
+// 목적지에 닿은 적이 없는데도. 같은 실패가 `status` 에서는 이미
+// `bridge-error`(4) 였으므로, 한 실패가 명령에 따라 다른 코드로 나갔다.
+//
+// 재현은 권한 없는 디렉터리(EACCES)가 아니라 **평범한 파일**로 한다:
+// EACCES 는 root 로 도는 러너에서 나지 않지만 ENOTDIR 은 사용자와 무관하다.
+test('소켓 디렉터리를 열 수 없는 실패는 bridge-off 로 위장하지 않는다', async () => {
+  const notADir = path.join(scratch, 'socket-dir-that-is-a-file');
+  writeFileSync(notADir, '');
+  const { code, stdout } = await runCli(['pause'], {
+    env: { ...process.env, HEADERLAB_SOCKET_DIR: notADir },
+  });
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, 'bridge-error');
+  assert.equal(code, 4);
+});
+
+// 같은 입력 아래 `status` 가 하던 일은 리뷰의 예상(`bridge-error`/4)과 달랐다 —
+// 손으로 재 보니 **크래시 핸들러**였다. `bridgeStatus` 도 자기 `findLiveBridges`
+// 를 돌리는데 그 호출이 `runStatus` 의 try 밖이라, "headerlab crashed … 이건
+// 버그다, 신고하라" 를 내고 1 로 나갔다. 읽을 수 없는 디렉터리는 이 CLI 의
+// 버그가 아니다.
+test('status 도 소켓 디렉터리를 열 수 없을 때 크래시로 가지 않는다', async () => {
+  const notADir = path.join(scratch, 'socket-dir-that-is-a-file');
+  writeFileSync(notADir, '');
+  const { code, stdout, stderr } = await runCli(['status'], {
+    env: { ...process.env, HEADERLAB_SOCKET_DIR: notADir },
+  });
+  // 부재 먼저: 크래시 리포트도, 신고 URL 도 없다.
+  assert.equal(stderr.includes('crashed'), false);
+  assert.equal(stderr.includes('issues/new'), false);
+  assert.deepEqual(JSON.parse(stdout).ok, false);
+  assert.equal(JSON.parse(stdout).error.code, 'bridge-error');
+  assert.equal(code, 4);
+});
+
+// 그리고 그것이 기본값을 바꾸지 않았다는 것. 리포트가 이 자리를 고치지 않고
+// 남긴 이유가 "모든 명령의 bridge-off 기본값을 건드린다" 였는데, 측정하면
+// 아니다: 없는 브릿지에 대해 `resolveTarget` 이 던지는 것은 `code:'bridge-off'`
+// 이고 그것은 `BY_CODE` 에 있으므로 `codeForThrown` 이 그대로 통과시킨다.
+test('없는 브릿지는 여전히 bridge-off 3 이다', async () => {
+  const { env } = freshSocketEnv();
+  const { code, stdout } = await runCli(['pause'], { env });
+  assert.deepEqual(JSON.parse(stdout), {
+    ok: false,
+    error: { code: 'bridge-off', message: 'no bridge is running' },
   });
   assert.equal(code, 3);
 });
