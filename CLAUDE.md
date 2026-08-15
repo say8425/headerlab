@@ -193,9 +193,20 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   publish` with `EPRIVATE`. What actually reaches the tarball is decided by
   `package.json`'s `files` field, and *believing* `files` is not the same as
   *checking* it: run `npm pack --dry-run` from `packages/headerlab` and read
-  the listing. Measured this way: 13 files, `bin/` and `lib/` plus
-  `package.json`, with `test/` sitting beside them on disk and correctly
+  the listing. Measured this way: **21 files**, `bin/` and `lib/` plus the
+  three npm always adds regardless of `files` — `package.json`, `README.md`
+  and `LICENSE` — with `test/` sitting beside them on disk and correctly
   absent from the tarball (`cd packages/headerlab && npm pack --dry-run`).
+  The figure was 13, and re-measuring found **both** an increase and an error
+  in the old one. The increase is real: the clig.dev redesign added six `lib/`
+  files (`commands`, `help`, `suggest`, `exit`, `render`, `output`), 12+6+1=19.
+  The error is that 13 was exactly `bin/`+`lib/`+`package.json` at the time
+  (`git ls-tree 8665df1^` counts 12 there), so README.md and LICENSE were left
+  out of a number claiming to be the tarball's — and `git ls-tree` shows both
+  files sitting in that directory on the same commit, so they were in the
+  tarball then too. npm adds those three whatever `files` says, which is the
+  one thing reading the listing was supposed to teach. Re-run the command
+  rather than trusting the number; the number is a snapshot and the CLI moves.
   Publishing happens from `release-please.yml`'s `npm publish --provenance`
   step, on a release. **The first published version is the one exception, and
   it is a forced one.** npm is retiring the tokens that let CI publish without
