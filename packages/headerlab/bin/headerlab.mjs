@@ -20,8 +20,8 @@ import {
 import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
-import { findCommand, GROUPS, pathKey, subcommandsOf } from '../lib/commands.mjs';
-import { allPaths, commandHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
+import { commandPaths, findCommand, GROUPS, pathKey, subcommandsOf } from '../lib/commands.mjs';
+import { commandHelp, groupHelp, ISSUES_URL, topHelp } from '../lib/help.mjs';
 import { planFail, planOk, planSlowReply, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
 import { codeForThrown, EXIT, exitFor } from '../lib/exit.mjs';
@@ -68,8 +68,22 @@ function emitPlain(text) {
  * 갈라지지 않는 방법은 자리를 하나로 만드는 것이다.
  */
 function send(socketPath, command) {
-  return sendCommand(socketPath, command, { onSlow: slowReplyNotice });
+  return sendCommand(socketPath, command, {
+    onSlow: slowReplyNotice,
+    onSent: () => {
+      DELIVERED = true;
+    },
+  });
 }
+
+/**
+ * 명령의 바이트가 소켓으로 나갔는가. SIGINT 핸들러 하나만 읽는다 — 그
+ * 핸들러가 "아무 명령도 전달되지 않았다" 를 **조건 없이** 찍고 있었고,
+ * `state set --force` 처럼 되돌릴 수 없는 것을 이미 보낸 뒤에도 같은 문장을
+ * 냈다. 다시 실행하라고 등을 떠미는 거짓말이며, 조용한 실패를 없애려고
+ * 존재하는 CLI 가 낼 수 있는 가장 나쁜 문장이다.
+ */
+let DELIVERED = false;
 
 /**
  * `sendCommand` 의 느린 응답 통보. 무엇을 어디에 쓸지는 `planSlowReply` 가
@@ -92,23 +106,58 @@ const STATE_SET_CONFIRM =
  * clig Interactivity §2 가 "물어볼 수 없으면 어떤 플래그를 치라고 알려주며
  * 실패하라" 고 말하는 것이 정확히 이 경우다.
  */
-async function confirmStateSet(source) {
-  if (GLOBALS.force) return true;
-  if (GLOBALS.noInput) {
-    emitFail('usage', STATE_SET_CONFIRM);
-    return false;
-  }
+function stateSetGate(source) {
+  if (GLOBALS.force) return 'go';
+  if (GLOBALS.noInput) return 'refuse';
   // 소스가 `-` 이면 stdin 은 payload 이므로 물어볼 데가 없다.
-  if (source === '-' || !process.stdin.isTTY) {
-    emitFail('usage', STATE_SET_CONFIRM);
-    return false;
-  }
+  if (source === '-' || !process.stdin.isTTY) return 'refuse';
+  return 'ask';
+}
 
-  process.stderr.write('This replaces the entire stored state and cannot be undone.\n');
+/**
+ * 무엇을 덮어쓰는지 세어서 묻는다 (설계 §7.1). 세는 대상은 **들어올**
+ * payload 다 — 지금 저장된 것을 알려면 브릿지에 한 번 더 다녀와야 하고,
+ * 이 확인은 그보다 앞이다. 문장이 방향을 말하는 이유가 그것이다.
+ *
+ * 숫자가 없으면 이 줄은 모든 실행에서 참이라 아무 신호도 싣지 않는다. 빈
+ * 상태로 채워진 파일을 가리켰다는 것을 사람이 알아채는 자리가 여기다.
+ */
+function replacementSummary(state) {
+  const profile = state?.profiles?.[0] ?? null;
+  const rules = Array.isArray(profile?.headers) ? profile.headers.length : 0;
+  const sites = Array.isArray(profile?.filter?.domains) ? profile.filter.domains.length : 0;
+  return `${rules} ${rules === 1 ? 'rule' : 'rules'} and ${sites} ${sites === 1 ? 'site' : 'sites'}`;
+}
+
+async function confirmStateSet(state) {
+  process.stderr.write(
+    `This replaces the entire stored state with ${replacementSummary(state)}, and cannot be undone.\n`,
+  );
   process.stderr.write('Continue? [y/N] ');
   const answer = await new Promise((resolve) => {
     process.stdin.setEncoding('utf8');
-    process.stdin.once('data', (chunk) => resolve(chunk.trim().toLowerCase()));
+    // 세 갈래 전부를 정한다. `'data'` 만 달려 있던 동안 프롬프트에서
+    // Ctrl-D 를 누르면 — 흔한 키다 — 이 promise 가 영원히 안 풀리고 Node 가
+    // "unsettled top-level await" 경고와 함께 **13** 으로 나갔다. 13 은 §2.3
+    // 표에 없는 종료 코드이고, 봉투도 사람이 읽을 문장도 없다. EOF 는 거절과
+    // 같은 뜻으로 접는다.
+    const answerWith = (value) => {
+      // `once` 는 핸들러만 떼고 스트림을 멈추지는 않는다. 리스너를 달면서
+      // 흐름 모드로 들어간 stdin 은 ref 된 핸들이라, 이걸 안 놓으면
+      // `main()` 이 끝난 뒤에도 이벤트 루프가 살아 CLI 가 결과를 찍고
+      // 영원히 멈춰 있다 — 100% 재현, 가장 파괴적인 명령에서.
+      //
+      // `pause()` 만으로는 부족하다. **측정**: pty 에서는 그것으로 나가지만
+      // 파이프인 stdin 은 `pause()` 뒤에도 루프를 붙잡는다. 이 확인이 파이프
+      // 위에서 이뤄지므로(테스트 하네스가 `isTTY` 만 켠다) `unref()` 까지
+      // 해야 두 경우가 같아지고, 그래야 이 결함이 검사 가능해진다.
+      process.stdin.pause();
+      process.stdin.unref();
+      resolve(value);
+    };
+    process.stdin.once('data', (chunk) => answerWith(chunk.trim().toLowerCase()));
+    process.stdin.once('end', () => answerWith(''));
+    process.stdin.once('error', () => answerWith(''));
   });
   if (answer === 'y' || answer === 'yes') return true;
   emitFail('usage', 'cancelled');
@@ -178,8 +227,19 @@ async function resolveStateCommand(command) {
  *
  * 끝의 개행 하나만 떼는 것은 `echo 'x' > f` 가 흔하기 때문이고, 그 이상
  * 다듬지 않는 것은 헤더 값에 공백이 의미를 가질 수 있기 때문이다.
+ *
+ * `-` 는 stdin 이다. SKILL.md·설계 §3.2·§7.4 가 전부 `<path|->` 라고 적어
+ * 왔는데 구현은 그 토큰을 `readFileSync` 에 그대로 넘겼고 — `-` 라는 이름의
+ * 파일을 찾는다 — 스킬을 따르는 에이전트는 영문 모를 ENOENT 를 받았다.
+ * 거기서 손이 가는 복구는 `--value` 이고, 그것이 바로 이 플래그가 막으려던
+ * 노출이다. `state set -` 이 쓰는 `readStdin()` 을 그대로 쓴다(TTY 가드
+ * 포함): 파이프가 없는 터미널에서 멈추는 것도 같은 결함이다.
  */
-function readValueFile(source) {
+async function readValueSource(source) {
+  if (source === '-') {
+    const raw = await readStdin('--value-file - reads the header value from stdin');
+    return raw.toString('utf8').replace(/\n$/, '');
+  }
   let raw;
   try {
     raw = readFileSync(source, 'utf8');
@@ -189,12 +249,12 @@ function readValueFile(source) {
   return raw.replace(/\n$/, '');
 }
 
-function readStdin() {
+function readStdin(what = 'state set - reads JSON from stdin') {
   // 측정된 결함: 가드가 없으면 실제 pty 에서 영원히 멈춘다. 5초 뒤에도
   // 실행 중이고 stdout·stderr 둘 다 0바이트라, 사용자는 뭘 기다리는지
   // 알 방법 없이 커서만 본다. clig Help §11.
   if (process.stdin.isTTY) {
-    const error = new Error('state set - reads JSON from stdin; pipe it in or pass a file path');
+    const error = new Error(`${what}; pipe it in or pass a file path`);
     error.code = 'usage';
     return Promise.reject(error);
   }
@@ -253,10 +313,12 @@ async function runBridgeCommand(command, commandPath) {
     command.extensionId === null ? { note: computedIdNote(path.resolve(command.loadPath)) } : {};
 
   if (command.dryRun) {
-    emitOk({ ...(await previewInstall({ ...paths, extensionId })), ...note }, [
-      'bridge',
-      'install',
-    ]);
+    const preview = await previewInstall({ ...paths, extensionId });
+    if (!preview.ok) {
+      emitFail(preview.error.code, preview.error.message);
+      return;
+    }
+    emitOk({ ...preview, ...note }, ['bridge', 'install']);
     return;
   }
 
@@ -382,20 +444,28 @@ async function main() {
 
   let command = parsed.command;
   if (command.cmd === 'state.set') {
-    if (!(await confirmStateSet(command.state.source))) return;
+    // 물어볼 수 있는지를 **먼저** 정하고(파일을 읽기 전이라 "--force 를
+    // 치라" 가 "그 파일이 없다" 보다 앞선다), 물어볼 payload 는 읽은 뒤에
+    // 만든다 — 세어서 말하려면 내용이 있어야 한다.
+    const gate = stateSetGate(command.state.source);
+    if (gate === 'refuse') {
+      emitFail('usage', STATE_SET_CONFIRM);
+      return;
+    }
     try {
       command = await resolveStateCommand(command);
     } catch (error) {
       emitFail(error.code ?? 'invalid-args', error.message);
       return;
     }
+    if (gate === 'ask' && !(await confirmStateSet(command.state))) return;
   }
 
   if (command.cmd === 'rule.add' && typeof command.value === 'object') {
     try {
-      command = { ...command, value: readValueFile(command.value.source) };
+      command = { ...command, value: await readValueSource(command.value.source) };
     } catch (error) {
-      emitFail('invalid-args', error.message);
+      emitFail(error.code ?? 'invalid-args', error.message);
       return;
     }
   }
@@ -405,7 +475,19 @@ async function main() {
   // resolveTarget would fail with `bridge-off` on exactly the machine the
   // command exists to fix.
   if (command.cmd.startsWith('bridge.')) {
-    await runBridgeCommand(command, commandPath);
+    // `runStatus` 와 **같은 가드**다. 그 함수의 docblock 이 이유를 이미
+    // 적어 두었다 — "읽을 수 없는 디렉터리는 이 CLI 의 버그가 아니라 보고할
+    // 사실이다" — 그런데 가드는 `runStatus` 에만 달렸고, 같은 `bridgeStatus`
+    // 를 부르는 이 형제는 맨몸이었다. 소켓 디렉터리 자리에 파일이 있으면
+    // (ENOTDIR) `headerlab bridge status` 는 크래시 핸들러로 가서 "이건
+    // 버그다, 이 URL 로 신고하라" 를 내고 1 로 나갔고, 같은 조건에서
+    // `headerlab status` 는 제대로 보고했다. 같은 실패에 두 명령이 다른
+    // 말을 하는 것이 여기서 가장 나쁘다.
+    try {
+      await runBridgeCommand(command, commandPath);
+    } catch (error) {
+      emitFail(codeForThrown(error), error.message);
+    }
     return;
   }
 
@@ -467,11 +549,20 @@ function readPackageVersion() {
   return JSON.parse(readFileSync(url, 'utf8')).version;
 }
 
-/** 인자가 없으면 최상위, 알려진 명령이면 그 명령, 모르면 최상위. */
+/**
+ * 인자가 없으면 최상위, 알려진 명령이면 그 명령, 그룹 이름 하나면 그
+ * 그룹의 목록, 모르면 최상위.
+ *
+ * 그룹 갈래가 없던 동안 `headerlab help bridge` 는 방금 읽던 최상위
+ * 도움말을 그대로 다시 냈다 — 표에 그룹 단독 항목이 없어 `findCommand` 가
+ * null 을 주기 때문이며, 그 사실은 어디에도 안 나왔다.
+ */
 function helpTextFor(argv) {
   if (argv.length === 0) return topHelp();
   const entry = findCommand(argv);
-  return entry === null ? topHelp() : commandHelp(entry);
+  if (entry !== null) return commandHelp(entry);
+  if (argv.length === 1 && subcommandsOf(argv[0]).length > 0) return groupHelp(argv[0]);
+  return topHelp();
 }
 
 /**
@@ -483,7 +574,7 @@ function helpTextFor(argv) {
  * 붙여 한 곳에 두어 그 갈라짐을 없앤다.
  */
 function suggestionFor(argv) {
-  return suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
+  return suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), commandPaths());
 }
 
 /** `hint` 가 있으면 붙이고 없으면 `base` 그대로. 세 갈래(최상위, 그룹 안 서브커맨드, 파싱 실패)가 같은 문장 모양을 쓴다. */
@@ -537,10 +628,23 @@ function warnIfUnknown(argv) {
 
 /**
  * 오타 제안을 에러 메시지에 붙인다.
+ *
+ * 갈래가 둘인 이유는 파서가 두 자리에서 다른 코드를 내기 때문이다.
+ * 최상위 오타(`headerlab sight add`)는 `unknown-command` 로 오고, 그룹
+ * 아래 서브커맨드 오타(`headerlab site addd x`)는 `invalid-args` 로 온다 —
+ * 그래서 `unknown-command` 만 보던 동안 후자에는 제안이 한 번도 붙지 않았다.
+ * 같은 줄에 `--help` 를 덧붙이면 `warnUnknownSubcommand` 가 제대로 제안하고
+ * 안 붙이면 안 하는, 설명할 수 없는 차이였다. 제안 후보는 그쪽과 같은
+ * **그 그룹 소속 서브커맨드만**이다.
  */
 function withSuggestion(error, argv) {
-  if (error.code !== 'unknown-command') return error.message;
-  return withHint(error.message, suggestionFor(argv));
+  if (error.code === 'unknown-command') {
+    return withHint(error.message, suggestionFor(argv));
+  }
+  if (error.code === 'invalid-args' && findCommand(argv) === null && GROUPS.includes(argv[0])) {
+    return withHint(error.message, suggest(argv[1] ?? '', subcommandsOf(argv[0])));
+  }
+  return error.message;
 }
 
 /**
@@ -558,19 +662,30 @@ process.stdout.on('error', (error) => {
  * Ctrl-C 는 한 줄을 남기고 나간다. 이전에는 exit 130 은 맞았지만 stdout·
  * stderr 둘 다 0바이트였다 — 이 CLI 가 스스로 약속한 "모든 결과는 봉투
  * 하나" 조차 안 나왔다. 두 번째 Ctrl-C 는 정리를 건너뛰고 즉시 나간다.
+ *
+ * **두 문장 중 어느 것이 참인지는 `DELIVERED` 만 안다.** 한 문장을 조건
+ * 없이 찍는 동안 그것은 절반의 경우 거짓이었고, 하필 거짓인 쪽이 위험한
+ * 쪽이다: 이미 나간 `site add` 를 안 나갔다고 들은 사람은 다시 친다.
+ * `state set --force` 라면 되돌릴 수 없는 덮어쓰기가 안 일어났다고 듣는다.
  */
 let interrupting = false;
 process.on('SIGINT', () => {
   if (interrupting) process.exit(130);
   interrupting = true;
-  process.stderr.write('interrupted — no command was delivered\n');
+  process.stderr.write(
+    DELIVERED
+      ? 'interrupted after the command was sent — it may already have been applied\n'
+      : 'interrupted — no command was delivered\n',
+  );
   process.exit(130);
 });
 
 /**
  * 여기 오는 것은 이 CLI 가 의도해서 낸 실패가 아니라 버그다. 의도된
- * 실패 열일곱 가지는 이미 사람이 읽을 문장으로 다시 쓰여 `emitFail` 로
- * 나가므로, 버그 신고를 권할 대상이 아니다 (clig Errors §1 대 §4).
+ * 실패 — `lib/exit.mjs` 의 `ERROR_CODES` 열여섯 가지 — 는 이미 사람이 읽을
+ * 문장으로 다시 쓰여 `emitFail` 로 나가므로, 버그 신고를 권할 대상이
+ * 아니다 (clig Errors §1 대 §4). 세지 말고 그 목록을 보라: 여기 적힌 수는
+ * 열일곱이었고 표에는 열여섯이 있었다.
  */
 process.on('uncaughtException', (error) => {
   const title = encodeURIComponent(`crash: ${error.message}`);

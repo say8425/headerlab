@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { GLOBAL_FLAGS } from './commands.mjs';
 import { isSocketAlive, registryPathFor, socketPathFor } from './socket.mjs';
 
 /**
@@ -30,19 +31,14 @@ export function withCode(error, code) {
  * 생기는데, 도움말은 문제가 있을 때 가장 필요한 것이다. 문제는 `error` 로
  * 실어 보내고 호출부가 도움말을 낼지 실패할지 정한다.
  */
-const BOOLEAN_GLOBALS = new Map([
-  ['--json', 'json'],
-  ['--human', 'human'],
-  ['--quiet', 'quiet'],
-  ['-q', 'quiet'],
-  ['--no-color', 'noColor'],
-  ['--no-input', 'noInput'],
-  ['--force', 'force'],
-  ['-f', 'force'],
-  ['--help', 'help'],
-  ['-h', 'help'],
-  ['--version', 'version'],
-]);
+// 표(`commands.mjs` 의 `GLOBAL_FLAGS`)에서 만든다. 손으로 적힌 사본이던
+// 동안 도움말 쪽 사본과 갈라졌고 — `--no-input` 과 `--force` 가 파서에만
+// 있었다 — 갈라진 것을 아무것도 빨갛게 만들지 않았다.
+const BOOLEAN_GLOBALS = new Map(
+  GLOBAL_FLAGS.filter((flag) => flag.arg === undefined).flatMap((flag) =>
+    flag.names.map((name) => [name, flag.key]),
+  ),
+);
 
 export function extractGlobals(argv) {
   const globals = {
@@ -68,11 +64,17 @@ export function extractGlobals(argv) {
     }
     if (token === '--bridge') {
       const value = argv[i + 1];
-      i += 1;
-      if (value === undefined) {
+      // 다음 토큰이 플래그면 **먹지 않는다**. 먹으면 `extractGlobals` 가
+      // `rest` 에서도 지우므로 그 플래그는 통째로 사라진다 — 측정:
+      // `headerlab --bridge --help` 가 도움말을 내지 않고 "needs a numeric
+      // pid, got: --help" 로 2 를 냈다. 바로 아래 `main()` 의 주석은 그
+      // 반대 방향(맨손 `--bridge` 의 에러가 도움말에 삼켜지는 것)만
+      // 따졌었다.
+      if (value === undefined || value.startsWith('-')) {
         globals.error ??= '--bridge needs a pid';
         continue;
       }
+      i += 1;
       const pid = Number(value);
       if (!Number.isInteger(pid) || pid <= 0) {
         globals.error ??= `--bridge needs a numeric pid, got: ${value}`;
@@ -212,11 +214,17 @@ export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  * correlates because the id actually round-trips. That is the contract
  * enforced end to end, from outside both files rather than from within
  * either one.
+ *
+ * `onSent` fires the moment the command's bytes have been handed to the
+ * socket. Nothing here needs it — the caller does: `bin/headerlab.mjs` 의
+ * SIGINT 핸들러가 "아무것도 전달되지 않았다" 를 조건 없이 찍고 있었고, 그
+ * 문장은 명령이 이미 나간 뒤 Ctrl-C 를 눌렀을 때 거짓이었다. 그 사실을 아는
+ * 유일한 자리가 여기이므로 여기서 알린다.
  */
 export function sendCommand(
   socketPath,
   command,
-  { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS, slowAfterMs = 1000, onSlow } = {},
+  { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS, slowAfterMs = 1000, onSlow, onSent } = {},
 ) {
   return new Promise((resolve, reject) => {
     const id = randomUUID();
@@ -247,6 +255,7 @@ export function sendCommand(
 
     socket.on('connect', () => {
       socket.write(`${JSON.stringify({ id, command })}\n`);
+      onSent?.();
     });
 
     socket.on('data', (chunk) => {
