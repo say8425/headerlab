@@ -13,7 +13,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { bridgeStatus, installBridge, uninstallBridge } from '../lib/install.mjs';
+import { bridgeStatus, installBridge, previewInstall, uninstallBridge } from '../lib/install.mjs';
 import { MANIFEST_FILE_NAME } from '../lib/manifest.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -132,6 +132,20 @@ describe('installBridge', () => {
     // (result.ok becomes true), where it leaves the other test green.
     assert.equal(existsSync(path.join(broken.manifestDir, MANIFEST_FILE_NAME)), false);
     assert.equal(existsSync(path.join(broken.launcherDir, 'headerlab-host')), false);
+  });
+});
+
+describe('previewInstall', () => {
+  it('아무 파일도 만들지 않는다', async () => {
+    const result = await previewInstall(options);
+
+    // 부재를 먼저 검사한다 — 이 명령의 존재 이유가 "아무것도 안 쓴다" 이므로.
+    assert.equal(existsSync(options.manifestDir), false);
+    assert.equal(existsSync(options.launcherDir), false);
+    assert.equal(result.ok, true);
+    assert.equal(result.dryRun, true);
+    assert.equal(result.extensionId, 'a'.repeat(32));
+    assert.deepEqual(result.manifest.allowed_origins, [`chrome-extension://${'a'.repeat(32)}/`]);
   });
 });
 

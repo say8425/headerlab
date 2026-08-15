@@ -290,6 +290,7 @@ function parseBridgeInstall(args) {
         'load-path': { type: 'string' },
         'user-data-dir': { type: 'string' },
         browser: { type: 'string' },
+        'dry-run': { type: 'boolean', short: 'n' },
       },
       allowPositionals: false,
     }));
@@ -323,5 +324,6 @@ function parseBridgeInstall(args) {
     loadPath,
     userDataDir: values['user-data-dir'] ?? null,
     browser,
+    dryRun: values['dry-run'] ?? false,
   });
 }

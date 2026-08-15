@@ -96,6 +96,52 @@ test('bridge status 가 entryMissing 을 그대로 말한다', () => {
   assert.equal(text.includes('1 live (pid 9)'), true);
 });
 
+test('bridge install 을 표로 그린다', () => {
+  const payload = {
+    ok: true,
+    manifestPath: '/m/com.headerlab.bridge.json',
+    launcherPath: '/l/headerlab-host',
+    extensionId: 'a'.repeat(32),
+    verified: true,
+  };
+  assert.equal(
+    renderResult(payload, { command: ['bridge', 'install'], ...plain }),
+    [
+      'installed  /m/com.headerlab.bridge.json',
+      'launcher   /l/headerlab-host',
+      `extension  ${'a'.repeat(32)}`,
+    ].join('\n'),
+  );
+});
+
+// 손 확인에서 잡힌 결함: 브리프가 준 폭 11 은 'installed'(9자)에는
+// 맞았지만 'would install'(13자)에는 짧아서, pad() 가 아무 것도 못
+// 붙이고 verb 와 경로가 그대로 들러붙었다 — 'would install/m/...'.
+// 아래는 그 사이에 최소 한 칸이 있는지를 직접 잰다.
+test('bridge install --dry-run 은 매니페스트를 보여주고, verb 가 길어져도 경로와 들러붙지 않는다', () => {
+  const payload = {
+    ok: true,
+    dryRun: true,
+    manifestPath: '/m/com.headerlab.bridge.json',
+    launcherPath: '/l/headerlab-host',
+    extensionId: 'a'.repeat(32),
+    manifest: {
+      name: 'com.headerlab.bridge',
+      path: '/l/headerlab-host',
+      type: 'stdio',
+      allowed_origins: [`chrome-extension://${'a'.repeat(32)}/`],
+    },
+  };
+  const text = renderResult(payload, { command: ['bridge', 'install'], ...plain });
+  const lines = text.split('\n');
+
+  assert.equal(lines[0].startsWith('would install '), true);
+  assert.equal(lines[0].includes('would install/m/'), false);
+  assert.equal(lines[0].endsWith('/m/com.headerlab.bridge.json'), true);
+  assert.equal(text.includes(JSON.stringify(payload.manifest, null, 2)), true);
+  assert.equal(text.endsWith('Nothing was written.'), true);
+});
+
 // pad(launcher, 15) 가 이미 `paint()` 를 거친 문자열에 적용되면 ANSI
 // 바이트가 너비에 끼어들어 색이 켜졌을 때는 패딩이 하나도 안 붙는다 —
 // 측정: 색 꺼짐 'missing        /l/headerlab-host', 색 켜짐

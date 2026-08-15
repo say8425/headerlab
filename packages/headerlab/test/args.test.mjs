@@ -275,6 +275,7 @@ describe('bridge', () => {
         loadPath: null,
         userDataDir: null,
         browser: 'chrome',
+        dryRun: false,
       },
     });
   });
@@ -290,8 +291,28 @@ describe('bridge', () => {
         loadPath: '.output/chrome-mv3',
         userDataDir: null,
         browser: 'chrome',
+        dryRun: false,
       },
     });
+  });
+
+  it('bridge install --dry-run 이 명령에 실린다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32), '--dry-run']);
+    assert.equal(result.ok, true);
+    assert.equal(result.command.dryRun, true);
+  });
+
+  it('--dry-run 을 안 주면 false 다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32)]);
+    assert.equal(result.command.dryRun, false);
+  });
+
+  // commands.mjs 가 도움말에 `-n, --dry-run` 이라고 적으므로, 짧은 형도 실제로
+  // 먹혀야 한다 — 아니면 도움말이 거짓말을 하는 것이다.
+  it('-n 은 --dry-run 의 짧은 형이다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32), '-n']);
+    assert.equal(result.ok, true);
+    assert.equal(result.command.dryRun, true);
   });
 
   it('refuses install with neither', () => {

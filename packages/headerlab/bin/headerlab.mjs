@@ -14,6 +14,7 @@ import {
   bridgeStatus,
   defaultInstallPaths,
   installBridge,
+  previewInstall,
   uninstallBridge,
 } from '../lib/install.mjs';
 import { socketDir } from '../lib/socket.mjs';
@@ -208,6 +209,11 @@ async function runBridgeCommand(command, commandPath) {
   // into an id means resolving it against process.cwd() and hashing the bytes
   // of the result.
   const extensionId = command.extensionId ?? unpackedExtensionId(path.resolve(command.loadPath));
+
+  if (command.dryRun) {
+    emitOk(await previewInstall({ ...paths, extensionId }), ['bridge', 'install']);
+    return;
+  }
 
   const result = await installBridge({ ...paths, extensionId });
   if (!result.ok) {

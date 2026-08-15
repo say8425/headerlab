@@ -89,6 +89,7 @@ export const COMMANDS = [
       { name: '--load-path', arg: '<dir>', summary: 'compute the id from an unpacked directory' },
       { name: '--user-data-dir', arg: '<dir>', summary: 'a non-default Chrome profile directory' },
       { name: '--browser', arg: 'chrome|chromium', summary: 'which browser (default: chrome)' },
+      { name: '-n, --dry-run', summary: 'show what would be written and write nothing' },
     ],
     examples: ['headerlab bridge install --extension-id abcdefghijklmnopabcdefghijklmnop'],
   },

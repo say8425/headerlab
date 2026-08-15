@@ -91,11 +91,26 @@ function renderBridgeStatus(payload, color) {
 }
 
 function renderBridgeInstall(payload, color) {
+  const verb = payload.dryRun ? 'would install' : 'installed';
+  // 폭 11 은 브리프 그대로였으나, 'would install' 이 13 글자라 pad() 가
+  // 아무 것도 못 붙이고 경로와 그대로 들러붙었다(측정: 손 확인에서
+  // 'would install/m/...' 로 나옴). 세 줄 중 가장 긴 이름 + 구분 공백
+  // 두 칸으로 폭을 다시 잡는다.
+  const width = Math.max(verb.length, 'launcher'.length, 'extension'.length) + 2;
   const lines = [
-    `installed  ${paint(payload.manifestPath, COLORS.dim, color)}`,
-    `launcher   ${paint(payload.launcherPath, COLORS.dim, color)}`,
-    `extension  ${payload.extensionId}`,
+    `${pad(verb, width)}${paint(payload.manifestPath, COLORS.dim, color)}`,
+    `${pad('launcher', width)}${paint(payload.launcherPath, COLORS.dim, color)}`,
+    `${pad('extension', width)}${payload.extensionId}`,
   ];
+  if (payload.dryRun) {
+    lines.push(
+      '',
+      'manifest:',
+      JSON.stringify(payload.manifest, null, 2),
+      '',
+      'Nothing was written.',
+    );
+  }
   if (payload.note) lines.push('', payload.note);
   return lines.join('\n');
 }
