@@ -253,18 +253,76 @@ test('에러는 메시지 한 줄이다', () => {
   );
 });
 
-test('bridge-off 는 다음에 칠 명령을 붙인다', () => {
-  const text = renderError({ code: 'bridge-off', message: 'no bridge is running' }, plain);
+/**
+ * 이 fixture 의 메시지는 예전에 `'no bridge is running'` 이었다 — 이 갈래가
+ * **박아 넣고 있던 바로 그 문장**이라, 메시지를 통째로 버리는 구현이 여기서
+ * 보이지 않았다. 유일하게 안 빨개지는 문자열을 골라 먹인 셈이다. 지금은
+ * 렌더가 지어낼 수 없는 문장을 먹여서, 버리는 구현이 첫 줄에서 걸리게 한다.
+ */
+test('bridge-off 는 받은 메시지로 시작하고 다음에 칠 명령을 붙인다', () => {
+  const text = renderError({ code: 'bridge-off', message: 'the socket directory is empty' }, plain);
   assert.equal(
     text,
     [
-      'no bridge is running.',
+      'the socket directory is empty.',
       '  headerlab bridge status                        see what is installed',
       '  headerlab bridge install --extension-id <id>   if the manifest is missing',
       'Then open the HeaderLab popup and press Enable on the bridge row — the CLI',
       'cannot do that step.',
     ].join('\n'),
   );
+});
+
+// 실제 문장(`lib/bridge.mjs` 의 `resolveTarget` 이 던지는 것)으로 같은 갈래를
+// 한 번 더 못박는다 — 위 테스트가 합성 문장을 쓰므로, 사람이 실제로 보는
+// 바이트를 아무것도 재지 않게 되는 것을 막는다.
+test('아무것도 안 떠 있을 때의 실제 문장은 예전 출력과 바이트가 같다', () => {
+  const text = renderError({ code: 'bridge-off', message: 'no bridge is running' }, plain);
+  assert.equal(text.split('\n')[0], 'no bridge is running.');
+});
+
+/**
+ * `--bridge <pid>` 가 없는 pid 를 지목한 실패. 박아 넣은 문장은 여기서
+ * **거짓**이었다 — 다른 브릿지가 살아 있을 수 있고, 그게 `--bridge` 가
+ * 존재하는 유일한 이유다 — 그리고 이미 설치된 매니페스트를 다시 설치하라고
+ * 시켰다. 부재를 먼저 못박는 이유가 그것이다: `bridge install` 이 남아 있는
+ * 구현은 메시지만 앞에 붙여도 아래 어서션을 통과한다.
+ */
+test('지목한 pid 가 없으면 그 문장을 그대로 내고, 설치가 아니라 pid 목록을 가리킨다', () => {
+  const text = renderError(
+    { code: 'bridge-off', message: 'no live bridge with pid 999999' },
+    { color: false, bridgePid: 999999 },
+  );
+  assert.equal(text.includes('no bridge is running'), false);
+  assert.equal(text.includes('bridge install'), false);
+  assert.equal(text.includes('Enable'), false);
+  assert.equal(
+    text,
+    [
+      'no live bridge with pid 999999.',
+      '  headerlab bridge status   list the bridges that are live',
+      'Re-run with a pid from that list, or drop --bridge when only one is live.',
+    ].join('\n'),
+  );
+});
+
+// 갈래를 고르는 것은 메시지가 아니라 `bridgePid` 다. 문장을 다시 알아보는
+// 구현(`message.startsWith('no live bridge')`)은 이 두 어서션에서 갈린다:
+// 같은 메시지가 pid 없이 오면 설치 안내가 나와야 하고, 다른 메시지가 pid 와
+// 함께 오면 pid 안내가 나와야 한다.
+test('갈래는 메시지가 아니라 bridgePid 가 고른다', () => {
+  const noPid = renderError(
+    { code: 'bridge-off', message: 'no live bridge with pid 7' },
+    { color: false, bridgePid: null },
+  );
+  assert.equal(noPid.includes('bridge install --extension-id <id>'), true);
+
+  const withPid = renderError(
+    { code: 'bridge-off', message: 'no bridge is running' },
+    { color: false, bridgePid: 7 },
+  );
+  assert.equal(withPid.includes('bridge install'), false);
+  assert.equal(withPid.includes('list the bridges that are live'), true);
 });
 
 test('색이 켜지면 진짜 ESC 바이트(0x1b)를 낸다 — 대괄호 문자만으로는 안 속는다', () => {

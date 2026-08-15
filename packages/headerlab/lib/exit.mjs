@@ -67,6 +67,22 @@ export function exitFor(code) {
  * `ERROR_CODES` 가 계약이고, 그 목록에 없는 문자열이 `error.code` 로 나가면
  * 그것을 읽는 쪽은 분기할 것이 없다. 원래 메시지는 그대로 실려 나가므로
  * 어느 errno 였는지는 사람이 여전히 읽을 수 있다.
+ *
+ * **"모든 자리" 에는 예외가 둘 있고, 그 둘은 소켓이 아니라 명령 자신의
+ * 입력을 푸는 자리다.** `bin/headerlab.mjs` 의 `resolveStateCommand` 와
+ * `readValueSource` 를 감싸는 catch 는 `error.code ?? 'invalid-args'` 로
+ * 남는다. 접는 기본값이 다르기 때문이다: 코드가 없는 실패를 이 함수는
+ * `bridge-error`(4) 로 접는데, 그 두 자리는 소켓에 한 바이트도 나가기 전이라
+ * 4 는 일어난 적 없는 일을 말한다.
+ *
+ * 측정: 다섯 갈래 중 넷 — `resolveStateCommand` 의 세 wrap(`invalid-args`)과
+ * `readStdin` 의 TTY 가드(`usage`) — 은 표에 있는 코드를 달고 오므로 두 표현이
+ * 같은 값을 낸다. 다섯째인 `readValueSource` 의 읽기 실패만 코드 **없는**
+ * `Error` 를 던진다(ENOENT 를 새 `Error` 로 갈아 끼우며 errno 를 버린다):
+ * `headerlab rule add --value-file /없는/경로` 는 지금 `invalid-args`/exit 2
+ * 이고, 이 함수를 쓰면 `bridge-error`/exit 4 가 된다. 없는 파일을 두고
+ * "연결은 됐으나 교환이 실패했다" 고 말하는 것이므로, 갈라진 쪽은 문서였다.
+ * `test/headerlab.test.mjs` 가 그 exit 2 를 못박는다.
  */
 export function codeForThrown(error) {
   const code = error?.code;

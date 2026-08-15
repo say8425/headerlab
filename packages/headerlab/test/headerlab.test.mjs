@@ -113,6 +113,13 @@ test('--value-file 의 내용이 값이 된다', async () => {
   assert.equal(JSON.parse(stdout).error.code, 'bridge-off');
 });
 
+/**
+ * 이 두 줄이 `lib/exit.mjs` 의 docblock 이 이름 댄 예외를 못박는다.
+ * `readValueSource` 의 읽기 실패는 코드 **없는** `Error` 를 던지므로, 이
+ * catch 를 `codeForThrown(error)` 로 바꾸면 없는 파일이 `bridge-error`/exit 4
+ * 로 나간다 — 소켓에 한 바이트도 안 나갔는데 "연결은 됐으나 교환이 실패했다"
+ * 고 말하는 것이다. 코드와 종료 코드를 둘 다 재는 이유가 그것이다.
+ */
 test('--value-file 이 없는 파일이면 2 로 나간다', async () => {
   const { code, stdout } = await runCli([
     'rule',
@@ -754,6 +761,73 @@ test('맨손 --help 는 경고가 없다', async () => {
   assert.equal(code, 0);
   assert.equal(stderr, '');
   assert.equal(stdout.includes('USAGE'), true);
+});
+
+/**
+ * `findCommand` 는 앞머리 일치이므로 `['status','bogus']` 도 `status` 항목을
+ * 돌려준다 — 그래서 `warnIfUnknown` 이 거기서 멈추던 동안 `status bogus` 의
+ * `bogus` 는 어디에도 안 나왔고, 형제인 `site bogus` 는 경고했다. 도움말은
+ * 그대로 `status` 의 것이 나온다: 경고는 stderr 한 줄이고 도움말을 청한
+ * 것은 오류가 아니다.
+ */
+test('위치 인자를 받지 않는 명령 뒤의 맨 토큰에 stderr 한 줄이 남는다', async () => {
+  const { code, stdout, stderr } = await runCli(['status', 'bogus', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown status argument: bogus\n');
+  assert.equal(stdout.includes('headerlab status — '), true);
+});
+
+test('두 토큰짜리 명령 뒤에서도 마찬가지다', async () => {
+  const { code, stderr } = await runCli(['state', 'get', 'bogus', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, 'unknown state get argument: bogus\n');
+});
+
+/**
+ * 그리고 **여기가 이 고침의 위험한 쪽이다.** `entry.path.length <
+ * argv.length` 만으로 미확인 취급하면 아래 셋이 전부 경고를 받는다 —
+ * 측정: `site add example.com --help`(표가 선언한 위치 인자),
+ * `rule add --target request --help`(플래그와 그 값), `rule toggle 3f9a
+ * --help`. 부재를 먼저 재는 이유가 그것이고, stderr 가 **완전히** 비어야
+ * 한다는 것이 어서션이다.
+ */
+test('표가 인자를 선언한 명령과 플래그를 받은 명령은 조용하다', async () => {
+  for (const argv of [
+    ['site', 'add', 'example.com', '--help'],
+    ['rule', 'add', '--target', 'request', '--help'],
+    ['rule', 'toggle', '3f9a', '--help'],
+  ]) {
+    const { code, stderr } = await runCli(argv);
+    assert.equal(stderr, '');
+    assert.equal(code, 0);
+  }
+});
+
+/**
+ * `--bridge <pid>` 가 없는 pid 를 지목했을 때의 사람용 출력. 렌더 자체는
+ * `test/render.test.mjs` 가 재지만, `GLOBALS.bridgePid` → `planFail` →
+ * `renderError` 로 이어지는 배선은 프로세스를 띄우지 않으면 아무것도 안
+ * 지난다 — 옵션을 안 넘기는 `emitFail` 은 그 파일들의 테스트를 전부
+ * 통과한 채로 여기서만 빨개진다.
+ *
+ * 브릿지가 하나도 안 떠 있는 기계에서도 지목은 지목이다: 이 실행이 내는
+ * 문장은 "아무것도 안 떠 있다" 가 아니라 "그 pid 가 없다" 여야 한다.
+ */
+test('없는 pid 를 지목한 사람용 실패는 설치가 아니라 pid 목록을 가리킨다', async () => {
+  const { code, stdout, stderr } = await runCli(['status', '--bridge', '999999', '--human']);
+  assert.equal(code, 3);
+  assert.equal(stdout, '');
+  assert.equal(stderr.includes('no bridge is running'), false);
+  assert.equal(stderr.includes('bridge install'), false);
+  assert.equal(
+    stderr,
+    [
+      'no live bridge with pid 999999.',
+      '  headerlab bridge status   list the bridges that are live',
+      'Re-run with a pid from that list, or drop --bridge when only one is live.',
+      '',
+    ].join('\n'),
+  );
 });
 
 // --- 읽기 명령 넷: 종료 코드 표의 의도적 예외 하나 --------------------------

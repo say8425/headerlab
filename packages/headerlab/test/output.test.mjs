@@ -200,6 +200,41 @@ test('사람용 실패의 색은 넘겨받은 대로다 — stderr 판정이 std
   assert.deepEqual(plan, { stream: 'stderr', text: '\x1b[31mboom\x1b[0m\n' });
 });
 
+/**
+ * `bridgePid` 는 `argv` 와 같은 길로 들어와 `renderError` 까지 닿아야 한다.
+ * 안 넘기는 구현(옵션을 받기만 하고 `renderError` 에 빼먹는 것)은 두 계획이
+ * 바이트까지 같아지므로, 두 갈래를 나란히 놓고 **다름**을 어서션한다.
+ */
+test('planFail 이 bridgePid 를 사람용 렌더까지 넘긴다', () => {
+  const named = planFail(
+    { code: 'bridge-off', message: 'no live bridge with pid 7' },
+    { mode: 'human', color: false, argv: null, bridgePid: 7 },
+  );
+  const anonymous = planFail(
+    { code: 'bridge-off', message: 'no live bridge with pid 7' },
+    { mode: 'human', color: false, argv: null },
+  );
+  assert.equal(named.text.includes('bridge install'), false);
+  assert.equal(anonymous.text.includes('bridge install --extension-id <id>'), true);
+  assert.equal(named.text === anonymous.text, false);
+});
+
+test('기계용 봉투는 bridgePid 를 실어 나르지 않는다 — 호출의 사실이지 실패의 사실이 아니다', () => {
+  assert.deepEqual(
+    planFail(
+      { code: 'bridge-off', message: 'no live bridge with pid 7' },
+      { mode: 'json', color: false, argv: null, bridgePid: 7 },
+    ),
+    {
+      stream: 'stdout',
+      text: `${JSON.stringify({
+        ok: false,
+        error: { code: 'bridge-off', message: 'no live bridge with pid 7' },
+      })}\n`,
+    },
+  );
+});
+
 test('사람용 invalid-args 는 usage 줄을 메시지 아래 한 줄로 붙인다', () => {
   const plan = planFail(
     { code: 'invalid-args', message: 'rule toggle needs an id' },

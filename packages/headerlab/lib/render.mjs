@@ -238,18 +238,56 @@ export function renderResult(payload, { command, color }) {
   return renderWrite(payload, command);
 }
 
+/** `  <command>   <why>` 두 열. 폭은 이 블록 안에서 가장 긴 명령이 정한다. */
+function advice(rows) {
+  const width = Math.max(...rows.map(([command]) => command.length)) + 3;
+  return rows.map(([command, why]) => `  ${pad(command, width)}${why}`);
+}
+
 /**
  * `bridge-off` 만 여러 줄인 이유는 그것이 소켓을 쓰는 모든 명령이 착지하는
  * 가장 흔한 실패이면서, 그 다음에 칠 명령을 아무것도 알려주지 않았기
  * 때문이다 (clig Output §9). 기계용 봉투의 `error.message` 는 첫 문장
  * 그대로다 — 여러 줄 메시지는 파싱하는 쪽에 새 부담이다.
+ *
+ * **첫 줄은 `error.message` 다.** 한동안 이 갈래는 메시지를 통째로 버리고
+ * `no bridge is running.` 을 박아 넣었는데, `bridge-off` 는 모양이 둘이다
+ * (`lib/bridge.mjs` 의 `resolveTarget`): 아무것도 안 떠 있으면
+ * `no bridge is running`, `--bridge <pid>` 가 없는 pid 를 지목했으면
+ * `no live bridge with pid <n>`. 후자에서 박아 넣은 문장은 **다른 브릿지가
+ * 살아 있을 때 거짓**이고, 하필 그것이 `--bridge` 가 존재하는 유일한 상황이다.
+ * 같은 입력에 `--json` 은 진짜 메시지를 이미 내보내고 있었으니, 사람용만
+ * 거짓말을 하고 있었던 셈이다.
+ *
+ * 그 다음 줄들도 갈린다. 지목한 pid 가 없다는 것은 매니페스트가 없다는 뜻이
+ * 아니므로 — 브릿지가 하나라도 떠 있었다면 매니페스트는 이미 설치되어 있다 —
+ * `bridge install` 을 권하는 것은 이미 설치된 것을 다시 설치하라는 말이다.
+ * 그쪽이 필요한 것은 **살아 있는 pid 목록**이고, 그것을 내는 명령은
+ * `bridge status` 다.
+ *
+ * pid 를 지목했는지는 메시지 문자열이 아니라 `bridgePid` 로 안다 — 문장을
+ * 다시 알아보는 구현은 `lib/bridge.mjs` 의 표현을 여기에 한 번 더 적는
+ * 것이고, 그 둘이 갈라져도 아무것도 빨개지지 않는다. `argv` 가 usage 줄을
+ * 위해 이미 같은 길로 들어오고 있으며(`lib/output.mjs` 의 `planFail`),
+ * "사람이 `--bridge` 를 쳤는가" 도 같은 종류의 사실 — 실패의 속성이 아니라
+ * 호출의 속성 — 이다.
  */
-export function renderError(error, { color }) {
+export function renderError(error, { color, bridgePid = null }) {
   if (error.code === 'bridge-off') {
+    const head = paint(`${error.message}.`, COLORS.red, color);
+    if (bridgePid !== null) {
+      return [
+        head,
+        ...advice([['headerlab bridge status', 'list the bridges that are live']]),
+        'Re-run with a pid from that list, or drop --bridge when only one is live.',
+      ].join('\n');
+    }
     return [
-      paint('no bridge is running.', COLORS.red, color),
-      `  ${pad('headerlab bridge status', 47)}see what is installed`,
-      `  ${pad('headerlab bridge install --extension-id <id>', 47)}if the manifest is missing`,
+      head,
+      ...advice([
+        ['headerlab bridge status', 'see what is installed'],
+        ['headerlab bridge install --extension-id <id>', 'if the manifest is missing'],
+      ]),
       'Then open the HeaderLab popup and press Enable on the bridge row — the CLI',
       'cannot do that step.',
     ].join('\n');

@@ -68,7 +68,7 @@ export function planOk(payload, { mode, quiet, command, color }) {
  * 실패는 `--quiet` 에 지워지지 않는다 — "errors only" 는 에러를 남기라는
  * 뜻이지 없애라는 뜻이 아니다. 그래서 이 함수는 `quiet` 을 읽지 않는다.
  */
-export function planFail({ code, message }, { mode, color, argv = null }) {
+export function planFail({ code, message }, { mode, color, argv = null, bridgePid = null }) {
   if (mode === 'json') {
     // 기계용 모드에서 에러 객체는 진단이 아니라 주 출력이다 — `jq` 가
     // stdout 에서 받아야 기존 계약이 바이트 그대로 유지된다. 스트림
@@ -79,7 +79,11 @@ export function planFail({ code, message }, { mode, color, argv = null }) {
       text: `${JSON.stringify({ ok: false, error: { code, message } })}\n`,
     };
   }
-  const lines = [renderError({ code, message }, { color })];
+  // `bridgePid` 는 실패의 속성이 아니라 호출의 속성이라 봉투에는 안 들어가고
+  // (기계용 쪽은 위에서 이미 끝났다) 사람용 렌더에만 간다 — `argv` 가 usage
+  // 줄을 위해 여기까지 오는 것과 같은 이유다. `renderError` 의 docblock 이
+  // 왜 그것을 메시지에서 알아보면 안 되는지를 적어 두었다.
+  const lines = [renderError({ code, message }, { color, bridgePid })];
   const usage = usageFor(code, argv);
   if (usage !== null) lines.push(usage);
   return { stream: 'stderr', text: `${lines.join('\n')}\n` };

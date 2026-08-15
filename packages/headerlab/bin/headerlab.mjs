@@ -51,7 +51,12 @@ function emitOk(payload, command) {
 }
 
 function emitFail(code, message, argv = null) {
-  write(planFail({ code, message }, { mode: MODE, color: COLOR_ERR, argv }));
+  // `bridgePid` 는 `MODE`·`COLOR_ERR` 과 같은 자리에서 온다 — 실행 전체에
+  // 걸린 호출의 사실이지 이 실패의 사실이 아니다. 사람용 `bridge-off` 렌더
+  // 하나가 그것을 읽는다(`lib/render.mjs` 의 docblock 참조): pid 를 지목한
+  // 실패와 아무것도 안 떠 있는 실패는 다음에 칠 명령이 다르다.
+  const bridgePid = GLOBALS?.bridgePid ?? null;
+  write(planFail({ code, message }, { mode: MODE, color: COLOR_ERR, argv, bridgePid }));
   process.exitCode = exitFor(code);
 }
 
@@ -599,6 +604,32 @@ function warnUnknownSubcommand(argv) {
 }
 
 /**
+ * `findCommand` 는 **앞머리 일치**다 — `findCommand(['status','bogus'])` 는
+ * `status` 항목을 돌려준다. 그래서 `warnIfUnknown` 이 "표에 있으면 조용히"
+ * 로 끝나던 동안 `headerlab status bogus --help` 는 `bogus` 에 대해 아무
+ * 말도 없이 `status` 의 도움말을 냈고, 형제인 `headerlab site bogus --help`
+ * 는 경고했다 — 같은 오타에 두 명령이 다른 말을 하는 것이 이 파일이
+ * 되풀이해 고치는 결함이다.
+ *
+ * **토큰 수만으로는 못 가른다.** `entry.path.length < argv.length` 를 그대로
+ * 미확인 취급하면 멀쩡한 호출 셋이 함께 경고를 받는다 — 측정: `site add
+ * example.com --help`(위치 인자), `rule add --target request --help`(플래그와
+ * 그 값), `rule toggle 3f9a --help`. 그래서 두 가지를 더 본다: 표가 위치
+ * 인자를 선언한 명령(`entry.args`)은 남는 토큰이 그 인자이므로 조용하고,
+ * 남는 첫 토큰이 `-` 로 시작하면 그것은 서브커맨드가 아니라 플래그다
+ * (그 뒤는 파서가 판정한다 — 여기는 도움말 경로이지 파서가 아니다).
+ *
+ * 남는 것은 위치 인자를 받지 않는 명령 뒤에 붙은 맨 토큰뿐이고, 그때만
+ * 한 줄을 남긴다. 제안은 붙이지 않는다: `status` 아래에는 후보 집합이 없고,
+ * 그룹 아래 서브커맨드 오타는 `warnUnknownSubcommand` 가 이미 다룬다.
+ */
+function warnIfTrailing(entry, argv) {
+  const extra = argv[entry.path.length];
+  if (extra === undefined || entry.args !== undefined || extra.startsWith('-')) return;
+  process.stderr.write(`unknown ${pathKey(entry.path)} argument: ${extra}\n`);
+}
+
+/**
  * `headerlab teleport --help` 는 종료 0 으로 도움말을 낸다 — 도움말을
  * 청하는 것은 오류가 아니고, `headerlab teleport --help | less` 가 계속
  * 되어야 한다. 그래도 `teleport` 가 명령이 아니라는 사실 자체는 어디에도
@@ -617,7 +648,11 @@ function warnUnknownSubcommand(argv) {
  */
 function warnIfUnknown(argv) {
   if (argv.length === 0) return;
-  if (findCommand(argv) !== null) return;
+  const entry = findCommand(argv);
+  if (entry !== null) {
+    warnIfTrailing(entry, argv);
+    return;
+  }
   if (GROUPS.includes(argv[0])) {
     if (argv.length > 1) warnUnknownSubcommand(argv);
     return;
