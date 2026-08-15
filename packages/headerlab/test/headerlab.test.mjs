@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -301,4 +301,160 @@ test('bridge status finds what bridge install wrote to a non-default --user-data
   // Names which of the now-three reachable locations it looked in, rather
   // than leaving a bare `installed: true` for the reader to guess at.
   assert.equal(payload.manifestPath.startsWith(scratchProfile), true);
+});
+
+// --- help, version, and the machine-readable default ------------------------
+
+test('--help 가 도움말을 stdout 에 내고 0 으로 나간다', async () => {
+  const { code, stdout, stderr } = await runCli(['--help']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+  assert.equal(stdout.includes('https://github.com/say8425/headerlab/issues'), true);
+});
+
+test('-h 도 같다', async () => {
+  const { code, stdout } = await runCli(['-h']);
+  assert.equal(code, 0);
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+test('맨손 호출이 도움말이고 에러가 아니다', async () => {
+  const { code, stdout, stderr } = await runCli([]);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+test('help <cmd> 가 그 명령의 도움말을 낸다', async () => {
+  const { code, stdout } = await runCli(['help', 'rule', 'add']);
+  assert.equal(code, 0);
+  assert.equal(stdout.includes('--target'), true);
+  assert.equal(stdout.includes('--op'), true);
+});
+
+test('<cmd> --help 가 그 명령의 도움말을 낸다', async () => {
+  const { code, stdout } = await runCli(['bridge', 'install', '--help']);
+  assert.equal(code, 0);
+  assert.equal(stdout.includes('--extension-id'), true);
+});
+
+test('--version 이 package.json 의 버전을 낸다', async () => {
+  const { code, stdout } = await runCli(['--version']);
+  const expected = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+  ).version;
+  assert.equal(code, 0);
+  assert.equal(stdout.trim(), expected);
+});
+
+// 브리프 원문은 `sight` 를 썼으나, 이 패키지의 `suggest()` 로 재면 'sight' 와
+// 'site' 는 거리 3 이라 문턱 2 를 넘어 **아무것도 제안되지 않는다** —
+// test/suggest.test.mjs 가 Task 4 에서 같은 측정을 이미 기록했다. 테스트의
+// 의도("오타에 제안이 붙는다")에 실제로 맞는 오타로 바꾼다: 'sites' 는
+// 'site' 에서 한 글자 더한 것으로 거리 1 이다.
+//
+// 그리고 봉투를 파싱해서 본다. 브리프는 stdout 문자열에 대고
+// `includes('did you mean "site"?')` 를 쟀는데, 기계용 모드의 stdout 은
+// JSON 이라 그 따옴표가 `\"site\"` 로 이스케이프되어 있다 — 측정하면
+// 언제나 false 인, 구현이 옳아도 통과하지 못하는 어서션이다. 파싱하면
+// 부분 일치 대신 정확한 값을 쓸 수 있어 더 세기도 하다.
+test('오타에 제안이 붙고 2 로 나간다', async () => {
+  const { code, stdout, stderr } = await runCli(['sites', 'add', 'x']);
+  assert.equal(code, 2);
+  // 기계용 모드(파이프)이므로 봉투는 stdout 이다.
+  assert.deepEqual(JSON.parse(stdout), {
+    ok: false,
+    error: {
+      code: 'unknown-command',
+      message: 'unknown command: sites — did you mean "site"?',
+    },
+  });
+  assert.equal(stderr, '');
+});
+
+test('파이프로 부르면 기계용이고 봉투가 그대로다', async () => {
+  // `cleanEnv` 로 스크래치 소켓 디렉터리를 가리킨다. 이 어서션의 주어는
+  // "봉투의 모양" 이지 "이 개발 기계에 브릿지가 없다" 가 아닌데, 실제
+  // socketDir() 를 쓰면 후자가 조건이 되어 버린다 — 손으로 띄워 둔 브릿지
+  // 하나에 빨개지는 테스트는 이 파일이 위쪽에서 이미 피한 함정이다.
+  const { code, stdout } = await runCli(['site', 'add', 'example.com'], { env: cleanEnv });
+  assert.equal(code, 3);
+  const parsed = JSON.parse(stdout);
+  assert.deepEqual(parsed, {
+    ok: false,
+    error: { code: 'bridge-off', message: 'no bridge is running' },
+  });
+});
+
+// --- 도움말과 전역 플래그 오류의 순서 ---------------------------------------
+
+// 브리프는 `globals.help || rest.length === 0` 을 `globals.error` **앞에**
+// 두었다. 그러면 `headerlab --bridge` (pid 없음) 가 도움말을 내고 0 으로
+// 나가며 에러를 통째로 삼킨다 — 이 저장소가 금지하는 조용한 실패다.
+// 순서는 `--version` → 명시적 `--help` → `globals.error` → 맨손 도움말이다.
+test('pid 없는 --bridge 는 도움말이 아니라 실패다', async () => {
+  const { code, stdout, stderr } = await runCli(['--bridge']);
+  assert.equal(stdout.includes('USAGE'), false);
+  const parsed = JSON.parse(stdout);
+  assert.deepEqual(parsed, {
+    ok: false,
+    error: { code: 'usage', message: '--bridge needs a pid' },
+  });
+  assert.equal(code, 2);
+  assert.equal(stderr, '');
+});
+
+test('명시적 --help 는 잘못 친 전역 플래그를 이긴다', async () => {
+  const { code, stdout, stderr } = await runCli(['--help', '--bridge']);
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.equal(stdout.includes('USAGE'), true);
+});
+
+// --- 확장이 거부한 응답은 0 으로 나가지 않는다 ------------------------------
+
+test('확장이 거부하면 봉투가 그대로 나오고 종료 코드가 살아 있다', async (t) => {
+  // Task 3 이 넣은 `process.exitCode = exitFor(result.error?.code ...)` 이
+  // 재배선에서 빠지면 확장이 거부한 명령이 전부 0 으로 나간다. 봉투를
+  // 다시 만들지 않고 **그대로** 낸다는 것도 함께 못박는다 — 확장이 실은
+  // 필드가 조용히 사라지면 안 된다.
+  //
+  // `note` 가 이 픽스처에 있는 이유는 측정된 것이다: 처음에는 응답이
+  // `{ok,error}` 뿐이었고, 그 상태에서는 봉투를 **다시 만드는** 변이가
+  // 테스트를 그대로 통과했다 — 다시 만든 것과 그대로 낸 것이 바이트까지
+  // 같았기 때문이다. 재구성이 떨어뜨릴 필드가 하나라도 있어야 "그대로"
+  // 라는 주장이 반증 가능해진다. 봉투 구조(`{ok, error?, state?, changed?,
+  // note?}`)가 이미 허용하는 필드다.
+  const dir = socketDir();
+  ensureSocketDir(dir);
+  const pid = 100000 + Math.floor(Math.random() * 900000);
+  const socketPath = socketPathFor(dir, pid);
+  const registryPath = registryPathFor(dir, pid);
+  writeRegistryEntry(dir, pid, {
+    origin: 'chrome-extension://cli-refusal-test/',
+    startedAt: new Date().toISOString(),
+  });
+
+  const refusal = {
+    ok: false,
+    error: { code: 'unknown-rule', message: 'no rule with id 3f9a' },
+    note: 'nothing was written',
+  };
+  const server = await fakeHost(socketPath, () => refusal);
+  t.after(() => {
+    server.close();
+    for (const p of [socketPath, registryPath]) {
+      try {
+        unlinkSync(p);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+  });
+
+  const { code, stdout, stderr } = await runCli(['--bridge', String(pid), 'rule', 'rm', '3f9a']);
+  assert.equal(stderr, '');
+  assert.deepEqual(JSON.parse(stdout), refusal);
+  assert.equal(code, 1);
 });

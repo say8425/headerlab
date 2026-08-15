@@ -19,19 +19,62 @@ import {
 import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
+import { findCommand, GROUPS } from '../lib/commands.mjs';
+import { allPaths, commandHelp, topHelp, usageLine } from '../lib/help.mjs';
+import { renderError, renderResult } from '../lib/render.mjs';
+import { resolveColor, resolveMode } from '../lib/output.mjs';
+import { suggest } from '../lib/suggest.mjs';
 import { exitFor } from '../lib/exit.mjs';
 
-// Output is always one JSON object on stdout, success or failure — a human
-// prose default would get parsed by whatever calls this CLI, and the moment
-// that happens the prose is the API. Diagnostics never belong here; use
-// stderr if this file ever needs to say something to a human directly.
-function printResult(payload) {
-  process.stdout.write(`${JSON.stringify(payload)}\n`);
+// 모드는 한 번만 정하고 프로세스 수명 동안 유지한다. 명령마다 다시
+// 정하면 같은 실행 안에서 두 형식이 섞일 수 있고, 그건 파싱하는 쪽에
+// 최악이다.
+let MODE = 'json';
+let COLOR_OUT = false;
+let COLOR_ERR = false;
+let GLOBALS;
+
+function emitOk(payload, command) {
+  if (MODE === 'json') {
+    process.stdout.write(`${JSON.stringify(payload)}\n`);
+    return;
+  }
+  if (GLOBALS.quiet) return;
+  const text = renderResult(payload, { command, color: COLOR_OUT });
+  if (text.length > 0) process.stdout.write(`${text}\n`);
 }
 
-function fail(code, message) {
-  printResult({ ok: false, error: { code, message } });
+function emitFail(code, message, argv = null) {
+  if (MODE === 'json') {
+    // 기계용 모드에서 에러 객체는 진단이 아니라 주 출력이다 — `jq` 가
+    // stdout 에서 받아야 기존 계약이 바이트 그대로 유지된다. 스트림
+    // 선택을 형식 계약의 일부로 본다 (설계 §2.2, clig 로부터의 의도적 이탈).
+    process.stdout.write(`${JSON.stringify({ ok: false, error: { code, message } })}\n`);
+  } else {
+    const lines = [renderError({ code, message }, { color: COLOR_ERR })];
+    const usage = usageFor(code, argv);
+    if (usage !== null) lines.push(usage);
+    process.stderr.write(`${lines.join('\n')}\n`);
+  }
   process.exitCode = exitFor(code);
+}
+
+/**
+ * 설계 §5.3 — 틀리게 친 명령에는 그 명령의 usage 줄을 메시지 아래 한 줄로
+ * 붙인다. 줄은 표(`commands.mjs`)에서 뽑으므로 파서와 어긋날 수 없다.
+ *
+ * 표에 맞는 명령이 없으면 **아무것도 붙이지 않는다**. `headerlab site` 는
+ * `site add` 도 `site rm` 도 아니어서 여기서 고를 usage 가 없고, 하나를
+ * 골라 보여 주는 것은 사용자가 치려던 것을 지어내는 일이다.
+ */
+function usageFor(code, argv) {
+  if (code !== 'invalid-args' || argv === null) return null;
+  const entry = findCommand(argv);
+  return entry === null ? null : usageLine(entry);
+}
+
+function emitPlain(text) {
+  process.stdout.write(`${text}\n`);
 }
 
 /**
@@ -102,18 +145,18 @@ function readStdin() {
  * uninstalling and reporting on the native messaging host manifest is what
  * makes a socket possible in the first place, not something that needs one.
  */
-async function runBridgeCommand(command) {
+async function runBridgeCommand(command, commandPath) {
   const paths = defaultInstallPaths({
     userDataDir: command.userDataDir ?? null,
     browser: command.browser ?? 'chrome',
   });
 
   if (command.cmd === 'bridge.uninstall') {
-    printResult(await uninstallBridge(paths));
+    emitOk(await uninstallBridge(paths), commandPath);
     return;
   }
   if (command.cmd === 'bridge.status') {
-    printResult(await bridgeStatus(paths));
+    emitOk(await bridgeStatus(paths), commandPath);
     return;
   }
 
@@ -124,37 +167,74 @@ async function runBridgeCommand(command) {
 
   const result = await installBridge({ ...paths, extensionId });
   if (!result.ok) {
-    fail(result.error.code, result.error.message);
+    emitFail(result.error.code, result.error.message);
     return;
   }
-  printResult({
-    ...result,
-    // Reported, never assumed. A symlink, a trailing slash, or a differently
-    // spelled path to the same directory each yield a different id, and
-    // `allowed_origins` takes no wildcard — so a mismatch is a bridge that
-    // installs cleanly and never connects, with Chrome giving the same
-    // message it gives for a manifest that is not there at all.
-    ...(command.extensionId === null
-      ? {
-          note:
-            `computed from ${path.resolve(command.loadPath)} — check it against the id on ` +
-            'chrome://extensions before assuming this worked',
-        }
-      : {}),
-  });
+  emitOk(
+    {
+      ...result,
+      // Reported, never assumed. A symlink, a trailing slash, or a differently
+      // spelled path to the same directory each yield a different id, and
+      // `allowed_origins` takes no wildcard — so a mismatch is a bridge that
+      // installs cleanly and never connects, with Chrome giving the same
+      // message it gives for a manifest that is not there at all.
+      ...(command.extensionId === null
+        ? {
+            note:
+              `computed from ${path.resolve(command.loadPath)} — check it against the id on ` +
+              'chrome://extensions before assuming this worked',
+          }
+        : {}),
+    },
+    commandPath,
+  );
 }
 
 async function main() {
   const { globals, rest } = extractGlobals(process.argv.slice(2));
-  if (globals.error !== null) {
-    fail('usage', globals.error);
+  GLOBALS = globals;
+  MODE = resolveMode(globals, process);
+  COLOR_OUT = resolveColor(globals, process.env, process.stdout);
+  COLOR_ERR = resolveColor(globals, process.env, process.stderr);
+
+  // 도움말과 버전이 전역 플래그 오류보다 먼저다 — 단, **명시적으로 청한**
+  // 도움말만이다. 브리프는 맨손 호출(`rest.length === 0`)까지 이 앞에
+  // 두었는데, 그러면 `headerlab --bridge` (pid 없음) 가 도움말을 내고 0 으로
+  // 나가며 에러를 통째로 삼킨다. `--help` 를 친 사람에게는 도움말이 그가
+  // 청한 것이고, 치지 않은 사람에게는 삼켜진 에러다.
+  if (globals.version) {
+    emitPlain(readPackageVersion());
     return;
   }
+  if (globals.help) {
+    emitPlain(helpTextFor(rest));
+    return;
+  }
+  if (rest[0] === 'help') {
+    emitPlain(helpTextFor(rest.slice(1)));
+    return;
+  }
+  if (globals.error !== null) {
+    emitFail('usage', globals.error);
+    return;
+  }
+  if (rest.length === 0) {
+    emitPlain(topHelp());
+    return;
+  }
+
   const bridgePid = globals.bridgePid;
+
+  // 사람용 출력이 필요로 하는 명령 경로. `parsed.command.cmd` (`site.add`)
+  // 대신 표에서 뽑는 이유는 `render.mjs` 가 `['site','add']` 모양을 받기
+  // 때문이고, 파싱이 실패한 뒤에도 usage 줄을 붙이려면 argv 로부터 직접
+  // 찾을 수 있어야 하기 때문이다.
+  const entry = findCommand(rest);
+  const commandPath = entry === null ? [rest[0]] : entry.path;
 
   const parsed = parse(rest);
   if (!parsed.ok) {
-    fail(parsed.error.code, parsed.error.message);
+    emitFail(parsed.error.code, withSuggestion(parsed.error, rest), rest);
     return;
   }
 
@@ -163,7 +243,7 @@ async function main() {
     try {
       command = await resolveStateCommand(command);
     } catch (error) {
-      fail(error.code ?? 'invalid-args', error.message);
+      emitFail(error.code ?? 'invalid-args', error.message, rest);
       return;
     }
   }
@@ -173,7 +253,7 @@ async function main() {
   // resolveTarget would fail with `bridge-off` on exactly the machine the
   // command exists to fix.
   if (command.cmd.startsWith('bridge.')) {
-    await runBridgeCommand(command);
+    await runBridgeCommand(command, commandPath);
     return;
   }
 
@@ -181,17 +261,58 @@ async function main() {
   try {
     target = await resolveTarget(socketDir(), bridgePid);
   } catch (error) {
-    fail(error.code ?? 'bridge-off', error.message);
+    emitFail(error.code ?? 'bridge-off', error.message);
     return;
   }
 
   try {
     const result = await sendCommand(target.socketPath, command);
-    printResult(result);
-    if (result.ok === false) process.exitCode = exitFor(result.error?.code ?? 'bridge-error');
+    if (result.ok === false) {
+      emitRefusal(result);
+      return;
+    }
+    emitOk(result, commandPath);
   } catch (error) {
-    fail(error.code ?? 'bridge-error', error.message);
+    emitFail(error.code ?? 'bridge-error', error.message);
   }
+}
+
+/**
+ * 목적지가 거부한 응답. 기계용에서는 확장이 보낸 봉투를 **그대로** 낸다 —
+ * `{ok:false, error:{code,message}}` 를 여기서 다시 만들면 확장이 덧붙인
+ * 필드가 조용히 사라진다. 종료 코드는 그 코드에서 나온다: 이 한 줄이
+ * 빠지면 확장이 거부한 명령이 전부 0 으로 나간다 (Task 3 이 넣은 줄이다).
+ */
+function emitRefusal(result) {
+  const code = result.error?.code ?? 'bridge-error';
+  if (MODE === 'json') {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    process.exitCode = exitFor(code);
+    return;
+  }
+  emitFail(code, result.error?.message ?? 'the bridge refused the command');
+}
+
+function readPackageVersion() {
+  const url = new URL('../package.json', import.meta.url);
+  return JSON.parse(readFileSync(url, 'utf8')).version;
+}
+
+/** 인자가 없으면 최상위, 알려진 명령이면 그 명령, 모르면 최상위. */
+function helpTextFor(argv) {
+  if (argv.length === 0) return topHelp();
+  const entry = findCommand(argv);
+  return entry === null ? topHelp() : commandHelp(entry);
+}
+
+/**
+ * 오타 제안을 에러 메시지에 붙인다. 그룹 이름과 전체 경로 양쪽을
+ * 후보로 삼는다 — 사람은 `sites add` 도 치고 `site addd` 도 친다.
+ */
+function withSuggestion(error, argv) {
+  if (error.code !== 'unknown-command') return error.message;
+  const hint = suggest(argv[0] ?? '', GROUPS) ?? suggest(argv.join(' '), allPaths());
+  return hint === null ? error.message : `${error.message} — did you mean "${hint}"?`;
 }
 
 await main();
