@@ -92,6 +92,61 @@ test('rule add rejects an unknown --op', () => {
   assert.match(result.error.message, /--op/);
 });
 
+test('rule add --value-file 은 읽을 자리를 실어 보낸다', () => {
+  assert.deepEqual(
+    parse([
+      'rule',
+      'add',
+      '--target',
+      'request',
+      '--op',
+      'set',
+      '--name',
+      'A',
+      '--value-file',
+      'secret.txt',
+    ]),
+    {
+      ok: true,
+      command: {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'A',
+        value: { source: 'secret.txt' },
+      },
+    },
+  );
+});
+
+test('rule add 는 --value 와 --value-file 을 동시에 받지 않는다', () => {
+  assert.deepEqual(
+    parse([
+      'rule',
+      'add',
+      '--target',
+      'request',
+      '--op',
+      'set',
+      '--value',
+      'x',
+      '--value-file',
+      'p',
+    ]),
+    {
+      ok: false,
+      error: { code: 'invalid-args', message: 'rule add takes --value or --value-file, not both' },
+    },
+  );
+});
+
+test('rule add 는 --value 없이도 여전히 된다', () => {
+  assert.deepEqual(parse(['rule', 'add', '--target', 'request', '--op', 'remove']), {
+    ok: true,
+    command: { cmd: 'rule.add', target: 'request', operation: 'remove', name: '', value: '' },
+  });
+});
+
 test('rule rm', () => {
   assert.deepEqual(parse(['rule', 'rm', 'rule-1']), {
     ok: true,

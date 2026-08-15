@@ -147,6 +147,26 @@ async function resolveStateCommand(command) {
   return { ...command, state };
 }
 
+/**
+ * `--value-file` 을 읽는다. 이 플래그가 있는 이유는 측정된 노출이다:
+ * `--value 'Bearer TOPSECRET123'` 이 `ps -ax -o pid,command` 에 그대로
+ * 찍힌다. 헤더 값은 Authorization·Cookie·X-Api-Key 가 사는 곳이고,
+ * 숨은 트래커 때문에 존재하는 프로젝트가 사용자 토큰을 같은 머신의 모든
+ * 계정에 노출할 수는 없다 (clig Arguments §14).
+ *
+ * 끝의 개행 하나만 떼는 것은 `echo 'x' > f` 가 흔하기 때문이고, 그 이상
+ * 다듬지 않는 것은 헤더 값에 공백이 의미를 가질 수 있기 때문이다.
+ */
+function readValueFile(source) {
+  let raw;
+  try {
+    raw = readFileSync(source, 'utf8');
+  } catch (error) {
+    throw new Error(`could not read ${source}: ${error.message}`);
+  }
+  return raw.replace(/\n$/, '');
+}
+
 function readStdin() {
   // 측정된 결함: 가드가 없으면 실제 pty 에서 영원히 멈춘다. 5초 뒤에도
   // 실행 중이고 stdout·stderr 둘 다 0바이트라, 사용자는 뭘 기다리는지
@@ -269,6 +289,15 @@ async function main() {
       command = await resolveStateCommand(command);
     } catch (error) {
       emitFail(error.code ?? 'invalid-args', error.message);
+      return;
+    }
+  }
+
+  if (command.cmd === 'rule.add' && typeof command.value === 'object') {
+    try {
+      command = { ...command, value: readValueFile(command.value.source) };
+    } catch (error) {
+      emitFail('invalid-args', error.message);
       return;
     }
   }

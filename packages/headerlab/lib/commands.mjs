@@ -34,7 +34,16 @@ export const COMMANDS = [
       { name: '--target', arg: 'request|response', summary: 'which direction to modify' },
       { name: '--op', arg: 'set|append|remove', summary: 'what to do with the header' },
       { name: '--name', arg: '<header>', summary: 'the header name (default: empty)' },
-      { name: '--value', arg: '<value>', summary: 'the header value (default: empty)' },
+      {
+        name: '--value',
+        arg: '<value>',
+        summary: 'the header value — lands in ps output and shell history',
+      },
+      {
+        name: '--value-file',
+        arg: '<path>',
+        summary: 'read the value from a file — use this for secrets',
+      },
     ],
     examples: ['headerlab rule add --target request --op set --name X-Debug --value 1'],
   },

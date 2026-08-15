@@ -120,6 +120,7 @@ function parseRuleAdd(args) {
         op: { type: 'string' },
         name: { type: 'string' },
         value: { type: 'string' },
+        'value-file': { type: 'string' },
       },
       allowPositionals: false,
     }));
@@ -137,6 +138,17 @@ function parseRuleAdd(args) {
       `rule add needs --op ${RULE_OPERATIONS.join('|')}, got: ${values.op ?? '(missing)'}`,
     );
   }
+  // 둘 중 하나가 조용히 이기면, 비밀값을 파일에 두려던 사람이 왜
+  // argv 의 값이 나갔는지 알 길이 없다.
+  if (values.value !== undefined && values['value-file'] !== undefined) {
+    return invalidArgs('rule add takes --value or --value-file, not both');
+  }
+
+  // `{source}` 는 `state.set` 이 이미 쓰는 형태다 — 이 파일은 순수하므로
+  // 파일을 읽지 않고 *읽을 자리*를 실어 보내고, bin/headerlab.mjs 가
+  // 소켓 이전에 해소한다.
+  const value =
+    values['value-file'] === undefined ? (values.value ?? '') : { source: values['value-file'] };
 
   // `name` and `value` both default to '' rather than being required: a
   // nameless, valueless rule is a normal state in this repo (`newRule` in
@@ -147,7 +159,7 @@ function parseRuleAdd(args) {
     target: values.target,
     operation: values.op,
     name: values.name ?? '',
-    value: values.value ?? '',
+    value,
   });
 }
 

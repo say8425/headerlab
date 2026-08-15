@@ -87,6 +87,44 @@ test('state set on invalid JSON fails with invalid-args, naming the problem', as
   assert.match(result.error.message, /not valid JSON/);
 });
 
+// --- rule add --value-file ---------------------------------------------
+
+test('--value-file 의 내용이 값이 된다', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hl-'));
+  const file = path.join(dir, 'secret.txt');
+  writeFileSync(file, 'Bearer TOPSECRET\n');
+  const { code, stdout } = await runCli([
+    'rule',
+    'add',
+    '--target',
+    'request',
+    '--op',
+    'set',
+    '--name',
+    'Authorization',
+    '--value-file',
+    file,
+  ]);
+  // 브릿지가 없으므로 bridge-off 까지 갔다는 것이 파일이 읽혔다는 증거다.
+  assert.equal(code, 3);
+  assert.equal(JSON.parse(stdout).error.code, 'bridge-off');
+});
+
+test('--value-file 이 없는 파일이면 2 로 나간다', async () => {
+  const { code, stdout } = await runCli([
+    'rule',
+    'add',
+    '--target',
+    'request',
+    '--op',
+    'set',
+    '--value-file',
+    '/nope/nothing',
+  ]);
+  assert.equal(code, 2);
+  assert.equal(JSON.parse(stdout).error.code, 'invalid-args');
+});
+
 test('비대화형 state set 은 --force 를 요구한다', async () => {
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'hl-')), 'state.json');
   writeFileSync(file, JSON.stringify({ profiles: [] }));
