@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderError, renderResult } from '../lib/render.mjs';
+import { renderError, renderResult, usageFor } from '../lib/render.mjs';
 
 const plain = { color: false };
 
@@ -31,7 +31,12 @@ test('changed:false 는 아무것도 안 바뀌었다고 말한다', () => {
   const payload = {
     ok: true,
     changed: false,
-    state: { globalPause: false, profiles: [{ id: 'p1', enabled: true, filter: { domains: ['a.com'], allSites: false }, headers: [] }] },
+    state: {
+      globalPause: false,
+      profiles: [
+        { id: 'p1', enabled: true, filter: { domains: ['a.com'], allSites: false }, headers: [] },
+      ],
+    },
   };
   const text = renderResult(payload, { command: ['site', 'add'], ...plain });
   assert.equal(text, 'nothing changed — 1 site in scope: a.com');
@@ -41,7 +46,12 @@ test('all-sites 모드는 도메인 목록 대신 모드를 말한다', () => {
   const payload = {
     ok: true,
     changed: true,
-    state: { globalPause: false, profiles: [{ id: 'p1', enabled: true, filter: { domains: ['a.com'], allSites: true }, headers: [] }] },
+    state: {
+      globalPause: false,
+      profiles: [
+        { id: 'p1', enabled: true, filter: { domains: ['a.com'], allSites: true }, headers: [] },
+      ],
+    },
   };
   assert.equal(
     renderResult(payload, { command: ['site', 'all-sites'], ...plain }),
@@ -115,4 +125,55 @@ test('색이 켜지면 진짜 ESC 바이트(0x1b)를 낸다 — 대괄호 문자
   assert.equal(on, '\x1b[31mboom\x1b[0m');
   // 리터럴 대괄호로 시작하는 오탐(예: '[31m')을 잡기 위해 이스케이프 바이트를 직접 확인한다.
   assert.equal(on.charCodeAt(0), 0x1b);
+});
+
+// --- usageFor: 설계 §5.3 의 usage 줄 -----------------------------------------
+//
+// 이 함수는 `bin/headerlab.mjs` 안에 있었고, 그래서 어떤 테스트도 닿지
+// 못했다 — 사람용 분기는 stdout 이 TTY 일 때만 도는데 `node --test` 가
+// 띄우는 자식의 stdout 은 파이프다. 코드가 순수 `(code, argv) → string|null`
+// 인데도 프로세스 안에 갇혀 있었던 것이 결함이었다. 여기로 옮겼으니
+// 프로세스를 띄우지 않고 네 갈래를 전부 잰다.
+
+test('invalid-args 이고 표에 있는 명령이면 그 명령의 usage 줄을 낸다', () => {
+  assert.equal(usageFor('invalid-args', ['rule', 'toggle']), 'headerlab rule toggle <id>');
+});
+
+test('args 가 없는 명령이면 usage 줄도 인자 없이 끝난다', () => {
+  assert.equal(
+    usageFor('invalid-args', ['rule', 'add', '--target', 'bogus']),
+    'headerlab rule add',
+  );
+});
+
+// 부재를 먼저 못박는다. `headerlab site` 는 `site add` 도 `site rm` 도 아니어서
+// 고를 usage 가 없고, 하나를 골라 보여 주는 것은 사용자가 치려던 것을 지어내는
+// 일이다. 언제나 무언가를 붙이는 구현은 여기서만 빨개진다.
+test('표에 맞는 명령이 없으면 아무것도 붙이지 않는다', () => {
+  assert.equal(usageFor('invalid-args', ['site']), null);
+  assert.equal(usageFor('invalid-args', ['teleport', 'now']), null);
+  assert.equal(usageFor('invalid-args', []), null);
+});
+
+// 코드마다 붙이는 구현을 잡는다. argv 는 위 첫 테스트와 같아서 — 표에는
+// 분명히 있다 — 오직 코드만이 차이다.
+test('invalid-args 가 아니면 표에 있는 명령이어도 붙이지 않는다', () => {
+  assert.equal(usageFor('unknown-command', ['rule', 'toggle']), null);
+  assert.equal(usageFor('bridge-off', ['rule', 'toggle']), null);
+  assert.equal(usageFor('usage', ['rule', 'toggle']), null);
+});
+
+test('argv 가 없으면 null 이다 — 확장이 거부한 응답에는 argv 가 없다', () => {
+  assert.equal(usageFor('invalid-args', null), null);
+  assert.equal(usageFor('invalid-args', undefined), null);
+});
+
+// 가장 긴 일치. `site all-sites on` 이 `site` 로 잡히면 usage 줄이 다른
+// 명령의 것이 된다 — 표에 `site` 단독 항목이 없으니 그때는 null 이 나오고,
+// 이 어서션이 그 회귀를 잡는다.
+test('가장 긴 일치를 고른다', () => {
+  assert.equal(
+    usageFor('invalid-args', ['site', 'all-sites', 'maybe']),
+    'headerlab site all-sites on|off',
+  );
 });

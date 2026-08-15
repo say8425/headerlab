@@ -9,6 +9,9 @@
  * 보여줄 이유는 없었던 적이 없다.
  */
 
+import { findCommand } from './commands.mjs';
+import { usageLine } from './help.mjs';
+
 export const COLORS = {
   reset: '\x1b[0m',
   dim: '\x1b[2m',
@@ -115,4 +118,23 @@ export function renderError(error, { color }) {
     ].join('\n');
   }
   return paint(error.message, COLORS.red, color);
+}
+
+/**
+ * 설계 §5.3 — 틀리게 친 명령에는 그 명령의 usage 줄을 메시지 아래 한 줄로
+ * 붙인다. 줄은 표(`commands.mjs`)에서 뽑으므로 파서와 어긋날 수 없다.
+ *
+ * 표에 맞는 명령이 없으면 **아무것도 붙이지 않는다**. `headerlab site` 는
+ * `site add` 도 `site rm` 도 아니어서 여기서 고를 usage 가 없고, 하나를
+ * 골라 보여 주는 것은 사용자가 치려던 것을 지어내는 일이다.
+ *
+ * `bin/headerlab.mjs` 안에 있던 것을 옮겨 왔다. 순수한 `(code, argv) →
+ * string|null` 인데도 프로세스 안에 갇혀 있어서, 코드마다 붙이는 구현도
+ * 한 번도 안 붙이는 구현도 테스트 195 개를 전부 통과했다 — 이 저장소가
+ * 되풀이되는 실패 모드라고 이름 붙인 바로 그것이다.
+ */
+export function usageFor(code, argv) {
+  if (code !== 'invalid-args' || argv === null || argv === undefined) return null;
+  const entry = findCommand(argv);
+  return entry === null ? null : usageLine(entry);
 }

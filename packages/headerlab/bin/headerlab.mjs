@@ -20,9 +20,8 @@ import { socketDir } from '../lib/socket.mjs';
 import { MAX_OUTGOING } from '../lib/framing.mjs';
 import { unpackedExtensionId } from '../lib/manifest.mjs';
 import { findCommand, GROUPS } from '../lib/commands.mjs';
-import { allPaths, commandHelp, topHelp, usageLine } from '../lib/help.mjs';
-import { renderError, renderResult } from '../lib/render.mjs';
-import { resolveColor, resolveMode } from '../lib/output.mjs';
+import { allPaths, commandHelp, topHelp } from '../lib/help.mjs';
+import { planFail, planOk, resolveColor, resolveMode } from '../lib/output.mjs';
 import { suggest } from '../lib/suggest.mjs';
 import { exitFor } from '../lib/exit.mjs';
 
@@ -34,43 +33,25 @@ let COLOR_OUT = false;
 let COLOR_ERR = false;
 let GLOBALS;
 
+/**
+ * 무엇을 어느 스트림에 쓸지는 `lib/output.mjs` 가 정하고, 여기는 그 계획을
+ * 실행하기만 한다. 그 분리가 이 파일에 남아 있던 유일한 미검사 분기를
+ * 없앤다 — 사람용 출력은 stdout 이 TTY 여야 켜지는데 `node --test` 가
+ * 띄우는 자식의 stdout 은 파이프이고, Node 는 의존성 없이 pty 를 열 수
+ * 없어서 그 분기는 프로세스 밖에서만 검사할 수 있다.
+ */
+function write(plan) {
+  if (plan === null) return;
+  process[plan.stream].write(plan.text);
+}
+
 function emitOk(payload, command) {
-  if (MODE === 'json') {
-    process.stdout.write(`${JSON.stringify(payload)}\n`);
-    return;
-  }
-  if (GLOBALS.quiet) return;
-  const text = renderResult(payload, { command, color: COLOR_OUT });
-  if (text.length > 0) process.stdout.write(`${text}\n`);
+  write(planOk(payload, { mode: MODE, quiet: GLOBALS.quiet, command, color: COLOR_OUT }));
 }
 
 function emitFail(code, message, argv = null) {
-  if (MODE === 'json') {
-    // 기계용 모드에서 에러 객체는 진단이 아니라 주 출력이다 — `jq` 가
-    // stdout 에서 받아야 기존 계약이 바이트 그대로 유지된다. 스트림
-    // 선택을 형식 계약의 일부로 본다 (설계 §2.2, clig 로부터의 의도적 이탈).
-    process.stdout.write(`${JSON.stringify({ ok: false, error: { code, message } })}\n`);
-  } else {
-    const lines = [renderError({ code, message }, { color: COLOR_ERR })];
-    const usage = usageFor(code, argv);
-    if (usage !== null) lines.push(usage);
-    process.stderr.write(`${lines.join('\n')}\n`);
-  }
+  write(planFail({ code, message }, { mode: MODE, color: COLOR_ERR, argv }));
   process.exitCode = exitFor(code);
-}
-
-/**
- * 설계 §5.3 — 틀리게 친 명령에는 그 명령의 usage 줄을 메시지 아래 한 줄로
- * 붙인다. 줄은 표(`commands.mjs`)에서 뽑으므로 파서와 어긋날 수 없다.
- *
- * 표에 맞는 명령이 없으면 **아무것도 붙이지 않는다**. `headerlab site` 는
- * `site add` 도 `site rm` 도 아니어서 여기서 고를 usage 가 없고, 하나를
- * 골라 보여 주는 것은 사용자가 치려던 것을 지어내는 일이다.
- */
-function usageFor(code, argv) {
-  if (code !== 'invalid-args' || argv === null) return null;
-  const entry = findCommand(argv);
-  return entry === null ? null : usageLine(entry);
 }
 
 function emitPlain(text) {
