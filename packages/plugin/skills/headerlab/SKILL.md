@@ -45,7 +45,12 @@ something to the person you're working with, say it yourself.
 Every command that reaches the socket — `site`/`rule`/`pause`/`resume`/
 `state set`, and the reads `site ls`/`rule ls`/`state get` too — can fail with
 `{"ok":false,"error":{"code":"bridge-off",...}}`. That means no HeaderLab
-bridge is currently running — not that this attempt was unlucky.
+bridge is currently running — not that this attempt was unlucky. The host
+cannot be started from outside; there is nothing to wait for. Report
+`bridge-off` as "the bridge is not running" and stop, the same way you would
+report `MISSING-CLI` above. If more than one bridge is running, the error
+code is `multiple-bridges` instead, and its message lists each candidate's
+pid — rerun with `--bridge <pid>` naming one of them.
 
 **`headerlab status` is the one exception, and it is the command to reach for
 when you do not know what is going on.** It sends the same query, but a bridge
@@ -53,11 +58,7 @@ that is not there is a fact it reports rather than an error it raises: it
 answers from what is installed locally, sets `"live": false`, and exits 0. The
 exception stops there — a bridge that answered and refused, a `--bridge <pid>`
 that names nothing, or a timeout all come back as failures with their own exit
-codes, because translating those into "not running" would be a silent failure. The host cannot be started from outside; there is nothing to
-wait for. Report it as "the bridge is not running" and stop, the same way
-you would report `MISSING-CLI` above. If more than one bridge is running,
-the error code is `multiple-bridges` instead, and its message lists each
-candidate's pid — rerun with `--bridge <pid>` naming one of them.
+codes, because translating those into "not running" would be a silent failure.
 
 `bridge install|uninstall|status` cannot fail this way — never reaching the
 socket in the first place is the entire reason those three exist (see
