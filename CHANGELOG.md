@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/say8425/headerlab/compare/extension-v1.1.2...extension-v1.2.0) (2026-08-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* five changes to the CLI's contract.
+
+### Features
+
+* rework the CLI to follow clig.dev ([46514f9](https://github.com/say8425/headerlab/commit/46514f94f64e02865a89a242a0cf991b717d3c72))
+
+
+### Bug Fixes
+
+* stop a CLI breaking change from majoring the extension ([d6458d4](https://github.com/say8425/headerlab/commit/d6458d4ce96605f0007c1cd134556b35a0195c2e))
+
 ## [1.1.2](https://github.com/say8425/headerlab/compare/extension-v1.1.1...extension-v1.1.2) (2026-08-14)
 
 
