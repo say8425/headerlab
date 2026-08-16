@@ -894,12 +894,13 @@ describe('the bridge row', () => {
     );
   });
 
-  it('asks for the permission when Enable is clicked, and only then', async () => {
-    // The button is the user gesture. Nothing else in the popup may reach
-    // `permissions.request()` — the all-sites switch already had that removed
-    // for the same reason.
+  it('asks for the permission when the bridge switch is turned on, and only then', async () => {
+    // Switching this one on IS the request — a documented exception to the
+    // rule the all-sites switch established, argued at its call site in
+    // ScopeRail.tsx. What still holds is the "only then": nothing else in the
+    // popup may reach `permissions.request()`.
     vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
-    const request = vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue(true);
+    const request = vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({ ok: true });
     await seed(stateWith());
 
     render(<App />);
@@ -908,9 +909,54 @@ describe('the bridge row', () => {
     );
     expect(request).toHaveBeenCalledTimes(0);
 
-    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('button'));
+    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('switch'));
 
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts a declined request on the row instead of leaving it silently off', async () => {
+    // The defect: the request came back refused and the popup changed in no
+    // way at all, so the only reading available was that the click had done
+    // nothing. Absence before presence — the mark must not be there until the
+    // request has actually failed.
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
+    vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({
+      ok: false,
+      reason: 'declined',
+    });
+    await seed(stateWith());
+
+    render(<App />);
+    const row = () => screen.getByTestId('bridgestate');
+    await waitFor(() => expect(row().getAttribute('data-bridge')).toEqual('off'));
+    expect(row().getAttribute('data-request')).toBeNull();
+
+    await userEvent.click(within(row()).getByRole('switch'));
+
+    await waitFor(() => expect(row().getAttribute('data-request')).toEqual('declined'));
+  });
+
+  it("shows Chrome's message when the request could not be made at all", async () => {
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
+    vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({
+      ok: false,
+      reason: 'error',
+      message: 'user gesture required',
+    });
+    await seed(stateWith());
+
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('off'),
+    );
+
+    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('switch'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bridge-label').getAttribute('title')).toContain(
+        'user gesture required',
+      ),
+    );
   });
 });
 

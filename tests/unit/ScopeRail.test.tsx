@@ -50,6 +50,7 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     bridge: 'off',
     bridgeLastCommandAt: null,
     bridgeError: null,
+    bridgeRequestError: null,
     onEnableBridge: vi.fn(),
     onDisableBridge: vi.fn(),
     ...over,
@@ -801,13 +802,18 @@ describe('scope notes', () => {
 
 describe('the bridge row', () => {
   it.each([
-    ['off', 'Bridge off', 'Enable'],
-    ['idle', 'Bridge idle', 'Disable'],
-    ['live', 'Bridge live', 'Disable'],
-  ])('%s reads "%s" with a %s button', (mode, label, button) => {
+    ['off', 'Bridge off', false],
+    ['idle', 'Bridge idle', true],
+    ['live', 'Bridge live', true],
+  ])('%s reads "%s" with the switch %s', (mode, label, on) => {
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual(`${label}${button}`);
+    // The row's whole text is the label now: the control carries its state in
+    // `checked`, not in a word, exactly as the run-state and all-sites rows
+    // above it already do.
+    expect(row.textContent).toEqual(label);
+    const control = within(row).getByRole('switch');
+    expect(control.getAttribute('aria-checked')).toEqual(String(on));
   });
 
   it('says nothing and offers no control while the probe is still out', () => {
@@ -819,7 +825,7 @@ describe('the bridge row', () => {
     render(<ScopeRail {...props({ bridge: 'unknown' })} />);
     const row = screen.getByTestId('bridgestate');
     expect(row.textContent).toEqual('Bridge');
-    expect(row.querySelector('button')).toBeNull();
+    expect(within(row).queryByRole('switch')).toBeNull();
   });
 
   it('keeps the row the same height in every state', () => {
@@ -896,8 +902,10 @@ describe('the bridge row', () => {
       const row = screen.getByTestId('bridgestate');
       const label = screen.getByTestId('bridge-label');
       // What to run is on screen only via title — the row's own text is
-      // exactly assertion 4's "Bridge down", checked above.
-      expect(row.textContent).toEqual('Bridge downDisable');
+      // exactly assertion 4's "Bridge down", checked above. Since the control
+      // became a switch it contributes no text at all, so the row's text and
+      // the label's are now the same string.
+      expect(row.textContent).toEqual('Bridge down');
       const title = label.getAttribute('title');
       // The remedy leads; Chrome's string trails it — checked as two
       // separate assertions rather than one exact string so the order is
@@ -921,7 +929,7 @@ describe('the bridge row', () => {
   it('reads plain "Bridge idle" with no title when idle and not (yet) an error', () => {
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
     const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual('Bridge idleDisable');
+    expect(row.textContent).toEqual('Bridge idle');
     expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
     expect(row.querySelector('[aria-hidden="true"]')!.className).not.toContain('bg-pending');
   });
@@ -941,10 +949,60 @@ describe('the bridge row', () => {
       const { unmount } = render(
         <ScopeRail {...props({ bridge, onEnableBridge, onDisableBridge })} />,
       );
-      screen.getByTestId('bridgestate').querySelector('button')!.click();
+      within(screen.getByTestId('bridgestate')).getByRole('switch').click();
       unmount();
     }
     expect(onEnableBridge).toHaveBeenCalledTimes(1);
     expect(onDisableBridge).toHaveBeenCalledTimes(2);
+  });
+
+  it('says on the row itself when a request was declined, rather than going quiet', () => {
+    // The defect this replaces: the request came back refused, the row went on
+    // reading "Bridge off", and nothing anywhere said a request had even been
+    // made. Absence asserted before presence, so an "always marked"
+    // implementation cannot pass.
+    const { unmount } = render(<ScopeRail {...props({ bridge: 'off' })} />);
+    expect(screen.getByTestId('bridgestate').getAttribute('data-request')).toBeNull();
+    unmount();
+
+    render(<ScopeRail {...props({ bridge: 'off', bridgeRequestError: { reason: 'declined' } })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.getAttribute('data-request')).toEqual('declined');
+    expect(within(row).getByRole('switch').getAttribute('aria-checked')).toEqual('false');
+  });
+
+  it("carries Chrome's own message when the request could not be made", () => {
+    render(
+      <ScopeRail
+        {...props({
+          bridge: 'off',
+          bridgeRequestError: { reason: 'error', message: 'user gesture required' },
+        })}
+      />,
+    );
+    const row = screen.getByTestId('bridgestate');
+    expect(row.getAttribute('data-request')).toEqual('error');
+    // The message has to be readable, not merely stored — this is the whole
+    // point of keeping it out of the catch.
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toContain(
+      'user gesture required',
+    );
+  });
+
+  it('does not change the row while reporting a failed request', () => {
+    // A control appearing must not resize what holds it (CLAUDE.md,
+    // Interface), and this rail has zero slack — so the report rides the
+    // existing row's colour and title rather than adding anything to it.
+    const box = (over: Parameters<typeof props>[0]) => {
+      const { unmount } = render(<ScopeRail {...props(over)} />);
+      const row = screen.getByTestId('bridgestate');
+      const shape = `${row.className}|${row.childElementCount}`;
+      unmount();
+      return shape;
+    };
+
+    expect(box({ bridge: 'off', bridgeRequestError: { reason: 'declined' } })).toEqual(
+      box({ bridge: 'off' }),
+    );
   });
 });

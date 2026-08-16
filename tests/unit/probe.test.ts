@@ -157,15 +157,37 @@ describe('the nativeMessaging permission', () => {
       return true;
     }) as never);
 
-    await expect(requestNativeMessaging()).resolves.toBe(true);
+    await expect(requestNativeMessaging()).resolves.toEqual({ ok: true });
     // No `origins` key at all. Asking for a host alongside it would smuggle a
     // host grant into a dialog the user reads as being about the bridge.
     expect(asked).toEqual([{ permissions: ['nativeMessaging'] }]);
   });
 
-  it('reports a declined request as false rather than throwing', async () => {
+  it('names a declined request rather than answering a bare false', async () => {
+    // `false` conflated two outcomes the screen has to word differently: the
+    // user read the dialog and said no, and the call never got that far. The
+    // popup can only offer the right remedy if it can tell them apart.
     vi.spyOn(perms(), 'request').mockImplementation((async () => false) as never);
-    await expect(requestNativeMessaging()).resolves.toBe(false);
+    await expect(requestNativeMessaging()).resolves.toEqual({
+      ok: false,
+      reason: 'declined',
+    });
+  });
+
+  it("keeps the thrown request's message instead of destroying it", async () => {
+    // This is the silent failure itself. The catch used to return `false`, so
+    // Chrome's own account of why the request could not be made — the only
+    // account that exists — was discarded inside this function and the popup
+    // simply went on reading "Bridge off" with nothing to explain it.
+    vi.spyOn(perms(), 'request').mockImplementation((() => {
+      throw new Error('user gesture required');
+    }) as never);
+
+    await expect(requestNativeMessaging()).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'user gesture required',
+    });
   });
 
   it('removes exactly that permission', async () => {

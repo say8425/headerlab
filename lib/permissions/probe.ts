@@ -127,19 +127,44 @@ export async function probeNativeMessaging(): Promise<boolean> {
 }
 
 /**
+ * The three ways asking for the bridge permission can end.
+ *
+ * A bare boolean collapsed the last two, and that collapse was the defect:
+ * "you declined" and "the request could not be made" need different words on
+ * screen, and only one of them is worth offering a retry for.
+ */
+export type BridgeRequestResult =
+  | { ok: true }
+  | { ok: false; reason: 'declined' }
+  | { ok: false; reason: 'error'; message: string };
+
+/**
  * Asks for the bridge permission. Must be called from a user gesture — the
- * popup's Enable button click is that gesture, and it is the only caller.
+ * popup's bridge switch is that gesture, and it is the only caller.
  *
  * Nothing else rides along in the request. The consent dialog Chrome draws is
  * the user's only view of what is being asked for, so bundling a host pattern
- * into the same call would put a grant they did not read behind a button
- * labelled Enable.
+ * into the same call would put a grant they did not read behind a control
+ * labelled as the bridge's.
+ *
+ * **The catch reports the message rather than swallowing it.** It used to
+ * return `false`, which is the same answer a declined dialog gives — so a
+ * request that never reached a dialog at all was indistinguishable from one
+ * the user read and refused, and Chrome's own account of why (the only
+ * account there is) died here. The popup then went on reading "Bridge off"
+ * with nothing anywhere saying why, which is precisely the silent failure
+ * this repository exists to rule out.
  */
-export async function requestNativeMessaging(): Promise<boolean> {
+export async function requestNativeMessaging(): Promise<BridgeRequestResult> {
   try {
-    return await browser.permissions.request({ permissions: [NATIVE_MESSAGING] });
-  } catch {
-    return false;
+    const granted = await browser.permissions.request({ permissions: [NATIVE_MESSAGING] });
+    return granted ? { ok: true } : { ok: false, reason: 'declined' };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

@@ -75,6 +75,17 @@ export interface ScopeRailProps {
   bridgeLastCommandAt: string | null;
   /** Chrome's own message from the last failed connect, or null. */
   bridgeError: string | null;
+  /**
+   * Why the last permission *request* did not result in a grant, or null if
+   * none has failed since the row was last satisfied.
+   *
+   * Distinct from `bridgeError`, which is a failed *connect* — a request that
+   * never produced a permission and a permission that produced no port are
+   * different states with different remedies, and collapsing them is what
+   * left this row silent. `declined` carries no message because there is
+   * nothing to report beyond the answer itself.
+   */
+  bridgeRequestError: { reason: 'declined' } | { reason: 'error'; message: string } | null;
   onEnableBridge: () => void;
   onDisableBridge: () => void;
 }
@@ -95,16 +106,8 @@ const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
  */
 const NOTE_CLASS =
   'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
-/** The two switches in the rail are one control in two places. */
+/** The three switches in the rail are one control in three places. */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
-
-/**
- * Disable is not a request — it hands a permission back — so it does not
- * borrow the amber Grant palette. Enable does: it opens Chrome's consent
- * dialog, which is exactly what GRANT_BUTTON_CLASS already means everywhere
- * else on this screen.
- */
-const BRIDGE_OFF_BUTTON_CLASS = 'h-5 rounded-[4px]';
 
 const BRIDGE_LABEL = {
   unknown: 'Bridge',
@@ -160,6 +163,7 @@ export function ScopeRail({
   bridge,
   bridgeLastCommandAt,
   bridgeError,
+  bridgeRequestError,
   onEnableBridge,
   onDisableBridge,
 }: ScopeRailProps) {
@@ -349,14 +353,28 @@ export function ScopeRail({
 
             Shaped exactly like the run state above it because it is the same
             kind of fact: a thing that is either happening or not, with one
-            control. The control is a button and not a switch for the reason
-            the all-sites switch stopped calling `permissions.request()` — a
-            consent dialog must follow a button that asks for consent, never a
-            control that merely moved. */}
+            control — and now with the same control, a switch, measured at the
+            identical 18.39px inside an unchanged 20px row.
+
+            **This switch does call `permissions.request()`, and that is a
+            deliberate exception to the rule the all-sites switch established.**
+            That rule — a consent dialog follows a button that asks for
+            consent, never a control that merely moved — was written about
+            `<all_urls>`, the largest grant this extension can make, where the
+            switch had somewhere else to put the user's intent: `filter.
+            allSites` stores the mode, so the switch can set it and leave a
+            Grant button to do the asking. The bridge has no such field.
+            Holding the permission *is* the state, so a switch here either
+            asks or is decorative, and a decorative switch that needs a second
+            control beside it to mean anything is worse than the button it
+            replaced. The narrower grant and the row's single purpose are what
+            make the exception affordable; do not read it as licence to let
+            the all-sites switch prompt again. */}
         <div
           className="mt-1 flex h-5 items-center gap-[7px]"
           data-testid="bridgestate"
           data-bridge={bridge}
+          {...(bridgeRequestError === null ? {} : { 'data-request': bridgeRequestError.reason })}
         >
           {/* Colour only when a port is actually open, plus the pending
               (amber) borrow below for `bridgeUnreachable` — incomplete
@@ -370,7 +388,7 @@ export function ScopeRail({
                 ? 'bg-live'
                 : bridge === 'unknown'
                   ? 'bg-transparent'
-                  : bridgeUnreachable
+                  : bridgeUnreachable || bridgeRequestError !== null
                     ? 'bg-pending'
                     : 'bg-muted-foreground'
             }`}
@@ -403,37 +421,36 @@ export function ScopeRail({
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
             data-testid="bridge-label"
-            {...(bridgeUnreachable
-              ? { title: `Run headerlab bridge install. ${bridgeError}` }
-              : bridgeLastCommandAt === null
-                ? {}
-                : {
-                    title: `Last change through the bridge: ${new Date(
-                      bridgeLastCommandAt,
-                    ).toLocaleString()}`,
-                  })}
+            {...(bridgeRequestError !== null
+              ? {
+                  // First, because it is the most recent thing the user did
+                  // and the only one they caused. A stale connect error must
+                  // not answer for a request they just watched fail.
+                  title:
+                    bridgeRequestError.reason === 'declined'
+                      ? 'Chrome’s permission request was declined, so the bridge cannot start. Switch it on again to ask once more.'
+                      : `The permission could not be requested: ${bridgeRequestError.message}`,
+                }
+              : bridgeUnreachable
+                ? { title: `Run headerlab bridge install. ${bridgeError}` }
+                : bridgeLastCommandAt === null
+                  ? {}
+                  : {
+                      title: `Last change through the bridge: ${new Date(
+                        bridgeLastCommandAt,
+                      ).toLocaleString()}`,
+                    })}
           >
             {bridgeUnreachable ? 'Bridge down' : BRIDGE_LABEL[bridge]}
           </span>
           <span className="flex-1" />
-          {bridge === 'unknown' ? null : bridge === 'off' ? (
-            <Button
-              size="xs"
-              variant="secondary"
-              className={GRANT_BUTTON_CLASS}
-              onClick={onEnableBridge}
-            >
-              Enable
-            </Button>
-          ) : (
-            <Button
-              size="xs"
-              variant="secondary"
-              className={BRIDGE_OFF_BUTTON_CLASS}
-              onClick={onDisableBridge}
-            >
-              Disable
-            </Button>
+          {bridge === 'unknown' ? null : (
+            <Switch
+              aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
+              checked={bridge !== 'off'}
+              onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
+              className={SWITCH_CLASS}
+            />
           )}
         </div>
       </div>
