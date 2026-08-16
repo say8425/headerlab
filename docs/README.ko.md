@@ -7,9 +7,6 @@ HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사
 
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
-[![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?style=flat&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](#라이선스)
 
 ModHeader 를 대체합니다. ModHeader 는 2026년 7월 숨겨진 트래커가 발견되어 Chrome 웹
 스토어에서 내려갔습니다. 이것이 이 프로젝트가 존재하는 이유 전부이고, 아래 신뢰
@@ -140,182 +137,13 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-터미널에서는 사람이 읽을 출력을, 파이프로 넘기거나 `--json` 을 주면 성공이든 실패든
-JSON 객체 하나를 찍습니다. `--human` 은 `--json` 의 반대입니다: 파이프로 넘겨도 사람이
-읽을 형태를 강제합니다. 기계가 아니라 사람이 읽을 로그를 남길 때 쓰는 것입니다. 둘을
-함께 주는 것은 우선순위 문제가 아니라 모순이므로, CLI 는 아무것도 하지 않고 거부하며
-2 로 끝냅니다. 종료 코드가 실패의 종류를 이름 짓습니다:
+브리지는 사람이 팝업에서 **Enable** 을 누르기 전까지 꺼져 있고, CLI 는 사이트 접근 권한을
+줄 수도 브리지를 켤 수도 없습니다 — Chrome 이 둘 다 사용자 제스처에서만 받기 때문입니다.
+기기 밖으로 나가는 것은 없습니다: CLI·호스트·확장은 사용자별 디렉터리의 유닉스 도메인
+소켓에서 만나며, 네트워크 소켓은 쓰지 않습니다.
 
-| 종료 코드 | 뜻 |
-|---|---|
-| `0` | 성공 |
-| `2` | 당신의 입력 — CLI 가 스스로 거부했고 아무것도 기계 밖으로 나가지 않았습니다 |
-| `3` | 말을 걸 브리지가 없습니다 |
-| `4` | 연결은 됐으나 교환이 실패했습니다 |
-| `1` | 확장이 요청을 거부했습니다 |
-
-```
-CLI (headerlab)                      Native host              Extension (SW)
-node, zero deps                       node, zero deps          lib/bridge/
-   │                                      │                        │
-   │  unix socket                         │  stdio                 │
-   │  <per-user tmp>/headerlab/…sock      │  (4-byte length + JSON)│
-   └──────── one JSON line ──────────────►├───────────────────────►│
-            request/response              │                    apply()
-   ◄──────────────────────────────────────┤◄───────────────────────┤
-                                          │                   local:state
-                                          │                        ▼
-                                     Chrome launches         reconcile()
-                                     and kills it        (existing single loop)
-```
-
-**이 다이어그램이 나르려는 단 하나의 사실은 방향입니다: 호스트는 확장에게 먼저 말을 걸 수
-없습니다.** Chromium 에 네이티브가 먼저 연결하는 경로가 있기는 하지만 기본으로 꺼진 플래그
-뒤에 있어서, 설계는 확장을 유일한 개시자로 취급합니다. 확장이 포트를 열면 그 부수효과로
-Chrome 이 호스트 프로세스를 띄우고, 호스트가 유닉스 소켓을 열고, 거기에 붙는 것이 CLI 입니다
-— 반대 방향은 없습니다. 쓰기는 JSON 한 줄로 들어와 stdio 위에서 프레이밍되어 확장으로
-건너가고, `local:state` 에 적용되어, 다른 모든 트리거가 이미 모여드는 그 `reconcile()` 이
-집어갑니다: **새 트리거이지 새 writer 가 아닙니다.**
-
-### 명령
-
-넷은 읽기만 하고 아무것도 바꾸지 않습니다: `status`, `site ls`, `rule ls`, `state get`.
-질의 하나를 보내고 팝업이 그리는 것과 **같은 순수 함수**로 답하므로, CLI 가 말하는 것과
-레일이 보여주는 것이 갈라질 길이 없습니다.
-
-```bash
-headerlab status
-headerlab state get --json | jq .state | headerlab state set - --force
-```
-
-`status` 는 브리지가 없다는 것을 에러가 아니라 사실로 다루는 유일한 명령입니다 — 로컬에
-설치된 것만으로 답하고 `live: false` 라고 말한 뒤 exit 0 으로 나갑니다. 커밋이 없는
-저장소에서 `git status` 가 동작하는 방식과 같습니다. 나머지 셋은 3 으로 나갑니다.
-
-아홉 개가 쓰기로서 브리지 소켓을 지납니다: 룰 셋의 범위를 정하는 `site add|rm` 과
-`site all-sites on|off`, 헤더 룰을 편집하는 `rule add|rm|toggle`, 전체를 멈추고 다시
-켜는 `pause`/`resume`, 그리고 저장된 상태를 통째로 갈아끼우는 `state set <file|->` —
-마지막 것은 stdin 이 터미널이 아닐 때 `--force` 를 요구합니다. 되돌릴 수 없는
-덮어쓰기이기 때문입니다.
-
-나머지 셋은 그 소켓을 아예 건드리지 않습니다 — 네이티브 메시징 호스트 매니페스트와 Chrome
-이 실행하는 런처 스크립트를 관리하며, 애초에 소켓을 가능하게 만드는 것이 그것입니다:
-`bridge install`, `bridge uninstall`, `bridge status`. 마지막 것은 런처가 가리키는 파일이
-사라졌을 때 `entryMissing` 을 보고합니다 — `npm uninstall -g headerlab`, 업그레이드,
-또는 전역 prefix 를 옮기는 nvm 전환의 증상입니다. `bridge install` 을 다시 돌리면 고쳐집니다.
-
-플래그와 오류 코드까지의 전체 레퍼런스는
-[`packages/plugin/skills/headerlab/SKILL.md`](../packages/plugin/skills/headerlab/SKILL.md)
-에 있습니다.
-
-### 오해하면 안 되는 다섯 가지
-
-제품 자신의 주장입니다. 여기서 틀리는 것은 이 절을 아예 빼는 것보다 나쁩니다.
-
-- **사람이 켜기 전까지 브리지는 꺼져 있습니다.** `nativeMessaging` 을 선택적 권한으로 타고,
-  팝업의 버튼에서 요청되며, Chrome 자신의 동의 대화상자 뒤에 있습니다 — 설치 시점의
-  `permissions` 목록은 바뀌지 않습니다. 추정이 아니라 측정입니다:
-  [`docs/research/2026-08-11-native-messaging-spike.md`](research/2026-08-11-native-messaging-spike.md)
-  가 동의 대화상자가 실제로 뜨는 것과, 두 번째 연결에서는 대화상자 없이 권한이 유지되는 것을
-  기록합니다.
-- **CLI 는 사이트 권한을 줄 수 없습니다.** `site add` 와 `site all-sites on` 은 룰이 무엇에
-  *범위 지정*되는지만 바꿉니다 — 그 행은 사람이 **Grant** 를 누를 때까지 손으로 추가한
-  사이트와 똑같이 대기 상태로 남습니다. Chrome 이 권한 부여에 사용자 제스처를 요구하고,
-  그 제약을 우회하지 않고 지킵니다.
-- **CLI 는 브리지도 켤 수 없습니다.** `chrome.permissions.request()` 는 해결되려면 사용자
-  제스처를 요구합니다. `headerlab bridge enable` 은 없고, 앞으로도 동작하는 형태로는 생기지
-  않습니다: 아무도 **Enable** 을 누르지 않은 브리지 옆의 `bridge install` 은 연결되지 않을
-  파일을 쓸 뿐입니다.
-- **기기 밖으로 나가는 것은 없습니다.** CLI·호스트·확장은 권한이 제한된 사용자별 디렉터리의
-  유닉스 도메인 소켓으로만 이야기하며, 네트워크 소켓은 쓰지 않습니다. **`$TMPDIR` 이
-  아니고**, 그건 의도입니다: `socketDir()` 은 각 프로세스가 물려받은 `$TMPDIR` 을 읽는 대신
-  OS 에 묻습니다(`getconf DARWIN_USER_TEMP_DIR`, 절대 경로로). 호스트는 Chrome 의 환경을,
-  CLI 는 터미널의 환경을 물려받아서, 두 사본이 어긋나도 그것을 드러낼 실패가 없기
-  때문입니다. 이를 덮어쓰는 변수가 하나 있고(`HEADERLAB_SOCKET_DIR`), 그것은 호출부가
-  각자가 아니라 함수 *안에서* 한 번 읽힙니다 — 같은 이유로요.
-  `tests/unit/outbound.test.ts` 가 `packages/headerlab/` 아래 모든 `.mjs` 에서 바깥으로
-  나가는 프리미티브 — `fetch`, `WebSocket`, `node:https`, `.listen(<포트번호>)` 호출 — 를
-  금지하며, 자기 독블록이 못 보는 것을 스스로 밝힙니다: 포트 검사는 소스의 리터럴 숫자에
-  매칭되므로 `server.listen(8080)` 은 잡히고 `server.listen(tcpPort)` 는 안 잡힙니다.
-  암묵에 맡기지 않고 적어 둔 것은, 보안 보증을 과장하는 것이 이 저장소가 가장 하기 싫은
-  일이기 때문입니다.
-- **이 빌드는 regex 필터를 거절합니다.** `state set` 은 페이로드를 검증하지만, 팝업에는
-  regex 편집기가 없고 여기서 `chrome.declarativeNetRequest.isRegexSupported()` 를 부르는
-  곳도 없습니다 — 패턴이 유효한 RE2 인지에 대한 유일한 권위입니다. 그러니
-  `filter.mode: 'regex'` 룰은 보이지 않게 적용되어, 어떤 화면도 책임 있는 패턴을 보여줄 수
-  없는 채로 헤더가 바뀔 것입니다. `lib/bridge/port.ts` 가 그런 페이로드를 오류 코드
-  `unsupported` 로 곧바로 거절합니다 — 함께 갈 regex 편집기가 생길 때까지
-  ([#33](https://github.com/say8425/headerlab/issues/33)).
-
-### 켜는 법
-
-1. 팝업의 브리지 행에서 **Enable** 을 누릅니다 — 그전까지는 **Bridge off** 로 읽힙니다.
-   이것이 Chrome 자신의 동의 대화상자를 통해 `nativeMessaging` 권한을 요청합니다.
-2. `chrome://extensions` 에서 id 를 복사해 설치 명령을 실행합니다:
-
-   ```bash
-   headerlab bridge install --extension-id <id>
-   ```
-
-3. 팝업이 **Bridge live** 를 읽습니다.
-
-`--extension-id` 는 CLI 자신의 README 도 앞세우는 지시입니다. 언제나 적용되는 쪽이기
-때문입니다 — npm 으로 CLI 를 설치한 사람에게는 가리킬 확장 디렉터리가 없습니다.
-`--load-path <dir>` 는 로컬 압축해제 빌드로 작업 중이라 경로가 이미 손에 있을 때의
-대안인데, 편의만큼이나 함정입니다: 심링크, 끝의 슬래시, 또는 같은 디렉터리를 다르게 쓴 경로가
-각각 다른 id 로 해시되고, 어긋난 매니페스트는 깨끗하게 설치된 뒤 그냥 연결되지 않습니다.
-
-어느 쪽이든 설치기는 자기가 쓴 id 를 그대로 되돌려줍니다. CLI 안의 어떤 것도 그것을 Chrome
-이 실제로 로드한 것과 대조할 수 없기 때문입니다. 되돌려받은 id 를 `chrome://extensions` 와
-비교하는 것이 존재하는 유일한 검사이고, `tests/e2e/bridge.spec.ts` 가 실행 중인 브라우저를
-상대로 정확히 그것을 합니다.
-
-**패키징.** `packages/headerlab` 은 `headerlab` 명령**과** Chrome 이 띄우는 호스트를 둘이
-아니라 하나의 패키지로 배포합니다. `bridge install` 은 호스트의 진입 파일을 절대 경로로
-이름 짓는 런처를 쓰는데, 호스트 없이 발행된 CLI 도 그 런처를 씁니다 — 설치 단계는 자기가
-이름 붙인 파일이 대상 기계에 없다는 것을 볼 수 없습니다 — 그리고 Chrome 은 그 실패를 거절된
-매니페스트나 어긋난 id 와 똑같은 메시지로 보고합니다. 하나의 tarball 에서 둘 다 배포하면
-그 실패 양상이 문서가 아니라 구조로 불가능해집니다.
-
-설계 자신의 §2/§3 이 이름 붙인 것 중 둘은 여전히 없습니다: `headerlab diagnostics` 는
-앞으로도 만들지 않습니다 — `status` 가 같은 페이로드를 나르고, 질의 하나에 이름 둘은
-기능이 아닙니다 — 그리고 `state snapshots`/`state restore <id>` 가 읽어갈, 모든 raw
-쓰기 전의 스냅샷도 없습니다 ([#35](https://github.com/say8425/headerlab/issues/35)).
-`state set` 은 스키마 검증을 하고 `--force` 를 요구하지만, 이력은 남기지 않습니다.
-
-## 구조
-
-```
-lib/model/       타입, zod 스키마, 기본값, 마이그레이션          순수
-lib/compile/     AppState → DNR 룰 + 진단                      순수
-lib/permissions/ origins.ts, audit.ts 순수 · probe.ts 가 브라우저 호출
-lib/view/        팝업 뷰모델                                   순수
-lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서),
-                 query.ts (상태 → StatusPayload)                   순수
-lib/storage/     state.ts, session.ts, useAppState.ts
-lib/sync/        ruleSync.ts (reconcile), icon.ts
-components/      팝업 UI
-entrypoints/     background.ts, popup/
-packages/        확장 번들 바깥의 에이전트 브리지 — headerlab
-                 (CLI 와 네이티브 메시징 호스트, npm 에 공개), plugin.
-                 의존성 0, node:test, 자체 CI 잡
-```
-
-**모든 정확성은 `chrome.*` 를 절대 import 하지 않는 순수 계층에 있습니다.** `compile()`
-은 애플리케이션 상태 전체를 declarativeNetRequest 룰과 진단 목록으로 바꾸고, 팝업은 같은
-상태에 대해 같은 함수를 돌립니다 — 그래서 화면이 말하는 것과 브라우저가 들은 것이 어긋날
-수 없습니다.
-
-**reconcile 루프는 하나.** 저장소 변경, 워커 시작, 권한 부여나 회수 — 모든 트리거가
-`lib/sync/ruleSync.ts` 의 `reconcile()` 로 모이고, 이것은 처음부터 다시 컴파일해 룰셋을
-통째로 갈아끼웁니다. 멱등이며, 상태가 아래로 흘러내릴 두 번째 경로는 없습니다.
-
-이 모양은 고른 것이 아니라 강제된 것입니다: `@webext-core/fake-browser` 는
-`declarativeNetRequest` 와 `permissions.*` 를 던지는 스텁으로 구현하므로 브라우저 흉내
-테스트가 불가능합니다. 로직에서 브라우저를 무관하게 만드는 것이 그에 대한 답입니다.
-
-설계 문서는 `docs/superpowers/specs/` 에, 그 뒤의 측정된 플랫폼 제약은 `docs/research/`
-에 있습니다.
+[`docs/agent-bridge.ko.md`](agent-bridge.ko.md) 가 그 전부입니다 — 프로토콜, 명령, 종료
+코드, 켜는 법, 그리고 오해하면 안 되는 다섯 가지.
 
 ## 한계
 
@@ -351,6 +179,40 @@ BCD 가 `mirror` 로 기록하기 때문입니다 — Chrome 을 따라갑니다
 [#33](https://github.com/say8425/headerlab/issues/33) regex 범위 지정 ·
 [#34](https://github.com/say8425/headerlab/issues/34) 수동 테마 토글 ·
 [#35](https://github.com/say8425/headerlab/issues/35) 브리지의 남은 명령들.
+
+## 구조
+
+```
+lib/model/       타입, zod 스키마, 기본값, 마이그레이션          순수
+lib/compile/     AppState → DNR 룰 + 진단                      순수
+lib/permissions/ origins.ts, audit.ts 순수 · probe.ts 가 브라우저 호출
+lib/view/        팝업 뷰모델                                   순수
+lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서),
+                 query.ts (상태 → StatusPayload)                   순수
+lib/storage/     state.ts, session.ts, useAppState.ts
+lib/sync/        ruleSync.ts (reconcile), icon.ts
+components/      팝업 UI
+entrypoints/     background.ts, popup/
+packages/        확장 번들 바깥의 에이전트 브리지 — headerlab
+                 (CLI 와 네이티브 메시징 호스트, npm 에 공개), plugin.
+                 의존성 0, node:test, 자체 CI 잡
+```
+
+**모든 정확성은 `chrome.*` 를 절대 import 하지 않는 순수 계층에 있습니다.** `compile()`
+은 애플리케이션 상태 전체를 declarativeNetRequest 룰과 진단 목록으로 바꾸고, 팝업은 같은
+상태에 대해 같은 함수를 돌립니다 — 그래서 화면이 말하는 것과 브라우저가 들은 것이 어긋날
+수 없습니다.
+
+**reconcile 루프는 하나.** 저장소 변경, 워커 시작, 권한 부여나 회수 — 모든 트리거가
+`lib/sync/ruleSync.ts` 의 `reconcile()` 로 모이고, 이것은 처음부터 다시 컴파일해 룰셋을
+통째로 갈아끼웁니다. 멱등이며, 상태가 아래로 흘러내릴 두 번째 경로는 없습니다.
+
+이 모양은 고른 것이 아니라 강제된 것입니다: `@webext-core/fake-browser` 는
+`declarativeNetRequest` 와 `permissions.*` 를 던지는 스텁으로 구현하므로 브라우저 흉내
+테스트가 불가능합니다. 로직에서 브라우저를 무관하게 만드는 것이 그에 대한 답입니다.
+
+설계 문서는 `docs/superpowers/specs/` 에, 그 뒤의 측정된 플랫폼 제약은 `docs/research/`
+에 있습니다.
 
 ## 개발
 
@@ -410,13 +272,13 @@ pnpm exec playwright install --with-deps --no-shell chromium
 ## 테스트
 
 세 층입니다: 브라우저 없는 순수 로직, 손으로 심은 스파이로 구동하는 어댑터, 그리고 진짜로
-로드된 확장에 대한 종단간. 열여섯 개 e2e 중 둘은 로컬 에코 서버를 통해 실제 요청을 회선에
-올리고 헤더를 되읽습니다 — 이 저장소에서 가장 강한 증거입니다.
-
-작성 시점: 파일 38개에 걸친 단위 테스트 820개와 e2e 16개. 그중 넷은 브리지 자신의 것이고,
+로드된 확장에 대한 종단간. e2e 중 둘은 로컬 에코 서버를 통해 실제 요청을 회선에 올리고
+헤더를 되읽습니다 — 이 저장소에서 가장 강한 증거입니다. 브리지도 자기 몫을 갖고 있고,
 실제 `headerlab site add` 를 실제 설치된 호스트와 소켓을 거쳐 실제 저장소까지 밀어 넣는
-것이 포함됩니다. `packages/headerlab` 은 140개를 더 들고 있으며, vitest 가 아니라 Node
-내장 테스트 러너로 돌립니다. 그 패키지는 의존성이 없고 얻어서도 안 되기 때문입니다.
+것이 그중 하나입니다.
+
+`packages/headerlab` 은 자체 스위트를 들고 있으며, vitest 가 아니라 Node 내장 테스트
+러너로 돌립니다. 그 패키지는 의존성이 없고 얻어서도 안 되기 때문입니다.
 `vitest.config.ts` 의 glob 이 거기에 닿지 못하는데, 그것이 자체 CI 잡을 갖는 이유입니다.
 한동안 실행되지 않은 채 머지되고 있었고, 아무것도 돌리지 않는 스위트는 없는 것보다 나쁩니다.
 성공을 보고하기 때문입니다.

@@ -98,7 +98,8 @@ command's flags and examples. Both come from the same table the parser uses, so 
 command the help advertises is a command that exists.
 
 The full reference — error codes, flags, and what each command does and does not do —
-is in the [extension's README](https://github.com/say8425/headerlab#agent-bridge) and in
+is in the [extension's agent-bridge document](https://github.com/say8425/headerlab/blob/main/docs/agent-bridge.md)
+and in
 [the agent skill](https://github.com/say8425/headerlab/blob/main/packages/plugin/skills/headerlab/SKILL.md).
 
 ## Uninstalling
