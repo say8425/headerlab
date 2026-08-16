@@ -571,9 +571,12 @@ scopes the *version* and the leak described above still decided which entries ap
 Deleting that section from `CHANGELOG.md` on the PR branch before merging fixed the file on
 `main` and nothing else: **release-please builds the release body from its own stored notes,
 not from the file in the tree**, so the GitHub release created minutes later still carried
-the false section. Correcting it takes a second, separate step — `gh release edit <tag>
---notes-file <file>`, which is a `PATCH /repos/{o}/{r}/releases/{id}` and therefore keeps
-the release id and its assets (verified: `headerlab-1.2.0-chrome.zip` survived the edit).
+the false section. Those notes are the release PR's own body — which is *not* what was
+edited, and **whether editing the PR body before merging would have carried through was not
+measured**; the releases were already cut by the time the question came up. What is measured
+is the after-the-fact remedy: `gh release edit <tag> --notes-file <file>`, a
+`PATCH /repos/{o}/{r}/releases/{id}`, which keeps the release id and its assets (verified:
+`headerlab-1.2.0-chrome.zip` survived the edit, download count intact).
 So a changelog defect noticed on the release PR is **two** fixes, and doing only the
 obvious one leaves the wrong text on the page most people actually read.
 
@@ -588,9 +591,9 @@ versions rather than either side's copy:
 ```
 
 Taking either side wholesale is the trap: "theirs" drops the release that just shipped and
-"ours" drops the one about to. The next two-package release hits this again, so expect the
-second PR to need a manual rebase rather than reading `CONFLICTING` as a sign something
-went wrong.
+"ours" drops the one about to. Expect this whenever both packages have a release PR open at
+once — read `CONFLICTING` on the second one as arithmetic rather than as a sign something
+went wrong. Observed once, on the release described here.
 
 **`npm publish --provenance` requires `--access public` even for an unscoped name.** The
 flag is not about the name — unscoped packages are public by default — it is about
@@ -619,9 +622,11 @@ npm is 11.13.0.
 distinction was load-bearing for longer than it looks.** Everything above was written
 before the workflow had ever published anything: `headerlab@0.1.2` went up by hand for the
 reason this section already gives — npm cannot configure a trusted publisher for a package
-that does not exist — and no release since had touched `packages/headerlab/`, so
-release-please never built a CLI release and the `npm publish --provenance` step never
-ran. It ran on 2026-08-16. The step reported `success`, and its log carries
+that does not exist — and release-please built no CLI release in the window that followed,
+so the `npm publish --provenance` step never ran. Note that is about releases *of that
+package*: `extension-v1.2.0` shipped four minutes before `cli-v0.2.0` and its commit range
+includes the CLI rework, but an extension release runs no publish step. It ran on
+2026-08-16. The step reported `success`, and its log carries
 `npm notice 📦  headerlab@0.2.0` and `npm notice total files: 21`. **Keep the by-hand
 paragraph above as written** — it is the record of why the first version had to be the
 exception, and nothing about this run licenses a second hand publish. What has changed is
