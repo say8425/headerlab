@@ -521,6 +521,47 @@ skill-only commit in no changelog at all. `tests/unit/workspace.test.ts` derives
 from the configured packages rather than pinning the literal, so a third released package
 added without an exclusion fails there.
 
+**That leak reaches the version number, not just the changelog, and it cost a wrong major.**
+The paragraph above is about which entries appear in whose changelog; the same rule decides
+which package sees a `BREAKING CHANGE:` footer. Measured on 2026-08-16: the CLI's clig.dev
+rework squash-merged as one commit with a footer naming five changes to *the CLI's* contract,
+and because that commit also touched **16** files outside `packages/headerlab` — among them
+CLAUDE.md, five READMEs, the three `lib/bridge/*.ts` the read query added, SKILL.md, and four
+files under `tests/` — release-please proposed **`extension 2.0.0`** with a changelog whose
+breaking-changes section read "five changes to the CLI's contract." The extension had no
+breaking change; it had gained a read query, which is a minor. A footer is scoped to a
+*commit*, and this repository squash-merges, so a footer is scoped to a whole branch —
+including every root file that branch happened to touch. Count that set with
+`git show --name-only --format='' <sha> | sed '/^$/d' | grep -vc '^packages/headerlab/'`;
+piping `--stat` through `awk '{print $1}'` gives 17, because `--stat`'s summary line counts
+as a row.
+
+**Two settings fix the two halves, and only one of them is a config key.** `Release-As:
+<version>` in a commit footer forces a package's next version, and in manifest mode it is
+attributed by path like any other commit — so a commit touching only root files reaches the
+extension and not the CLI. That is the mechanism that pulls `extension 2.0.0` back to
+`1.2.0`; **confirm the release PR regenerates with the new number before merging it**, because
+nothing else tells you the footer landed. Do not reach for the `release-as` **config** key
+instead: the pinned schema marks it deprecated and points at the commit footer. Separately,
+`bump-minor-pre-major: true` on the CLI is what makes a breaking change on a `0.x` package
+bump the minor rather than jumping to `1.0.0` — without it, release-please read the same footer
+and proposed `cli 1.0.0` where the design said `0.2.0`. Spell that key from the schema, not
+from memory: `extractReleaserConfig` reads a fixed list of known keys and **discards the rest
+with no log line**, and the schema's per-package objects carry no `additionalProperties: false`
+either, so a typo is invisible in the editor and at runtime alike and the first symptom is a
+version nobody chose. `tests/unit/workspace.test.ts` pins the key by value for that reason.
+
+**The footer has to be a line-initial `Release-As:` in the commit message, and describing it
+anywhere else does nothing.** This was learned by doing it wrong: PR #43 was written entirely
+around a footer that was never in the commit, and every check short of reading the raw commit
+object passed — the PR body said it was there, the diff was correct, CI was green. Two things
+make the mistake easy. This repository squash-merges with
+`squash_merge_commit_message: COMMIT_MESSAGES` (`gh api repos/<owner>/<repo>`), so the merged
+body comes from the branch's commit messages and not from the PR body at all; and a
+`Release-As:` written mid-sentence inside prose is not a footer token the conventional-commits
+parser will lift. Verify with `git log -1 --format=%B <ref> | grep -c '^Release-As:'` before
+merging, not by re-reading what you wrote about it.
+
 **`npm publish --provenance` requires `--access public` even for an unscoped name.** The
 flag is not about the name — unscoped packages are public by default — it is about
 provenance: npm cannot infer publicity for a package that does not exist yet and refuses

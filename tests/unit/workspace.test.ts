@@ -236,6 +236,19 @@ describe('the release configuration', () => {
     }
   });
 
+  // Pinned by value for the same reason `component` is, and with a sharper
+  // edge: without this key a breaking change on the CLI jumps it from `0.x`
+  // straight to `1.0.0`. That already happened once — the clig.dev rework's
+  // `BREAKING CHANGE:` footer produced a `cli 1.0.0` release PR where the
+  // design said `0.2.0`. Nothing would catch its removal: release-please's
+  // `extractReleaserConfig` reads a fixed list of known keys and discards the
+  // rest with no log line, and the v17.6.0 schema's per-package objects carry
+  // no `additionalProperties: false`, so a misspelling is invisible in the
+  // editor too. The first symptom is a published version nobody chose.
+  it('keeps a breaking change on the CLI inside 0.x', () => {
+    expect(config.packages['packages/headerlab']['bump-minor-pre-major']).toBe(true);
+  });
+
   // Both packages name themselves, in the tag and therefore in the GitHub
   // release title — release-please builds that title as `<component>: v<x.y.z>`,
   // and the component reaches it only by being in the tag. Measured on a
