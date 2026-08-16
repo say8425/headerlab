@@ -98,7 +98,7 @@ this document out.
   that limit is kept rather than worked around.
 - **The CLI cannot turn the bridge on either.** `chrome.permissions.request()` requires a
   user gesture to resolve. There is no `headerlab bridge enable` and there will not be one
-  that works: `bridge install` beside a bridge nobody has pressed **Enable** for just writes
+  that works: `bridge install` beside a bridge nobody has switched on just writes
   files that never connect.
 - **Nothing leaves the machine.** CLI, host and extension only ever talk over a unix domain
   socket in a permission-restricted, per-user directory — never a network socket. **Not
@@ -123,7 +123,7 @@ this document out.
 
 ## Turning it on
 
-1. Press **Enable** on the popup's bridge row — it reads **Bridge off** until then. This
+1. Turn on the switch on the popup's bridge row — it reads **Agent bridge off** until then. This
    asks Chrome for the `nativeMessaging` permission through its own consent dialog.
 2. Run the installer, copying the id from `chrome://extensions`:
 
@@ -131,7 +131,7 @@ this document out.
    headerlab bridge install --extension-id <id>
    ```
 
-3. The popup now reads **Bridge live**.
+3. The popup now reads **Agent bridge live**.
 
 `--extension-id` is the instruction the CLI's own README leads with too, because it is the
 one that always applies — someone who installed the CLI from npm has no extension directory

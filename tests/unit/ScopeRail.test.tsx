@@ -802,9 +802,9 @@ describe('scope notes', () => {
 
 describe('the bridge row', () => {
   it.each([
-    ['off', 'Bridge off', false],
-    ['idle', 'Bridge idle', true],
-    ['live', 'Bridge live', true],
+    ['off', 'Agent bridge off', false],
+    ['idle', 'Agent bridge idle', true],
+    ['live', 'Agent bridge live', true],
   ])('%s reads "%s" with the switch %s', (mode, label, on) => {
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
@@ -824,7 +824,7 @@ describe('the bridge row', () => {
     // implementation would pass a presence-only check.
     render(<ScopeRail {...props({ bridge: 'unknown' })} />);
     const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual('Bridge');
+    expect(row.textContent).toEqual('Agent bridge');
     expect(within(row).queryByRole('switch')).toBeNull();
   });
 
@@ -886,7 +886,7 @@ describe('the bridge row', () => {
       expect(errorClass).toEqual(plainClass);
     });
 
-    it('swaps the dot to the pending colour and the label to "Bridge down"', () => {
+    it('swaps the dot to the pending colour and the label to "Agent bridge down"', () => {
       render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
       const row = screen.getByTestId('bridgestate');
       expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
@@ -894,7 +894,7 @@ describe('the bridge row', () => {
       // against this row's 87.15625px label budget and wrapped to two
       // lines. ScopeRail.tsx's `bridge-label` docblock has the full
       // measurement and the two other candidates rejected on it.
-      expect(screen.getByTestId('bridge-label').textContent).toEqual('Bridge down');
+      expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge down');
     });
 
     it('carries the command and Chrome’s own words in title, not on the row', () => {
@@ -905,7 +905,7 @@ describe('the bridge row', () => {
       // exactly assertion 4's "Bridge down", checked above. Since the control
       // became a switch it contributes no text at all, so the row's text and
       // the label's are now the same string.
-      expect(row.textContent).toEqual('Bridge down');
+      expect(row.textContent).toEqual('Agent bridge down');
       const title = label.getAttribute('title');
       // The remedy leads; Chrome's string trails it — checked as two
       // separate assertions rather than one exact string so the order is
@@ -929,7 +929,7 @@ describe('the bridge row', () => {
   it('reads plain "Bridge idle" with no title when idle and not (yet) an error', () => {
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
     const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual('Bridge idle');
+    expect(row.textContent).toEqual('Agent bridge idle');
     expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
     expect(row.querySelector('[aria-hidden="true"]')!.className).not.toContain('bg-pending');
   });

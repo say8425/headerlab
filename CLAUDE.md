@@ -1050,7 +1050,7 @@ that no longer renders, passing while describing nothing.
   it can only see its own `connectNative` port — and giving it that visibility would turn
   the host from a dumb relay into a protocol participant, which `packages/headerlab/lib/bridge.mjs`
   argues against by name. So `idle` in practice names the state most people land in first:
-  **Enable** pressed, `headerlab bridge install` never run.
+  the bridge switch turned on, `headerlab bridge install` never run.
 - **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which
   execs the entry path of whichever installed copy of `packages/headerlab` wrote it —
   a clone for a contributor, the global `node_modules` for `npm i -g headerlab`.**

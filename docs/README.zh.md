@@ -7,9 +7,6 @@
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
-ModHeader 的替代品。ModHeader 于 2026 年 7 月因被发现内置隐藏追踪器而从 Chrome 应用商店
-下架。这就是本项目存在的全部理由，也是下面的信任准则是硬性约束而非功能清单的原因。
-
 | 浅色 | 深色 |
 |---|---|
 | ![浅色主题下的 HeaderLab 弹窗：四条规则中三条生效，两个已授权站点，四条头部规则](screenshots/popup-light.png) | ![同一弹窗的深色主题，跟随操作系统设置](screenshots/popup-dark.png) |
@@ -57,6 +54,21 @@ codex plugin marketplace add say8425/headerlab
 事实到达的，而不是任务中途的意外。**在桥接被打开之前，它会报告 `bridge-off`。** 全局安装
 CLI 并非前提条件：插件自带指向 `packages/headerlab` 的 shim。同时执行 `npm i -g headerlab`
 也不冲突 —— PATH 会优先解析全局副本。
+
+用你自己的话提出要求，技能会把它转换成 CLI 命令:
+
+```text
+HeaderLab 现在在做什么?
+只在 staging.example.com 上添加 X-Debug: on 请求头
+在 api.example.com 上不要发送 Referer 头
+把所有规则先暂停，然后再打开
+我实际被允许修改哪些站点?
+```
+
+第一条和最后一条是读取 — `status`、`site ls`、`rule ls` 和 `state get` 不写入任何内容即可
+作答。中间三条是写入，有一点值得预先知道: 添加站点只是确定规则的作用范围，并不授予对该站点
+的访问权限。在弹窗中按下 Grant 之前，该站点一直处于待授权状态；技能被要求说明这一点，而不是
+让你把这次写入读作站点已经生效。
 
 ## 它做什么
 
@@ -123,7 +135,7 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-在人按下弹窗里的 **Enable** 之前，桥接是关闭的；CLI 既不能授予站点权限，也不能打开桥接
+在人打开弹窗里的开关之前，桥接是关闭的；CLI 既不能授予站点权限，也不能打开桥接
 —— 这两件事 Chrome 都只从用户手势那里接受。没有任何东西离开这台机器：CLI、主机与扩展在
 按用户目录中的一个 Unix 域套接字上相遇，从不使用网络套接字。
 

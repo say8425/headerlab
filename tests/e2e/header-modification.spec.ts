@@ -1645,9 +1645,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 27 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //   레일 26 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
   //             · Sites 카운트 1 · run state 1("Active")
-  //             · bridge row 2(라벨 "Bridge off", Enable 버튼)
+  //             · bridge row 1(라벨 "Agent bridge off" — 컨트롤이 스위치가 되면서
+  //               텍스트를 가진 잎이 하나 사라졌다)
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -1660,15 +1661,18 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 아니라 노드가 지표 안으로 들어온 것이다.
   //
   // 25 → 27 은 그 사각지대와 다른 종류다: 팝업이 조금 바뀐 게 아니라 레일에
-  // 실제 줄이 하나(bridgestate) 늘었다. 27 은 `off` 상태에서의 셈이다 — 위에서
-  // 그 상태를 직접 기다렸으므로 라벨 span("Bridge off")과 Enable 버튼 둘 다
-  // 텍스트를 가진 잎으로 확실히 들어온다. 이 수는 상태에 매인 값이지 절대값이
-  // 아니다: `unknown` 이면 버튼이 없어 26 이 된다.
+  // 실제 줄이 하나(bridgestate) 늘었다. 27 은 `off` 상태에서의 셈이었다 —
+  // 라벨 span("Bridge off")과 Enable 버튼 둘 다 텍스트를 가진 잎이었기 때문이다.
+  //
+  // 27 → 26 은 바로 그 문단이 예고한 변경이다. 브릿지 컨트롤이 버튼에서
+  // 스위치가 되면서 텍스트를 가진 잎이 하나 사라졌다. 위 문단은 "`unknown`
+  // 이면 버튼이 없어 26" 이라고 적어두었는데, 이제 버튼 자체가 없으므로 네
+  // 상태 모두 26 이고 이 수는 더 이상 상태에 매이지 않는다.
   //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 27,
+    rail: 26,
     panel: 12,
   });
 

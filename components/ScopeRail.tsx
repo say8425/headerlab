@@ -106,14 +106,20 @@ const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
  */
 const NOTE_CLASS =
   'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
-/** The three switches in the rail are one control in three places. */
+/**
+ * The three switches in the rail are one control in three places — the same
+ * palette, not the same size. The two inside the readout card (run state and
+ * bridge) are `sm`, because that card's rows are 20px and a 14px control sits
+ * inside one without crowding the label; the all-sites switch keeps the
+ * default 18.4px, since it heads a 48px section rather than a readout line.
+ */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
 
 const BRIDGE_LABEL = {
-  unknown: 'Bridge',
-  off: 'Bridge off',
-  idle: 'Bridge idle',
-  live: 'Bridge live',
+  unknown: 'Agent bridge',
+  off: 'Agent bridge off',
+  idle: 'Agent bridge idle',
+  live: 'Agent bridge live',
 } as const;
 
 /**
@@ -334,6 +340,7 @@ export function ScopeRail({
           </span>
           <span className="flex-1" />
           <Switch
+            size="sm"
             aria-label={paused ? 'Resume all rules' : 'Pause all rules'}
             checked={!paused}
             onCheckedChange={(on) => onTogglePause(!on)}
@@ -404,20 +411,25 @@ export function ScopeRail({
               title below: a bridge that cannot be reached is not a bridge to
               report a last command for.
 
-              "Bridge down", not "Bridge unreachable": this row has 87.15625px
-              for the label (measured against the built popup — the dot, the
-              gaps and the Disable button already spend the rest of the
-              row's fixed `h-5`), and "Bridge unreachable" measures 115px in
-              this exact font and weight — 28px over, so it wraps to two
-              lines and blows the row's height, the same reflow this whole
-              fix exists to remove. "Bridge down" measures 73.98px, 13px of
-              real margin. Two other candidates were measured and rejected:
-              "Not connected" is 86.89px — 0.27px of margin is not margin,
-              and CI renders this stack under different font metrics (see
-              the readout's own comment on that). "Bridge lost" fits at
-              64.05px but asserts prior possession; the common path into
-              this state is Enable pressed and `headerlab bridge install`
-              never run, where nothing was ever had. */}
+              "Bridge down", not "Bridge unreachable": this row now has 124px
+              for the label, re-measured against the built popup — the row is
+              175px and spends 6px on the dot, 24px on the `sm` switch and
+              21px on three 7px gaps, leaving the label and the `flex-1`
+              spacer to share 124px.
+
+              That budget was 87.15625px while a 56.91px Disable button sat
+              where the switch now is, and the 36.85px it gave back changes an
+              answer rather than merely restating it: "Bridge unreachable"
+              measures 115px in this exact font and weight, so it no longer
+              overflows. It is still rejected, but the reason is now taste
+              rather than arithmetic — "Bridge down" says the same thing in
+              73.98px and this row is read at a glance. Re-measure before
+              trusting the 9px: this figure has already moved twice in one
+              branch, 87.15625 → 116 → 124, once when the button became a
+              switch and again when the switch became `sm`. "Bridge lost"
+              fits at 64.05px but asserts prior possession; the common path
+              into this state is the switch turned on and `headerlab bridge
+              install` never run, where nothing was ever had. */}
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
             data-testid="bridge-label"
@@ -441,11 +453,12 @@ export function ScopeRail({
                       ).toLocaleString()}`,
                     })}
           >
-            {bridgeUnreachable ? 'Bridge down' : BRIDGE_LABEL[bridge]}
+            {bridgeUnreachable ? 'Agent bridge down' : BRIDGE_LABEL[bridge]}
           </span>
           <span className="flex-1" />
           {bridge === 'unknown' ? null : (
             <Switch
+              size="sm"
               aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
               checked={bridge !== 'off'}
               onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}

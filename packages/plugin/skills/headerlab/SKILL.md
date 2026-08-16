@@ -68,8 +68,8 @@ from them.
 The most common reason no bridge is running is that the native messaging
 host manifest was never installed — `headerlab bridge install` writes that
 manifest. But installing it is not the same as turning the bridge on: **it
-only has an effect after a person opens the HeaderLab popup and clicks
-Enable on the bridge row.** The CLI can write the manifest; it cannot grant
+only has an effect after a person opens the HeaderLab popup and turns on
+the switch on its Agent bridge row.** The CLI can write the manifest; it cannot grant
 the permission or flip the switch, the same way `site add` cannot click
 Grant (see below). Run `headerlab bridge status` first to see what is
 already installed and what is live before assuming an install is needed at

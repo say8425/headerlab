@@ -8,10 +8,6 @@ until you grant it.
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
-A replacement for ModHeader, which was pulled from the Chrome Web Store in July 2026 after
-a hidden tracker was found in it. That is the whole reason this exists, and it is why the
-trust posture below is a hard constraint rather than a feature list.
-
 | Light | Dark |
 |---|---|
 | ![The HeaderLab popup in light theme: three of four rules live, two granted sites, four header rules](docs/screenshots/popup-light.png) | ![The same popup in dark theme, which follows the operating system setting](docs/screenshots/popup-dark.png) |
@@ -62,6 +58,22 @@ missing CLI arrives as a fact rather than as a surprise mid-task. **It reports `
 until the bridge is turned on.** Installing the CLI globally is not a prerequisite: the
 plugin carries its own shim to `packages/headerlab`. Running `npm i -g headerlab` as well
 is not a conflict either — PATH resolves the global copy first.
+
+Ask in your own words; the skill maps the request onto the CLI:
+
+```text
+What is HeaderLab doing right now?
+Add an X-Debug: on request header and scope it to staging.example.com
+Stop sending the Referer header on api.example.com
+Pause every rule, then turn them back on
+Which sites am I actually allowed to modify?
+```
+
+The first and last are reads — `status`, `site ls`, `rule ls` and `state get` answer
+without writing anything. The middle three write, and one detail is worth expecting:
+adding a site scopes a rule to it but does not grant access to it. That site stays pending
+until you press Grant in the popup, and the skill is told to say so rather than let you
+read the write as if the site were already live.
 
 ## What it does
 
@@ -142,7 +154,7 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-The bridge is off until a human presses **Enable** in the popup, and the CLI can neither
+The bridge is off until a human turns on its switch in the popup, and the CLI can neither
 grant site access nor turn it on — Chrome takes both only from a user gesture. Nothing
 leaves the machine: CLI, host and extension meet on a unix domain socket in a per-user
 directory, never a network socket.
