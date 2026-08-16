@@ -802,26 +802,43 @@ describe('scope notes', () => {
 
 describe('the bridge row', () => {
   it.each([
-    ['off', 'Agent bridge off', false],
-    ['idle', 'Agent bridge idle', true],
-    ['live', 'Agent bridge live', true],
-  ])('%s reads "%s" with the switch %s', (mode, label, on) => {
+    ['off', false],
+    ['idle', true],
+    ['live', true],
+  ])('%s names the row and leaves the state to the switch', (mode, on) => {
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
-    // The row's whole text is the label now: the control carries its state in
-    // `checked`, not in a word, exactly as the run-state and all-sites rows
-    // above it already do.
-    expect(row.textContent).toEqual(label);
+    // The label is the row's NAME, in every state — a reader who does not know
+    // what this row is learns that from the words, and what it is doing from
+    // the dot, the switch and the title. Pinned across all three states in one
+    // test so an implementation that reintroduced a state word anywhere fails.
+    expect(row.textContent).toEqual('Agent bridge');
     const control = within(row).getByRole('switch');
     expect(control.getAttribute('aria-checked')).toEqual(String(on));
   });
 
+  it.each([
+    ['off', 'bg-muted-foreground', 'off'],
+    ['idle', 'bg-pending', 'nothing is connected'],
+    ['live', 'bg-live', 'live'],
+  ])('%s carries its state on the dot and in the title', (mode, dot, phrase) => {
+    // The three dots must be three different colours: `off` and `idle` shared
+    // one until the label stopped saying which was which, and two states that
+    // look identical while calling for opposite actions is exactly the silence
+    // this rail exists to remove.
+    render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
+    const row = screen.getByTestId('bridgestate');
+    expect(row.querySelector('[aria-hidden="true"]')!.className).toContain(dot);
+    expect(screen.getByTestId('bridge-label').getAttribute('title')).toContain(phrase);
+  });
+
   it('says nothing and offers no control while the probe is still out', () => {
     // Same rule as the all-sites row's `allSitesGranted: null`: a popup that
-    // showed "Bridge off" with an Enable button for a tenth of a second and
-    // then withdrew it is the flicker that teaches people to distrust the
-    // screen. Absence asserted before presence — an "always renders Enable"
-    // implementation would pass a presence-only check.
+    // offered a switch for a tenth of a second and then withdrew it is the
+    // flicker that teaches people to distrust the screen. The label reads the
+    // same here as everywhere else, so absence of the *control* is what this
+    // asserts — and it asserts it before presence, so an "always renders the
+    // switch" implementation would fail.
     render(<ScopeRail {...props({ bridge: 'unknown' })} />);
     const row = screen.getByTestId('bridgestate');
     expect(row.textContent).toEqual('Agent bridge');
@@ -848,17 +865,24 @@ describe('the bridge row', () => {
       <ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: '2026-08-12T09:30:00.000Z' })} />,
     );
     const label = screen.getByTestId('bridge-label');
-    // The exact string, not "contains a date": the rail has 28px and this is
-    // the only place the fact is stated, so a title that dropped the value and
-    // kept the prefix would look right and say nothing.
+    // The exact string, not "contains a date": this is the only place the fact
+    // is stated, so a title that dropped the value and kept the prefix would
+    // look right and say nothing. The state sentence leads it now — the label
+    // no longer says "live", so the title is where that word has to appear.
     expect(label.getAttribute('title')).toEqual(
-      `Last change through the bridge: ${new Date('2026-08-12T09:30:00.000Z').toLocaleString()}`,
+      'The agent bridge is live — a CLI can reach this extension. ' +
+        `Last change through it: ${new Date('2026-08-12T09:30:00.000Z').toLocaleString()}`,
     );
   });
 
-  it('has no title at all when nothing has come through', () => {
+  it('claims no last change when nothing has come through', () => {
+    // The guard is unchanged in substance — do not report a write that never
+    // happened — but its shape moved: a live bridge now always describes
+    // itself, so "no title" stopped being the way to say "no command yet".
     render(<ScopeRail {...props({ bridge: 'live', bridgeLastCommandAt: null })} />);
-    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
+    const title = screen.getByTestId('bridge-label').getAttribute('title')!;
+    expect(title).toContain('live');
+    expect(title).not.toContain('Last change');
   });
 
   // A separate box for this state used to live here — deleted (see
@@ -886,26 +910,23 @@ describe('the bridge row', () => {
       expect(errorClass).toEqual(plainClass);
     });
 
-    it('swaps the dot to the pending colour and the label to "Agent bridge down"', () => {
+    it('keeps the label and swaps the dot to the pending colour', () => {
       render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
       const row = screen.getByTestId('bridgestate');
       expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
-      // "Bridge down", not "Bridge unreachable" — the latter measured 115px
-      // against this row's 87.15625px label budget and wrapped to two
-      // lines. ScopeRail.tsx's `bridge-label` docblock has the full
-      // measurement and the two other candidates rejected on it.
-      expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge down');
+      // The label is the row's name and does not move for state — what an
+      // unreachable bridge changes is the dot and the title, checked here and
+      // in the test below.
+      expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge');
     });
 
     it('carries the command and Chrome’s own words in title, not on the row', () => {
       render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
       const row = screen.getByTestId('bridgestate');
       const label = screen.getByTestId('bridge-label');
-      // What to run is on screen only via title — the row's own text is
-      // exactly assertion 4's "Bridge down", checked above. Since the control
-      // became a switch it contributes no text at all, so the row's text and
-      // the label's are now the same string.
-      expect(row.textContent).toEqual('Agent bridge down');
+      // What to run is on screen only via title — the row's own text is the
+      // name and nothing else, in this state as in every other.
+      expect(row.textContent).toEqual('Agent bridge');
       const title = label.getAttribute('title');
       // The remedy leads; Chrome's string trails it — checked as two
       // separate assertions rather than one exact string so the order is
@@ -923,15 +944,20 @@ describe('the bridge row', () => {
   });
 
   // Assertion 4, absence before presence: the ordinary idle state — the one
-  // every install passes through between Enable and running the installer,
-  // with no error yet reported — must not borrow any part of the error
-  // treatment above.
-  it('reads plain "Bridge idle" with no title when idle and not (yet) an error', () => {
+  // every install passes through between turning the switch on and running the
+  // installer, with no error yet reported — says what it is without borrowing
+  // the error treatment's words.
+  it('explains an idle bridge without claiming an error nobody reported', () => {
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
     const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual('Agent bridge idle');
-    expect(screen.getByTestId('bridge-label').getAttribute('title')).toBeNull();
-    expect(row.querySelector('[aria-hidden="true"]')!.className).not.toContain('bg-pending');
+    expect(row.textContent).toEqual('Agent bridge');
+    const title = screen.getByTestId('bridge-label').getAttribute('title')!;
+    // It names the remedy, because "permission held, nothing connected" is
+    // almost always `bridge install` never having been run...
+    expect(title).toContain('headerlab bridge install');
+    // ...but it must not read as a failure: absence before presence, so an
+    // implementation that reused the unreachable wording here fails.
+    expect(title).not.toContain('could not');
   });
 
   it('shows no bridge-error element at all — its subject is gone', () => {

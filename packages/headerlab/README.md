@@ -61,10 +61,8 @@ replacement — trusted publishing over OIDC — for a package that already exis
 first version was published by hand and has no attestation. Every version after it is built and
 signed by the workflow in this repository.
 
-This extension exists because [ModHeader](https://github.com/modheader) was pulled from
-the Chrome Web Store after a hidden tracker was found in it. A CLI that can change your
-browser's headers should be checkable by someone who trusts none of its authors, and that
-command is how.
+A CLI that can change your browser's headers should be checkable by someone who trusts
+none of its authors, and that command is how.
 
 ## When the bridge stops working after an upgrade
 
