@@ -3,9 +3,6 @@
 ## [1.2.0](https://github.com/say8425/headerlab/compare/extension-v1.1.2...extension-v1.2.0) (2026-08-16)
 
 
-### ⚠ BREAKING CHANGES
-
-* five changes to the CLI's contract.
 
 ### Features
 
