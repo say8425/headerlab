@@ -140,8 +140,16 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-모든 응답은 stdout 의 JSON 객체 하나 — 성공이든 실패든 — 에 종료 코드가 뒤따르는
-형태입니다. 대신 파싱할 사람용 출력은 없습니다.
+터미널에서는 사람이 읽을 출력을, 파이프로 넘기거나 `--json` 을 주면 성공이든 실패든
+JSON 객체 하나를 찍습니다. 종료 코드가 실패의 종류를 이름 짓습니다:
+
+| 종료 코드 | 뜻 |
+|---|---|
+| `0` | 성공 |
+| `2` | 당신의 입력 — CLI 가 스스로 거부했고 아무것도 기계 밖으로 나가지 않았습니다 |
+| `3` | 말을 걸 브리지가 없습니다 |
+| `4` | 연결은 됐으나 교환이 실패했습니다 |
+| `1` | 확장이 요청을 거부했습니다 |
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -168,9 +176,24 @@ Chrome 이 호스트 프로세스를 띄우고, 호스트가 유닉스 소켓을
 
 ### 명령
 
-아홉 개가 브리지 소켓을 지납니다: 룰 셋의 범위를 정하는 `site add|rm` 과
+넷은 읽기만 하고 아무것도 바꾸지 않습니다: `status`, `site ls`, `rule ls`, `state get`.
+질의 하나를 보내고 팝업이 그리는 것과 **같은 순수 함수**로 답하므로, CLI 가 말하는 것과
+레일이 보여주는 것이 갈라질 길이 없습니다.
+
+```bash
+headerlab status
+headerlab state get --json | jq .state | headerlab state set - --force
+```
+
+`status` 는 브리지가 없다는 것을 에러가 아니라 사실로 다루는 유일한 명령입니다 — 로컬에
+설치된 것만으로 답하고 `live: false` 라고 말한 뒤 exit 0 으로 나갑니다. 커밋이 없는
+저장소에서 `git status` 가 동작하는 방식과 같습니다. 나머지 셋은 3 으로 나갑니다.
+
+아홉 개가 쓰기로서 브리지 소켓을 지납니다: 룰 셋의 범위를 정하는 `site add|rm` 과
 `site all-sites on|off`, 헤더 룰을 편집하는 `rule add|rm|toggle`, 전체를 멈추고 다시
-켜는 `pause`/`resume`, 그리고 저장된 상태를 통째로 갈아끼우는 `state set <file|->`.
+켜는 `pause`/`resume`, 그리고 저장된 상태를 통째로 갈아끼우는 `state set <file|->` —
+마지막 것은 stdin 이 터미널이 아닐 때 `--force` 를 요구합니다. 되돌릴 수 없는
+덮어쓰기이기 때문입니다.
 
 나머지 셋은 그 소켓을 아예 건드리지 않습니다 — 네이티브 메시징 호스트 매니페스트와 Chrome
 이 실행하는 런처 스크립트를 관리하며, 애초에 소켓을 가능하게 만드는 것이 그것입니다:
@@ -251,9 +274,11 @@ Chrome 이 호스트 프로세스를 띄우고, 호스트가 유닉스 소켓을
 매니페스트나 어긋난 id 와 똑같은 메시지로 보고합니다. 하나의 tarball 에서 둘 다 배포하면
 그 실패 양상이 문서가 아니라 구조로 불가능해집니다.
 
-명령 표면은 설계 자신의 §2/§3 보다 좁습니다 — `headerlab status`, `diagnostics`,
-`state get`, `rule ls`, 그리고 모든 raw 쓰기 전의 스냅샷은 존재하지 않습니다
-([#35](https://github.com/say8425/headerlab/issues/35)).
+설계 자신의 §2/§3 이 이름 붙인 것 중 둘은 여전히 없습니다: `headerlab diagnostics` 는
+앞으로도 만들지 않습니다 — `status` 가 같은 페이로드를 나르고, 질의 하나에 이름 둘은
+기능이 아닙니다 — 그리고 `state snapshots`/`state restore <id>` 가 읽어갈, 모든 raw
+쓰기 전의 스냅샷도 없습니다 ([#35](https://github.com/say8425/headerlab/issues/35)).
+`state set` 은 스키마 검증을 하고 `--force` 를 요구하지만, 이력은 남기지 않습니다.
 
 ## 구조
 
@@ -262,7 +287,8 @@ lib/model/       타입, zod 스키마, 기본값, 마이그레이션          �
 lib/compile/     AppState → DNR 룰 + 진단                      순수
 lib/permissions/ origins.ts, audit.ts 순수 · probe.ts 가 브라우저 호출
 lib/view/        팝업 뷰모델                                   순수
-lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서)     순수
+lib/bridge/      protocol.ts (명령 스키마), apply.ts (리듀서),
+                 query.ts (상태 → StatusPayload)                   순수
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      팝업 UI

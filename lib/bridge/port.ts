@@ -1,10 +1,12 @@
 /// <reference types="chrome" />
 import { apply } from '@/lib/bridge/apply';
-import { parseCommand } from '@/lib/bridge/protocol';
+import { parseCommand, parseQuery } from '@/lib/bridge/protocol';
+import { status } from '@/lib/bridge/query';
 import { probeNativeMessaging } from '@/lib/permissions/probe';
 import { loadState, setState } from '@/lib/storage/state';
 import { patchBridgeStatus } from '@/lib/storage/session';
 import type { ApplyResult } from '@/lib/bridge/protocol';
+import type { StatusPayload } from '@/lib/bridge/query';
 import type { LoadedState } from '@/lib/storage/state';
 
 /**
@@ -177,7 +179,11 @@ function reportStatusFailure(result: Promise<void>): void {
   });
 }
 
-function reply(current: chrome.runtime.Port, id: string, result: ApplyResult): void {
+function reply(
+  current: chrome.runtime.Port,
+  id: string,
+  result: ApplyResult | ({ ok: true } & StatusPayload),
+): void {
   current.postMessage({ id, ...result });
 }
 
@@ -188,6 +194,57 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
   // client, and each of them discards what does not match its own id. Better
   // to drop it than to send something every listener throws away.
   if (id === null) return;
+
+  // 읽기를 먼저 시도한다. `querySchema` 에 맞으면 리듀서를 거치지 않고
+  // 답한다 — 상태를 바꾸지 않으므로 거칠 이유가 없다 (protocol.ts).
+  let query;
+  try {
+    query = parseQuery(envelope.command);
+  } catch {
+    query = null;
+  }
+
+  if (query !== null) {
+    let loaded: LoadedState;
+    try {
+      loaded = await loadState();
+    } catch (error) {
+      // `store-unreadable`, not the write path's `store-unwritable` this
+      // guard was copied from. A read issues no write, so a consumer
+      // branching on the envelope's code — which is the whole reason
+      // `ERROR_CODES` distinguishes the two (protocol.ts) — would conclude a
+      // write failed on a command that never attempted one. Both map to exit
+      // 1, so the exit code cannot disambiguate them either.
+      reply(current, id, {
+        ok: false,
+        error: {
+          code: 'store-unreadable',
+          message: `the store could not be read: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      });
+      return;
+    }
+    if (!loaded.valid) {
+      // 검증에 실패한 바이트를 사람에게 "상태" 라고 보여주는 것은 이
+      // 저장소가 금지하는 "닿을 수 없는 것을 보여주기" 다. 쓰기와 같은
+      // 코드로 답한다.
+      reply(current, id, {
+        ok: false,
+        error: {
+          code: 'store-unreadable',
+          message:
+            'the stored state does not match the format this version expects, so there is ' +
+            'nothing safe to report',
+        },
+      });
+      return;
+    }
+    // `patchBridgeStatus({lastCommandAt})` 를 부르지 않는다 — 읽기는
+    // 명령이 아니고, 읽었다는 이유로 마지막 명령 시각이 움직이면 팝업이
+    // 거짓말을 하게 된다.
+    reply(current, id, { ok: true, ...status(loaded.state) });
+    return;
+  }
 
   let command;
   try {

@@ -2,8 +2,12 @@
 
 A CLI that drives the [HeaderLab Chrome extension](https://github.com/say8425/headerlab)
 over native messaging — scope a rule to sites, add/remove/toggle header rules, pause or
-resume the whole rule set, or replace stored state wholesale, all from a terminal. Every
-reply is one JSON object on stdout, success or failure, with the exit code following it.
+resume the whole rule set, read the current state or replace it wholesale, all from a
+terminal.
+
+On a terminal it prints for people; piped or with `--json` it prints one JSON
+object, success or failure. The exit code names the failure class: `2` your
+input, `3` no bridge, `4` transport, `1` refused.
 
 ```bash
 npm i -g headerlab
@@ -34,7 +38,9 @@ the only check there is.
 If you loaded the extension unpacked, `--extension-id` still works and is still the
 safer instruction; `--load-path <dir>` computes the id from that directory's path
 instead, and a symlink or a differently spelled path to the same directory produces a
-different id.
+different id. `-n`/`--dry-run` prints the exact manifest, the two paths and the id it
+would use, and writes nothing — which is how to check a computed id before it is the
+thing Chrome silently disagrees with.
 
 ## Verifying what you installed
 
@@ -75,13 +81,35 @@ Re-running `headerlab bridge install` fixes it.
 
 ## Commands
 
-`headerlab site add|rm|all-sites`, `headerlab rule add|rm|toggle`, `headerlab pause`,
-`headerlab resume`, `headerlab state set <file|->`, and `headerlab bridge
-install|uninstall|status` for managing the native messaging host manifest itself.
+Four read and change nothing: `headerlab status` (what is installed, live and
+configured — the only command that treats a missing bridge as a fact rather than an
+error, so it exits 0 either way), `headerlab site ls`, `headerlab rule ls`, and
+`headerlab state get`.
+
+The rest write: `headerlab site add|rm|all-sites`, `headerlab rule add|rm|toggle`,
+`headerlab pause`, `headerlab resume`, `headerlab state set <file|->`, and `headerlab
+bridge install|uninstall|status` for managing the native messaging host manifest
+itself.
+
+`headerlab --help` prints the whole list, and `headerlab help <command>` prints one
+command's flags and examples. Both come from the same table the parser uses, so a
+command the help advertises is a command that exists.
 
 The full reference — error codes, flags, and what each command does and does not do —
 is in the [extension's README](https://github.com/say8425/headerlab#agent-bridge) and in
 [the agent skill](https://github.com/say8425/headerlab/blob/main/packages/plugin/skills/headerlab/SKILL.md).
+
+## Uninstalling
+
+```bash
+headerlab bridge uninstall   # remove the native-messaging host manifest first
+npm uninstall -g headerlab
+```
+
+Removing the package without the first line leaves a manifest pointing at a
+launcher that is no longer there. Nothing in Chrome will say so — `headerlab
+bridge status` is the only thing that reads the launcher back, and it reports
+`entryMissing`.
 
 ## License
 

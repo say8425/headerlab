@@ -44,7 +44,8 @@ lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
-lib/bridge/      protocol.ts (command schema), apply.ts (reducer) pure ·
+lib/bridge/      protocol.ts (command schema), apply.ts (reducer),
+                 query.ts (state → StatusPayload) pure ·
                  port.ts is its one browser caller
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
@@ -74,11 +75,16 @@ constraint produced.
 `tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
 above calls pure.** Two directories are auto-discovered, so a new file in either is
 guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
-of exactly seven files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
+of exactly eight files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
 `lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
-`lib/bridge/apply.ts` and `lib/model/schema.ts`. `lib/permissions/` and `lib/bridge/`
+`lib/bridge/apply.ts`, `lib/bridge/query.ts` and `lib/model/schema.ts`.
+`lib/permissions/` and `lib/bridge/`
 each also hold an adapter that must *not* be guarded — `probe.ts` and `port.ts` — so
-neither directory has a directory-shaped rule to apply. `defaults.ts`
+neither directory has a directory-shaped rule to apply. That is also why
+`lib/bridge/query.ts` — the pure module answering every read command — had to be added
+to the list by hand when it was written; the count above was seven and went stale in the
+same branch that added it, which is the whole hazard this paragraph exists to describe.
+`defaults.ts`
 and `schema.ts` are named individually for the same one-hop reason: the guard only scans
 a file's own source, so if guarded `lib/bridge/apply.ts` imports either as a runtime
 value — `bootstrapProfile`/`newRule` from `defaults.ts`, `parseAppState` from `schema.ts`
@@ -193,9 +199,20 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   publish` with `EPRIVATE`. What actually reaches the tarball is decided by
   `package.json`'s `files` field, and *believing* `files` is not the same as
   *checking* it: run `npm pack --dry-run` from `packages/headerlab` and read
-  the listing. Measured this way: 13 files, `bin/` and `lib/` plus
-  `package.json`, with `test/` sitting beside them on disk and correctly
+  the listing. Measured this way: **21 files**, `bin/` and `lib/` plus the
+  three npm always adds regardless of `files` — `package.json`, `README.md`
+  and `LICENSE` — with `test/` sitting beside them on disk and correctly
   absent from the tarball (`cd packages/headerlab && npm pack --dry-run`).
+  The figure was 13, and re-measuring found **both** an increase and an error
+  in the old one. The increase is real: the clig.dev redesign added six `lib/`
+  files (`commands`, `help`, `suggest`, `exit`, `render`, `output`), 12+6+1=19.
+  The error is that 13 was exactly `bin/`+`lib/`+`package.json` at the time
+  (`git ls-tree 8665df1^` counts 12 there), so README.md and LICENSE were left
+  out of a number claiming to be the tarball's — and `git ls-tree` shows both
+  files sitting in that directory on the same commit, so they were in the
+  tarball then too. npm adds those three whatever `files` says, which is the
+  one thing reading the listing was supposed to teach. Re-run the command
+  rather than trusting the number; the number is a snapshot and the CLI moves.
   Publishing happens from `release-please.yml`'s `npm publish --provenance`
   step, on a release. **The first published version is the one exception, and
   it is a forced one.** npm is retiring the tokens that let CI publish without
@@ -277,10 +294,20 @@ running. And an override's `plugins` key does **not** enable a plugin — measur
 reported nothing while `oxlint --vitest-plugin` on the same file reported four. Overrides
 retune rules; only the top-level list turns a plugin on.
 
-**Suppressions are per-site and carry a reason.** Four exist, and each is a rule that
-cannot see the intent rather than a rule this repo disagrees with: two `no-control-regex`
-on `/^[\x00-\x7F]/` ASCII range checks, one `no-empty-pattern` on Playwright's
-`async ({}, use)` fixture idiom, one `react-hooks/exhaustive-deps` on the truncating
+**Suppressions are per-site and carry a reason.** Eight exist — counted by grepping for the
+disable comments themselves (`grep -rn "oxlint-disable"`) rather than trusting a stated
+number, which is how this count was corrected twice: an earlier version of this line said
+four, naming only one `no-empty-pattern` site when the tree already carried four, and Task 7b
+then added a fifth `no-control-regex` site without updating the total at all. Each of the
+eight is a rule that cannot see the intent rather than a rule this repo disagrees with:
+three `no-control-regex` — two on `/^[\x00-\x7F]/` ASCII range checks
+(`lib/permissions/origins.ts`, `lib/compile/filterDiagnostics.ts`) and a third on
+`packages/headerlab/test/render.test.mjs`'s ANSI-stripping regex, which means to match the
+ESC control byte rather than check a range, so the same rule and the same "cannot see the
+intent" reason cover a genuinely different pattern; four `no-empty-pattern` on Playwright's
+`async ({}, use)` fixture idiom, one per fixture that declares no dependency
+(`tests/e2e/fixtures.ts`'s `context`; `tests/e2e/bridge-fixtures.ts`'s `context`,
+`derivedId`, `bridgeSocketDir`); and one `react-hooks/exhaustive-deps` on the truncating
 effect in App.tsx. The disable comment must be the line *immediately* before its subject —
 a two-line comment ending in the directive suppresses the second comment line and nothing
 else, which reads as working and is not.
@@ -703,7 +730,7 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the sixteen e2e tests drive a real request through the
+against a loaded extension. Two of the seventeen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
 never reaches declarativeNetRequest while its sibling still does. Nine more cover
@@ -715,15 +742,65 @@ row's height, the badge and the chip each keep a focus ring that reaches the scr
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
 
-The remaining four are the bridge's own, in `tests/e2e/bridge.spec.ts` and
+The remaining five are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
 `--load-path` is byte-for-byte the id Chrome actually assigned the loaded extension —
 design §8.3's self-verification, performed against a running browser rather than argued
 for. One drives a real `headerlab site add` through a real installed host, through the
 socket, into real storage, and reads the result back off `chrome.storage` rather than off
-the CLI's own reply. One confirms the popup reads "Bridge live" once that command has
-landed. The fourth is a layout guard in the same family as the eight above: an
-unreachable bridge leaves the rail exactly where a live one leaves it.
+the CLI's own reply. One drives a *read* the same way — `rule ls` after a `site add` —
+and asserts absence before presence: first that `chrome.storage` still holds exactly what
+the write left, then that the reply's `scopingHosts` and `state` match it. Checking the
+reply against storage rather than against the CLI's own claim is the point; a read that
+answered from a stale copy is invisible to a test that only asks whether it wrote nothing. One confirms the popup reads "Bridge
+live" once that command has landed. The fifth is a layout guard in the same family as the
+eight above: an unreachable bridge leaves the rail exactly where a live one leaves it.
+
+**The CLI's presentation layer is pure, and every decision it makes is testable without
+a terminal.** `lib/render.mjs`, `lib/help.mjs`, `lib/commands.mjs`, `lib/suggest.mjs` and
+`lib/exit.mjs` take their inputs as arguments and return strings, so the human-facing
+output is tested without spawning anything — none of those tests is a subprocess.
+`lib/output.mjs` decides *where* a string goes and *whether* it is coloured,
+and the plan it returns is what `bin/headerlab.mjs` writes; **it still takes the streams
+and the environment as arguments** (`resolveMode(globals, streams)`,
+`resolveColor(globals, env, stream)`), which is why table-driven tests can reach a
+branch that only lights up when stdout is a pty.
+**Read the grep's real output, not a summary of it.** An earlier draft of this paragraph
+offered `grep -rn 'isTTY\|process\.env' lib/ bin/`, run from `packages/headerlab`, and
+then described output the command does not produce — it said the hits are in
+`bin/headerlab.mjs` and `socket.mjs` and "none in `output.mjs`", while `socket.mjs` is in
+fact the first thing that grep prints, and the enumeration also omitted `install.mjs:154`.
+What is true is narrower and worth stating carefully: `output.mjs`'s `isTTY` hits are all
+`streams.stdout?.isTTY` / `stream?.isTTY` on **injected arguments**, which is the design
+being celebrated rather than a counterexample; the reads of the real process are
+`bin/headerlab.mjs` (`process.stdin.isTTY`, and `process.env` passed into `resolveColor`),
+`socket.mjs`'s one `HEADERLAB_SOCKET_DIR` lookup, and `install.mjs:154` handing
+`process.env` to a spawned child. Line numbers are deliberately absent except that one:
+they went stale twice.
+What genuinely needs a real process is `test/process.test.mjs` — a closed stdout pipe,
+SIGINT (both of its two sentences), and the terminal-only branches.
+**The terminal branches are reached without a pty, and how matters.**
+`test-support/tty-harness.mjs` sets `process.stdin.isTTY = true` on a real pipe and then
+imports the CLI, so `state set -`'s guard and `state set`'s confirmation prompt are ordinary
+subprocess tests. It exercises the branch, not the terminal: line discipline, echo and a
+real Ctrl-C are not simulated. One measured consequence is baked into the CLI —
+`process.stdin.pause()` releases the event loop on a pty but **not** on a pipe, so the
+prompt calls `unref()` too, and without that the y-path hangs forever on a terminal with
+nothing in the suite able to see it.
+
+**The five READMEs are held together by their commands, not by their line counts.**
+`packages/headerlab/test/docs.test.mjs` extracts every line inside a `bash`-tagged fence
+that starts with `headerlab ` and asserts all five files produce the same list, byte for byte
+— prose is translated and commands are not. Counting `grep -c 'headerlab '` per file was
+the obvious check and it is wrong: it counts prose mentions, which the four translations
+render differently by construction, so the counts are unequal on a tree where nothing is
+broken. Two narrowings in that extractor were each found by measurement rather than
+reasoned to: it must restrict to `bash`-tagged fences, because the Spanish architecture
+block (untagged) contains the prose line `headerlab (la CLI más…`; and it must strip
+indentation, because the `bridge install` example sits inside a numbered list and is
+indented three spaces in all five. The same file asserts every path in `commands.mjs`
+appears in `SKILL.md`, so a command can no longer exist with nothing telling an agent
+about it.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -762,10 +839,33 @@ in the test body. Register teardown so it cannot be skipped (`t.after`, register
 the install runs, not a cleanup call at the end of the test), and check
 `~/.headerlab/bin` and the real per-user socket directory by hand afterward regardless.
 
-**One flaky test, pre-existing, not from the bridge work.**
+**The one "flaky" test was a real race, and calling it flaky is what kept it alive.**
 `packages/headerlab/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
-under the two-second SIGKILL budget, with everything cleaned up" failed once under
-concurrent load and passed both in isolation and on re-run.
+under the two-second SIGKILL budget, with everything cleaned up" was recorded here as a flake
+— failing under concurrent load, passing in isolation and on re-run. That description was
+accurate and useless: it named the symptom and stopped. The cause is an ordering window in the
+test, not load. `waitForSocket` polled for the **socket** file, which `lib/host.mjs`'s
+`await listenWithRestrictedPermissions(...)` creates, and the assertion sixteen lines later
+checked the **registry entry**, which `writeRegistryEntry(...)` writes afterwards. Between
+those two the host has a socket and no registry file, and the test asserted inside that gap.
+
+**Reproduce it deterministically rather than waiting for load**: plant
+`await new Promise((r) => setTimeout(r, 300))` immediately before that `writeRegistryEntry`
+call and the old test fails every time, at the same assertion CI reported
+(`actual: false, expected: true`). That is how it was diagnosed, and how the fix was checked —
+the repaired test passes with the delay still planted, and its own gate was mutation-verified
+by never writing the entry at all, which produces a timeout naming which half is missing
+instead of a bare `false !== true`.
+
+The host's ordering was never wrong and was not changed: writing the registry entry only after
+a successful bind is what makes its presence evidence of a full start. The test now waits for
+**both** files and asserts only what the wait does not establish — the origin round-tripping
+through argv, and `startedAt` parsing as a timestamp. Waiting for the registry file and then
+asserting it exists would have traded the race for a tautology.
+
+Every other socket+registry fixture in `packages/headerlab/test/` writes the registry entry
+**before** binding, so no window exists in any of them; this file was the only one that spawns
+the real `bin/headerlab-host.mjs` and watches it from outside.
 
 **jsdom** needs a per-file `// @vitest-environment jsdom` docblock; the global
 environment is `node`. **`@testing-library/jest-dom` is not installed** — plain vitest
@@ -864,9 +964,9 @@ that no longer renders, passing while describing nothing.
   upgrade, or an nvm switch that moves the global prefix. Nothing in Chrome or the
   extension will ever say so — `headerlab bridge status` is the only thing that reads
   the launcher back and reports `entryMissing`.
-- **`headerlab status`, `diagnostics`, `state get` and `rule ls` are not built.** Only
-  `state.set` exists on the `state` group. §2 and §3 of the design spec promise a
-  snapshot taken before every raw `state set` write, with `state snapshots`/`state
-  restore <id>` to read it back — none of that exists either; `state.set` passes zod
-  validation and nothing else. The README makes no such promise, so nothing false has
-  shipped publicly, but the design spec did until this note.
+- **`headerlab diagnostics` is not built and will not be.** `status` carries
+  the same payload; a second name for one query is not a feature. `state
+  snapshots`/`state restore <id>`, which design spec §2 and §3 promise, do
+  not exist either — `state set` passes zod validation and nothing else, and
+  now also requires `--force`. The README makes no such promise, so nothing
+  false has shipped publicly.

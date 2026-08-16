@@ -92,6 +92,61 @@ test('rule add rejects an unknown --op', () => {
   assert.match(result.error.message, /--op/);
 });
 
+test('rule add --value-file 은 읽을 자리를 실어 보낸다', () => {
+  assert.deepEqual(
+    parse([
+      'rule',
+      'add',
+      '--target',
+      'request',
+      '--op',
+      'set',
+      '--name',
+      'A',
+      '--value-file',
+      'secret.txt',
+    ]),
+    {
+      ok: true,
+      command: {
+        cmd: 'rule.add',
+        target: 'request',
+        operation: 'set',
+        name: 'A',
+        value: { source: 'secret.txt' },
+      },
+    },
+  );
+});
+
+test('rule add 는 --value 와 --value-file 을 동시에 받지 않는다', () => {
+  assert.deepEqual(
+    parse([
+      'rule',
+      'add',
+      '--target',
+      'request',
+      '--op',
+      'set',
+      '--value',
+      'x',
+      '--value-file',
+      'p',
+    ]),
+    {
+      ok: false,
+      error: { code: 'invalid-args', message: 'rule add takes --value or --value-file, not both' },
+    },
+  );
+});
+
+test('rule add 는 --value 없이도 여전히 된다', () => {
+  assert.deepEqual(parse(['rule', 'add', '--target', 'request', '--op', 'remove']), {
+    ok: true,
+    command: { cmd: 'rule.add', target: 'request', operation: 'remove', name: '', value: '' },
+  });
+});
+
 test('rule rm', () => {
   assert.deepEqual(parse(['rule', 'rm', 'rule-1']), {
     ok: true,
@@ -220,6 +275,7 @@ describe('bridge', () => {
         loadPath: null,
         userDataDir: null,
         browser: 'chrome',
+        dryRun: false,
       },
     });
   });
@@ -235,8 +291,28 @@ describe('bridge', () => {
         loadPath: '.output/chrome-mv3',
         userDataDir: null,
         browser: 'chrome',
+        dryRun: false,
       },
     });
+  });
+
+  it('bridge install --dry-run 이 명령에 실린다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32), '--dry-run']);
+    assert.equal(result.ok, true);
+    assert.equal(result.command.dryRun, true);
+  });
+
+  it('--dry-run 을 안 주면 false 다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32)]);
+    assert.equal(result.command.dryRun, false);
+  });
+
+  // commands.mjs 가 도움말에 `-n, --dry-run` 이라고 적으므로, 짧은 형도 실제로
+  // 먹혀야 한다 — 아니면 도움말이 거짓말을 하는 것이다.
+  it('-n 은 --dry-run 의 짧은 형이다', () => {
+    const result = parse(['bridge', 'install', '--extension-id', 'a'.repeat(32), '-n']);
+    assert.equal(result.ok, true);
+    assert.equal(result.command.dryRun, true);
   });
 
   it('refuses install with neither', () => {
@@ -320,4 +396,97 @@ describe('bridge', () => {
     assert.equal(result.ok, false);
     assert.match(result.error.message, /reinstall/);
   });
+});
+
+// The brief this test comes from expected the bare parseArgs message,
+// `"Unknown option '--nope'"`. Measured on this repo's pinned Node (24.16.0,
+// per .nvmrc's `24`): node:util's parseArgs appends a second sentence to
+// ERR_PARSE_ARGS_UNKNOWN_OPTION suggesting `--` for a positional starting
+// with `-`, so the actual message is longer. Asserted against the real
+// output rather than the brief's, since a literal transcription would fail
+// on the Node version this repo actually runs.
+test('site add 는 플래그처럼 생긴 토큰을 도메인으로 저장하지 않는다', () => {
+  assert.deepEqual(parse(['site', 'add', 'a.com', '--nope']), {
+    ok: false,
+    error: {
+      code: 'invalid-args',
+      message:
+        "site add: Unknown option '--nope'. To specify a positional argument starting with a " +
+        `'-', place it at the end of the command after '--', as in '-- "--nope"`,
+    },
+  });
+});
+
+test('site rm 도 같다', () => {
+  assert.deepEqual(parse(['site', 'rm', '--nope']), {
+    ok: false,
+    error: {
+      code: 'invalid-args',
+      message:
+        "site rm: Unknown option '--nope'. To specify a positional argument starting with a " +
+        `'-', place it at the end of the command after '--', as in '-- "--nope"`,
+    },
+  });
+});
+
+test('site add 는 여전히 여러 도메인을 받는다', () => {
+  assert.deepEqual(parse(['site', 'add', 'a.com', 'b.com']), {
+    ok: true,
+    command: { cmd: 'site.add', domains: ['a.com', 'b.com'] },
+  });
+});
+
+// --- 읽기 명령 넷 -----------------------------------------------------------
+//
+// `status`·`site ls`·`rule ls`·`state get` 은 파서 입장에서 한 명령이다:
+// 넷 다 `{cmd:'status'}` 를 내고, 다른 것은 `render.mjs` 가 같은 payload 를
+// 어떻게 그리느냐뿐이다. 확장의 `querySchema` 도 모양이 하나뿐이다
+// (`lib/bridge/protocol.ts`).
+
+test('읽기 명령 넷이 모두 같은 status 쿼리를 낸다', () => {
+  for (const argv of [['status'], ['rule', 'ls'], ['site', 'ls'], ['state', 'get']]) {
+    assert.deepEqual(parse(argv), { ok: true, command: { cmd: 'status' } }, argv.join(' '));
+  }
+});
+
+test('읽기 명령은 인자를 받지 않는다', () => {
+  assert.deepEqual(parse(['status', 'extra']), {
+    ok: false,
+    error: { code: 'invalid-args', message: 'status takes no arguments, got: extra' },
+  });
+});
+
+// 넷이 같은 `cmd` 를 내되 에러는 **사람이 친 이름**으로 나와야 한다.
+// `parseNullary(rest, 'status')` 를 display 인자 없이 부르는 구현은 위
+// 테스트를 통과하면서 여기서만 빨개진다 — `rule ls extra` 에 대고
+// "status takes no arguments" 라고 답하는 것은 치지도 않은 명령을 나무라는
+// 것이다.
+test('읽기 명령의 거절은 사람이 친 이름으로 말한다', () => {
+  assert.deepEqual(parse(['rule', 'ls', 'extra']).error, {
+    code: 'invalid-args',
+    message: 'rule ls takes no arguments, got: extra',
+  });
+  assert.deepEqual(parse(['site', 'ls', '--json']).error, {
+    code: 'invalid-args',
+    message: 'site ls takes no arguments, got: --json',
+  });
+  assert.deepEqual(parse(['state', 'get', 'x']).error, {
+    code: 'invalid-args',
+    message: 'state get takes no arguments, got: x',
+  });
+});
+
+// `state get` 을 더하면서 `state` 의 다른 서브커맨드가 조용해지면 안 된다.
+test('state 는 여전히 모르는 서브커맨드를 이름으로 거절한다', () => {
+  const result = parse(['state', 'teleport']);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.error, {
+    code: 'invalid-args',
+    message: 'unknown state command: teleport',
+  });
+});
+
+test('site 와 rule 의 모르는 서브커맨드도 그대로다', () => {
+  assert.equal(parse(['site', 'list']).error.message, 'unknown site command: list');
+  assert.equal(parse(['rule', 'list']).error.message, 'unknown rule command: list');
 });

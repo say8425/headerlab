@@ -42,6 +42,10 @@ const EXPLICIT = [
   // dependency arriving one hop away would slip past unnoticed, the same
   // reason `defaults.ts` is listed here.
   'lib/model/schema.ts',
+  // Same situation as `protocol.ts`/`apply.ts` above: `lib/bridge/` has no
+  // directory-shaped rule because `port.ts` is the adapter that must not be
+  // guarded, so this pure file is named here rather than auto-discovered.
+  'lib/bridge/query.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -98,6 +102,7 @@ describe('the pure layer stays pure', () => {
       'lib/bridge/protocol.ts',
       'lib/bridge/apply.ts',
       'lib/model/schema.ts',
+      'lib/bridge/query.ts',
     ]);
   });
 

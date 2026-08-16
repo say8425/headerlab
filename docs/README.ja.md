@@ -145,8 +145,16 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-すべての応答は stdout 上の 1 つの JSON オブジェクト — 成功でも失敗でも — で、終了コードが
-それに続きます。代わりに解析すべき人間向けの出力はありません。
+端末では人が読むための出力を、パイプに渡すか `--json` を付ければ成功でも失敗でも 1 つの
+JSON オブジェクトを出します。終了コードが失敗の種類に名前を与えます:
+
+| 終了コード | 意味 |
+|---|---|
+| `0` | 成功 |
+| `2` | あなたの入力 — CLI が自分で拒否し、何もこの機械の外に出ていません |
+| `3` | 話しかけるブリッジがありません |
+| `4` | 接続はできましたが、やり取りが失敗しました |
+| `1` | 拡張機能が要求を拒否しました |
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -173,9 +181,24 @@ Chromium にはネイティブ側から接続する経路もありますが、�
 
 ### コマンド
 
-9 つがブリッジのソケットを通ります: ルールセットのスコープを決める `site add|rm` と
-`site all-sites on|off`、ヘッダールールを編集する `rule add|rm|toggle`、全体を止めて再開する
-`pause`/`resume`、そして保存された状態を丸ごと置き換える `state set <file|->`。
+4 つは読むだけで何も変えません: `status`、`site ls`、`rule ls`、`state get`。1 つのクエリを
+送り、ポップアップが描画に使うのと**同じ純粋関数**から答えます。だから CLI の言うことと
+レールの見せるものが食い違う余地がありません。
+
+```bash
+headerlab status
+headerlab state get --json | jq .state | headerlab state set - --force
+```
+
+`status` は、ブリッジがないことをエラーではなく事実として扱う唯一のコマンドです — ローカルに
+インストールされているものだけで答え、`live: false` と言って終了コード 0 で終わります。
+コミットのないリポジトリでの `git status` と同じ振る舞いです。残りの 3 つは 3 で終わります。
+
+9 つは書き込みとしてブリッジのソケットを通ります: ルールセットのスコープを決める
+`site add|rm` と `site all-sites on|off`、ヘッダールールを編集する `rule add|rm|toggle`、
+全体を止めて再開する `pause`/`resume`、そして保存された状態を丸ごと置き換える
+`state set <file|->` — 最後のものは stdin が端末でないとき `--force` を要求します。取り消せ
+ない上書きだからです。
 
 残りの 3 つはそのソケットに一切触れません — ネイティブメッセージングのホストマニフェストと
 Chrome が実行するランチャースクリプトを管理するもので、そもそもソケットを可能にしているのが
@@ -259,9 +282,12 @@ npm で CLI を入れた人には、指し示すべき拡張機能のディレ�
 id と同じメッセージで報告します。1 つの tarball から両方を配ることで、その失敗の仕方が文書
 ではなく構造として不可能になります。
 
-コマンドの面は設計自身の §2/§3 より狭いままです — `headerlab status`、`diagnostics`、
-`state get`、`rule ls`、そしてすべての raw な書き込み前のスナップショットは存在しません
-([#35](https://github.com/say8425/headerlab/issues/35))。
+設計自身の §2/§3 が名前を挙げたもののうち 2 つはまだ存在しません: `headerlab diagnostics`
+は今後も作りません — `status` が同じペイロードを運んでおり、1 つのクエリに 2 つ目の名前を
+与えるのは機能ではないからです — そして `state snapshots`/`state restore <id>` が読み戻す
+はずだった、raw な書き込みの前のスナップショットもありません
+([#35](https://github.com/say8425/headerlab/issues/35))。`state set` はスキーマ検証を行い
+`--force` を要求しますが、履歴は残しません。
 
 ## アーキテクチャ
 
@@ -270,7 +296,8 @@ lib/model/       型、zod スキーマ、既定値、マイグレーション  
 lib/compile/     AppState → DNR ルール + 診断                    純粋
 lib/permissions/ origins.ts, audit.ts は純粋 · probe.ts がブラウザを呼ぶ
 lib/view/        ポップアップのビューモデル                       純粋
-lib/bridge/      protocol.ts (コマンドスキーマ), apply.ts (リデューサ)  純粋
+lib/bridge/      protocol.ts (コマンドスキーマ), apply.ts (リデューサ),
+                 query.ts (状態 → StatusPayload)                      純粋
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      ポップアップ UI

@@ -10,7 +10,7 @@ import {
   registryPathFor,
   socketPathFor,
 } from '../lib/socket.mjs';
-import { extractBridgeFlag, findLiveBridges, resolveTarget, sendCommand } from '../lib/bridge.mjs';
+import { findLiveBridges, resolveTarget, sendCommand } from '../lib/bridge.mjs';
 
 // This file exercises the exact logic bin/headerlab.mjs cannot expose to
 // node:test on its own — bin/headerlab.mjs runs main() as an import-time
@@ -72,38 +72,6 @@ function writeRegistry(dir, pid, origin = `chrome-extension://${pid}fakeid/`) {
     JSON.stringify({ origin, startedAt: new Date().toISOString() }),
   );
 }
-
-// --- extractBridgeFlag: pure, argv in, {bridgePid, rest} or throw out ------
-
-describe('extractBridgeFlag', () => {
-  test('absent — bridgePid is null and argv is untouched', () => {
-    assert.deepEqual(extractBridgeFlag(['pause']), { bridgePid: null, rest: ['pause'] });
-  });
-
-  test('present — pulled out from wherever it sits in argv', () => {
-    assert.deepEqual(extractBridgeFlag(['--bridge', '123', 'pause']), {
-      bridgePid: 123,
-      rest: ['pause'],
-    });
-    assert.deepEqual(extractBridgeFlag(['pause', '--bridge', '123']), {
-      bridgePid: 123,
-      rest: ['pause'],
-    });
-  });
-
-  test('missing a value throws', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge']), /needs a pid/);
-  });
-
-  test('a non-numeric value throws', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge', 'nope']), /numeric pid/);
-  });
-
-  test('zero and negative pids throw — a pid is never <= 0', () => {
-    assert.throws(() => extractBridgeFlag(['--bridge', '0']));
-    assert.throws(() => extractBridgeFlag(['--bridge', '-5']));
-  });
-});
 
 // --- findLiveBridges: enumerate the registry dir, keep only what answers --
 
@@ -324,4 +292,143 @@ describe('sendCommand', () => {
       return true;
     });
   });
+
+  test('응답이 늦으면 onSlow 가 한 번 불린다', async () => {
+    // 연결은 받되 답하지 않는 소켓. 이 파일에 이미 그런 헬퍼가 있으면
+    // 그것을 쓴다.
+    const dir = freshDir();
+    const pid = freshPid();
+    const socketPath = socketPathFor(dir, pid);
+    await listeningServer(socketPath); // accepts, never writes anything back
+
+    let calls = 0;
+    await assert.rejects(
+      sendCommand(
+        socketPath,
+        { cmd: 'pause' },
+        {
+          timeoutMs: 300,
+          slowAfterMs: 50,
+          onSlow: () => (calls += 1),
+        },
+      ),
+      (error) => error.code === 'timeout',
+    );
+    assert.equal(calls, 1);
+  });
+
+  test('빨리 답하면 onSlow 는 안 불린다', async () => {
+    const dir = freshDir();
+    const pid = freshPid();
+    const socketPath = socketPathFor(dir, pid);
+    await listeningServer(socketPath, (socket, envelope) => {
+      socket.write(`${JSON.stringify({ id: envelope.id, ok: true, changed: false })}\n`);
+    });
+
+    let calls = 0;
+    const slowAfterMs = 50;
+    const result = await sendCommand(
+      socketPath,
+      { cmd: 'pause' },
+      {
+        timeoutMs: 1000,
+        slowAfterMs,
+        onSlow: () => (calls += 1),
+      },
+    );
+    assert.deepEqual(result, { ok: true, changed: false });
+    // The reply resolves well inside slowAfterMs, which only proves the
+    // regression window in this file's own review found: settle() dropped
+    // `clearTimeout(slowTimer)` would still leave that timer running past
+    // this point, and onSlow would fire ~slowAfterMs later — after a bare
+    // assert.equal(calls, 0) taken right after await would already have
+    // passed. Waiting past slowAfterMs before asserting closes that window.
+    await new Promise((resolve) => setTimeout(resolve, slowAfterMs + 100));
+    assert.equal(calls, 0);
+  });
+});
+
+import { extractGlobals } from '../lib/bridge.mjs';
+
+test('extractGlobals 가 전역 플래그를 걷고 나머지를 남긴다', () => {
+  assert.deepEqual(extractGlobals(['site', 'add', 'a.com', '--json']), {
+    globals: {
+      bridgePid: null,
+      json: true,
+      human: false,
+      quiet: false,
+      noColor: false,
+      noInput: false,
+      force: false,
+      help: false,
+      version: false,
+      error: null,
+    },
+    rest: ['site', 'add', 'a.com'],
+  });
+});
+
+test('extractGlobals 가 --bridge 의 pid 를 걷는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', '42', 'pause']);
+  assert.equal(globals.bridgePid, 42);
+  assert.deepEqual(rest, ['pause']);
+});
+
+test('extractGlobals 는 던지지 않고 error 로 답한다', () => {
+  assert.equal(extractGlobals(['--bridge']).globals.error, '--bridge needs a pid');
+  assert.equal(
+    extractGlobals(['--bridge', 'x']).globals.error,
+    '--bridge needs a numeric pid, got: x',
+  );
+});
+
+/**
+ * `--bridge` 는 다음 토큰을 조건 없이 먹었고, `extractGlobals` 는 먹은 것을
+ * `rest` 에서도 지운다 — 그래서 삼켜진 플래그는 통째로 사라졌다. 측정:
+ * `headerlab --bridge --help` 는 도움말을 내지 않고 "needs a numeric pid,
+ * got: --help" 로 2 를 냈다. 플래그 문법이 헷갈릴 때 사람이 치는 줄이 하필
+ * 그것이다.
+ */
+test('--bridge 는 뒤따르는 플래그를 먹지 않는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', '--help']);
+  // 부재를 먼저: `--help` 가 사라지지 않았다.
+  assert.equal(globals.help, true);
+  assert.equal(globals.bridgePid, null);
+  assert.equal(globals.error, '--bridge needs a pid');
+  assert.deepEqual(rest, []);
+});
+
+test('--bridge 뒤의 명령도 먹지 않는다', () => {
+  const { globals, rest } = extractGlobals(['--bridge', 'pause']);
+  // 이쪽은 여전히 값으로 보고 숫자가 아니라고 말한다 — 플래그가 아니므로
+  // 사람이 pid 를 치려다 만 것으로 읽는 편이 맞다.
+  assert.equal(globals.error, '--bridge needs a numeric pid, got: pause');
+  assert.deepEqual(rest, []);
+});
+
+test('extractGlobals 가 짧은 이름도 받는다', () => {
+  assert.equal(extractGlobals(['-h']).globals.help, true);
+  assert.equal(extractGlobals(['-q', 'pause']).globals.quiet, true);
+  assert.equal(extractGlobals(['-f', 'pause']).globals.force, true);
+});
+
+test('extractGlobals 가 --human 을 걷는다', () => {
+  const { globals, rest } = extractGlobals(['--human', 'pause']);
+  assert.equal(globals.human, true);
+  assert.deepEqual(rest, ['pause']);
+});
+
+// `bridge install` 이 `--extension-id` 와 `--load-path` 를 함께 받으면 하나를
+// 골라 이기게 하지 않고 거부하는 것과 같은 모양이다 — 조용히 하나를 고르면
+// 사용자가 치지 않은 모드로 나갈 수 있다.
+test('--json 과 --human 을 같이 주면 거부한다', () => {
+  const { globals } = extractGlobals(['--json', '--human', 'pause']);
+  assert.equal(globals.error, 'headerlab takes --json or --human, not both');
+});
+
+test('--json 과 --human 을 같이 줘도 다른 플래그 파싱은 계속된다', () => {
+  const { globals, rest } = extractGlobals(['--json', '--human', 'pause']);
+  assert.equal(globals.json, true);
+  assert.equal(globals.human, true);
+  assert.deepEqual(rest, ['pause']);
 });

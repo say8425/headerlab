@@ -96,3 +96,22 @@ export interface ApplyError {
 export type ApplyResult =
   | { ok: true; state: AppState; changed: boolean; note?: string }
   | { ok: false; error: ApplyError };
+
+/**
+ * 읽기. `commandSchema` 가 쓰기 목록인 것과 짝을 이룬다.
+ *
+ * 모양이 하나뿐인 것은 의도다. `headerlab status`·`rule ls`·`site ls`·
+ * `state get` 넷이 전부 이 하나를 먹고 CLI 쪽에서 다르게 그린다. 읽기
+ * 명령이 더 붙어도 렌더만 늘고 프로토콜은 그대로다.
+ *
+ * 리듀서(`apply()`)를 거치지 않는다 — 상태를 바꾸지 않으므로 `compile()`
+ * 과 `ruleTally()` 를 직접 부르면 되고, 그것이 `lib/bridge/query.ts` 다.
+ */
+export const querySchema = z.discriminatedUnion('cmd', [z.object({ cmd: z.literal('status') })]);
+
+export type Query = z.infer<typeof querySchema>;
+
+/** Throws on failure. Call this at the trust boundary. */
+export function parseQuery(input: unknown): Query {
+  return querySchema.parse(input);
+}

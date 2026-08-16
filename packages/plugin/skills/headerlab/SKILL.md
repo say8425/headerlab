@@ -1,6 +1,6 @@
 ---
 name: headerlab
-description: Change HeaderLab's HTTP header rules from the command line — scope which sites a rule applies to, add/remove/toggle header rules, pause or resume the whole rule set, or replace stored state wholesale. Use whenever the user asks to add or edit a header rule, scope a rule to a site, or pause/resume HeaderLab. There is no read-only command; state comes back only as the reply to a successful write.
+description: Change HeaderLab's HTTP header rules from the command line — scope which sites a rule applies to, add/remove/toggle header rules, pause or resume the whole rule set, read the current state, or replace it wholesale. Use whenever the user asks to add or edit a header rule, scope a rule to a site, ask what HeaderLab is currently doing, or pause/resume it. Reads answer without writing: `headerlab status`, `site ls`, `rule ls` and `state get`.
 ---
 
 # HeaderLab CLI
@@ -25,21 +25,40 @@ bridge. The extension modifies HTTP request and response headers per site,
 under a Grant-based permission model — nothing it does is invisible to the
 person running Chrome, and this CLI does not change that.
 
-**Output is always one JSON object on stdout, success or failure, with the
-exit code following it** — `0` on success, `1` otherwise. There is no human
-prose to parse and none to produce; if you need to explain something to the
-person you're working with, say it yourself, not by relaying raw JSON.
+**Pass `--json` on every invocation.** Output is one JSON object on stdout,
+success or failure. That is already what you get when the CLI is not attached
+to a terminal, but say it explicitly rather than depending on the detection —
+a contract that rests on how you happened to be invoked breaks silently on
+the day that changes.
+
+**The exit code names the failure class**, so branch on it rather than
+parsing: `0` success · `2` the CLI refused your input · `3` no bridge to talk
+to · `4` connected but the exchange failed · `1` the extension refused the
+request.
+
+There is human prose behind `--human` (and on a terminal, by default), but it
+is not for you to parse and not for you to relay: if you need to explain
+something to the person you're working with, say it yourself.
 
 ## `bridge-off` is a state, not a retry loop
 
 Every command that reaches the socket — `site`/`rule`/`pause`/`resume`/
-`state set` — can fail with `{"ok":false,"error":{"code":"bridge-off",...}}`.
-That means no HeaderLab bridge is currently running — not that this attempt
-was unlucky. The host cannot be started from outside; there is nothing to
-wait for. Report it as "the bridge is not running" and stop, the same way
-you would report `MISSING-CLI` above. If more than one bridge is running,
-the error code is `multiple-bridges` instead, and its message lists each
-candidate's pid — rerun with `--bridge <pid>` naming one of them.
+`state set`, and the reads `site ls`/`rule ls`/`state get` too — can fail with
+`{"ok":false,"error":{"code":"bridge-off",...}}`. That means no HeaderLab
+bridge is currently running — not that this attempt was unlucky. The host
+cannot be started from outside; there is nothing to wait for. Report
+`bridge-off` as "the bridge is not running" and stop, the same way you would
+report `MISSING-CLI` above. If more than one bridge is running, the error
+code is `multiple-bridges` instead, and its message lists each candidate's
+pid — rerun with `--bridge <pid>` naming one of them.
+
+**`headerlab status` is the one exception, and it is the command to reach for
+when you do not know what is going on.** It sends the same query, but a bridge
+that is not there is a fact it reports rather than an error it raises: it
+answers from what is installed locally, sets `"live": false`, and exits 0. The
+exception stops there — a bridge that answered and refused, a `--bridge <pid>`
+that names nothing, or a timeout all come back as failures with their own exit
+codes, because translating those into "not running" would be a silent failure.
 
 `bridge install|uninstall|status` cannot fail this way — never reaching the
 socket in the first place is the entire reason those three exist (see
@@ -58,22 +77,30 @@ all.
 
 ## Commands
 
-All of these are subcommands of `headerlab`. A global `--bridge <pid>` flag
-may be inserted anywhere in argv to pick a specific bridge when more than
-one is live; omit it when only one is running.
+All of these are subcommands of `headerlab`. The global flags may be inserted
+anywhere in argv, before or after the subcommand: `--json` (machine output,
+what you want), `--human` (its inverse — refused alongside `--json`),
+`-q`/`--quiet`, `--no-color`, `--no-input` (never prompt; fail and name the
+flag to pass instead), `-f`/`--force`, `-h`/`--help`, `--version`, and
+`--bridge <pid>` to pick a specific bridge when more than one is live — omit
+that last one when only one is running.
 
 | Command | Effect |
 |---|---|
+| `headerlab status --json` | What is installed, live and configured. **A bridge that is simply absent is not a failure here** — it reports that as a fact and exits 0. The exception stops there: `--bridge <pid>` naming a bridge that does not exist still fails with `bridge-off` and exits 3, because ignoring a pid you named would make the CLI answer for something you did not ask about. |
+| `headerlab rule ls --json` | The header rules, with any problem the compiler found. |
+| `headerlab site ls --json` | The sites the rules are scoped to. |
+| `headerlab state get --json` | The entire stored state, under `.state`. |
 | `headerlab site add <domain...>` | Scope the active rule to one or more domains, in addition to whatever it already covers. |
 | `headerlab site rm <domain...>` | Remove one or more domains from the active rule's scope. |
 | `headerlab site all-sites on\|off` | Turn the "applies everywhere" mode on or off. **This never grants a permission** — see below. |
-| `headerlab rule add --target request\|response --op set\|append\|remove --name <header> --value <value>` | Add one header rule. `--name`/`--value` may be omitted (they default to `''`); a nameless rule is a normal, unfinished state in HeaderLab, not an error. |
+| `headerlab rule add --target request\|response --op set\|append\|remove --name <header> --value <value>` | Add one header rule. `--name`/`--value` may be omitted (they default to `''`); a nameless rule is a normal, unfinished state in HeaderLab, not an error. `--value-file <path\|->` reads the value instead, and is what to use for a secret — `--value` lands in `ps` output and in shell history. |
 | `headerlab rule rm <id>` | Remove a rule by id. |
 | `headerlab rule toggle <id> [--on\|--off]` | Turn a rule on or off. Omit both flags to flip whatever it currently is. |
 | `headerlab pause` | Pause header modification entirely, without touching any rule's own on/off state. |
 | `headerlab resume` | Resume after a pause. |
-| `headerlab state set <file\|->` | Replace the extension's entire stored state with the JSON at `<file>`, or from stdin when the argument is `-`. This is a full overwrite, not a merge — read the current state back from a prior reply before doing this if anything in it needs to survive. |
-| `headerlab bridge install --extension-id <id>\|--load-path <dir> [--user-data-dir <dir>] [--browser chrome\|chromium]` | Install the native messaging host manifest that makes a bridge possible. Never touches a socket — see below. |
+| `headerlab state set <file\|-> --force` | Replace the extension's entire stored state with the JSON at `<file>`, or from stdin when the argument is `-`. This is a full overwrite, not a merge — read the current state back with `state get` first if anything in it needs to survive. *Requires `--force` when not on a terminal, which is always the case here — it is a full overwrite that cannot be undone.* |
+| `headerlab bridge install --extension-id <id>\|--load-path <dir> [--user-data-dir <dir>] [--browser chrome\|chromium] [-n\|--dry-run]` | Install the native messaging host manifest that makes a bridge possible. Never touches a socket — see below. `-n`/`--dry-run` reports the exact manifest it would write and writes nothing. |
 | `headerlab bridge uninstall [--user-data-dir <dir>] [--browser chrome\|chromium]` | Remove the manifest this installed. Idempotent: removing what is not there is success. |
 | `headerlab bridge status [--user-data-dir <dir>] [--browser chrome\|chromium]` | Report what is installed and what is live, without requiring a bridge to be running. |
 
@@ -89,11 +116,14 @@ names the exact `manifestPath`/`launcherPath` it looked at, so when in doubt,
 compare that path against what `--user-data-dir`/`--browser` should have
 produced rather than trusting `installed: false` alone.
 
-There is currently no dedicated read-only command. Every **successful**
-write's reply carries the resulting state in full (`{"ok":true,"state":
-{...}, "changed": <bool>, "note"?: "..."}`), so the way to see current rules
-from this CLI is to read that field off the reply of whatever write you just
-issued — there is nothing that reads state without also being a write.
+Reads no longer require a write. `status`, `rule ls`, `site ls` and
+`state get` all answer from the same query and change nothing. Round-tripping
+the whole state is one pipe:
+`headerlab state get --json | jq .state | headerlab state set - --force`.
+
+Every **successful** write's reply still carries the resulting state in full
+(`{"ok":true,"state":{...}, "changed": <bool>, "note"?: "..."}`), so a write
+already tells you where it left things — you rarely need a read after one.
 
 ## Adding a site does not grant permission
 

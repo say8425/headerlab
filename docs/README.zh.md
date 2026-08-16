@@ -126,8 +126,16 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-每次回复都是 stdout 上的一个 JSON 对象 —— 无论成功还是失败 —— 随后是退出码。没有另一套
-供人阅读、需要你去解析的输出。
+在终端里它为人打印；接上管道或加 `--json` 时，它打印一个 JSON 对象，无论成功还是失败。
+退出码为失败的类别命名：
+
+| 退出码 | 含义 |
+|---|---|
+| `0` | 成功 |
+| `2` | 你的输入 —— CLI 自己拒绝了它，什么都没有离开这台机器 |
+| `3` | 没有可以对话的桥接 |
+| `4` | 连上了，但这次交换失败了 |
+| `1` | 扩展拒绝了该请求 |
 
 ```
 CLI (headerlab)                      Native host              Extension (SW)
@@ -152,9 +160,22 @@ Chrome 作为副作用启动主机进程，主机在 Unix 套接字上监听，�
 
 ### 命令
 
-九条走桥接套接字：限定规则集范围的 `site add|rm` 与 `site all-sites on|off`，编辑头部规则的
-`rule add|rm|toggle`，停止与重启整套规则的 `pause`/`resume`，以及整体替换已存状态的
-`state set <file|->`。
+四条只读、什么都不改：`status`、`site ls`、`rule ls`、`state get`。它们发出同一条查询，并由
+**弹窗渲染时所用的同一批纯函数**作答，所以 CLI 说的话和侧栏显示的内容无从分叉。
+
+```bash
+headerlab status
+headerlab state get --json | jq .state | headerlab state set - --force
+```
+
+`status` 是唯一把「没有桥接」当作事实而非错误的命令 —— 它只凭本地已安装的内容作答，说
+`live: false`，然后以 0 退出，就像在一个没有提交的仓库里运行 `git status`。另外三条会以
+3 退出。
+
+九条作为写入走桥接套接字：限定规则集范围的 `site add|rm` 与 `site all-sites on|off`，编辑
+头部规则的 `rule add|rm|toggle`，停止与重启整套规则的 `pause`/`resume`，以及整体替换已存
+状态的 `state set <file|->` —— 最后这条在 stdin 不是终端时要求 `--force`，因为它是一次无法
+撤销的覆盖。
 
 另外三条完全不碰那个套接字 —— 它们管理原生消息主机清单和 Chrome 运行的启动器脚本，而这正是
 套接字得以存在的前提：`bridge install`、`bridge uninstall`、`bridge status`。最后一条会在
@@ -225,9 +246,11 @@ Chrome 作为副作用启动主机进程，主机在 Unix 套接字上监听，�
 Chrome 报告这种失败时用的消息，与清单被拒绝或 id 不匹配时完全相同。让两者从同一个 tarball
 发布，使这种失败方式从结构上不可能发生，而不只是被写进文档。
 
-命令表面比设计自身的 §2/§3 更窄 —— `headerlab status`、`diagnostics`、`state get`、
-`rule ls`，以及每次原始写入前的快照都不存在
-（[#35](https://github.com/say8425/headerlab/issues/35)）。
+设计自身的 §2/§3 点名过的东西里，仍有两样不存在：`headerlab diagnostics` 也不会去做 ——
+`status` 已经运载同样的载荷，给同一条查询取第二个名字不是功能 —— 以及
+`state snapshots`/`state restore <id>` 本该读回的、每次原始写入前的快照
+（[#35](https://github.com/say8425/headerlab/issues/35)）。`state set` 会做模式校验并要求
+`--force`，但它不保留任何历史。
 
 ## 架构
 
@@ -236,7 +259,8 @@ lib/model/       类型、zod 模式、默认值、迁移                     �
 lib/compile/     AppState → DNR 规则 + 诊断                      纯函数
 lib/permissions/ origins.ts, audit.ts 为纯函数 · probe.ts 调用浏览器
 lib/view/        弹窗视图模型                                    纯函数
-lib/bridge/      protocol.ts (命令模式), apply.ts (reducer)        纯函数
+lib/bridge/      protocol.ts (命令模式), apply.ts (reducer),
+                 query.ts (状态 → StatusPayload)                   纯函数
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts (reconcile), icon.ts
 components/      弹窗 UI

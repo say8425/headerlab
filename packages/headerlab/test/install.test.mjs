@@ -13,7 +13,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { bridgeStatus, installBridge, uninstallBridge } from '../lib/install.mjs';
+import { bridgeStatus, installBridge, previewInstall, uninstallBridge } from '../lib/install.mjs';
 import { MANIFEST_FILE_NAME } from '../lib/manifest.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -132,6 +132,39 @@ describe('installBridge', () => {
     // (result.ok becomes true), where it leaves the other test green.
     assert.equal(existsSync(path.join(broken.manifestDir, MANIFEST_FILE_NAME)), false);
     assert.equal(existsSync(path.join(broken.launcherDir, 'headerlab-host')), false);
+  });
+});
+
+describe('previewInstall', () => {
+  it('아무 파일도 만들지 않는다', async () => {
+    const result = await previewInstall(options);
+
+    // 부재를 먼저 검사한다 — 이 명령의 존재 이유가 "아무것도 안 쓴다" 이므로.
+    assert.equal(existsSync(options.manifestDir), false);
+    assert.equal(existsSync(options.launcherDir), false);
+    assert.equal(result.ok, true);
+    assert.equal(result.dryRun, true);
+    assert.equal(result.extensionId, 'a'.repeat(32));
+    assert.deepEqual(result.manifest.allowed_origins, [`chrome-extension://${'a'.repeat(32)}/`]);
+  });
+
+  /**
+   * 미리보기가 초록인데 진짜 실행이 빨간 조합은 없어야 한다. `--dry-run` 은
+   * "알려진 함정의 해독제" 로 팔리는데, 진입 파일이 없는 기계에서 완전하고
+   * 그럴듯한 매니페스트를 찍고 성공이라 말하면 그 자리에서 함정을 하나 새로
+   * 판 것이다 — 바로 위 `installBridge` 테스트가 같은 fixture 로 거절을
+   * 확인한다.
+   */
+  it('진짜 실행이 거절하는 것은 미리보기도 거절한다', async () => {
+    const broken = { ...options, entryPath: path.join(root, 'does-not-exist.mjs') };
+    const result = await previewInstall(broken);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'install-failed');
+    assert.match(result.error.message, /does-not-exist\.mjs/);
+    // 그래도 아무것도 쓰지 않는다.
+    assert.equal(existsSync(broken.manifestDir), false);
+    assert.equal(existsSync(broken.launcherDir), false);
   });
 });
 

@@ -417,6 +417,71 @@ describe('a bridge-status write can fail without breaking the bridge', () => {
   });
 });
 
+describe('handleMessage routes reads before writes', () => {
+  it('answers a status query without writing state', async () => {
+    // Seeded with something to be wrong about. Against `DEFAULT_STATE`
+    // (`profiles: []`) this is the emptiest payload `status()` can produce,
+    // and an implementation that dropped five of the nine `StatusPayload`
+    // fields passed the assertion below unchanged — `query.test.ts` cannot
+    // catch that, because it calls `status()` directly rather than going
+    // through this port.
+    const profile = {
+      ...bootstrapProfile(),
+      id: 'p-routed',
+      filter: { ...bootstrapProfile().filter, domains: ['routed.example.com'] },
+      headers: [
+        {
+          id: 'r1',
+          enabled: true,
+          target: 'request' as const,
+          operation: 'set' as const,
+          name: 'X-A',
+          value: '1',
+        },
+      ],
+    };
+    const seeded: AppState = { ...DEFAULT_STATE, profiles: [profile] };
+    await setState(seeded);
+
+    await refreshBridge();
+    const port = ports[0]!;
+    const { stateItem } = await import('@/lib/storage/state');
+    const setValueSpy = vi.spyOn(stateItem, 'setValue');
+    const bridgeStatusSpy = vi.spyOn(bridgeStatusItem, 'setValue');
+
+    port.send({ id: '1', command: { cmd: 'status' } });
+    await settle();
+
+    // Absence first: a status query that writes state would fire
+    // stateItem.watch() → reconcile(), replacing every DNR rule for a
+    // command that only asked to look.
+    expect(setValueSpy).not.toHaveBeenCalled();
+    // Absence, second guarantee: a read must not move `lastCommandAt` either
+    // — patchBridgeStatus() is the only writer of bridgeStatusItem, and if a
+    // read moved the "last command" timestamp the popup would report a
+    // command that never happened.
+    expect(bridgeStatusSpy).not.toHaveBeenCalled();
+
+    // `toEqual`, and every field of `StatusPayload` — nothing else in the
+    // suite asserts that the port hands the *whole* payload across, and a
+    // partial match cannot tell a complete reply from a truncated one.
+    expect(port.messages).toHaveLength(1);
+    expect(port.messages[0]).toEqual({
+      id: '1',
+      ok: true,
+      state: seeded,
+      profile,
+      dropped: [],
+      diagnostics: { byRow: [], byHost: [], scope: [] },
+      tally: { total: 1, live: 1, off: 0, unfinished: 0, blocked: 0 },
+      scopingHosts: ['routed.example.com'],
+      suppression: null,
+      requiredOrigins: ['*://*.routed.example.com/*'],
+      globalPause: false,
+    });
+  });
+});
+
 describe('declaresRegexMode', () => {
   it.each([
     ['a payload that is not an object', 'nope', false],

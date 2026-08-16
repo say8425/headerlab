@@ -7,8 +7,14 @@ import { parseArgs } from 'node:util';
  * only place in this package allowed to touch any of those, so everything
  * this file returns has to be enough to decide the outcome from argv alone.
  *
- * The nine shapes below are exactly the ones `lib/bridge/protocol.ts`
- * declares (`commandSchema`), field for field. `state.set` is the one
+ * `status`, `site ls`, `rule ls` and `state get` are one command here, not
+ * four: they all return `{cmd:'status'}`, which is the whole of
+ * `protocol.ts`'s `querySchema`, and only `render.mjs` tells them apart.
+ * A read has nothing to say beyond "tell me everything", so four shapes
+ * would be four ways for the CLI and the extension to disagree.
+ *
+ * The shapes below are exactly the ones `lib/bridge/protocol.ts`
+ * declares (`commandSchema` and `querySchema`), field for field. `state.set` is the one
  * exception, and it is exactly the size of the I/O boundary: this file
  * cannot read a file or stdin, so for `state set <file|->` the `state`
  * field holds `{ source }` — the *place* to read from — rather than the
@@ -38,6 +44,8 @@ export function parse(argv) {
       return parseNullary(rest, 'resume');
     case 'state':
       return parseState(rest);
+    case 'status':
+      return parseNullary(rest, 'status');
     default:
       return unknownCommand(group);
   }
@@ -71,11 +79,26 @@ function parseNullary(args, cmd, display = cmd) {
 
 function parseSite(args) {
   const [sub, ...rest] = args;
+  // `parseNullary` 의 세 번째 인자가 여기서 일한다: 명령은 `status` 지만
+  // 거절 문장은 사람이 친 `site ls` 로 나온다.
+  if (sub === 'ls') return parseNullary(rest, 'status', 'site ls');
   if (sub === 'add' || sub === 'rm') {
-    if (rest.length === 0) {
+    // `allowPositionals: true` 로 파싱하는 이유는 도메인을 받기 위해서가
+    // 아니라 **플래그를 거부하기 위해서**다. 이전에는 남은 토큰을 전부
+    // 도메인으로 삼았고, `site add a.com --json` 이 exit 0 으로 성공하며
+    // `--json` 을 도메인으로 저장했다 — `effectiveDomain` 이 그대로 저장하고
+    // `suppressionReason` 이 `unusable-site` 를 돌려주어 프로필 전체가
+    // 컴파일을 멈춘다. 같은 CLI 의 `bridge status` 는 이미 이렇게 거부한다.
+    let positionals;
+    try {
+      ({ positionals } = parseArgs({ args: rest, options: {}, allowPositionals: true }));
+    } catch (error) {
+      return invalidArgs(`site ${sub}: ${error.message}`);
+    }
+    if (positionals.length === 0) {
       return invalidArgs(`site ${sub} needs at least one domain`);
     }
-    return ok({ cmd: sub === 'add' ? 'site.add' : 'site.remove', domains: rest });
+    return ok({ cmd: sub === 'add' ? 'site.add' : 'site.remove', domains: positionals });
   }
   if (sub === 'all-sites') {
     const [state] = rest;
@@ -92,6 +115,7 @@ const RULE_OPERATIONS = ['set', 'append', 'remove'];
 
 function parseRule(args) {
   const [sub, ...rest] = args;
+  if (sub === 'ls') return parseNullary(rest, 'status', 'rule ls');
   if (sub === 'add') return parseRuleAdd(rest);
   if (sub === 'rm') return parseRuleRemove(rest);
   if (sub === 'toggle') return parseRuleToggle(rest);
@@ -108,6 +132,7 @@ function parseRuleAdd(args) {
         op: { type: 'string' },
         name: { type: 'string' },
         value: { type: 'string' },
+        'value-file': { type: 'string' },
       },
       allowPositionals: false,
     }));
@@ -125,6 +150,17 @@ function parseRuleAdd(args) {
       `rule add needs --op ${RULE_OPERATIONS.join('|')}, got: ${values.op ?? '(missing)'}`,
     );
   }
+  // 둘 중 하나가 조용히 이기면, 비밀값을 파일에 두려던 사람이 왜
+  // argv 의 값이 나갔는지 알 길이 없다.
+  if (values.value !== undefined && values['value-file'] !== undefined) {
+    return invalidArgs('rule add takes --value or --value-file, not both');
+  }
+
+  // `{source}` 는 `state.set` 이 이미 쓰는 형태다 — 이 파일은 순수하므로
+  // 파일을 읽지 않고 *읽을 자리*를 실어 보내고, bin/headerlab.mjs 가
+  // 소켓 이전에 해소한다.
+  const value =
+    values['value-file'] === undefined ? (values.value ?? '') : { source: values['value-file'] };
 
   // `name` and `value` both default to '' rather than being required: a
   // nameless, valueless rule is a normal state in this repo (`newRule` in
@@ -135,7 +171,7 @@ function parseRuleAdd(args) {
     target: values.target,
     operation: values.op,
     name: values.name ?? '',
-    value: values.value ?? '',
+    value,
   });
 }
 
@@ -177,6 +213,7 @@ function parseRuleToggle(args) {
 
 function parseState(args) {
   const [sub, ...rest] = args;
+  if (sub === 'get') return parseNullary(rest, 'status', 'state get');
   if (sub !== 'set') {
     return invalidArgs(`unknown state command: ${sub ?? '(nothing)'}`);
   }
@@ -266,6 +303,7 @@ function parseBridgeInstall(args) {
         'load-path': { type: 'string' },
         'user-data-dir': { type: 'string' },
         browser: { type: 'string' },
+        'dry-run': { type: 'boolean', short: 'n' },
       },
       allowPositionals: false,
     }));
@@ -299,5 +337,6 @@ function parseBridgeInstall(args) {
     loadPath,
     userDataDir: values['user-data-dir'] ?? null,
     browser,
+    dryRun: values['dry-run'] ?? false,
   });
 }

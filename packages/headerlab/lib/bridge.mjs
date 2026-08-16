@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { GLOBAL_FLAGS } from './commands.mjs';
 import { isSocketAlive, registryPathFor, socketPathFor } from './socket.mjs';
 
 /**
@@ -22,21 +23,78 @@ export function withCode(error, code) {
 }
 
 /**
- * `--bridge <pid>` is a global flag, not part of any single command's
- * grammar — it picks which live bridge to talk to, which is orthogonal to
- * what the command does. So it is pulled out of argv before the rest ever
- * reaches `args.mjs`'s `parse()`, which only knows the nine command shapes.
+ * 전역 플래그는 어느 한 명령의 문법이 아니라 CLI 전체의 것이므로 argv 어디에
+ * 있어도 되고, `args.mjs` 의 `parse()` 가 보기 전에 걷힌다. `--bridge` 가
+ * 원래 이렇게 동작했고, 나머지가 같은 취급을 받는다.
+ *
+ * 던지지 않는다. 이 함수가 던지면 `--help` 를 처리하기도 전에 죽는 경로가
+ * 생기는데, 도움말은 문제가 있을 때 가장 필요한 것이다. 문제는 `error` 로
+ * 실어 보내고 호출부가 도움말을 낼지 실패할지 정한다.
  */
-export function extractBridgeFlag(argv) {
-  const index = argv.indexOf('--bridge');
-  if (index === -1) return { bridgePid: null, rest: argv };
-  const value = argv[index + 1];
-  if (value === undefined) throw new Error('--bridge needs a pid');
-  const bridgePid = Number(value);
-  if (!Number.isInteger(bridgePid) || bridgePid <= 0) {
-    throw new Error(`--bridge needs a numeric pid, got: ${value}`);
+// 표(`commands.mjs` 의 `GLOBAL_FLAGS`)에서 만든다. 손으로 적힌 사본이던
+// 동안 도움말 쪽 사본과 갈라졌고 — `--no-input` 과 `--force` 가 파서에만
+// 있었다 — 갈라진 것을 아무것도 빨갛게 만들지 않았다.
+const BOOLEAN_GLOBALS = new Map(
+  GLOBAL_FLAGS.filter((flag) => flag.arg === undefined).flatMap((flag) =>
+    flag.names.map((name) => [name, flag.key]),
+  ),
+);
+
+export function extractGlobals(argv) {
+  const globals = {
+    bridgePid: null,
+    json: false,
+    human: false,
+    quiet: false,
+    noColor: false,
+    noInput: false,
+    force: false,
+    help: false,
+    version: false,
+    error: null,
+  };
+  const rest = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    const boolean = BOOLEAN_GLOBALS.get(token);
+    if (boolean !== undefined) {
+      globals[boolean] = true;
+      continue;
+    }
+    if (token === '--bridge') {
+      const value = argv[i + 1];
+      // 다음 토큰이 플래그면 **먹지 않는다**. 먹으면 `extractGlobals` 가
+      // `rest` 에서도 지우므로 그 플래그는 통째로 사라진다 — 측정:
+      // `headerlab --bridge --help` 가 도움말을 내지 않고 "needs a numeric
+      // pid, got: --help" 로 2 를 냈다. 바로 아래 `main()` 의 주석은 그
+      // 반대 방향(맨손 `--bridge` 의 에러가 도움말에 삼켜지는 것)만
+      // 따졌었다.
+      if (value === undefined || value.startsWith('-')) {
+        globals.error ??= '--bridge needs a pid';
+        continue;
+      }
+      i += 1;
+      const pid = Number(value);
+      if (!Number.isInteger(pid) || pid <= 0) {
+        globals.error ??= `--bridge needs a numeric pid, got: ${value}`;
+        continue;
+      }
+      globals.bridgePid = pid;
+      continue;
+    }
+    rest.push(token);
   }
-  return { bridgePid, rest: [...argv.slice(0, index), ...argv.slice(index + 2)] };
+
+  // `bridge install` 이 `--extension-id` 와 `--load-path` 를 함께 주면 하나를
+  // 골라 이기게 하지 않고 거부하는 것과 같은 모양이다(args.mjs) — 둘 다
+  // "출력 형식을 정하는" 플래그이므로 하나를 조용히 이기게 두면 사용자가
+  // 치지 않은 모드로 나갈 수 있다.
+  if (globals.json && globals.human) {
+    globals.error ??= 'headerlab takes --json or --human, not both';
+  }
+
+  return { globals, rest };
 }
 
 const REGISTRY_FILE = /^(\d+)\.json$/;
@@ -156,8 +214,18 @@ export const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  * correlates because the id actually round-trips. That is the contract
  * enforced end to end, from outside both files rather than from within
  * either one.
+ *
+ * `onSent` fires the moment the command's bytes have been handed to the
+ * socket. Nothing here needs it — the caller does: `bin/headerlab.mjs` 의
+ * SIGINT 핸들러가 "아무것도 전달되지 않았다" 를 조건 없이 찍고 있었고, 그
+ * 문장은 명령이 이미 나간 뒤 Ctrl-C 를 눌렀을 때 거짓이었다. 그 사실을 아는
+ * 유일한 자리가 여기이므로 여기서 알린다.
  */
-export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS } = {}) {
+export function sendCommand(
+  socketPath,
+  command,
+  { timeoutMs = DEFAULT_REPLY_TIMEOUT_MS, slowAfterMs = 1000, onSlow, onSent } = {},
+) {
   return new Promise((resolve, reject) => {
     const id = randomUUID();
     const socket = createConnection(socketPath);
@@ -168,9 +236,15 @@ export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIM
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(slowTimer);
       socket.destroy();
       action(value);
     }
+
+    // 측정된 결함: 브릿지가 연결을 받고 답하지 않으면 10초 동안 어느
+    // 스트림에도 한 바이트도 나오지 않는다. 그 사이 유일한 신호는
+    // 터미널이 안 돌아온다는 것뿐이다 (clig Robustness §2).
+    const slowTimer = setTimeout(() => onSlow?.(timeoutMs), slowAfterMs);
 
     const timer = setTimeout(() => {
       settle(
@@ -181,6 +255,7 @@ export function sendCommand(socketPath, command, { timeoutMs = DEFAULT_REPLY_TIM
 
     socket.on('connect', () => {
       socket.write(`${JSON.stringify({ id, command })}\n`);
+      onSent?.();
     });
 
     socket.on('data', (chunk) => {
