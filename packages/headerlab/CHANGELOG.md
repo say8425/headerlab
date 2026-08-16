@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/say8425/headerlab/compare/cli-v0.1.2...cli-v0.2.0) (2026-08-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* five changes to the CLI's contract.
+
+### Features
+
+* rework the CLI to follow clig.dev ([46514f9](https://github.com/say8425/headerlab/commit/46514f94f64e02865a89a242a0cf991b717d3c72))
+
 ## [0.1.2](https://github.com/say8425/headerlab/compare/cli-v0.1.1...cli-v0.1.2) (2026-08-14)
 
 
