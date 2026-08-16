@@ -839,10 +839,33 @@ in the test body. Register teardown so it cannot be skipped (`t.after`, register
 the install runs, not a cleanup call at the end of the test), and check
 `~/.headerlab/bin` and the real per-user socket directory by hand afterward regardless.
 
-**One flaky test, pre-existing, not from the bridge work.**
+**The one "flaky" test was a real race, and calling it flaky is what kept it alive.**
 `packages/headerlab/test/headerlab-host.test.mjs`'s "closed stdin shuts the host down, well
-under the two-second SIGKILL budget, with everything cleaned up" failed once under
-concurrent load and passed both in isolation and on re-run.
+under the two-second SIGKILL budget, with everything cleaned up" was recorded here as a flake
+— failing under concurrent load, passing in isolation and on re-run. That description was
+accurate and useless: it named the symptom and stopped. The cause is an ordering window in the
+test, not load. `waitForSocket` polled for the **socket** file, which `lib/host.mjs`'s
+`await listenWithRestrictedPermissions(...)` creates, and the assertion sixteen lines later
+checked the **registry entry**, which `writeRegistryEntry(...)` writes afterwards. Between
+those two the host has a socket and no registry file, and the test asserted inside that gap.
+
+**Reproduce it deterministically rather than waiting for load**: plant
+`await new Promise((r) => setTimeout(r, 300))` immediately before that `writeRegistryEntry`
+call and the old test fails every time, at the same assertion CI reported
+(`actual: false, expected: true`). That is how it was diagnosed, and how the fix was checked —
+the repaired test passes with the delay still planted, and its own gate was mutation-verified
+by never writing the entry at all, which produces a timeout naming which half is missing
+instead of a bare `false !== true`.
+
+The host's ordering was never wrong and was not changed: writing the registry entry only after
+a successful bind is what makes its presence evidence of a full start. The test now waits for
+**both** files and asserts only what the wait does not establish — the origin round-tripping
+through argv, and `startedAt` parsing as a timestamp. Waiting for the registry file and then
+asserting it exists would have traded the race for a tautology.
+
+Every other socket+registry fixture in `packages/headerlab/test/` writes the registry entry
+**before** binding, so no window exists in any of them; this file was the only one that spawns
+the real `bin/headerlab-host.mjs` and watches it from outside.
 
 **jsdom** needs a per-file `// @vitest-environment jsdom` docblock; the global
 environment is `node`. **`@testing-library/jest-dom` is not installed** — plain vitest
