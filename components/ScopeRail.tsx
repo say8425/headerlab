@@ -115,12 +115,58 @@ const NOTE_CLASS =
  */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
 
-const BRIDGE_LABEL = {
-  unknown: 'Agent bridge',
-  off: 'Agent bridge off',
-  idle: 'Agent bridge idle',
-  live: 'Agent bridge live',
-} as const;
+/**
+ * The row's name, in every state.
+ *
+ * It used to carry the state too ("Agent bridge live"), which put the state in
+ * the one place a reader has no definition for, and left the two states that
+ * shared a dot colour — `off` and `idle` — distinguishable only by that word.
+ * The name is constant now, the dot carries the state at a glance, and
+ * `bridgeTitle` carries the detail; that split is what let `idle` take its own
+ * colour below.
+ */
+const BRIDGE_NAME = 'Agent bridge';
+
+/**
+ * The whole of what this row can say beyond its name and its dot.
+ *
+ * Ordered by what the reader most recently caused: a request they just watched
+ * fail outranks a connect error from before it, which outranks the steady-state
+ * description. Returns null only for `unknown`, where the probe has not
+ * answered and anything said would be a guess.
+ */
+function bridgeTitle(
+  bridge: ScopeRailProps['bridge'],
+  unreachable: boolean,
+  bridgeError: string | null,
+  requestError: ScopeRailProps['bridgeRequestError'],
+  lastCommandAt: string | null,
+): string | null {
+  if (requestError !== null) {
+    return requestError.reason === 'declined'
+      ? 'Chrome’s permission request was declined, so the bridge cannot start. Turn the ' +
+          'switch on again to ask once more.'
+      : `The permission could not be requested: ${requestError.message}`;
+  }
+  // The remedy leads and Chrome's string trails it: Chrome reports the
+  // identical message for a missing manifest, a manifest naming a different
+  // extension, and an interpreter it cannot start (measured), so translating
+  // it into one of the three would be a guess presented as a diagnosis.
+  if (unreachable) return `Run headerlab bridge install. ${bridgeError}`;
+  if (bridge === 'unknown') return null;
+  if (bridge === 'off') {
+    return 'The agent bridge is off. Turn the switch on to grant Chrome’s nativeMessaging permission, which lets a CLI reach this extension.';
+  }
+  if (bridge === 'idle') {
+    // Not worded as a failure: nothing has gone wrong, and the usual reason is
+    // that the installer has not been run yet.
+    return 'The permission is held, but nothing is connected. If you have not run headerlab bridge install yet, that is the usual reason.';
+  }
+  const live = 'The agent bridge is live — a CLI can reach this extension.';
+  return lastCommandAt === null
+    ? live
+    : `${live} Last change through it: ${new Date(lastCommandAt).toLocaleString()}`;
+}
 
 /**
  * The left rail: where does this apply, and is it working.
@@ -243,6 +289,13 @@ export function ScopeRail({
    * exists instead: see the `bridgestate` block for where this is read.
    */
   const bridgeUnreachable = bridge === 'idle' && bridgeError !== null;
+  const bridgeRowTitle = bridgeTitle(
+    bridge,
+    bridgeUnreachable,
+    bridgeError,
+    bridgeRequestError,
+    bridgeLastCommandAt,
+  );
 
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
@@ -395,7 +448,7 @@ export function ScopeRail({
                 ? 'bg-live'
                 : bridge === 'unknown'
                   ? 'bg-transparent'
-                  : bridgeUnreachable || bridgeRequestError !== null
+                  : bridge === 'idle' || bridgeUnreachable || bridgeRequestError !== null
                     ? 'bg-pending'
                     : 'bg-muted-foreground'
             }`}
@@ -433,27 +486,9 @@ export function ScopeRail({
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
             data-testid="bridge-label"
-            {...(bridgeRequestError !== null
-              ? {
-                  // First, because it is the most recent thing the user did
-                  // and the only one they caused. A stale connect error must
-                  // not answer for a request they just watched fail.
-                  title:
-                    bridgeRequestError.reason === 'declined'
-                      ? 'Chrome’s permission request was declined, so the bridge cannot start. Switch it on again to ask once more.'
-                      : `The permission could not be requested: ${bridgeRequestError.message}`,
-                }
-              : bridgeUnreachable
-                ? { title: `Run headerlab bridge install. ${bridgeError}` }
-                : bridgeLastCommandAt === null
-                  ? {}
-                  : {
-                      title: `Last change through the bridge: ${new Date(
-                        bridgeLastCommandAt,
-                      ).toLocaleString()}`,
-                    })}
+            {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
           >
-            {bridgeUnreachable ? 'Agent bridge down' : BRIDGE_LABEL[bridge]}
+            {BRIDGE_NAME}
           </span>
           <span className="flex-1" />
           {bridge === 'unknown' ? null : (

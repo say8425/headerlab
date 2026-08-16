@@ -522,6 +522,25 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
   });
 
   /**
+   * The pair this file was missing, and the omission was not harmless.
+   *
+   * Every card in the rail — the readout, the all-sites row, each site row —
+   * is `--card` painted on `--rail`, so this is the most-repeated surface pair
+   * on the screen. It was the one adjacency with no assertion: `--rail` was
+   * checked against `--background` and `--card` against `--tray` and
+   * `--rowoff`, and the two tokens that actually touch here were never
+   * compared. Dark drifted to 1.0309 — under a third of light's 1.1294 — and
+   * every check in this file stayed green while the rail's cards were, on
+   * report, not distinguishable from the rail.
+   *
+   * Same 1.09 floor as the two pairs above, for the same reason: fill against
+   * fill, not a line.
+   */
+  it('separates a card from the rail it sits on', () => {
+    expect(distinct('--card', '--rail')).toBeGreaterThanOrEqual(1.09);
+  });
+
+  /**
    * The fourth surface, and the only one whose whole job is to be a *step*: a
    * switched-off rule row recedes toward the well without becoming it. Before
    * `--rowoff` existed the off row was painted `--tray`, so it, the empty slot
