@@ -1190,14 +1190,21 @@ test('a control appearing in the rail does not move anything', async ({
   expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
 
   // --- the readout's second line arriving ---
-  // Switching the only rule off puts "1 off" under the big number. That line
-  // sits above the whole rail, so before this guard it moved the pause bar, the
-  // all-sites switch, the site row and the request types 22.1px at once — from
-  // a click on the other side of the popup.
-  await expect(subcount).toHaveText('');
+  // This guard is deliberately gone, and its subject with it. It asserted that
+  // "1 off" appearing under the big number moved nothing, which was true
+  // because the line's 20px box was reserved in every state. The owner read
+  // the healthy popup and judged that reserved void — blank whenever nothing
+  // is wrong, which is most of the time — worse than the movement it
+  // prevented, so ScopeRail.tsx now renders the line only when it has text
+  // (its docblock carries the reasoning and the 12px/8px accounting).
+  //
+  // The movement is therefore real again: toggling a rule off shifts the rail
+  // below the readout card by 20px. Deleted rather than left asserting
+  // something no longer promised — a guard that passes while describing
+  // nothing is the failure mode this suite has been caught in twice.
+  await expect(subcount).toHaveCount(0);
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
   await expect(subcount).toHaveText('1 off');
-  expect(await boxes(), 'the subcount arriving must move nothing').toEqual(withGrant);
 
   // --- the help bubble opening ---
   // It is absolutely positioned and so already took no space; asserted because
@@ -1462,8 +1469,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 과밀 페이지의 그 줄은 "2 off" 라서 넘치지 않고, 그래서 거기서는 이 결함이
   // 보이지 않았다.
   //
-  // 이 줄은 h-4 로 예약된 한 줄이다(그 예약 자체는 옳다 — 없으면 줄이 생겼다
-  // 사라지며 레일 전체를 밀어낸다). 예약이 ceiling 인 이상 넘칠 때 무엇을 할지
+  // 이 줄은 h-4 한 줄이다. (예전에는 비어 있을 때도 자리를 예약했고 그 예약이
+  // 옳다고 여기 적혀 있었다. 지금은 내용이 있을 때만 그려진다 — ScopeRail.tsx 의
+  // 해당 docblock 참조. 이 테스트가 보는 것은 내용이 있는 상태라 영향은 없다.)
+  // 높이가 한 줄로 고정인 이상 넘칠 때 무엇을 할지
   // 말해 줘야 하는데, 그 지시가 없어서 문장이 두 줄로 감싸이고 items-center 가
   // 16px 상자 안에서 위아래를 다 썰어 냈다(고치기 전 실측 22/16, title 없음).
   // 잘려 나간 것이 하필 원인을 대는 절이었다 — ScopeRail 의 docblock 이 열 줄에

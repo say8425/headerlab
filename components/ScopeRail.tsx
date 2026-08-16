@@ -360,21 +360,38 @@ export function ScopeRail({
               already make. `truncate` needs the text in its own `min-w-0` flex
               child; as a bare text node it is an anonymous box that
               `text-overflow` cannot address. */}
-          <div
-            className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
-            data-testid="subcount"
-          >
-            {subline !== '' && (
-              <>
-                {tally.off > 0 && (
-                  <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
-                )}
-                <span className="min-w-0 truncate" title={subline}>
-                  {subline}
-                </span>
-              </>
-            )}
-          </div>
+          {/* Rendered only when it has something to say, which is a
+              deliberate reversal.
+
+              It used to render an empty 20px box (`mt-1` + `h-4`) in the
+              healthy state so that the line arriving moved nothing — the
+              reservation this file's Interface rule asks for, and
+              tests/e2e/header-modification.spec.ts asserted it by measuring
+              every box with the subcount empty and again with it populated.
+              The owner read the result on screen and judged the reserved void
+              worse than the movement it prevents: a card whose lower half is
+              blank whenever nothing is wrong, which is most of the time.
+
+              So the reservation is gone and the movement is back — toggling a
+              rule off now shifts the rail below this card by 20px. That is a
+              real cost, accepted knowingly, and the e2e assertion that named it
+              was deleted rather than left passing against nothing. Twelve of
+              those pixels simply close the void; the other eight pay for the
+              all-sites row's padding, which had none to spare because the rail
+              carries no slack. */}
+          {subline !== '' && (
+            <div
+              className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
+              data-testid="subcount"
+            >
+              {tally.off > 0 && (
+                <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
+              )}
+              <span className="min-w-0 truncate" title={subline}>
+                {subline}
+              </span>
+            </div>
+          )}
         </div>
 
         <div
@@ -630,7 +647,7 @@ export function ScopeRail({
             thing that overrides the list inside the list. That shape is what
             made the empty list mean two things in the first place. */}
         <div
-          className="mx-3 flex h-12 shrink-0 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+          className="mx-3 flex h-14 shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
           data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
