@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { registryPathFor, socketDir, socketPathFor } from '../lib/socket.mjs';
@@ -34,14 +34,36 @@ function spawnHost(extensionOrigin) {
   return child;
 }
 
-/** Polls for the socket file rather than sleeping a fixed guess. */
-async function waitForSocket(socketPath, timeoutMs = 3000) {
+/**
+ * Polls for *both* halves of startup rather than sleeping a fixed guess, and
+ * rather than gating on the socket alone. Those two files appear at different
+ * moments: `startHost()` in lib/host.mjs awaits the bind — which is what
+ * creates the socket — and only afterwards, past the `watchForServerErrors`
+ * wiring, calls `writeRegistryEntry`. So a wait that returns on the socket
+ * leaves a real window in which the registry entry does not exist yet, and
+ * every assertion after it races that window. CI lost that race three times
+ * on Linux under
+ * concurrent load, always as a `false !== true` on the registry entry; this
+ * machine never reproduced it. The ordering in the host is correct — writing
+ * the entry only after a successful bind is what makes its presence mean
+ * something — so the wait is what had to move.
+ *
+ * The registry file must also be non-empty, not merely present: `writeFileSync`
+ * creates the file before it writes to it, so an existence-only gate could hand
+ * the read below a file with no bytes in it yet.
+ */
+async function waitForStartedHost(socketPath, registryPath, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
+  const registryWritten = () => existsSync(registryPath) && statSync(registryPath).size > 0;
   while (Date.now() < deadline) {
-    if (existsSync(socketPath)) return;
+    if (existsSync(socketPath) && registryWritten()) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error(`socket never appeared at ${socketPath} within ${timeoutMs}ms`);
+  throw new Error(
+    `the host never finished starting within ${timeoutMs}ms — socket ` +
+      `${existsSync(socketPath) ? 'present' : 'missing'} at ${socketPath}, registry entry ` +
+      `${registryWritten() ? 'present' : 'missing'} at ${registryPath}`,
+  );
 }
 
 test(
@@ -59,14 +81,20 @@ test(
     const socketPath = socketPathFor(dir, child.pid);
     const registryPath = registryPathFor(dir, child.pid);
 
-    await waitForSocket(socketPath);
+    await waitForStartedHost(socketPath, registryPath);
 
-    // The registry entry is the other half of startup — written only after
-    // the bind succeeds, so its presence here is itself evidence the host
-    // reached a fully-started state rather than just having created the
-    // socket file mid-bind.
-    assert.equal(existsSync(registryPath), true);
-    assert.equal(JSON.parse(readFileSync(registryPath, 'utf8')).origin, origin);
+    // Both files existing is what the wait above established, so asserting
+    // that again would prove nothing at all. What is still open is the
+    // entry's *content*: the host has to write back the origin it was handed
+    // on argv, and a timestamp for when it started. A host that invented an
+    // origin, dropped the argument, or wrote a placeholder entry it meant to
+    // fill in later gets past the wait and fails here.
+    const entry = JSON.parse(readFileSync(registryPath, 'utf8'));
+    assert.equal(entry.origin, origin);
+    assert.ok(
+      Number.isFinite(Date.parse(entry.startedAt)),
+      `startedAt must be a parseable timestamp, got: ${JSON.stringify(entry.startedAt)}`,
+    );
 
     // The shutdown signal. Chrome never sends SIGTERM (see the comment in
     // bin/headerlab-host.mjs) — this is the only mechanism that exists.
