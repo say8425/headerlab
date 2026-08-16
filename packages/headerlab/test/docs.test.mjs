@@ -33,6 +33,27 @@ const READMES = [
 ];
 
 /**
+ * `## Agent bridge` 는 README 의 아홉 절 중 157 줄 — 36% — 이었고, 이제
+ * `docs/agent-bridge*.md` 로 나가고 README 에는 요약과 링크만 남았다.
+ * **명령도 함께 나갔다는 것이 이 파일의 위험이다.** 다섯 README 안에서
+ * `headerlab ` 으로 시작하는 실행 가능한 줄은 전부 그 절 안에 있었으므로,
+ * 아래 비교를 그대로 두면 다섯 개의 빈 목록을 서로 견주게 된다 — 빈 목록
+ * 다섯은 자명하게 동일하고, 그것이 이 저장소가 되풀이하는 결함인 "실패할
+ * 수 없는 단언"이다. 그래서 두 가지를 한다: 목록이 비지 않았음을 단언하고,
+ * 옮겨간 문서 다섯 벌에도 같은 비교를 건다.
+ *
+ * 두 집합이 서로 다른 것은 정상이다. README 는 요약이 데려갈 만큼만 들고
+ * 문서가 전부를 든다. 각 집합이 **자기 안에서** 바이트 동일하면 된다.
+ */
+const BRIDGE_DOCS = [
+  'docs/agent-bridge.md',
+  'docs/agent-bridge.ko.md',
+  'docs/agent-bridge.ja.md',
+  'docs/agent-bridge.zh.md',
+  'docs/agent-bridge.es.md',
+];
+
+/**
  * 다섯 README 의 ```bash 블록 안에서 `headerlab ` 으로 시작하는 줄.
  *
  * **줄 수를 세는 것이 아니라 줄 자체를 뽑는다.** 앞선 초안은
@@ -67,14 +88,38 @@ function runnableCommands(text) {
 const EXPECTED_README_COMMANDS = [
   'headerlab site add staging.example.com',
   'headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"',
+];
+
+const EXPECTED_BRIDGE_DOC_COMMANDS = [
+  'headerlab site add staging.example.com',
+  'headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"',
   'headerlab status',
   'headerlab state get --json | jq .state | headerlab state set - --force',
   'headerlab bridge install --extension-id <id>',
 ];
 
+// 기대값이 비어 있으면 아래 비교는 다섯 개의 빈 목록을 견주는 것이 되어
+// 무엇을 지우든 초록이다. 기대값 자체를 먼저 막아 둔다 — 다섯 파일에서
+// 명령이 사라지는 것과 기대값에서 사라지는 것이 함께 일어나야만 통과하는
+// 상태를, 이 두 줄이 불가능하게 만든다.
+test('명령 기대값이 비어 있지 않다', () => {
+  assert.ok(EXPECTED_README_COMMANDS.length > 0, 'README 기대값이 비었다');
+  assert.ok(EXPECTED_BRIDGE_DOC_COMMANDS.length > 0, 'agent-bridge 기대값이 비었다');
+});
+
 test('다섯 README 의 실행 가능한 명령이 바이트 동일하다', () => {
   for (const name of READMES) {
-    assert.deepEqual(runnableCommands(read(name)), EXPECTED_README_COMMANDS, name);
+    const found = runnableCommands(read(name));
+    assert.notEqual(found.length, 0, `${name} 에 실행 가능한 명령이 하나도 없다`);
+    assert.deepEqual(found, EXPECTED_README_COMMANDS, name);
+  }
+});
+
+test('다섯 agent-bridge 문서의 실행 가능한 명령이 바이트 동일하다', () => {
+  for (const name of BRIDGE_DOCS) {
+    const found = runnableCommands(read(name));
+    assert.notEqual(found.length, 0, `${name} 에 실행 가능한 명령이 하나도 없다`);
+    assert.deepEqual(found, EXPECTED_BRIDGE_DOC_COMMANDS, name);
   }
 });
 
