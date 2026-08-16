@@ -1189,22 +1189,22 @@ test('a control appearing in the rail does not move anything', async ({
   await expect(grant).toHaveCount(1);
   expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
 
-  // --- the readout's second line arriving ---
-  // This guard is deliberately gone, and its subject with it. It asserted that
-  // "1 off" appearing under the big number moved nothing, which was true
-  // because the line's 20px box was reserved in every state. The owner read
-  // the healthy popup and judged that reserved void — blank whenever nothing
-  // is wrong, which is most of the time — worse than the movement it
-  // prevented, so ScopeRail.tsx now renders the line only when it has text
-  // (its docblock carries the reasoning and the 12px/8px accounting).
+  // --- the readout's second line changing ---
+  // Switching the only rule off swaps "no problems" for "1 off" under the big
+  // number. That line sits above the whole rail, so before this guard it moved
+  // the pause bar, the all-sites switch, the site row and the request types
+  // 22.1px at once — from a click on the other side of the popup.
   //
-  // The movement is therefore real again: toggling a rule off shifts the rail
-  // below the readout card by 20px. Deleted rather than left asserting
-  // something no longer promised — a guard that passes while describing
-  // nothing is the failure mode this suite has been caught in twice.
-  await expect(subcount).toHaveCount(0);
+  // This guard was briefly deleted, when the healthy state rendered no line at
+  // all and the movement it forbids became real. That answer is gone: the line
+  // is always present and always says something (ScopeRail.tsx's `subline`
+  // docblock records both rejected alternatives), so the promise holds again
+  // and is asserted again. What changed is the starting text — an empty box is
+  // no longer one of the states.
+  await expect(subcount).toHaveText('no problems');
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
   await expect(subcount).toHaveText('1 off');
+  expect(await boxes(), 'the subcount changing must move nothing').toEqual(withGrant);
 
   // --- the help bubble opening ---
   // It is absolutely positioned and so already took no space; asserted because

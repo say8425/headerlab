@@ -28,7 +28,7 @@ describe('validateFilter', () => {
         profileId: 'p1',
         message:
           'No site set yet, so nothing is being applied. ' +
-          'Add a site above, or turn on All sites.',
+          'Add a site below, or turn on All sites.',
       },
     ]);
   });

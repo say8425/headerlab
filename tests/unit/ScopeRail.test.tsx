@@ -82,11 +82,14 @@ describe('the readout', () => {
     );
   });
 
-  it('adds no second line when every rule is going out', () => {
-    // The big number already says it. A line reading "0 off · 0
-    // blocked" would be noise that never changes.
+  it('says the healthy state out loud rather than leaving the line blank', () => {
+    // It reads "no problems", not "0 off · 0 blocked" — a row of zeroes is
+    // noise that never changes. Saying something short is what lets the box
+    // exist in every state without reserving a void, which is the whole of
+    // ScopeRail's `subline` reasoning; the two alternatives it rejects are an
+    // empty reserved box and no box at all.
     renderRail({ tally: { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 } });
-    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live');
+    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules liveno problems');
   });
 
   it('names only blocked when nothing is switched off', () => {

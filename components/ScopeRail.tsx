@@ -255,11 +255,21 @@ export function ScopeRail({
    *
    * Resolved here rather than branched in the markup so the line has exactly
    * one value: it is both what is rendered and what `title` carries, and those
-   * two must not be able to disagree. The healthy state — rules configured and
-   * all of them going out — has nothing to say and renders no text, which is
-   * not the same fact as "nothing configured yet".
+   * two must not be able to disagree.
+   *
+   * The healthy state — rules configured and all of them going out — says "no
+   * problems" rather than nothing. It went through both other answers first:
+   * an empty box reserved in every state (no movement, but a blank lower half
+   * of the card whenever nothing is wrong, which is most of the time), and no
+   * box at all (no void, but the rail below jumped 20px the moment a rule was
+   * toggled off). Saying something short is the answer that costs neither.
+   *
+   * Still distinct from "nothing configured yet": that names an empty rule
+   * set, this names a full one with nothing wrong in it, and a reader who
+   * cannot tell those apart cannot tell whether their rules exist.
    */
-  const subline = tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ');
+  const subline =
+    tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ') || 'no problems';
 
   /**
    * The all-sites row's state, in the same four-way shape a site row uses.
@@ -360,38 +370,23 @@ export function ScopeRail({
               already make. `truncate` needs the text in its own `min-w-0` flex
               child; as a bare text node it is an anonymous box that
               `text-overflow` cannot address. */}
-          {/* Rendered only when it has something to say, which is a
-              deliberate reversal.
-
-              It used to render an empty 20px box (`mt-1` + `h-4`) in the
-              healthy state so that the line arriving moved nothing — the
-              reservation this file's Interface rule asks for, and
-              tests/e2e/header-modification.spec.ts asserted it by measuring
-              every box with the subcount empty and again with it populated.
-              The owner read the result on screen and judged the reserved void
-              worse than the movement it prevents: a card whose lower half is
-              blank whenever nothing is wrong, which is most of the time.
-
-              So the reservation is gone and the movement is back — toggling a
-              rule off now shifts the rail below this card by 20px. That is a
-              real cost, accepted knowingly, and the e2e assertion that named it
-              was deleted rather than left passing against nothing. Twelve of
-              those pixels simply close the void; the other eight pay for the
-              all-sites row's padding, which had none to spare because the rail
-              carries no slack. */}
-          {subline !== '' && (
-            <div
-              className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
-              data-testid="subcount"
-            >
-              {tally.off > 0 && (
-                <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
-              )}
-              <span className="min-w-0 truncate" title={subline}>
-                {subline}
-              </span>
-            </div>
-          )}
+          {/* Always rendered, and never empty — see the `subline` docblock
+              above for the two answers this replaces and why each failed. A
+              box whose presence never changes is what lets the Interface rule
+              hold here without reserving a void: it is not reflow-prevention
+              by blank space, it is a line that always has something true to
+              say. */}
+          <div
+            className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
+            data-testid="subcount"
+          >
+            {tally.off > 0 && (
+              <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
+            )}
+            <span className="min-w-0 truncate" title={subline}>
+              {subline}
+            </span>
+          </div>
         </div>
 
         <div
@@ -646,6 +641,45 @@ export function ScopeRail({
             a site, and giving it a chip beside `api.example.com` would put the
             thing that overrides the list inside the list. That shape is what
             made the empty list mean two things in the first place. */}
+        {/* First in the section, under the heading — deliberately before the
+            two controls it names rather than after them.
+
+            It sat after the whole section, then after the add-field, and both
+            read as orphaned for the same reason: `mt-auto` on the request
+            types below sends every spare pixel of the rail to just above that
+            section, which is exactly where a note placed last ends up sitting.
+            Measured in the built popup at the empty state, that left 12px above
+            the note and 43px below it — a box attached to nothing. Moving it
+            within the section changed its top by 6px and fixed none of that.
+
+            Here the leftover falls far below it and the remedies follow it, so
+            the note reads as an instruction for what comes next. That is also
+            why the message says "below": the copy and the position are one
+            decision, and lib/compile/filterDiagnostics.ts carries the other
+            half. */}
+        {notes.map((d, i) => (
+          <div
+            key={`${d.kind}-${i}`}
+            data-testid="scope-note"
+            data-severity={d.severity}
+            className={`${NOTE_CLASS} ${
+              d.severity === 'error'
+                ? 'border-l-destructive'
+                : // `incomplete` is not a complaint. Nothing is wrong and nothing
+                  // is at risk — the configuration simply is not finished yet,
+                  // which is the state a fresh install opens in. Amber is this
+                  // palette's "something needs you", and spending it on the one
+                  // note that is asking for nothing would rebuild the standing
+                  // warning this state replaces, in a different colour.
+                  d.severity === 'incomplete'
+                  ? 'border-l-muted-foreground'
+                  : 'border-l-pending'
+            }`}
+          >
+            {d.message}
+          </div>
+        ))}
+
         <div
           className="mx-3 flex h-14 shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
@@ -740,10 +774,10 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 127px, which is deliberately NOT a multiple of
+            The height stops at 119px, which is deliberately NOT a multiple of
             the 54px row pitch: two rows and the gap after them are 108px and
             three are 156px, so a third site leaves that row cut across the
-            middle — now 19px of 48, not the wider 24px an unpressured rail
+            middle — now 11px of 48, not the wider 24px an unpressured rail
             could afford — and the cut row is the affordance saying the list
             continues regardless of exactly how much of it shows. 156 or 162
             would each show a whole number of rows and say nothing; nor would
@@ -754,6 +788,16 @@ export function ScopeRail({
             `max-height` lets the list be as tall as it has content for, and
             `mt-auto` on the section below sends the leftover to the foot of
             the rail instead.
+
+            **127 → 119 is the all-sites row's 8px, and writing it here is the
+            point.** That row went from `h-12`/4px padding to `h-14`/8px, and
+            the rail carries no slack, so the deficit had to land somewhere.
+            It already did, invisibly: this list is `flex-shrink: 1`, so it
+            absorbed the 8px on its own and rendered 119px while the CSS still
+            said 127px — measured, `listCap: 127px` beside `listClient: 119`.
+            A stored value that is not the operating value is the same defect
+            `effectiveDomain` exists to prevent, one layer down. The cap now
+            states what the list actually gets.
 
             132 was the figure here before the bridge row
             (components/ScopeRail.tsx's bridgestate block) landed. That row
@@ -802,7 +846,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[127px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[119px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {
@@ -838,29 +882,6 @@ export function ScopeRail({
           <AddSiteField onAdd={onAddDomain} />
         </div>
       </div>
-
-      {notes.map((d, i) => (
-        <div
-          key={`${d.kind}-${i}`}
-          data-testid="scope-note"
-          data-severity={d.severity}
-          className={`${NOTE_CLASS} ${
-            d.severity === 'error'
-              ? 'border-l-destructive'
-              : // `incomplete` is not a complaint. Nothing is wrong and nothing
-                // is at risk — the configuration simply is not finished yet,
-                // which is the state a fresh install opens in. Amber is this
-                // palette's "something needs you", and spending it on the one
-                // note that is asking for nothing would rebuild the standing
-                // warning this state replaces, in a different colour.
-                d.severity === 'incomplete'
-                ? 'border-l-muted-foreground'
-                : 'border-l-pending'
-          }`}
-        >
-          {d.message}
-        </div>
-      ))}
 
       {/* Last, and pushed to the foot by `mt-auto`: the leftover space in a
           rail with two sites belongs at the bottom of the column, not as a

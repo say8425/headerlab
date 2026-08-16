@@ -116,7 +116,7 @@ describe('App', () => {
     // the paused assertion on its own.
     await seed(stateWith());
     render(<App />);
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     await seed(stateWith({ globalPause: true }));
     await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked while paused'));
@@ -143,7 +143,7 @@ describe('App', () => {
     // nothing anywhere to correct a readout still claiming they are live.
     await seed(stateWith());
     render(<App />);
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     const off = stateWith();
     off.profiles[0]!.enabled = false;
@@ -534,7 +534,7 @@ describe('editing scope', () => {
 
     // The rule stays live: the site normalized to a usable host, so nothing is
     // suppressed and nothing is blamed.
-    await waitFor(() => expect(readout()).toBe('1of 1 rules live'));
+    await waitFor(() => expect(readout()).toBe('1of 1 rules liveno problems'));
     // The chip shows the value the extension actually ended up with — which is
     // the whole fix. Showing the raw paste and explaining the difference in a
     // paragraph was the defect.
@@ -744,7 +744,7 @@ describe('a rule that has not been named yet', () => {
     await seed(stateWith());
     render(<App />);
     await screen.findByDisplayValue('X-A');
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
@@ -1111,20 +1111,20 @@ describe('all-sites mode', () => {
     expect(screen.getByTestId('site-count').textContent).toBe('0');
     expect(screen.getByTestId('scope-note').getAttribute('data-severity')).toBe('incomplete');
     expect(screen.getByTestId('scope-note').textContent).toBe(
-      'No site set yet, so nothing is being applied. Add a site above, or turn on All sites.',
+      'No site set yet, so nothing is being applied. Add a site below, or turn on All sites.',
     );
     cleanup();
 
     // off + some: ordinary scoped operation, nothing to report.
     await open({ allSites: false, domains: ['api.example.com'] });
-    expect(readout()).toBe('2of 2 rules live');
+    expect(readout()).toBe('2of 2 rules liveno problems');
     expect(screen.getByTestId('site-count').textContent).toBe('1');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
 
     // on: everywhere, by choice, and equally quiet.
     await open({ allSites: true, domains: [] });
-    expect(readout()).toBe('2of 2 rules live');
+    expect(readout()).toBe('2of 2 rules liveno problems');
     expect(screen.getByTestId('site-count').textContent).toBe('all');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
