@@ -146,7 +146,11 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 ```
 
 On a terminal it prints for people; piped or with `--json` it prints one JSON object,
-success or failure. The exit code names the failure class:
+success or failure. `--human` is the inverse of `--json`: it forces the human-readable
+form even through a pipe, which is what you want when a log is going to be read by a
+person rather than parsed. Passing both is a contradiction rather than a precedence
+question, so the CLI refuses it and exits 2 without doing anything. The exit code names
+the failure class:
 
 | Exit | Meaning |
 |---|---|
