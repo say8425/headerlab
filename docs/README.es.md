@@ -156,7 +156,11 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 ```
 
 En una terminal imprime para personas; por una tubería o con `--json` imprime un único
-objeto JSON, éxito o fallo. El código de salida nombra la clase de fallo:
+objeto JSON, éxito o fallo. `--human` es el inverso de `--json`: fuerza la forma legible
+por personas incluso a través de una tubería, que es lo que quieres cuando un registro lo
+va a leer una persona en vez de analizarlo una máquina. Pasar ambos es una contradicción
+y no una cuestión de precedencia, así que la CLI lo rechaza y sale con 2 sin hacer nada.
+El código de salida nombra la clase de fallo:
 
 | Código | Significado |
 |---|---|

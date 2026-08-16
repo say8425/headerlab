@@ -562,6 +562,36 @@ body comes from the branch's commit messages and not from the PR body at all; an
 parser will lift. Verify with `git log -1 --format=%B <ref> | grep -c '^Release-As:'` before
 merging, not by re-reading what you wrote about it.
 
+**The footer fixes the version and not the changelog, and editing `CHANGELOG.md` on the
+release PR branch does not reach the GitHub release notes.** This is the same episode's
+second half. `Release-As: 1.2.0` did pull `extension 2.0.0` back to `1.2.0`, but the
+generated changelog still carried a `### ⚠ BREAKING CHANGES` section reading "five changes
+to the CLI's contract" — a CLI change, in the extension's changelog, because the footer
+scopes the *version* and the leak described above still decided which entries appeared.
+Deleting that section from `CHANGELOG.md` on the PR branch before merging fixed the file on
+`main` and nothing else: **release-please builds the release body from its own stored notes,
+not from the file in the tree**, so the GitHub release created minutes later still carried
+the false section. Correcting it takes a second, separate step — `gh release edit <tag>
+--notes-file <file>`, which is a `PATCH /repos/{o}/{r}/releases/{id}` and therefore keeps
+the release id and its assets (verified: `headerlab-1.2.0-chrome.zip` survived the edit).
+So a changelog defect noticed on the release PR is **two** fixes, and doing only the
+obvious one leaves the wrong text on the page most people actually read.
+
+**And merging one release PR conflicts the other.** `separate-pull-requests: true` gives
+each package its own PR, and both edit `.release-please-manifest.json` — so merging the
+extension's PR made the CLI's `CONFLICTING`, and release-please did **not** rebase it on
+its next run. The branch has to be rebased by hand, resolving the manifest to hold both new
+versions rather than either side's copy:
+
+```json
+{".":"1.2.0","packages/headerlab":"0.2.0"}
+```
+
+Taking either side wholesale is the trap: "theirs" drops the release that just shipped and
+"ours" drops the one about to. The next two-package release hits this again, so expect the
+second PR to need a manual rebase rather than reading `CONFLICTING` as a sign something
+went wrong.
+
 **`npm publish --provenance` requires `--access public` even for an unscoped name.** The
 flag is not about the name — unscoped packages are public by default — it is about
 provenance: npm cannot infer publicity for a package that does not exist yet and refuses
@@ -585,6 +615,21 @@ shipping an unsigned tarball under that promise is the silent failure the flag p
 Trusted publishing needs npm 11.5.1 and Node 22.14.0 at minimum — `.nvmrc` pins 24, whose
 npm is 11.13.0.
 
+**As of `cli-v0.2.0` that mechanism is exercised rather than merely configured, and the
+distinction was load-bearing for longer than it looks.** Everything above was written
+before the workflow had ever published anything: `headerlab@0.1.2` went up by hand for the
+reason this section already gives — npm cannot configure a trusted publisher for a package
+that does not exist — and no release since had touched `packages/headerlab/`, so
+release-please never built a CLI release and the `npm publish --provenance` step never
+ran. It ran on 2026-08-16. The step reported `success`, and its log carries
+`npm notice 📦  headerlab@0.2.0` and `npm notice total files: 21`. **Keep the by-hand
+paragraph above as written** — it is the record of why the first version had to be the
+exception, and nothing about this run licenses a second hand publish. What has changed is
+only that "every version after that is signed by the workflow" is now an observation
+instead of a plan. The tarball count agreeing with the 21 recorded elsewhere in this file
+is the incidental confirmation, not the point; re-measure it with `cd packages/headerlab
+&& npm pack --dry-run` rather than trusting either number.
+
 Two things to know before wondering why something did not happen. **A release PR
 opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
 loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
@@ -595,8 +640,12 @@ secrets that do not exist and would fail every release. Add it with the listing,
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
 conventional-commit subjects above it rather than releasing `1.0.0` itself. That is history
-now: there are seven tags and seven releases, and a run finds the previous release through
-the `extension-v*` / `cli-v*` tag formats. Kept because the same paragraph is what a fresh
+now: there are nine tags and nine releases (`git tag | wc -l` and `gh release list --limit
+20 | wc -l`, both `9` on 2026-08-16, after `extension-v1.2.0` and `cli-v0.2.0`), and a run
+finds the previous release through the `extension-v*` / `cli-v*` tag formats. **That count
+goes stale on every release, so re-run the two commands rather than reading it** — it said
+seven until the clig.dev release, which is two releases' worth of drift in a file that
+treats a stale measurement as a defect. Kept because the same paragraph is what a fresh
 fork of this setup would need.
 
 **The workflows carry almost no comments, and that is deliberate.** They had many, and they

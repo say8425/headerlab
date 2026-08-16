@@ -6,8 +6,10 @@ resume the whole rule set, read the current state or replace it wholesale, all f
 terminal.
 
 On a terminal it prints for people; piped or with `--json` it prints one JSON
-object, success or failure. The exit code names the failure class: `2` your
-input, `3` no bridge, `4` transport, `1` refused.
+object, success or failure. `--human` is the inverse of `--json`: it forces the
+human-readable form even through a pipe. Passing both is refused with exit 2.
+The exit code names the failure class: `2` your input, `3` no bridge, `4`
+transport, `1` refused.
 
 ```bash
 npm i -g headerlab
