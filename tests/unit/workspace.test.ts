@@ -363,7 +363,77 @@ describe('the release configuration', () => {
    */
   it("keeps the extension's changelog off the other packages' own commits", () => {
     const siblings = Object.keys(config.packages).filter((path) => path !== '.');
-    expect(config.packages['.']['exclude-paths']).toEqual(siblings);
+    const excluded: string[] = config.packages['.']['exclude-paths'];
+    // Derived, not pinned: a third released package added without an exclusion
+    // fails here rather than quietly widening the extension's changelog. The
+    // docs entries below are a separate claim and are asserted separately, so
+    // adding one cannot satisfy this one.
+    expect(siblings.every((path) => excluded.includes(path))).toBe(true);
+  });
+
+  /**
+   * The extension's path is the whole repository, so without this a commit
+   * that only rewrites prose is a commit against the extension.
+   *
+   * **The commit type is the primary guard and this is the backstop, not the
+   * other way round.** A `docs:` commit does not bump anything under
+   * conventional commits, so the ordinary documentation pass was never the
+   * problem. What this catches is the mistyped one — prose only, committed as
+   * `feat:` or `fix:` — which is exactly how the CLI came to be offered a
+   * `0.3.0` whose changelog described the extension's work.
+   *
+   * The same "all files or nothing" semantics apply: a commit that touches
+   * code *and* README still releases, correctly, because not every file is
+   * excluded. Nothing here can stop a genuinely cross-cutting commit from
+   * counting for the package it genuinely touched — that lever is the commit
+   * boundary.
+   *
+   * `docs` — no trailing slash, matching the value — covers the four README
+   * translations, the agent-bridge documents, the generated screenshots and the
+   * design and research notes. `CHANGELOG.md` is absent for the reason given on
+   * the CLI's entry above, which is not the obvious one.
+   */
+  it('keeps a prose-only commit from proposing an extension release', () => {
+    expect(config.packages['.']['exclude-paths']).toEqual([
+      'packages/headerlab',
+      'README.md',
+      'CLAUDE.md',
+      'docs',
+    ]);
+  });
+
+  /**
+   * The mirror of the rule above, added after it went wrong in the other
+   * direction: a branch about the extension edited `packages/headerlab/README.md`
+   * and nothing else of the CLI's, and release-please proposed `cli 0.3.0` with
+   * a changelog entry describing the extension's feature as the CLI's.
+   *
+   * **Read the exclusion's actual semantics before trusting it to prevent
+   * that.** The schema's wording is "if ALL files from commit belong to one of
+   * the paths it will be skipped", so this only skips a commit that touches
+   * nothing but the CLI's README. The cross-cutting commit that caused the
+   * incident would not have been skipped by this setting, and no `exclude-paths`
+   * value could have skipped it — the lever for that one is the commit
+   * boundary, not the config. What this buys is the ordinary case: a docs-only
+   * pass over the CLI's README no longer proposes a release of code that did
+   * not change.
+   *
+   * The README is excluded and `CHANGELOG.md` is not. The tempting reason —
+   * "release-please writes that file, so a package must not ignore its own
+   * output" — conflates two mechanisms and is wrong: `exclude-paths` decides
+   * which *commits* are parsed for versioning, and has nothing to do with
+   * whether release-please can write a file. The real reason listing it would
+   * change nothing is that a release commit is never prose-only. Measured on
+   * this repository's own: it touches `.release-please-manifest.json`,
+   * `package.json` and both plugin manifests alongside the changelog, so it can
+   * never satisfy "all files excluded" however that list is written. Excluding
+   * it would be a no-op rather than a hazard; it stays off the list because a
+   * setting that does nothing is a setting the next reader has to work out.
+   */
+  it("keeps a docs-only pass over the CLI's README from proposing a release", () => {
+    expect(config.packages['packages/headerlab']['exclude-paths']).toEqual([
+      'packages/headerlab/README.md',
+    ]);
   });
 
   /**
