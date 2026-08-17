@@ -348,7 +348,7 @@ test('the popup renders its rules from stored state', async ({
   await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
   // The rail's readout is computed from the same compile() the background
   // runs, so it is the popup's own claim about whether the rule is going out.
-  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules live');
+  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules liveno problems');
 
   await page.close();
 });
@@ -1460,10 +1460,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       listScrolls: list.scrollHeight > list.clientHeight,
     };
   });
+  // 36 -> 55: the scope note gave up the `mt-3` it stacked on the section's
+  // own gap, and AddSiteField gave up its 15px reserved line. Both were spent
+  // above this list, so the list — the only child allowed to give way — is
+  // what gets them back. Under the same pressure it now shows more, which is
+  // the direction this assertion exists to protect.
   expect(underPressure).toEqual({
     notes: 1,
     railScrolls: false,
-    listHeight: 36,
+    listHeight: 55,
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
@@ -1860,7 +1865,8 @@ test('the bridge row does not push the rail past its column', async ({
 
   // And the affordance that slack was protecting is still there: the list
   // stops mid-row rather than on one, which is what says it continues — now
-  // at 127px, 19px of the third row's 48 rather than the previous 24.
+  // at 119px, 11px of the third row's 48, after the cap gave 8px to the
+  // all-sites row's padding (ScopeRail.tsx's site-list docblock).
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(119);
 });

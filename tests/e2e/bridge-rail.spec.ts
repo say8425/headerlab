@@ -206,11 +206,17 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   expect(idleMeasurement.labelHeight).toEqual(liveMeasurement.labelHeight);
 
   // Assertion 2, the one that catches the original defect: the site list
-  // still reports its full 127px cap rather than collapsing. Checked before
-  // the geometry comparison below so a failure here names the actual site,
-  // not just "some box moved".
-  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
-  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
+  // still reports its full cap rather than collapsing. Checked before the
+  // geometry comparison below so a failure here names the actual site, not
+  // just "some box moved".
+  //
+  // 127 -> 119 because the cap itself moved, not because anything collapsed:
+  // the all-sites row's padding is paid for out of it (ScopeRail.tsx's
+  // site-list docblock has the accounting). The number is what this asserts,
+  // so it is stated rather than derived — a derived one would follow a
+  // collapse down and pass.
+  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(119);
+  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(119);
 
   // Every probe must resolve to a real box before the comparison below can
   // mean anything — the same guard header-modification.spec.ts's own
