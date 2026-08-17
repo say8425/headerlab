@@ -1217,26 +1217,33 @@ test('a control appearing in the rail does not move anything', async ({
   expect(await boxes(), 'the help bubble opening must move nothing').toEqual(withGrant);
 
   // --- the duplicate-site note arriving ---
-  // Task 6 review, round 2: this note's reservation was a `min-h`, a floor a
-  // long note could grow past and push "Request types" down — reachable with
-  // an ordinary corporate subdomain, not a pathological one. `RAIL_BOXES`
-  // already anchors `rail-section-types` and `type-grid`, so re-typing the
-  // seeded domain — `long` above, the one the review used — into the add
-  // field is what actually exercises the fixed-height, truncated fix,
-  // instead of only a report and a since-deleted script asserting it.
+  // The no-move assertions that stood here are gone with their subject. This
+  // note was reserved by a fixed-height wrapper in AddSiteField, so it could
+  // appear without pushing "Request types" down; the owner measured the cost
+  // of that reservation in every other state — 27px from the input to the
+  // scope note against the section's 6px rhythm — and chose the movement over
+  // the permanent hole. AddSiteField's docblock carries the full reversal.
+  //
+  // What still holds is asserted: the note appears and disappears on the right
+  // input, and it stays one line. The one-line guarantee is what keeps the push
+  // bounded now that it is not prevented, so it is the part worth testing —
+  // `long` is the corporate subdomain the Task 6 review used, which overflows
+  // the ~194px rail before the suffix is even appended.
   const addField = page.getByTestId('add-field');
   const note = page.getByTestId('add-site-note');
   await expect(note).toHaveCount(0);
   await addField.fill(long);
   await addField.press('Enter');
   await expect(note).toHaveCount(1);
-  expect(await boxes(), 'the duplicate note arriving must move nothing').toEqual(withGrant);
+  expect(
+    await note.evaluate((el) => el.getBoundingClientRect().height),
+    'the duplicate note must still be exactly one line',
+  ).toBeLessThan(20);
 
-  // …and leaving, same reasoning as the Grant button above: an assertion
-  // only on arrival would also pass a layout frozen at the wrong moment.
+  // Absence after presence, for the same reason the arrival is checked: a note
+  // that never cleared would leave a stale complaint on screen.
   await addField.press('Escape');
   await expect(note).toHaveCount(0);
-  expect(await boxes(), 'the duplicate note leaving must move nothing').toEqual(withGrant);
 
   await page.close();
 });

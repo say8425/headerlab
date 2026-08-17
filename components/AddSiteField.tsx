@@ -98,51 +98,53 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           className="rounded-md border-dashed border-boundary bg-transparent pr-2.5 pl-7 font-mono text-[12px] placeholder:font-sans placeholder:text-[11px] placeholder:font-semibold placeholder:text-foreground-2 dark:bg-transparent"
         />
       </div>
-      {/* Reserved, not created: the wrapper is always here, and only the
-          paragraph inside it — the thing the tests key on — comes and goes.
-          A duplicate complaint appearing must not push "Request types" down
-          the rail any more than a Grant button may push the row under it
-          (CLAUDE.md, Interface).
+      {/* **Not reserved any more, and that is a deliberate reversal.**
 
-          The reservation is `h-[15px]`, a fixed height rather than a
-          `min-h`, because `schema.ts` puts no length cap on a domain and the
-          rail's usable width is ~194px — an ordinary corporate subdomain
-          (`internal-api-gateway.staging.eu-west-1.example.com`) already
-          exceeds one line before "is already in the list." is even
-          appended, so a `min-h` alone is a floor, not a ceiling: the note
-          can still grow past it and push. The domain is the part that can
-          be arbitrarily long, so it is the part that gives way — `<b>`
-          truncates to an ellipsis inside a `min-w-0` flex slot, `title`
-          keeps the full value one hover away, and the fixed suffix
-          (`shrink-0 whitespace-nowrap`) never itself wraps or is cut. That
-          makes every state of this paragraph — absent, short, or long —
-          exactly one line, so `h-[15px]` is a real ceiling rather than a
-          usual-case guess. Nothing is truncated in `alreadyThere` itself or
-          in what is stored; only this one rendering of it is bounded. */}
-      <div className="h-[15px] px-px">
-        {alreadyThere !== null && (
-          // `gap-1`, not a leading space in the `<span>`'s own text. `flex`
-          // blockifies both children (CSS Display's flex-item blockification),
-          // and a blockified box's own leading/trailing white space collapses
-          // away at render — verified in real Chromium: the space character
-          // that used to sit at the front of the suffix span measured zero
-          // width and was absent from `innerText`, even though jsdom's
-          // `textContent` (which does no layout or collapsing) still showed
-          // it, so the tests stayed green while the screen was wrong. `gap`
-          // is box-model spacing, not text, so it is not subject to that
-          // collapse — the trade is that the separating space no longer
-          // appears in `textContent` either, on purpose (see the tests).
-          <p
-            className="flex items-baseline gap-1 overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
-            data-testid="add-site-note"
-          >
-            <b className="min-w-0 truncate font-mono font-semibold" title={alreadyThere}>
-              {alreadyThere}
-            </b>
-            <span className="shrink-0 whitespace-nowrap">is already in the list.</span>
-          </p>
-        )}
-      </div>
+          The wrapper here used to be `h-[15px] px-px`, always present, so the
+          duplicate complaint appearing could not push what follows — the same
+          rule that stops a Grant button moving the row under it. The cost was
+          paid in every other state: measured in the built popup at the empty
+          rail, the gap from the input's bottom to the scope note below was
+          27px (6px inside this component, 15px of reservation, 6px of the
+          section's own `gap-1.5`) against the 6px rhythm every other child of
+          that section keeps. The owner read it as the note floating, and chose
+          the movement over the permanent hole.
+
+          So the note is created rather than reserved, and typing a domain that
+          is already listed now pushes what follows down by its height. The
+          e2e assertion that forbade exactly that was removed with it rather
+          than left describing a promise no longer made; the Grant button and
+          the readout's second line keep theirs, because those two still hold.
+
+          What is NOT reverted is the one-line guarantee, which is what made a
+          fixed 15px honest in the first place and is still what keeps the push
+          bounded: `schema.ts` caps no domain length and the rail is ~194px, so
+          the domain truncates to an ellipsis inside a `min-w-0` flex slot with
+          `title` carrying the full value, and the fixed suffix never wraps.
+          Every state of this paragraph is still exactly one line. Nothing is
+          truncated in `alreadyThere` itself or in what is stored. */}
+      {alreadyThere !== null && (
+        // `gap-1`, not a leading space in the `<span>`'s own text. `flex`
+        // blockifies both children (CSS Display's flex-item blockification),
+        // and a blockified box's own leading/trailing white space collapses
+        // away at render — verified in real Chromium: the space character
+        // that used to sit at the front of the suffix span measured zero
+        // width and was absent from `innerText`, even though jsdom's
+        // `textContent` (which does no layout or collapsing) still showed
+        // it, so the tests stayed green while the screen was wrong. `gap`
+        // is box-model spacing, not text, so it is not subject to that
+        // collapse — the trade is that the separating space no longer
+        // appears in `textContent` either, on purpose (see the tests).
+        <p
+          className="flex items-baseline gap-1 overflow-hidden font-sans text-[10.5px] leading-[1.4] font-normal text-pending"
+          data-testid="add-site-note"
+        >
+          <b className="min-w-0 truncate font-mono font-semibold" title={alreadyThere}>
+            {alreadyThere}
+          </b>
+          <span className="shrink-0 whitespace-nowrap">is already in the list.</span>
+        </p>
+      )}
     </div>
   );
 }

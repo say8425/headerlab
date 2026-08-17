@@ -609,9 +609,9 @@ describe('adding a site', () => {
     // wide at a 10.5px note — an ordinary corporate subdomain already
     // exceeds one line before "is already in the list." is even appended.
     // jsdom computes no layout, so it cannot see a box actually stay one
-    // line tall; what it can check is that the reservation is a fixed
-    // height (not a `min-h`, which is only a floor a long note could still
-    // push past) and that bounding the *rendering* does not lose the value
+    // line tall; what it can check is that every part of the rendering is
+    // shaped to stay on one line — the host truncating, the suffix never
+    // wrapping — and that bounding the *rendering* does not lose the value
     // — the full host survives in `title` and in `textContent` alike, only
     // its on-screen width is clipped by CSS.
     const long = 'internal-api-gateway.staging.eu-west-1.example.com';
@@ -630,8 +630,16 @@ describe('adding a site', () => {
     expect(host.className).toContain('truncate');
     expect(host.getAttribute('title')).toBe(long);
 
-    expect(note.parentElement!.className).toContain('h-[15px]');
-    expect(note.parentElement!.className).not.toContain('min-h');
+    // The wrapper this used to assert on — a fixed `h-[15px]` reserving the
+    // line so its arrival moved nothing — is gone; AddSiteField's docblock
+    // records why, and the movement it prevented is now accepted. What that
+    // reservation depended on is what remains worth pinning, and is pinned
+    // above: the host truncates rather than wrapping, so the note is one line
+    // whatever the hostname's length, which is what keeps the push bounded now
+    // that it is not prevented. The height itself is measured in
+    // tests/e2e/header-modification.spec.ts, where boxes have one.
+    expect(note.className).toContain('overflow-hidden');
+    expect(note.querySelector('span')!.className).toContain('whitespace-nowrap');
   });
 
   it('drops the complaint as soon as the entry is edited', async () => {

@@ -147,7 +147,7 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       profileId: profile.id,
       message:
         'No site set yet, so nothing is being applied. ' +
-        'Add a site below, or turn on All sites.',
+        'Add a site above, or turn on All sites.',
     });
   }
 

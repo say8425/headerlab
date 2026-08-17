@@ -105,7 +105,7 @@ const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
  * without it a domain longer than the rail pushes the note out of the column.
  */
 const NOTE_CLASS =
-  'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
+  'mx-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
 /**
  * The three switches in the rail are one control in three places — the same
  * palette, not the same size. The two inside the readout card (run state and
@@ -519,7 +519,7 @@ export function ScopeRail({
           run state directly above it — so it sits here rather than among the
           scope notes, above everything it makes untrue. */}
       {lastError !== null && (
-        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="sync-error">
+        <div className={`${NOTE_CLASS} mt-3 border-l-destructive`} data-testid="sync-error">
           <b className="mb-0.5 block font-bold text-destructive">Rules not registered</b>
           {lastError}
         </div>
@@ -530,7 +530,7 @@ export function ScopeRail({
           extension that is modifying headers. The run state above is the one
           that is true. */}
       {iconError !== null && (
-        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="icon-error">
+        <div className={`${NOTE_CLASS} mt-3 border-l-destructive`} data-testid="icon-error">
           <b className="mb-0.5 block font-bold text-destructive">Toolbar icon out of date</b>
           The icon may not match the run state above. {iconError}
         </div>
@@ -641,44 +641,6 @@ export function ScopeRail({
             a site, and giving it a chip beside `api.example.com` would put the
             thing that overrides the list inside the list. That shape is what
             made the empty list mean two things in the first place. */}
-        {/* First in the section, under the heading — deliberately before the
-            two controls it names rather than after them.
-
-            It sat after the whole section, then after the add-field, and both
-            read as orphaned for the same reason: `mt-auto` on the request
-            types below sends every spare pixel of the rail to just above that
-            section, which is exactly where a note placed last ends up sitting.
-            Measured in the built popup at the empty state, that left 12px above
-            the note and 43px below it — a box attached to nothing. Moving it
-            within the section changed its top by 6px and fixed none of that.
-
-            Here the leftover falls far below it and the remedies follow it, so
-            the note reads as an instruction for what comes next. That is also
-            why the message says "below": the copy and the position are one
-            decision, and lib/compile/filterDiagnostics.ts carries the other
-            half. */}
-        {notes.map((d, i) => (
-          <div
-            key={`${d.kind}-${i}`}
-            data-testid="scope-note"
-            data-severity={d.severity}
-            className={`${NOTE_CLASS} ${
-              d.severity === 'error'
-                ? 'border-l-destructive'
-                : // `incomplete` is not a complaint. Nothing is wrong and nothing
-                  // is at risk — the configuration simply is not finished yet,
-                  // which is the state a fresh install opens in. Amber is this
-                  // palette's "something needs you", and spending it on the one
-                  // note that is asking for nothing would rebuild the standing
-                  // warning this state replaces, in a different colour.
-                  d.severity === 'incomplete'
-                  ? 'border-l-muted-foreground'
-                  : 'border-l-pending'
-            }`}
-          >
-            {d.message}
-          </div>
-        ))}
 
         <div
           className="mx-3 flex h-14 shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
@@ -881,6 +843,49 @@ export function ScopeRail({
         <div className="shrink-0 px-3">
           <AddSiteField onAdd={onAddDomain} />
         </div>
+
+        {/* Last in the section, after the field, and the copy says "above" to
+            match: the note names two controls and they both sit before it.
+
+            **No top margin of its own — that was the actual complaint.** This
+            section is a `gap-1.5` flex column, so every other child sits 6px
+            from its neighbour; `NOTE_CLASS` used to add `mt-3` on top of that
+            gap, giving this one child 18px and detaching it from the field it
+            follows without attaching it to anything else. The margin now lives
+            at the two call sites that are not inside a gapped column (the sync
+            and icon errors), and this note simply takes the section's own
+            rhythm.
+
+            The head of the section was tried and rejected by the owner. It did
+            solve the geometry — `mt-auto` on the request types sends every
+            spare pixel of the rail to just above that section, so anything
+            rendered last in this one sits on top of that gap (measured empty:
+            12px above the note, 43px below) — but it put a problem statement
+            ahead of the controls a reader is coming here to use. Placement
+            lost to reading order. Do not move it up again without asking; the
+            gap below it is known and accepted. */}
+        {notes.map((d, i) => (
+          <div
+            key={`${d.kind}-${i}`}
+            data-testid="scope-note"
+            data-severity={d.severity}
+            className={`${NOTE_CLASS} ${
+              d.severity === 'error'
+                ? 'border-l-destructive'
+                : // `incomplete` is not a complaint. Nothing is wrong and nothing
+                  // is at risk — the configuration simply is not finished yet,
+                  // which is the state a fresh install opens in. Amber is this
+                  // palette's "something needs you", and spending it on the one
+                  // note that is asking for nothing would rebuild the standing
+                  // warning this state replaces, in a different colour.
+                  d.severity === 'incomplete'
+                  ? 'border-l-muted-foreground'
+                  : 'border-l-pending'
+            }`}
+          >
+            {d.message}
+          </div>
+        ))}
       </div>
 
       {/* Last, and pushed to the foot by `mt-auto`: the leftover space in a
