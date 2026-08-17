@@ -1,6 +1,6 @@
 {
   "name": "headerlab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Drive the HeaderLab Chrome extension's header rules from a terminal.",
   "keywords": [
     "chrome-extension",

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/say8425/headerlab/compare/cli-v0.2.0...cli-v0.3.0) (2026-08-17)
+
+
+### Features
+
+* name the agent bridge, switch its control, and stop losing failed requests ([#46](https://github.com/say8425/headerlab/issues/46)) ([b134ba4](https://github.com/say8425/headerlab/commit/b134ba48ca81550c74a07f787be0fdba431714a4))
+
 ## [0.2.0](https://github.com/say8425/headerlab/compare/cli-v0.1.2...cli-v0.2.0) (2026-08-16)
 
 
