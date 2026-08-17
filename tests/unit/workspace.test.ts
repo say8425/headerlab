@@ -363,7 +363,43 @@ describe('the release configuration', () => {
    */
   it("keeps the extension's changelog off the other packages' own commits", () => {
     const siblings = Object.keys(config.packages).filter((path) => path !== '.');
-    expect(config.packages['.']['exclude-paths']).toEqual(siblings);
+    const excluded: string[] = config.packages['.']['exclude-paths'];
+    // Derived, not pinned: a third released package added without an exclusion
+    // fails here rather than quietly widening the extension's changelog. The
+    // docs entries below are a separate claim and are asserted separately, so
+    // adding one cannot satisfy this one.
+    expect(siblings.every((path) => excluded.includes(path))).toBe(true);
+  });
+
+  /**
+   * The extension's path is the whole repository, so without this a commit
+   * that only rewrites prose is a commit against the extension.
+   *
+   * **The commit type is the primary guard and this is the backstop, not the
+   * other way round.** A `docs:` commit does not bump anything under
+   * conventional commits, so the ordinary documentation pass was never the
+   * problem. What this catches is the mistyped one — prose only, committed as
+   * `feat:` or `fix:` — which is exactly how the CLI came to be offered a
+   * `0.3.0` whose changelog described the extension's work.
+   *
+   * The same "all files or nothing" semantics apply: a commit that touches
+   * code *and* README still releases, correctly, because not every file is
+   * excluded. Nothing here can stop a genuinely cross-cutting commit from
+   * counting for the package it genuinely touched — that lever is the commit
+   * boundary.
+   *
+   * `docs/` covers the four README translations, the agent-bridge documents,
+   * the generated screenshots and the design and research notes. `CHANGELOG.md`
+   * is deliberately absent for the same reason as the CLI's: release-please
+   * writes it, and a package excluding its own output is the next surprise.
+   */
+  it('keeps a prose-only commit from proposing an extension release', () => {
+    expect(config.packages['.']['exclude-paths']).toEqual([
+      'packages/headerlab',
+      'README.md',
+      'CLAUDE.md',
+      'docs',
+    ]);
   });
 
   /**

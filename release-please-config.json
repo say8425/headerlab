@@ -5,7 +5,7 @@
     ".": {
       "release-type": "node",
       "component": "extension",
-      "exclude-paths": ["packages/headerlab"]
+      "exclude-paths": ["packages/headerlab", "README.md", "CLAUDE.md", "docs"]
     },
     "packages/headerlab": {
       "release-type": "node",
