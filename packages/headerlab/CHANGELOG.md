@@ -3,9 +3,23 @@
 ## [0.3.0](https://github.com/say8425/headerlab/compare/cli-v0.2.0...cli-v0.3.0) (2026-08-17)
 
 
-### Features
+**This release changes nothing about how the CLI behaves.** Its code is byte-for-byte `0.2.0`; what moved is this package's README and the test that guards it.
 
-* name the agent bridge, switch its control, and stop losing failed requests ([#46](https://github.com/say8425/headerlab/issues/46)) ([b134ba4](https://github.com/say8425/headerlab/commit/b134ba48ca81550c74a07f787be0fdba431714a4))
+It exists because a cross-cutting commit touched `packages/headerlab/README.md` along with 27 files belonging to the extension, and release-please attributes a commit to every package it touches. The entry generated here originally read *"name the agent bridge, switch its control, and stop losing failed requests"* — the extension's work, credited to this package. That was wrong and is corrected below.
+
+### Documentation
+
+* document `--human`, which shipped in `0.2.0` with no mention in this README: it is the inverse of `--json`, forces the human-readable form through a pipe, and is refused alongside `--json` with exit 2 ([b134ba4](https://github.com/say8425/headerlab/commit/b134ba48ca81550c74a07f787be0fdba431714a4))
+* repoint the agent-bridge link at `docs/agent-bridge.md`, which is where that material now lives ([4b22181](https://github.com/say8425/headerlab/commit/4b22181))
+* drop the ModHeader paragraph, keeping the sentence that says why `npm audit signatures` is worth running ([b134ba4](https://github.com/say8425/headerlab/commit/b134ba48ca81550c74a07f787be0fdba431714a4))
+
+### Tests
+
+* assert the runnable commands in the five agent-bridge documents are byte-identical, and that the extracted command list is non-empty — the second is the guard that stops five empty lists comparing equal and passing ([4b22181](https://github.com/say8425/headerlab/commit/4b22181))
+
+### Note on versioning
+
+`0.3.0` is a minor bump for a documentation change, which is not what the version says. The bump follows from the same attribution: release-please read the cross-cutting commit's `feat:` type as this package's. `exclude-paths` now keeps a prose-only commit from proposing a release, but it cannot retroactively re-scope one that also touched code elsewhere.
 
 ## [0.2.0](https://github.com/say8425/headerlab/compare/cli-v0.1.2...cli-v0.2.0) (2026-08-16)
 
