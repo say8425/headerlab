@@ -388,10 +388,10 @@ describe('the release configuration', () => {
    * counting for the package it genuinely touched — that lever is the commit
    * boundary.
    *
-   * `docs/` covers the four README translations, the agent-bridge documents,
-   * the generated screenshots and the design and research notes. `CHANGELOG.md`
-   * is deliberately absent for the same reason as the CLI's: release-please
-   * writes it, and a package excluding its own output is the next surprise.
+   * `docs` — no trailing slash, matching the value — covers the four README
+   * translations, the agent-bridge documents, the generated screenshots and the
+   * design and research notes. `CHANGELOG.md` is absent for the reason given on
+   * the CLI's entry above, which is not the obvious one.
    */
   it('keeps a prose-only commit from proposing an extension release', () => {
     expect(config.packages['.']['exclude-paths']).toEqual([
@@ -418,9 +418,17 @@ describe('the release configuration', () => {
    * pass over the CLI's README no longer proposes a release of code that did
    * not change.
    *
-   * The README is excluded and `CHANGELOG.md` is not, deliberately —
-   * release-please writes that file itself, and a package that ignored its own
-   * changelog commits would be excluding its own output.
+   * The README is excluded and `CHANGELOG.md` is not. The tempting reason —
+   * "release-please writes that file, so a package must not ignore its own
+   * output" — conflates two mechanisms and is wrong: `exclude-paths` decides
+   * which *commits* are parsed for versioning, and has nothing to do with
+   * whether release-please can write a file. The real reason listing it would
+   * change nothing is that a release commit is never prose-only. Measured on
+   * this repository's own: it touches `.release-please-manifest.json`,
+   * `package.json` and both plugin manifests alongside the changelog, so it can
+   * never satisfy "all files excluded" however that list is written. Excluding
+   * it would be a no-op rather than a hazard; it stays off the list because a
+   * setting that does nothing is a setting the next reader has to work out.
    */
   it("keeps a docs-only pass over the CLI's README from proposing a release", () => {
     expect(config.packages['packages/headerlab']['exclude-paths']).toEqual([
