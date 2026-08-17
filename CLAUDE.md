@@ -263,8 +263,10 @@ and the two cannot drift apart while the flag stays where it is.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 141 `@/…` imports
-(126 when this was written; the design-system branch added 15).
+`correctness` enables (`import/default`, `import/namespace`), across 189 `@/…` imports
+(126 when this was written, then 141; the count is whatever `grep -rhoE "from '@/" components
+entrypoints lib tests | wc -l` says today, and it is the repo-wide figure because oxlint
+lints the tests too).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
@@ -327,13 +329,13 @@ that count is what proves a pattern matches rather than merely parses.
 
 **oxfmt formats code, not prose.** `entrypoints/popup/style.css`, `docs/**`, `**/*.md` and
 `**/*.html` are in `ignorePatterns`. The stylesheet is hand-tuned at 4-space indent, and
-taking it off the list rewrites **150 of its 325 lines** — re-measured by dropping the
+taking it off the list rewrites **144 of its 347 lines** — re-measured by dropping the
 pattern, running `oxfmt`, and counting `git diff --numstat`. Two changes, both cosmetic:
 4-space to 2-space throughout, and `"` to `'` inside the attribute selectors of the seven
 `@custom-variant` blocks. The old figure was 1124, taken when the file was 1143 lines of
 hand-written component classes; the redesign deleted every one of them and the file is now
 a token bridge. **The ratio is what carried the decision and it barely moved — 98% of the
-file then, 46% now** — so the answer is still to keep it ignored, but on a number someone
+file then, 41% now** — so the answer is still to keep it ignored, but on a number someone
 can reproduce rather than one three redesigns out of date. Re-derive both halves if you
 touch that file; the denominator went stale once inside the very task that fixed it, by
 nine lines added two commits earlier. (An earlier version of this sentence also said the
@@ -645,12 +647,13 @@ secrets that do not exist and would fail every release. Add it with the listing,
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
 conventional-commit subjects above it rather than releasing `1.0.0` itself. That is history
-now: there are nine tags and nine releases (`git tag | wc -l` and `gh release list --limit
-20 | wc -l`, both `9` on 2026-08-16, after `extension-v1.2.0` and `cli-v0.2.0`), and a run
+now: there are twelve tags and twelve releases (`git tag | wc -l` and `gh release list
+--limit 30 | wc -l`, both `12` on 2026-08-17, after `extension-v1.3.0`, `extension-v1.3.1`
+and `cli-v0.3.0`), and a run
 finds the previous release through the `extension-v*` / `cli-v*` tag formats. **That count
 goes stale on every release, so re-run the two commands rather than reading it** — it said
-seven until the clig.dev release, which is two releases' worth of drift in a file that
-treats a stale measurement as a defect. Kept because the same paragraph is what a fresh
+seven until the clig.dev release and nine until this one, five releases' worth of drift in
+a file that treats a stale measurement as a defect. Kept because the same paragraph is what a fresh
 fork of this setup would need.
 
 **The workflows carry almost no comments, and that is deliberate.** They had many, and they
