@@ -166,6 +166,19 @@ describe('palette parsing', () => {
  * text toward the background, and a switched-off rule here keeps
  * full-contrast text and is marked by its switch and a recessed row instead.
  */
+/**
+ * `fg` painted over `bg` at `alpha`, which is what a `/80` utility produces.
+ * Source-over on straight sRGB bytes — the same arithmetic the compositor does
+ * before `contrast()` ever sees a pixel.
+ */
+function composite(fg: string, bg: string, alpha: number): string {
+  const bytes = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [fr, fg_, fb] = bytes(fg) as [number, number, number];
+  const [br, bg_, bb] = bytes(bg) as [number, number, number];
+  const mix = (f: number, b: number) => Math.round(f * alpha + b * (1 - alpha));
+  return `#${[mix(fr, br), mix(fg_, bg_), mix(fb, bb)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 const READ_TEXT = 4.5;
 const SHAPE = 3;
 
@@ -441,6 +454,31 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
   });
 
   /**
+   * The one pair above whose token is not the colour that paints.
+   *
+   * `components/ui/switch.tsx` fills an unchecked track with `bg-input` in
+   * light and `dark:data-unchecked:bg-input/80` in dark, so in dark the table
+   * above measures a colour the screen never shows. That gap is not academic:
+   * it hid a real regression once. `--card` was lightened, the pair above went
+   * red, `--input` was raised until the pair passed at full opacity — and the
+   * composited track was still 2.5330, under this same floor, while every
+   * check in this file was green.
+   *
+   * Composited here rather than fixed in `SHAPE_PAIRS` because the alpha
+   * belongs to one component, not to the token: light paints the token whole,
+   * and folding 80% into the table would make the light assertion wrong to fix
+   * the dark one. This is the alpha trap CLAUDE.md documents, asserted rather
+   * than described.
+   */
+  it('keeps the unchecked switch track visible at the opacity it is painted with', () => {
+    const track =
+      theme === 'dark'
+        ? composite(palette['--input']!, palette['--card']!, 0.8)
+        : palette['--input']!;
+    expect(contrast(track, palette['--card']!)).toBeGreaterThanOrEqual(SHAPE);
+  });
+
+  /**
    * The hierarchy half of the requirement. Raising every grey until it is black
    * would satisfy every ratio above and destroy the ramp, so the ramp itself is
    * asserted: each step must be strictly lighter than the one before against
@@ -519,6 +557,25 @@ describe.each(['light', 'dark'] as const)('%s region separation', (theme) => {
    */
   it('gives the panel a third surface — the tray — distinguishable from the card', () => {
     expect(distinct('--card', '--tray')).toBeGreaterThanOrEqual(1.09);
+  });
+
+  /**
+   * The pair this file was missing, and the omission was not harmless.
+   *
+   * Every card in the rail — the readout, the all-sites row, each site row —
+   * is `--card` painted on `--rail`, so this is the most-repeated surface pair
+   * on the screen. It was the one adjacency with no assertion: `--rail` was
+   * checked against `--background` and `--card` against `--tray` and
+   * `--rowoff`, and the two tokens that actually touch here were never
+   * compared. Dark drifted to 1.0309 — under a third of light's 1.1294 — and
+   * every check in this file stayed green while the rail's cards were, on
+   * report, not distinguishable from the rail.
+   *
+   * Same 1.09 floor as the two pairs above, for the same reason: fill against
+   * fill, not a line.
+   */
+  it('separates a card from the rail it sits on', () => {
+    expect(distinct('--card', '--rail')).toBeGreaterThanOrEqual(1.09);
   });
 
   /**

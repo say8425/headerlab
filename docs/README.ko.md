@@ -8,10 +8,6 @@ HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
-ModHeader 를 대체합니다. ModHeader 는 2026년 7월 숨겨진 트래커가 발견되어 Chrome 웹
-스토어에서 내려갔습니다. 이것이 이 프로젝트가 존재하는 이유 전부이고, 아래 신뢰
-원칙이 기능 목록이 아니라 하드 제약인 이유입니다.
-
 | 라이트 | 다크 |
 |---|---|
 | ![라이트 테마의 HeaderLab 팝업: 룰 네 개 중 셋이 동작 중, 허용된 사이트 둘, 헤더 룰 넷](screenshots/popup-light.png) | ![같은 팝업의 다크 테마. 운영체제 설정을 따릅니다](screenshots/popup-dark.png) |
@@ -63,6 +59,22 @@ codex plugin marketplace add say8425/headerlab
 **브리지를 켜기 전까지는 `bridge-off` 를 보고합니다.** CLI 를 전역 설치하는 것이 전제
 조건은 아닙니다 — 플러그인이 `packages/headerlab` 로 가는 자체 shim 을 들고 있습니다.
 `npm i -g headerlab` 를 함께 해도 충돌이 아닙니다. PATH 가 전역 사본을 먼저 찾습니다.
+
+평소 쓰는 말로 물어보면 스킬이 그 요청을 CLI 명령으로 옮깁니다:
+
+```text
+HeaderLab 지금 뭐 하고 있어?
+staging.example.com 에만 X-Debug: on 요청 헤더 추가해줘
+api.example.com 에서는 Referer 헤더 보내지 마
+규칙 전부 잠깐 멈췄다가 다시 켜줘
+내가 실제로 수정할 수 있는 사이트가 어디야?
+```
+
+첫 줄과 마지막 줄은 읽기입니다 — `status`, `site ls`, `rule ls`, `state get` 이 아무것도
+쓰지 않고 답합니다. 가운데 셋은 쓰기이고, 하나는 미리 알아두는 편이 좋습니다: 사이트를
+추가하는 것은 규칙의 적용 범위를 정할 뿐 그 사이트에 대한 접근 권한을 주지는 않습니다.
+팝업에서 Grant 를 누르기 전까지 그 사이트는 대기 상태로 남으며, 스킬은 이미 적용된 것처럼
+넘어가지 말고 그 사실을 말하도록 지시받아 있습니다.
 
 ## 무엇을 하는가
 
@@ -137,7 +149,7 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-브리지는 사람이 팝업에서 **Enable** 을 누르기 전까지 꺼져 있고, CLI 는 사이트 접근 권한을
+브리지는 사람이 팝업에서 스위치를 켜기 전까지 꺼져 있고, CLI 는 사이트 접근 권한을
 줄 수도 브리지를 켤 수도 없습니다 — Chrome 이 둘 다 사용자 제스처에서만 받기 때문입니다.
 기기 밖으로 나가는 것은 없습니다: CLI·호스트·확장은 사용자별 디렉터리의 유닉스 도메인
 소켓에서 만나며, 네트워크 소켓은 쓰지 않습니다.

@@ -75,6 +75,17 @@ export interface ScopeRailProps {
   bridgeLastCommandAt: string | null;
   /** Chrome's own message from the last failed connect, or null. */
   bridgeError: string | null;
+  /**
+   * Why the last permission *request* did not result in a grant, or null if
+   * none has failed since the row was last satisfied.
+   *
+   * Distinct from `bridgeError`, which is a failed *connect* — a request that
+   * never produced a permission and a permission that produced no port are
+   * different states with different remedies, and collapsing them is what
+   * left this row silent. `declined` carries no message because there is
+   * nothing to report beyond the answer itself.
+   */
+  bridgeRequestError: { reason: 'declined' } | { reason: 'error'; message: string } | null;
   onEnableBridge: () => void;
   onDisableBridge: () => void;
 }
@@ -94,24 +105,72 @@ const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
  * without it a domain longer than the rail pushes the note out of the column.
  */
 const NOTE_CLASS =
-  'mx-3 mt-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
-/** The two switches in the rail are one control in two places. */
+  'mx-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
+/**
+ * The three switches in the rail are one control in three places — the same
+ * palette, not the same size. The two inside the readout card (run state and
+ * bridge) are `sm`, because that card's rows are 20px and a 14px control sits
+ * inside one without crowding the label; the all-sites switch keeps the
+ * default 18.4px, since it heads a 48px section rather than a readout line.
+ */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
 
 /**
- * Disable is not a request — it hands a permission back — so it does not
- * borrow the amber Grant palette. Enable does: it opens Chrome's consent
- * dialog, which is exactly what GRANT_BUTTON_CLASS already means everywhere
- * else on this screen.
+ * The row's name, in every state.
+ *
+ * It used to carry the state too ("Agent bridge live"), which put the state in
+ * the one place a reader has no definition for, and left the two states that
+ * shared a dot colour — `off` and `idle` — distinguishable only by that word.
+ * The name is constant now, the dot carries the state at a glance, and
+ * `bridgeTitle` carries the detail; that split is what let `idle` take its own
+ * colour below.
  */
-const BRIDGE_OFF_BUTTON_CLASS = 'h-5 rounded-[4px]';
+const BRIDGE_NAME = 'Agent bridge';
 
-const BRIDGE_LABEL = {
-  unknown: 'Bridge',
-  off: 'Bridge off',
-  idle: 'Bridge idle',
-  live: 'Bridge live',
-} as const;
+/**
+ * The whole of what this row can say beyond its name and its dot.
+ *
+ * Ordered by what the reader most recently caused: a request they just watched
+ * fail outranks a connect error from before it, which outranks the steady-state
+ * description. Returns null only for `unknown`, where the probe has not
+ * answered and anything said would be a guess.
+ */
+function bridgeTitle(
+  bridge: ScopeRailProps['bridge'],
+  unreachable: boolean,
+  bridgeError: string | null,
+  requestError: ScopeRailProps['bridgeRequestError'],
+  lastCommandAt: string | null,
+): string | null {
+  // A held permission outranks any record of a request that failed to obtain
+  // one: the grant can arrive from outside this popup, and a live row
+  // explaining that the bridge "cannot start" would be the screen contradicting
+  // itself beside a green dot.
+  if (requestError !== null && bridge === 'off') {
+    return requestError.reason === 'declined'
+      ? 'Chrome’s permission request was declined, so the bridge cannot start. Turn the ' +
+          'switch on again to ask once more.'
+      : `The permission could not be requested: ${requestError.message}`;
+  }
+  // The remedy leads and Chrome's string trails it: Chrome reports the
+  // identical message for a missing manifest, a manifest naming a different
+  // extension, and an interpreter it cannot start (measured), so translating
+  // it into one of the three would be a guess presented as a diagnosis.
+  if (unreachable) return `Run headerlab bridge install. ${bridgeError}`;
+  if (bridge === 'unknown') return null;
+  if (bridge === 'off') {
+    return 'The agent bridge is off. Turn the switch on to grant Chrome’s nativeMessaging permission, which lets a CLI reach this extension.';
+  }
+  if (bridge === 'idle') {
+    // Not worded as a failure: nothing has gone wrong, and the usual reason is
+    // that the installer has not been run yet.
+    return 'The permission is held, but nothing is connected. If you have not run headerlab bridge install yet, that is the usual reason.';
+  }
+  const live = 'The agent bridge is live — a CLI can reach this extension.';
+  return lastCommandAt === null
+    ? live
+    : `${live} Last change through it: ${new Date(lastCommandAt).toLocaleString()}`;
+}
 
 /**
  * The left rail: where does this apply, and is it working.
@@ -160,6 +219,7 @@ export function ScopeRail({
   bridge,
   bridgeLastCommandAt,
   bridgeError,
+  bridgeRequestError,
   onEnableBridge,
   onDisableBridge,
 }: ScopeRailProps) {
@@ -199,11 +259,21 @@ export function ScopeRail({
    *
    * Resolved here rather than branched in the markup so the line has exactly
    * one value: it is both what is rendered and what `title` carries, and those
-   * two must not be able to disagree. The healthy state — rules configured and
-   * all of them going out — has nothing to say and renders no text, which is
-   * not the same fact as "nothing configured yet".
+   * two must not be able to disagree.
+   *
+   * The healthy state — rules configured and all of them going out — says "no
+   * problems" rather than nothing. It went through both other answers first:
+   * an empty box reserved in every state (no movement, but a blank lower half
+   * of the card whenever nothing is wrong, which is most of the time), and no
+   * box at all (no void, but the rail below jumped 20px the moment a rule was
+   * toggled off). Saying something short is the answer that costs neither.
+   *
+   * Still distinct from "nothing configured yet": that names an empty rule
+   * set, this names a full one with nothing wrong in it, and a reader who
+   * cannot tell those apart cannot tell whether their rules exist.
    */
-  const subline = tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ');
+  const subline =
+    tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ') || 'no problems';
 
   /**
    * The all-sites row's state, in the same four-way shape a site row uses.
@@ -233,6 +303,13 @@ export function ScopeRail({
    * exists instead: see the `bridgestate` block for where this is read.
    */
   const bridgeUnreachable = bridge === 'idle' && bridgeError !== null;
+  const bridgeRowTitle = bridgeTitle(
+    bridge,
+    bridgeUnreachable,
+    bridgeError,
+    bridgeRequestError,
+    bridgeLastCommandAt,
+  );
 
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
@@ -297,20 +374,22 @@ export function ScopeRail({
               already make. `truncate` needs the text in its own `min-w-0` flex
               child; as a bare text node it is an anonymous box that
               `text-overflow` cannot address. */}
+          {/* Always rendered, and never empty — see the `subline` docblock
+              above for the two answers this replaces and why each failed. A
+              box whose presence never changes is what lets the Interface rule
+              hold here without reserving a void: it is not reflow-prevention
+              by blank space, it is a line that always has something true to
+              say. */}
           <div
             className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
             data-testid="subcount"
           >
-            {subline !== '' && (
-              <>
-                {tally.off > 0 && (
-                  <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
-                )}
-                <span className="min-w-0 truncate" title={subline}>
-                  {subline}
-                </span>
-              </>
+            {tally.off > 0 && (
+              <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
             )}
+            <span className="min-w-0 truncate" title={subline}>
+              {subline}
+            </span>
           </div>
         </div>
 
@@ -330,6 +409,7 @@ export function ScopeRail({
           </span>
           <span className="flex-1" />
           <Switch
+            size="sm"
             aria-label={paused ? 'Resume all rules' : 'Pause all rules'}
             checked={!paused}
             onCheckedChange={(on) => onTogglePause(!on)}
@@ -349,14 +429,28 @@ export function ScopeRail({
 
             Shaped exactly like the run state above it because it is the same
             kind of fact: a thing that is either happening or not, with one
-            control. The control is a button and not a switch for the reason
-            the all-sites switch stopped calling `permissions.request()` — a
-            consent dialog must follow a button that asks for consent, never a
-            control that merely moved. */}
+            control — and now with the same control, a switch, measured at the
+            identical 18.39px inside an unchanged 20px row.
+
+            **This switch does call `permissions.request()`, and that is a
+            deliberate exception to the rule the all-sites switch established.**
+            That rule — a consent dialog follows a button that asks for
+            consent, never a control that merely moved — was written about
+            `<all_urls>`, the largest grant this extension can make, where the
+            switch had somewhere else to put the user's intent: `filter.
+            allSites` stores the mode, so the switch can set it and leave a
+            Grant button to do the asking. The bridge has no such field.
+            Holding the permission *is* the state, so a switch here either
+            asks or is decorative, and a decorative switch that needs a second
+            control beside it to mean anything is worse than the button it
+            replaced. The narrower grant and the row's single purpose are what
+            make the exception affordable; do not read it as licence to let
+            the all-sites switch prompt again. */}
         <div
           className="mt-1 flex h-5 items-center gap-[7px]"
           data-testid="bridgestate"
           data-bridge={bridge}
+          {...(bridgeRequestError === null ? {} : { 'data-request': bridgeRequestError.reason })}
         >
           {/* Colour only when a port is actually open, plus the pending
               (amber) borrow below for `bridgeUnreachable` — incomplete
@@ -370,7 +464,8 @@ export function ScopeRail({
                 ? 'bg-live'
                 : bridge === 'unknown'
                   ? 'bg-transparent'
-                  : bridgeUnreachable
+                  : // `bridgeUnreachable` implies `idle`, so it is not repeated here.
+                    bridge === 'idle' || bridgeRequestError !== null
                     ? 'bg-pending'
                     : 'bg-muted-foreground'
             }`}
@@ -386,54 +481,48 @@ export function ScopeRail({
               title below: a bridge that cannot be reached is not a bridge to
               report a last command for.
 
-              "Bridge down", not "Bridge unreachable": this row has 87.15625px
-              for the label (measured against the built popup — the dot, the
-              gaps and the Disable button already spend the rest of the
-              row's fixed `h-5`), and "Bridge unreachable" measures 115px in
-              this exact font and weight — 28px over, so it wraps to two
-              lines and blows the row's height, the same reflow this whole
-              fix exists to remove. "Bridge down" measures 73.98px, 13px of
-              real margin. Two other candidates were measured and rejected:
-              "Not connected" is 86.89px — 0.27px of margin is not margin,
-              and CI renders this stack under different font metrics (see
-              the readout's own comment on that). "Bridge lost" fits at
-              64.05px but asserts prior possession; the common path into
-              this state is Enable pressed and `headerlab bridge install`
-              never run, where nothing was ever had. */}
+              "Bridge down", not "Bridge unreachable": this row now has 124px
+              for the label, re-measured against the built popup — the row is
+              175px and spends 6px on the dot, 24px on the `sm` switch and
+              21px on three 7px gaps, leaving the label and the `flex-1`
+              spacer to share 124px.
+
+              That budget was 87.15625px while a 56.91px Disable button sat
+              where the switch now is, and the 36.85px it gave back changes an
+              answer rather than merely restating it: "Bridge unreachable"
+              measures 115px in this exact font and weight, so it no longer
+              overflows. It is still rejected, but the reason is now taste
+              rather than arithmetic — "Bridge down" says the same thing in
+              73.98px and this row is read at a glance. Re-measure before
+              trusting the 9px: this figure has already moved twice in one
+              branch, 87.15625 → 116 → 124, once when the button became a
+              switch and again when the switch became `sm`. "Bridge lost"
+              fits at 64.05px but asserts prior possession; the common path
+              into this state is the switch turned on and `headerlab bridge
+              install` never run, where nothing was ever had. */}
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
+            id="bridge-label"
             data-testid="bridge-label"
-            {...(bridgeUnreachable
-              ? { title: `Run headerlab bridge install. ${bridgeError}` }
-              : bridgeLastCommandAt === null
-                ? {}
-                : {
-                    title: `Last change through the bridge: ${new Date(
-                      bridgeLastCommandAt,
-                    ).toLocaleString()}`,
-                  })}
+            {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
           >
-            {bridgeUnreachable ? 'Bridge down' : BRIDGE_LABEL[bridge]}
+            {BRIDGE_NAME}
           </span>
           <span className="flex-1" />
-          {bridge === 'unknown' ? null : bridge === 'off' ? (
-            <Button
-              size="xs"
-              variant="secondary"
-              className={GRANT_BUTTON_CLASS}
-              onClick={onEnableBridge}
-            >
-              Enable
-            </Button>
-          ) : (
-            <Button
-              size="xs"
-              variant="secondary"
-              className={BRIDGE_OFF_BUTTON_CLASS}
-              onClick={onDisableBridge}
-            >
-              Disable
-            </Button>
+          {bridge === 'unknown' ? null : (
+            <Switch
+              size="sm"
+              aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
+              // The whole report lives in the label's `title`, which a pointer
+              // reaches by hovering and a keyboard reaches not at all. Pointing
+              // the control at the label costs no pixels and is the difference
+              // between "no silent failures" holding for everyone and holding
+              // for mouse users.
+              aria-describedby="bridge-label"
+              checked={bridge !== 'off'}
+              onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
+              className={SWITCH_CLASS}
+            />
           )}
         </div>
       </div>
@@ -442,7 +531,7 @@ export function ScopeRail({
           run state directly above it — so it sits here rather than among the
           scope notes, above everything it makes untrue. */}
       {lastError !== null && (
-        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="sync-error">
+        <div className={`${NOTE_CLASS} mt-3 border-l-destructive`} data-testid="sync-error">
           <b className="mb-0.5 block font-bold text-destructive">Rules not registered</b>
           {lastError}
         </div>
@@ -453,7 +542,7 @@ export function ScopeRail({
           extension that is modifying headers. The run state above is the one
           that is true. */}
       {iconError !== null && (
-        <div className={`${NOTE_CLASS} border-l-destructive`} data-testid="icon-error">
+        <div className={`${NOTE_CLASS} mt-3 border-l-destructive`} data-testid="icon-error">
           <b className="mb-0.5 block font-bold text-destructive">Toolbar icon out of date</b>
           The icon may not match the run state above. {iconError}
         </div>
@@ -564,8 +653,9 @@ export function ScopeRail({
             a site, and giving it a chip beside `api.example.com` would put the
             thing that overrides the list inside the list. That shape is what
             made the empty list mean two things in the first place. */}
+
         <div
-          className="mx-3 flex h-12 shrink-0 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+          className="mx-3 flex h-14 shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
           data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
@@ -661,7 +751,7 @@ export function ScopeRail({
             The height stops at 127px, which is deliberately NOT a multiple of
             the 54px row pitch: two rows and the gap after them are 108px and
             three are 156px, so a third site leaves that row cut across the
-            middle — now 19px of 48, not the wider 24px an unpressured rail
+            middle — 19px of 48, not the wider 24px an unpressured rail
             could afford — and the cut row is the affordance saying the list
             continues regardless of exactly how much of it shows. 156 or 162
             would each show a whole number of rows and say nothing; nor would
@@ -672,6 +762,28 @@ export function ScopeRail({
             `max-height` lets the list be as tall as it has content for, and
             `mt-auto` on the section below sends the leftover to the foot of
             the rail instead.
+
+            **This cap was briefly 119px and is back at 127px, which is worth
+            recording because the intermediate number was honest when it was
+            written and wrong two commits later.** The all-sites row's padding
+            grew by 8px, the rail had no slack, and this list — `flex-shrink: 1`
+            and the only child allowed to give way — had silently absorbed the
+            deficit, rendering 119 while the CSS still said 127. Writing 119
+            made the stored value the operating value, which is the defect
+            `effectiveDomain` exists to prevent one layer down.
+
+            Then the scope note gave up a stacked `mt-3` and `AddSiteField` gave
+            up a 15px reserved line — 27px freed directly above this list. The
+            8px was no longer being taken from anywhere, so charging the list
+            for it made the cut row 11px of 48 for nothing. Re-measured after
+            both: `mt-auto` on the request types resolves to 21px of real
+            leftover with the cap at 119, so the list can have its 8px back and
+            the rail still ends with slack rather than pressure.
+
+            Re-measure before changing it again, with the `measure()` in
+            docs/design/2026-08-12-agent-bridge-rail-budget.html: this figure
+            moved twice inside one branch, and each time the reasoning was
+            correct against a tree that had already changed underneath it.
 
             132 was the figure here before the bridge row
             (components/ScopeRail.tsx's bridgestate block) landed. That row
@@ -755,30 +867,50 @@ export function ScopeRail({
         <div className="shrink-0 px-3">
           <AddSiteField onAdd={onAddDomain} />
         </div>
-      </div>
 
-      {notes.map((d, i) => (
-        <div
-          key={`${d.kind}-${i}`}
-          data-testid="scope-note"
-          data-severity={d.severity}
-          className={`${NOTE_CLASS} ${
-            d.severity === 'error'
-              ? 'border-l-destructive'
-              : // `incomplete` is not a complaint. Nothing is wrong and nothing
-                // is at risk — the configuration simply is not finished yet,
-                // which is the state a fresh install opens in. Amber is this
-                // palette's "something needs you", and spending it on the one
-                // note that is asking for nothing would rebuild the standing
-                // warning this state replaces, in a different colour.
-                d.severity === 'incomplete'
-                ? 'border-l-muted-foreground'
-                : 'border-l-pending'
-          }`}
-        >
-          {d.message}
-        </div>
-      ))}
+        {/* Last in the section, after the field, and the copy says "above" to
+            match: the note names two controls and they both sit before it.
+
+            **No top margin of its own — that was the actual complaint.** This
+            section is a `gap-1.5` flex column, so every other child sits 6px
+            from its neighbour; `NOTE_CLASS` used to add `mt-3` on top of that
+            gap, giving this one child 18px and detaching it from the field it
+            follows without attaching it to anything else. The margin now lives
+            at the two call sites that are not inside a gapped column (the sync
+            and icon errors), and this note simply takes the section's own
+            rhythm.
+
+            The head of the section was tried and rejected by the owner. It did
+            solve the geometry — `mt-auto` on the request types sends every
+            spare pixel of the rail to just above that section, so anything
+            rendered last in this one sits on top of that gap (measured empty:
+            12px above the note, 43px below) — but it put a problem statement
+            ahead of the controls a reader is coming here to use. Placement
+            lost to reading order. Do not move it up again without asking; the
+            gap below it is known and accepted. */}
+        {notes.map((d, i) => (
+          <div
+            key={`${d.kind}-${i}`}
+            data-testid="scope-note"
+            data-severity={d.severity}
+            className={`${NOTE_CLASS} ${
+              d.severity === 'error'
+                ? 'border-l-destructive'
+                : // `incomplete` is not a complaint. Nothing is wrong and nothing
+                  // is at risk — the configuration simply is not finished yet,
+                  // which is the state a fresh install opens in. Amber is this
+                  // palette's "something needs you", and spending it on the one
+                  // note that is asking for nothing would rebuild the standing
+                  // warning this state replaces, in a different colour.
+                  d.severity === 'incomplete'
+                  ? 'border-l-muted-foreground'
+                  : 'border-l-pending'
+            }`}
+          >
+            {d.message}
+          </div>
+        ))}
+      </div>
 
       {/* Last, and pushed to the foot by `mt-auto`: the leftover space in a
           rail with two sites belongs at the bottom of the column, not as a

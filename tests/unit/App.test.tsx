@@ -116,7 +116,7 @@ describe('App', () => {
     // the paused assertion on its own.
     await seed(stateWith());
     render(<App />);
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     await seed(stateWith({ globalPause: true }));
     await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked while paused'));
@@ -143,7 +143,7 @@ describe('App', () => {
     // nothing anywhere to correct a readout still claiming they are live.
     await seed(stateWith());
     render(<App />);
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     const off = stateWith();
     off.profiles[0]!.enabled = false;
@@ -534,7 +534,7 @@ describe('editing scope', () => {
 
     // The rule stays live: the site normalized to a usable host, so nothing is
     // suppressed and nothing is blamed.
-    await waitFor(() => expect(readout()).toBe('1of 1 rules live'));
+    await waitFor(() => expect(readout()).toBe('1of 1 rules liveno problems'));
     // The chip shows the value the extension actually ended up with — which is
     // the whole fix. Showing the raw paste and explaining the difference in a
     // paragraph was the defect.
@@ -744,7 +744,7 @@ describe('a rule that has not been named yet', () => {
     await seed(stateWith());
     render(<App />);
     await screen.findByDisplayValue('X-A');
-    await waitFor(() => expect(readout()).toBe('2of 2 rules live'));
+    await waitFor(() => expect(readout()).toBe('2of 2 rules liveno problems'));
 
     await userEvent.click(screen.getByRole('button', { name: 'New rule' }));
     await waitFor(() => expect(readout()).toBe('2of 3 rules live1 unfinished'));
@@ -894,12 +894,13 @@ describe('the bridge row', () => {
     );
   });
 
-  it('asks for the permission when Enable is clicked, and only then', async () => {
-    // The button is the user gesture. Nothing else in the popup may reach
-    // `permissions.request()` — the all-sites switch already had that removed
-    // for the same reason.
+  it('asks for the permission when the bridge switch is turned on, and only then', async () => {
+    // Switching this one on IS the request — a documented exception to the
+    // rule the all-sites switch established, argued at its call site in
+    // ScopeRail.tsx. What still holds is the "only then": nothing else in the
+    // popup may reach `permissions.request()`.
     vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
-    const request = vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue(true);
+    const request = vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({ ok: true });
     await seed(stateWith());
 
     render(<App />);
@@ -908,9 +909,54 @@ describe('the bridge row', () => {
     );
     expect(request).toHaveBeenCalledTimes(0);
 
-    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('button'));
+    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('switch'));
 
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts a declined request on the row instead of leaving it silently off', async () => {
+    // The defect: the request came back refused and the popup changed in no
+    // way at all, so the only reading available was that the click had done
+    // nothing. Absence before presence — the mark must not be there until the
+    // request has actually failed.
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
+    vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({
+      ok: false,
+      reason: 'declined',
+    });
+    await seed(stateWith());
+
+    render(<App />);
+    const row = () => screen.getByTestId('bridgestate');
+    await waitFor(() => expect(row().getAttribute('data-bridge')).toEqual('off'));
+    expect(row().getAttribute('data-request')).toBeNull();
+
+    await userEvent.click(within(row()).getByRole('switch'));
+
+    await waitFor(() => expect(row().getAttribute('data-request')).toEqual('declined'));
+  });
+
+  it("shows Chrome's message when the request could not be made at all", async () => {
+    vi.spyOn(probe, 'probeNativeMessaging').mockResolvedValue(false);
+    vi.spyOn(probe, 'requestNativeMessaging').mockResolvedValue({
+      ok: false,
+      reason: 'error',
+      message: 'user gesture required',
+    });
+    await seed(stateWith());
+
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('bridgestate').getAttribute('data-bridge')).toEqual('off'),
+    );
+
+    await userEvent.click(within(screen.getByTestId('bridgestate')).getByRole('switch'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bridge-label').getAttribute('title')).toContain(
+        'user gesture required',
+      ),
+    );
   });
 });
 
@@ -1071,14 +1117,14 @@ describe('all-sites mode', () => {
 
     // off + some: ordinary scoped operation, nothing to report.
     await open({ allSites: false, domains: ['api.example.com'] });
-    expect(readout()).toBe('2of 2 rules live');
+    expect(readout()).toBe('2of 2 rules liveno problems');
     expect(screen.getByTestId('site-count').textContent).toBe('1');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
 
     // on: everywhere, by choice, and equally quiet.
     await open({ allSites: true, domains: [] });
-    expect(readout()).toBe('2of 2 rules live');
+    expect(readout()).toBe('2of 2 rules liveno problems');
     expect(screen.getByTestId('site-count').textContent).toBe('all');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();

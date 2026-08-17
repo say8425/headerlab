@@ -795,6 +795,21 @@ badge that widens a header — each moves everything downstream by a few pixels 
 moment the user is reading it, and in a popup this size that is most of the screen.
 Hide-and-show reflow is the single thing that most makes an interface feel unfinished.
 
+**The rule has one recorded carve-out, and it is not a licence to make more.** A
+reservation costs its space in every state, including the states where nothing is
+wrong — which is most of them. Twice that trade came out the other way when it was
+looked at on screen rather than reasoned about: the readout's second line reserved a
+blank 20px under the big number, and `AddSiteField` reserved a 15px line for a
+duplicate-site complaint. The first was fixed without giving anything up, by making
+the line always say something true (`no problems`) so its box never changes; that is
+the shape to reach for first. The second had no such answer — "no duplicate" is noise
+— so the reservation went and the movement came back, bounded by a guarantee that
+survives it: the note is exactly one line whatever the hostname's length, truncated
+with `title` carrying the full value. **Before removing a reservation, look for the
+first shape.** If there is none, say in the diff what the movement costs and what
+bounds it, and delete the guard that promised otherwise rather than leaving it
+describing nothing.
+
 This applies to any element whose presence is state-dependent, which in the rail is
 most of them: Grant, the pending and unusable notes, the tooltip, the mode switch's
 own sub-line. When adding one, ask what its absence looks like — if the answer is
@@ -810,8 +825,17 @@ reading of the Tailwind classes suggested. The remaining 21px came from four exi
 margins each giving up one notch on Tailwind's 4px scale (the readout card's and the
 sites section's own `mt-4`→`mt-3`, the types section's `pt-3`→`pt-2`, the bridge row's
 own `mt-2`→`mt-1` — 16px) plus the site list's `max-height` dropping `132px`→`127px`
-(5px). Budget 576px, used 576px, slack 0 — the next row added to this rail reopens that
-accounting from zero rather than finding space waiting for it.
+(5px). Budget 576px, used 576px, slack 0 at that point.
+
+**That zero is history, and the number that replaced it was itself wrong twice.** The
+switch/label branch spent 8px on the all-sites row's padding (`h-12`/4px →
+`h-14`/8px), then freed 27px above the site list by deleting two reservations — the
+scope note's stacked `mt-3` and `AddSiteField`'s fixed `h-[15px]` line. Between those
+two commits the list's cap was written down as 119px, correctly against the tree of
+the day and wrongly against the tree three commits later; it is 127px again, and
+`mt-auto` on the request types now resolves to **13px** of real leftover. Re-measure
+with that design file's `measure()` before spending it — this figure has moved three
+times, each time on reasoning that was sound when written.
 
 **Measuring "is this rail full" has two traps that both silently report "no
 problem."** `clientHeight − scrollHeight` is structurally always 0 here: the site list
@@ -1033,13 +1057,19 @@ that no longer renders, passing while describing nothing.
   runs that grep automatically; finding the next one means doing it again.
 - **A note that appears cannot live in this rail, and two pre-existing ones already
   break it.** `sync-error` and `icon-error` are plain conditional blocks, and the rail
-  has carried zero slack since the bridge row landed (see Interface). Measured at four
-  saved sites: the site list's cap is 127px with neither note showing, 65px with only
-  `sync-error`, 34px with only `icon-error`, and 0px with both — the user's saved sites
-  pushed off screen by an error message about something else. This predates the bridge
-  work entirely, and it is not the same fix shape as the bridge row's own note (that one
-  folded into an existing fixed-height row; these are multi-line prose with no existing
-  row to fold into), so it needs its own design pass rather than a while-we-are-here
+  carried zero slack from the bridge row until the switch/label branch freed 27px above
+  the list (see Interface, and re-measure before trusting the 13px it left). Measured at
+  four saved sites *at the time*: the site list's cap is 127px with neither note showing,
+  65px with only `sync-error`, 34px with only `icon-error`, and 0px with both — the
+  user's saved sites pushed off screen by an error message about something else. The
+  13px softens those three figures without changing the shape of the problem, and they
+  have not been re-measured since. **A third offender joined them**: `AddSiteField`'s
+  duplicate-site note is now created rather than reserved, so it too costs the list
+  ~21px when it appears. That one is bounded — it is guaranteed one line, asserted in
+  both suites — which the two above are not. None is the same fix shape as the bridge
+  row's own note (that one folded into an existing fixed-height row; these are prose
+  with no existing row to fold into), so this needs its own design pass rather than a
+  while-we-are-here
   patch.
 - **Three hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
   `packages/headerlab/lib/socket.d.mts`, `packages/headerlab/lib/install.d.mts` — because `tests/`
@@ -1050,7 +1080,7 @@ that no longer renders, passing while describing nothing.
   it can only see its own `connectNative` port — and giving it that visibility would turn
   the host from a dumb relay into a protocol participant, which `packages/headerlab/lib/bridge.mjs`
   argues against by name. So `idle` in practice names the state most people land in first:
-  **Enable** pressed, `headerlab bridge install` never run.
+  the bridge switch turned on, `headerlab bridge install` never run.
 - **`bridge install` points its launcher at `~/.headerlab/bin/headerlab-host`, which
   execs the entry path of whichever installed copy of `packages/headerlab` wrote it —
   a clone for a contributor, the global `node_modules` for `npm i -g headerlab`.**

@@ -95,7 +95,7 @@ headerlab state get --json | jq .state | headerlab state set - --force
   그 제약을 우회하지 않고 지킵니다.
 - **CLI 는 브리지도 켤 수 없습니다.** `chrome.permissions.request()` 는 해결되려면 사용자
   제스처를 요구합니다. `headerlab bridge enable` 은 없고, 앞으로도 동작하는 형태로는 생기지
-  않습니다: 아무도 **Enable** 을 누르지 않은 브리지 옆의 `bridge install` 은 연결되지 않을
+  않습니다: 아무도 스위치를 켜지 않은 브리지 옆의 `bridge install` 은 연결되지 않을
   파일을 쓸 뿐입니다.
 - **기기 밖으로 나가는 것은 없습니다.** CLI·호스트·확장은 권한이 제한된 사용자별 디렉터리의
   유닉스 도메인 소켓으로만 이야기하며, 네트워크 소켓은 쓰지 않습니다. **`$TMPDIR` 이
@@ -120,7 +120,7 @@ headerlab state get --json | jq .state | headerlab state set - --force
 
 ## 켜는 법
 
-1. 팝업의 브리지 행에서 **Enable** 을 누릅니다 — 그전까지는 **Bridge off** 로 읽힙니다.
+1. 팝업의 브리지 행에서 스위치를 켭니다 — 그전까지는 **Agent bridge off** 로 읽힙니다.
    이것이 Chrome 자신의 동의 대화상자를 통해 `nativeMessaging` 권한을 요청합니다.
 2. `chrome://extensions` 에서 id 를 복사해 설치 명령을 실행합니다:
 
@@ -128,7 +128,7 @@ headerlab state get --json | jq .state | headerlab state set - --force
    headerlab bridge install --extension-id <id>
    ```
 
-3. 팝업이 **Bridge live** 를 읽습니다.
+3. 팝업이 **Agent bridge live** 를 읽습니다.
 
 `--extension-id` 는 CLI 자신의 README 도 앞세우는 지시입니다. 언제나 적용되는 쪽이기
 때문입니다 — npm 으로 CLI 를 설치한 사람에게는 가리킬 확장 디렉터리가 없습니다.

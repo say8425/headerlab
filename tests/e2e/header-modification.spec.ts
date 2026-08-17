@@ -348,7 +348,7 @@ test('the popup renders its rules from stored state', async ({
   await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
   // The rail's readout is computed from the same compile() the background
   // runs, so it is the popup's own claim about whether the rule is going out.
-  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules live');
+  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules liveno problems');
 
   await page.close();
 });
@@ -1189,15 +1189,22 @@ test('a control appearing in the rail does not move anything', async ({
   await expect(grant).toHaveCount(1);
   expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
 
-  // --- the readout's second line arriving ---
-  // Switching the only rule off puts "1 off" under the big number. That line
-  // sits above the whole rail, so before this guard it moved the pause bar, the
-  // all-sites switch, the site row and the request types 22.1px at once — from
-  // a click on the other side of the popup.
-  await expect(subcount).toHaveText('');
+  // --- the readout's second line changing ---
+  // Switching the only rule off swaps "no problems" for "1 off" under the big
+  // number. That line sits above the whole rail, so before this guard it moved
+  // the pause bar, the all-sites switch, the site row and the request types
+  // 22.1px at once — from a click on the other side of the popup.
+  //
+  // This guard was briefly deleted, when the healthy state rendered no line at
+  // all and the movement it forbids became real. That answer is gone: the line
+  // is always present and always says something (ScopeRail.tsx's `subline`
+  // docblock records both rejected alternatives), so the promise holds again
+  // and is asserted again. What changed is the starting text — an empty box is
+  // no longer one of the states.
+  await expect(subcount).toHaveText('no problems');
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
   await expect(subcount).toHaveText('1 off');
-  expect(await boxes(), 'the subcount arriving must move nothing').toEqual(withGrant);
+  expect(await boxes(), 'the subcount changing must move nothing').toEqual(withGrant);
 
   // --- the help bubble opening ---
   // It is absolutely positioned and so already took no space; asserted because
@@ -1210,26 +1217,33 @@ test('a control appearing in the rail does not move anything', async ({
   expect(await boxes(), 'the help bubble opening must move nothing').toEqual(withGrant);
 
   // --- the duplicate-site note arriving ---
-  // Task 6 review, round 2: this note's reservation was a `min-h`, a floor a
-  // long note could grow past and push "Request types" down — reachable with
-  // an ordinary corporate subdomain, not a pathological one. `RAIL_BOXES`
-  // already anchors `rail-section-types` and `type-grid`, so re-typing the
-  // seeded domain — `long` above, the one the review used — into the add
-  // field is what actually exercises the fixed-height, truncated fix,
-  // instead of only a report and a since-deleted script asserting it.
+  // The no-move assertions that stood here are gone with their subject. This
+  // note was reserved by a fixed-height wrapper in AddSiteField, so it could
+  // appear without pushing "Request types" down; the owner measured the cost
+  // of that reservation in every other state — 27px from the input to the
+  // scope note against the section's 6px rhythm — and chose the movement over
+  // the permanent hole. AddSiteField's docblock carries the full reversal.
+  //
+  // What still holds is asserted: the note appears and disappears on the right
+  // input, and it stays one line. The one-line guarantee is what keeps the push
+  // bounded now that it is not prevented, so it is the part worth testing —
+  // `long` is the corporate subdomain the Task 6 review used, which overflows
+  // the ~194px rail before the suffix is even appended.
   const addField = page.getByTestId('add-field');
   const note = page.getByTestId('add-site-note');
   await expect(note).toHaveCount(0);
   await addField.fill(long);
   await addField.press('Enter');
   await expect(note).toHaveCount(1);
-  expect(await boxes(), 'the duplicate note arriving must move nothing').toEqual(withGrant);
+  expect(
+    await note.evaluate((el) => el.getBoundingClientRect().height),
+    'the duplicate note must still be exactly one line',
+  ).toBeLessThan(20);
 
-  // …and leaving, same reasoning as the Grant button above: an assertion
-  // only on arrival would also pass a layout frozen at the wrong moment.
+  // Absence after presence, for the same reason the arrival is checked: a note
+  // that never cleared would leave a stale complaint on screen.
   await addField.press('Escape');
   await expect(note).toHaveCount(0);
-  expect(await boxes(), 'the duplicate note leaving must move nothing').toEqual(withGrant);
 
   await page.close();
 });
@@ -1446,10 +1460,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
       listScrolls: list.scrollHeight > list.clientHeight,
     };
   });
+  // 36 -> 55: the scope note gave up the `mt-3` it stacked on the section's
+  // own gap, and AddSiteField gave up its 15px reserved line. Both were spent
+  // above this list, so the list — the only child allowed to give way — is
+  // what gets them back. Under the same pressure it now shows more, which is
+  // the direction this assertion exists to protect.
   expect(underPressure).toEqual({
     notes: 1,
     railScrolls: false,
-    listHeight: 36,
+    listHeight: 55,
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
@@ -1462,8 +1481,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 과밀 페이지의 그 줄은 "2 off" 라서 넘치지 않고, 그래서 거기서는 이 결함이
   // 보이지 않았다.
   //
-  // 이 줄은 h-4 로 예약된 한 줄이다(그 예약 자체는 옳다 — 없으면 줄이 생겼다
-  // 사라지며 레일 전체를 밀어낸다). 예약이 ceiling 인 이상 넘칠 때 무엇을 할지
+  // 이 줄은 h-4 한 줄이다. (예전에는 비어 있을 때도 자리를 예약했고 그 예약이
+  // 옳다고 여기 적혀 있었다. 지금은 내용이 있을 때만 그려진다 — ScopeRail.tsx 의
+  // 해당 docblock 참조. 이 테스트가 보는 것은 내용이 있는 상태라 영향은 없다.)
+  // 높이가 한 줄로 고정인 이상 넘칠 때 무엇을 할지
   // 말해 줘야 하는데, 그 지시가 없어서 문장이 두 줄로 감싸이고 items-center 가
   // 16px 상자 안에서 위아래를 다 썰어 냈다(고치기 전 실측 22/16, title 없음).
   // 잘려 나간 것이 하필 원인을 대는 절이었다 — ScopeRail 의 docblock 이 열 줄에
@@ -1645,9 +1666,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 27 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //   레일 26 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
   //             · Sites 카운트 1 · run state 1("Active")
-  //             · bridge row 2(라벨 "Bridge off", Enable 버튼)
+  //             · bridge row 1(라벨 "Agent bridge off" — 컨트롤이 스위치가 되면서
+  //               텍스트를 가진 잎이 하나 사라졌다)
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -1660,15 +1682,18 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 아니라 노드가 지표 안으로 들어온 것이다.
   //
   // 25 → 27 은 그 사각지대와 다른 종류다: 팝업이 조금 바뀐 게 아니라 레일에
-  // 실제 줄이 하나(bridgestate) 늘었다. 27 은 `off` 상태에서의 셈이다 — 위에서
-  // 그 상태를 직접 기다렸으므로 라벨 span("Bridge off")과 Enable 버튼 둘 다
-  // 텍스트를 가진 잎으로 확실히 들어온다. 이 수는 상태에 매인 값이지 절대값이
-  // 아니다: `unknown` 이면 버튼이 없어 26 이 된다.
+  // 실제 줄이 하나(bridgestate) 늘었다. 27 은 `off` 상태에서의 셈이었다 —
+  // 라벨 span("Bridge off")과 Enable 버튼 둘 다 텍스트를 가진 잎이었기 때문이다.
+  //
+  // 27 → 26 은 바로 그 문단이 예고한 변경이다. 브릿지 컨트롤이 버튼에서
+  // 스위치가 되면서 텍스트를 가진 잎이 하나 사라졌다. 위 문단은 "`unknown`
+  // 이면 버튼이 없어 26" 이라고 적어두었는데, 이제 버튼 자체가 없으므로 네
+  // 상태 모두 26 이고 이 수는 더 이상 상태에 매이지 않는다.
   //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 27,
+    rail: 26,
     panel: 12,
   });
 
@@ -1839,8 +1864,8 @@ test('the bridge row does not push the rail past its column', async ({
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
   // And the affordance that slack was protecting is still there: the list
-  // stops mid-row rather than on one, which is what says it continues — now
-  // at 127px, 19px of the third row's 48 rather than the previous 24.
+  // stops mid-row rather than on one, which is what says it continues — 19px
+  // of the third row's 48 at the 127px cap.
   const list = page.getByTestId('site-list');
   expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
 });

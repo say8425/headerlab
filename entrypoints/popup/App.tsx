@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScopeRail } from '@/components/ScopeRail';
+import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
 import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
@@ -39,6 +39,16 @@ export default function App() {
   // `null` until the probe answers, for exactly the reason `allSitesGranted`
   // is: the row must not offer Enable before the browser has been asked.
   const [bridgeAllowed, setBridgeAllowed] = useState<boolean | null>(null);
+  /**
+   * Why the last permission request failed, or null.
+   *
+   * Kept in the component rather than in the session record `bridgeStatus`
+   * because it is not a fact about the bridge — it is a fact about a click
+   * this popup just made. Storing it would outlive the interaction that
+   * caused it and reappear, unexplained, the next time the popup opened.
+   */
+  const [bridgeRequestError, setBridgeRequestError] =
+    useState<ScopeRailProps['bridgeRequestError']>(null);
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -327,17 +337,43 @@ export default function App() {
         lastError={status.lastError}
         iconError={status.iconError}
         bridge={bridgeMode}
+        bridgeRequestError={bridgeRequestError}
         bridgeLastCommandAt={bridgeStatus.lastCommandAt}
         bridgeError={bridgeStatus.lastError}
         onEnableBridge={async () => {
-          // The click is the user gesture `permissions.request()` requires.
-          // Nothing here opens the port: the background worker's
+          // Switching it on is the user gesture `permissions.request()`
+          // requires. Nothing here opens the port: the background worker's
           // `permissions.onAdded` listener does, and the record it writes is
           // what this component is already watching. One path in, one path out.
-          const granted = await requestNativeMessaging();
-          if (mountedRef.current) setBridgeAllowed(granted);
+          const result = await requestNativeMessaging();
+          if (!mountedRef.current) return;
+          // A decline is authoritative; a throw is not. `requestNativeMessaging`
+          // reports both as `ok: false`, and writing that straight through would
+          // let a request that failed for any other reason claim the permission
+          // is not held — the popup then reads off over a bridge a CLI can still
+          // reach, which is the one direction of under-reporting this product
+          // exists to rule out. `onDisableBridge` below re-probes for the same
+          // reason; this is the matching half.
+          const allowed =
+            result.ok || result.reason === 'declined' ? result.ok : await probeNativeMessaging();
+          if (!mountedRef.current) return;
+          setBridgeAllowed(allowed);
+          // Mapped field by field rather than passed through, so the rail
+          // keeps its own vocabulary and does not silently inherit whatever
+          // the adapter's result grows next.
+          setBridgeRequestError(
+            result.ok
+              ? null
+              : result.reason === 'declined'
+                ? { reason: 'declined' }
+                : { reason: 'error', message: result.message },
+          );
         }}
         onDisableBridge={async () => {
+          // Turning it off answers whatever the last failed request was
+          // saying, so the mark goes with it rather than outliving its
+          // subject.
+          setBridgeRequestError(null);
           const removed = await removeNativeMessaging();
           // Re-probed rather than assumed. A removal that failed leaves the
           // bridge reachable, and saying otherwise would be the one direction

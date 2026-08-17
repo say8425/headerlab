@@ -101,7 +101,7 @@ documento.
   conceder un permiso, y ese límite se respeta en lugar de rodearse.
 - **La CLI tampoco puede encender el puente.** `chrome.permissions.request()` necesita un
   gesto del usuario para resolverse. No hay `headerlab bridge enable` y no habrá uno que
-  funcione: `bridge install` junto a un puente que nadie ha activado con **Enable** solo
+  funcione: `bridge install` junto a un puente que nadie ha activado con el interruptor solo
   escribe ficheros que nunca conectan.
 - **Nada sale de la máquina.** CLI, host y extensión solo hablan por un socket de dominio
   Unix en un directorio por usuario con permisos restringidos — nunca por un socket de red.
@@ -128,7 +128,7 @@ documento.
 
 ## Cómo encenderlo
 
-1. Pulsa **Enable** en la fila del puente del popup — hasta entonces lee **Bridge off**.
+1. Activa el interruptor en la fila del puente del popup — hasta entonces lee **Agent bridge off**.
    Eso pide a Chrome el permiso `nativeMessaging` a través de su propio diálogo de
    consentimiento.
 2. Ejecuta el instalador, copiando el id desde `chrome://extensions`:
@@ -137,7 +137,7 @@ documento.
    headerlab bridge install --extension-id <id>
    ```
 
-3. El popup pasa a leer **Bridge live**.
+3. El popup pasa a leer **Agent bridge live**.
 
 `--extension-id` es la instrucción con la que también abre el README de la propia CLI,
 porque es la que siempre aplica — quien instaló la CLI desde npm no tiene ningún directorio

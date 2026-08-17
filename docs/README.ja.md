@@ -8,10 +8,6 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
-ModHeader の代替です。ModHeader は 2026 年 7 月、隠されたトラッカーが見つかったため
-Chrome ウェブストアから削除されました。それがこのプロジェクトが存在する理由のすべてであり、
-下記の信頼方針が機能一覧ではなく厳格な制約である理由です。
-
 | ライト | ダーク |
 |---|---|
 | ![ライトテーマの HeaderLab ポップアップ: 4 つのルールのうち 3 つが有効、許可済みサイト 2 件、ヘッダールール 4 件](screenshots/popup-light.png) | ![同じポップアップのダークテーマ。OS の設定に従います](screenshots/popup-dark.png) |
@@ -64,6 +60,22 @@ codex plugin marketplace add say8425/headerlab
 するまでは `bridge-off` を報告します。** CLI のグローバルインストールは前提条件ではありま
 せん — プラグインは `packages/headerlab` への独自の shim を持っています。`npm i -g
 headerlab` を併用しても衝突しません。PATH がグローバルのコピーを先に解決します。
+
+普段の言葉で頼めば、スキルがそれを CLI コマンドに移します:
+
+```text
+HeaderLab は今なにをしている?
+staging.example.com にだけ X-Debug: on リクエストヘッダーを追加して
+api.example.com では Referer ヘッダーを送らないで
+ルールを全部いったん止めて、また戻して
+実際に変更を許可されているサイトはどれ?
+```
+
+最初と最後は読み取りです — `status`、`site ls`、`rule ls`、`state get` が何も書かずに
+答えます。中の三つは書き込みで、ひとつ知っておくとよい点があります: サイトを追加するのは
+ルールの適用範囲を決めるだけで、そのサイトへのアクセス権を与えるわけではありません。
+ポップアップで Grant を押すまでそのサイトは保留のままで、スキルはすでに有効であるかのように
+流さず、その事実を伝えるよう指示されています。
 
 ## できること
 
@@ -142,7 +154,7 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-ブリッジは人がポップアップで **Enable** を押すまで無効で、CLI はサイト権限を付与すること
+ブリッジは人がポップアップでスイッチを入れるまで無効で、CLI はサイト権限を付与すること
 もブリッジを有効にすることもできません — Chrome がどちらもユーザージェスチャーからしか
 受け取らないからです。マシンの外に出るものはありません: CLI・ホスト・拡張機能はユーザー
 ごとのディレクトリにある Unix ドメインソケットで出会い、ネットワークソケットは使いません。

@@ -8,11 +8,6 @@ acceso a sitios hasta que tú lo concedas.
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
-Un reemplazo de ModHeader, que fue retirado de la Chrome Web Store en julio de 2026 tras
-descubrirse un rastreador oculto en él. Esa es toda la razón de que esto exista, y es por
-lo que la postura de confianza de más abajo es una restricción dura y no una lista de
-funciones.
-
 | Claro | Oscuro |
 |---|---|
 | ![El popup de HeaderLab en tema claro: tres de cuatro reglas activas, dos sitios concedidos, cuatro reglas de cabecera](screenshots/popup-light.png) | ![El mismo popup en tema oscuro, que sigue la configuración del sistema operativo](screenshots/popup-dark.png) |
@@ -66,6 +61,22 @@ tarea. **Informa `bridge-off` hasta que el puente se enciende.** Instalar la CLI
 globalmente no es un requisito previo: el plugin lleva su propio shim hacia
 `packages/headerlab`. Ejecutar además `npm i -g headerlab` tampoco genera conflicto — el
 PATH resuelve primero la copia global.
+
+Pídelo con tus propias palabras; la skill traduce la petición a la CLI:
+
+```text
+¿Qué está haciendo HeaderLab ahora mismo?
+Añade una cabecera de petición X-Debug: on solo en staging.example.com
+Deja de enviar la cabecera Referer en api.example.com
+Pausa todas las reglas y luego vuelve a activarlas
+¿En qué sitios se me permite modificar realmente?
+```
+
+La primera y la última son lecturas: `status`, `site ls`, `rule ls` y `state get` responden
+sin escribir nada. Las tres del medio escriben, y conviene esperar un detalle: añadir un
+sitio delimita el alcance de la regla, pero no concede acceso a ese sitio. Queda pendiente
+hasta que pulses Grant en el popup, y la skill tiene indicado decirlo en lugar de dejar que
+leas la escritura como si el sitio ya estuviera activo.
 
 ## Qué hace
 
@@ -152,7 +163,7 @@ headerlab site add staging.example.com
 headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
 ```
 
-El puente está apagado hasta que una persona pulsa **Enable** en el popup, y la CLI no
+El puente está apagado hasta que una persona activa su interruptor en el popup, y la CLI no
 puede conceder acceso a sitios ni encenderlo — Chrome acepta ambas cosas solo desde un
 gesto del usuario. Nada sale de la máquina: CLI, host y extensión se encuentran en un
 socket de dominio Unix en un directorio por usuario, nunca en un socket de red.
