@@ -368,6 +368,14 @@ describe('the release configuration', () => {
     // fails here rather than quietly widening the extension's changelog. The
     // docs entries below are a separate claim and are asserted separately, so
     // adding one cannot satisfy this one.
+    //
+    // **Read this together with the literal-value test below; neither covers
+    // the other's half.** A subset check cannot see a wrong *extra* entry —
+    // appending `entrypoints` here would silently drop every commit confined to
+    // that directory from the extension's changelog, and this assertion would
+    // still pass. The `toEqual` below catches that. Equally, that literal is
+    // hardcoded and cannot see `config.packages` growing, which is what this
+    // one is for. Deleting either as "duplicate" reopens the other's hole.
     expect(siblings.every((path) => excluded.includes(path))).toBe(true);
   });
 
@@ -378,9 +386,27 @@ describe('the release configuration', () => {
    * **The commit type is the primary guard and this is the backstop, not the
    * other way round.** A `docs:` commit does not bump anything under
    * conventional commits, so the ordinary documentation pass was never the
-   * problem. What this catches is the mistyped one — prose only, committed as
-   * `feat:` or `fix:` — which is exactly how the CLI came to be offered a
-   * `0.3.0` whose changelog described the extension's work.
+   * problem. This fires on the `feat:`/`fix:` commit whose whole diff is prose
+   * — which is how the CLI came to be offered a `0.3.0` describing the
+   * extension's work.
+   *
+   * **It cannot tell that commit from a deliberate one of the same shape, and
+   * this repository has written both.** `8110753` (root README plus the CLI's)
+   * and `49d16b3` (CLAUDE.md plus the CLI's) are correctly-typed `fix:`
+   * commits whose entire diff is prose, and the second is the one CLAUDE.md
+   * calls worth stating outright, being about a provenance promise the first
+   * release could not keep. Both survive today only because each touches two
+   * prose files and only one of them is excluded on either package — an
+   * accident of their shape, not something enforced here. A prose-only `fix:`
+   * confined to the root README alone would be skipped by the extension and
+   * never seen by the CLI, and would land in no changelog at all: the outcome
+   * CLAUDE.md ranks below appearing in a debatable one.
+   *
+   * That is the trade this setting makes. It is taken knowingly — a mistyped
+   * prose commit is likelier than a single-file safety-critical doc fix — but
+   * it is a trade, not a free correction, and a reader deciding whether to
+   * widen these lists should weigh it rather than assume suppression is always
+   * fixing an error.
    *
    * The same "all files or nothing" semantics apply: a commit that touches
    * code *and* README still releases, correctly, because not every file is
