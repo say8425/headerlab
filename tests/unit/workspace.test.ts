@@ -367,6 +367,32 @@ describe('the release configuration', () => {
   });
 
   /**
+   * The mirror of the rule above, added after it went wrong in the other
+   * direction: a branch about the extension edited `packages/headerlab/README.md`
+   * and nothing else of the CLI's, and release-please proposed `cli 0.3.0` with
+   * a changelog entry describing the extension's feature as the CLI's.
+   *
+   * **Read the exclusion's actual semantics before trusting it to prevent
+   * that.** The schema's wording is "if ALL files from commit belong to one of
+   * the paths it will be skipped", so this only skips a commit that touches
+   * nothing but the CLI's README. The cross-cutting commit that caused the
+   * incident would not have been skipped by this setting, and no `exclude-paths`
+   * value could have skipped it — the lever for that one is the commit
+   * boundary, not the config. What this buys is the ordinary case: a docs-only
+   * pass over the CLI's README no longer proposes a release of code that did
+   * not change.
+   *
+   * The README is excluded and `CHANGELOG.md` is not, deliberately —
+   * release-please writes that file itself, and a package that ignored its own
+   * changelog commits would be excluding its own output.
+   */
+  it("keeps a docs-only pass over the CLI's README from proposing a release", () => {
+    expect(config.packages['packages/headerlab']['exclude-paths']).toEqual([
+      'packages/headerlab/README.md',
+    ]);
+  });
+
+  /**
    * The sharpest answer to this file's own question — what wrong configuration
    * would still pass? — is one the test above cannot reach: release-please
    * renaming or dropping `exclude-paths` in a later version. The key would go

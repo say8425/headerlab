@@ -5,7 +5,9 @@
     ".": {
       "release-type": "node",
       "component": "extension",
-      "exclude-paths": ["packages/headerlab"]
+      "exclude-paths": [
+        "packages/headerlab"
+      ]
     },
     "packages/headerlab": {
       "release-type": "node",
@@ -14,6 +16,9 @@
       "extra-files": [
         "/packages/plugin/.claude-plugin/plugin.json",
         "/packages/plugin/.codex-plugin/plugin.json"
+      ],
+      "exclude-paths": [
+        "packages/headerlab/README.md"
       ]
     }
   }
