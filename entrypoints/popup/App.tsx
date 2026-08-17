@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScopeRail } from '@/components/ScopeRail';
+import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
 import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
@@ -47,9 +47,8 @@ export default function App() {
    * this popup just made. Storing it would outlive the interaction that
    * caused it and reappear, unexplained, the next time the popup opened.
    */
-  const [bridgeRequestError, setBridgeRequestError] = useState<
-    { reason: 'declined' } | { reason: 'error'; message: string } | null
-  >(null);
+  const [bridgeRequestError, setBridgeRequestError] =
+    useState<ScopeRailProps['bridgeRequestError']>(null);
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -348,7 +347,17 @@ export default function App() {
           // what this component is already watching. One path in, one path out.
           const result = await requestNativeMessaging();
           if (!mountedRef.current) return;
-          setBridgeAllowed(result.ok);
+          // A decline is authoritative; a throw is not. `requestNativeMessaging`
+          // reports both as `ok: false`, and writing that straight through would
+          // let a request that failed for any other reason claim the permission
+          // is not held — the popup then reads off over a bridge a CLI can still
+          // reach, which is the one direction of under-reporting this product
+          // exists to rule out. `onDisableBridge` below re-probes for the same
+          // reason; this is the matching half.
+          const allowed =
+            result.ok || result.reason === 'declined' ? result.ok : await probeNativeMessaging();
+          if (!mountedRef.current) return;
+          setBridgeAllowed(allowed);
           // Mapped field by field rather than passed through, so the rail
           // keeps its own vocabulary and does not silently inherit whatever
           // the adapter's result grows next.

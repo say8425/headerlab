@@ -1006,6 +1006,20 @@ describe('the bridge row', () => {
     const row = screen.getByTestId('bridgestate');
     expect(row.getAttribute('data-request')).toEqual('declined');
     expect(within(row).getByRole('switch').getAttribute('aria-checked')).toEqual('false');
+    // The dot, asserted because it is the only part of this report a reader
+    // gets without hovering — `data-request` is for tests and `title` needs a
+    // pointer. Without this the amber could be deleted and every other
+    // assertion in this file would still pass.
+    expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
+  });
+
+  it('leaves the dot neutral when no request has failed', () => {
+    // The other half of the pair above: `off` with nothing wrong must not
+    // borrow the pending colour, or the amber says nothing when it appears.
+    render(<ScopeRail {...props({ bridge: 'off' })} />);
+    const dot = screen.getByTestId('bridgestate').querySelector('[aria-hidden="true"]')!;
+    expect(dot.className).toContain('bg-muted-foreground');
+    expect(dot.className).not.toContain('bg-pending');
   });
 
   it("carries Chrome's own message when the request could not be made", () => {

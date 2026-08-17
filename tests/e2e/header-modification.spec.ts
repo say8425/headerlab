@@ -1864,9 +1864,8 @@ test('the bridge row does not push the rail past its column', async ({
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
   // And the affordance that slack was protecting is still there: the list
-  // stops mid-row rather than on one, which is what says it continues — now
-  // at 119px, 11px of the third row's 48, after the cap gave 8px to the
-  // all-sites row's padding (ScopeRail.tsx's site-list docblock).
+  // stops mid-row rather than on one, which is what says it continues — 19px
+  // of the third row's 48 at the 127px cap.
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(119);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
 });

@@ -166,6 +166,19 @@ describe('palette parsing', () => {
  * text toward the background, and a switched-off rule here keeps
  * full-contrast text and is marked by its switch and a recessed row instead.
  */
+/**
+ * `fg` painted over `bg` at `alpha`, which is what a `/80` utility produces.
+ * Source-over on straight sRGB bytes — the same arithmetic the compositor does
+ * before `contrast()` ever sees a pixel.
+ */
+function composite(fg: string, bg: string, alpha: number): string {
+  const bytes = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [fr, fg_, fb] = bytes(fg) as [number, number, number];
+  const [br, bg_, bb] = bytes(bg) as [number, number, number];
+  const mix = (f: number, b: number) => Math.round(f * alpha + b * (1 - alpha));
+  return `#${[mix(fr, br), mix(fg_, bg_), mix(fb, bb)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 const READ_TEXT = 4.5;
 const SHAPE = 3;
 
@@ -438,6 +451,31 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
 
   it.each(SHAPE_PAIRS)('%s stays visible as a shape', (_label, fg, bg) => {
     expect(contrast(palette[fg]!, palette[bg]!)).toBeGreaterThanOrEqual(SHAPE);
+  });
+
+  /**
+   * The one pair above whose token is not the colour that paints.
+   *
+   * `components/ui/switch.tsx` fills an unchecked track with `bg-input` in
+   * light and `dark:data-unchecked:bg-input/80` in dark, so in dark the table
+   * above measures a colour the screen never shows. That gap is not academic:
+   * it hid a real regression once. `--card` was lightened, the pair above went
+   * red, `--input` was raised until the pair passed at full opacity — and the
+   * composited track was still 2.5330, under this same floor, while every
+   * check in this file was green.
+   *
+   * Composited here rather than fixed in `SHAPE_PAIRS` because the alpha
+   * belongs to one component, not to the token: light paints the token whole,
+   * and folding 80% into the table would make the light assertion wrong to fix
+   * the dark one. This is the alpha trap CLAUDE.md documents, asserted rather
+   * than described.
+   */
+  it('keeps the unchecked switch track visible at the opacity it is painted with', () => {
+    const track =
+      theme === 'dark'
+        ? composite(palette['--input']!, palette['--card']!, 0.8)
+        : palette['--input']!;
+    expect(contrast(track, palette['--card']!)).toBeGreaterThanOrEqual(SHAPE);
   });
 
   /**

@@ -193,30 +193,33 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   }
   expect(idleMeasurement.bridge).toEqual('idle');
 
-  // Whatever the unreachable label's exact wording is, its box must stay one
-  // line tall — the same height "Bridge live" renders at, since both use the
-  // same `text-[12px] leading-4` class and the row itself has no more height
-  // to give. A label whose text does not fit its ~87px budget wraps to a
-  // second line inside the row's fixed `h-5` and overlaps the row above it
+  // The label's box must stay one line tall. A label that does not fit its
+  // budget wraps inside the row's fixed `h-5` and overlaps the row above it
   // rather than moving anything — the same reflow this whole fix exists to
-  // remove, just at the level of one element's own box instead of its
-  // neighbours'. Comparing to the live measurement rather than a hardcoded
-  // pixel count means this does not need updating if the leading scale ever
-  // changes; only the words on either side would ever break it.
-  expect(idleMeasurement.labelHeight).toEqual(liveMeasurement.labelHeight);
+  // remove, at the level of one element's own box instead of its neighbours'.
+  //
+  // Asserted against `leading-4` — 16px — rather than against the live
+  // measurement. That comparison used to mean something, when the two states
+  // rendered different strings ("Bridge down" against "Bridge live") in the
+  // same box; the label is now the constant `BRIDGE_NAME` in every state, so
+  // comparing the two is comparing one string to itself and cannot fail. The
+  // literal can: a longer name, a larger leading, or a narrower rail all break
+  // it, which is the whole set of ways this can actually go wrong.
+  expect(idleMeasurement.labelHeight).toEqual(16);
+  expect(liveMeasurement.labelHeight).toEqual(16);
 
   // Assertion 2, the one that catches the original defect: the site list
   // still reports its full cap rather than collapsing. Checked before the
   // geometry comparison below so a failure here names the actual site, not
   // just "some box moved".
   //
-  // 127 -> 119 because the cap itself moved, not because anything collapsed:
-  // the all-sites row's padding is paid for out of it (ScopeRail.tsx's
-  // site-list docblock has the accounting). The number is what this asserts,
-  // so it is stated rather than derived — a derived one would follow a
-  // collapse down and pass.
-  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(119);
-  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(119);
+  // Stated rather than derived: a derived figure would follow a collapse down
+  // and pass, which is exactly the defect this assertion exists to catch. The
+  // cap went 127 -> 119 -> 127 inside one branch; ScopeRail.tsx's site-list
+  // docblock records why the middle value was right when written and wrong two
+  // commits later.
+  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
+  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
 
   // Every probe must resolve to a real box before the comparison below can
   // mean anything — the same guard header-modification.spec.ts's own

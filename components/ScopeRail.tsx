@@ -142,7 +142,11 @@ function bridgeTitle(
   requestError: ScopeRailProps['bridgeRequestError'],
   lastCommandAt: string | null,
 ): string | null {
-  if (requestError !== null) {
+  // A held permission outranks any record of a request that failed to obtain
+  // one: the grant can arrive from outside this popup, and a live row
+  // explaining that the bridge "cannot start" would be the screen contradicting
+  // itself beside a green dot.
+  if (requestError !== null && bridge === 'off') {
     return requestError.reason === 'declined'
       ? 'Chrome’s permission request was declined, so the bridge cannot start. Turn the ' +
           'switch on again to ask once more.'
@@ -460,7 +464,8 @@ export function ScopeRail({
                 ? 'bg-live'
                 : bridge === 'unknown'
                   ? 'bg-transparent'
-                  : bridge === 'idle' || bridgeUnreachable || bridgeRequestError !== null
+                  : // `bridgeUnreachable` implies `idle`, so it is not repeated here.
+                    bridge === 'idle' || bridgeRequestError !== null
                     ? 'bg-pending'
                     : 'bg-muted-foreground'
             }`}
@@ -497,6 +502,7 @@ export function ScopeRail({
               install` never run, where nothing was ever had. */}
           <span
             className="text-[12px] leading-4 font-semibold text-foreground"
+            id="bridge-label"
             data-testid="bridge-label"
             {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
           >
@@ -507,6 +513,12 @@ export function ScopeRail({
             <Switch
               size="sm"
               aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
+              // The whole report lives in the label's `title`, which a pointer
+              // reaches by hovering and a keyboard reaches not at all. Pointing
+              // the control at the label costs no pixels and is the difference
+              // between "no silent failures" holding for everyone and holding
+              // for mouse users.
+              aria-describedby="bridge-label"
               checked={bridge !== 'off'}
               onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
               className={SWITCH_CLASS}
@@ -736,10 +748,10 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 119px, which is deliberately NOT a multiple of
+            The height stops at 127px, which is deliberately NOT a multiple of
             the 54px row pitch: two rows and the gap after them are 108px and
             three are 156px, so a third site leaves that row cut across the
-            middle — now 11px of 48, not the wider 24px an unpressured rail
+            middle — 19px of 48, not the wider 24px an unpressured rail
             could afford — and the cut row is the affordance saying the list
             continues regardless of exactly how much of it shows. 156 or 162
             would each show a whole number of rows and say nothing; nor would
@@ -751,15 +763,27 @@ export function ScopeRail({
             `mt-auto` on the section below sends the leftover to the foot of
             the rail instead.
 
-            **127 → 119 is the all-sites row's 8px, and writing it here is the
-            point.** That row went from `h-12`/4px padding to `h-14`/8px, and
-            the rail carries no slack, so the deficit had to land somewhere.
-            It already did, invisibly: this list is `flex-shrink: 1`, so it
-            absorbed the 8px on its own and rendered 119px while the CSS still
-            said 127px — measured, `listCap: 127px` beside `listClient: 119`.
-            A stored value that is not the operating value is the same defect
-            `effectiveDomain` exists to prevent, one layer down. The cap now
-            states what the list actually gets.
+            **This cap was briefly 119px and is back at 127px, which is worth
+            recording because the intermediate number was honest when it was
+            written and wrong two commits later.** The all-sites row's padding
+            grew by 8px, the rail had no slack, and this list — `flex-shrink: 1`
+            and the only child allowed to give way — had silently absorbed the
+            deficit, rendering 119 while the CSS still said 127. Writing 119
+            made the stored value the operating value, which is the defect
+            `effectiveDomain` exists to prevent one layer down.
+
+            Then the scope note gave up a stacked `mt-3` and `AddSiteField` gave
+            up a 15px reserved line — 27px freed directly above this list. The
+            8px was no longer being taken from anywhere, so charging the list
+            for it made the cut row 11px of 48 for nothing. Re-measured after
+            both: `mt-auto` on the request types resolves to 21px of real
+            leftover with the cap at 119, so the list can have its 8px back and
+            the rail still ends with slack rather than pressure.
+
+            Re-measure before changing it again, with the `measure()` in
+            docs/design/2026-08-12-agent-bridge-rail-budget.html: this figure
+            moved twice inside one branch, and each time the reasoning was
+            correct against a tree that had already changed underneath it.
 
             132 was the figure here before the bridge row
             (components/ScopeRail.tsx's bridgestate block) landed. That row
@@ -808,7 +832,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[119px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[127px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {
