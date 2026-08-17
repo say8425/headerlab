@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/say8425/headerlab/compare/extension-v1.3.0...extension-v1.3.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* stop prose-only commits proposing releases, for both packages ([#49](https://github.com/say8425/headerlab/issues/49)) ([ead5ea0](https://github.com/say8425/headerlab/commit/ead5ea0b6d84b16012fb1604cba40c7bd13230ee))
+
 ## [1.3.0](https://github.com/say8425/headerlab/compare/extension-v1.2.0...extension-v1.3.0) (2026-08-17)
 
 
