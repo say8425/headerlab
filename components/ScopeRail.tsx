@@ -897,21 +897,31 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 127px, which is deliberately NOT a multiple of
-            the row pitch — 58px since the rows grew to 52 for the standard
-            `xs` Grant (two rows and the gap after them are 110px, three are
-            168px), so a third site leaves that row cut across the middle —
-            17px of 52 — and the cut row is the affordance saying the list
-            continues regardless of exactly how much of it shows. 110 or 168
-            would each show a whole number of rows and say nothing; nor would
-            116 (two 58px pitches), which is why the cap sits above two full
-            rows rather than at them. The reference mockup capped the list at
-            a fixed 176px, which
-            this does not copy — a hard cap opens a hole between the last site
-            and everything below it when there are only one or two.
+            The height stops at 108px, which is deliberately NOT a multiple of
+            the row pitch. The rows are 60px (8px padding above and below,
+            matching the all-sites bar, since the standard `xs` Grant made the
+            second line 24px), so the pitch is 66: one full row plus its gap
+            is 66px, two are 126px, and the cap sits between them — 42px of
+            the second row shows, sliced through its second line, and the cut
+            row is the affordance saying the list continues regardless of
+            exactly how much of it shows. 66 or 126 would each show a whole
+            number of rows and say nothing.
+
+            **Why the cap came down from 127 rather than up: measured, not
+            chosen.** The rail offers this list 136px at nominal (127 of cap
+            plus the 9px of real leftover below, re-measured in the built
+            popup with 60px rows). Two full rows need 126px, and the third
+            row starts at 132 — so "two full rows plus a visible slice", the
+            shape this cap had at 48px and 52px rows, no longer fits: 136
+            would buy a 4px sliver that reads as nothing. The choice was
+            between two clean rows with no signal and one full row plus a
+            clearly sliced second; the slice is the signal, so the slice won.
+            The reference mockup capped the list at a fixed 176px, which
+            this does not copy — a hard cap opens a hole between the last
+            site and everything below it when there are only one or two.
             `max-height` lets the list be as tall as it has content for, and
-            `mt-auto` on the section below sends the leftover to the foot of
-            the rail instead.
+            `mt-auto` on the section below sends the leftover (28px now) to
+            the foot of the rail instead.
 
             **This cap was briefly 119px and is back at 127px, which is worth
             recording because the intermediate number was honest when it was
@@ -982,7 +992,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[127px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[108px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {

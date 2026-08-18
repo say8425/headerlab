@@ -1449,7 +1449,8 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const unusableLines = await measureLines(unusablePage);
 
   // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
-  // 제자리에 있다. 목록의 max-height 는 127px 이므로, 그보다 작아졌다는 것이
+  // 제자리에 있다. 목록의 max-height 는 108px 이므로(60px 행이 된 뒤의 값 —
+  // ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
   // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
   //
   // 36 은 48 에서 다시 잰 값이다(예전에는 132→48 이었다). 브리지 행이 레일에
@@ -1464,8 +1465,9 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 행의 일부(48 중 36)를 보여주며 listScrolls: true 로 남아 있어, "목록만
   // 양보하고 이웃은 그대로"라는 이 단언의 주제를 여전히 보여준다.
   // (그 뒤 55 를 거쳐 51: AddSiteField 의 예약 줄이 사라지며 48 행이 되고,
-  // 다시 표준 xs Grant 를 위한 all-sites 바의 4px 로 51 이 되었다. 아래의
-  // 정확값 단언이 현재 값이다.)
+  // 다시 표준 xs Grant 를 위한 all-sites 바의 4px 로 51 이 되었다. 60px 행은
+  // 이 값에 영향을 주지 않는다 — 이 쪽은 cap 이 아니라 남는 공간이 목록을
+  // 조이는 상태라 행 높이와 무관하다. 아래의 정확값 단언이 현재 값이다.)
   const underPressure = await unusablePage.evaluate(() => {
     const rail = document.querySelector('aside')!;
     const list = document.querySelector('[data-testid="site-list"]')!;
@@ -1597,9 +1599,10 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     new Set(['granted', 'pending', 'unusable']),
   );
   expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
-  // 48 -> 52: 행의 예약 둘째 줄이 h-5 -> h-6 (표준 shadcn xs Grant 의 24px 에
-  // 맞춘 것 — 줄은 자기가 담을 수 있는 가장 큰 것에 사이즈를 맞춘다).
-  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([52]));
+  // 48 -> 52 -> 60: 행의 예약 둘째 줄이 h-5 -> h-6 (표준 shadcn xs Grant 의
+  // 24px), 다시 상하 패딩이 all-sites 바와 같은 8px 로. 줄은 자기가 담을 수
+  // 있는 가장 큰 것에 사이즈를 맞춘다.
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([60]));
 
   // Grant 버튼이 그 띠 안에 온전히 들어간다.
   const grantFits = await page.evaluate(() => {
@@ -1736,9 +1739,9 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
   //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
-  //     피치(52 + 6 = 58, 2026-08-18 의 행 높이부터)의 정수배가 **아니게**
-  //     잡혀 있고, 이것이 그 선택을 직접 재는 단언이다 — 정수배로 바꾸면
-  //     잘린 행이 사라져 빨개진다.
+  //     피치(60 + 6 = 66, 상하 8px 패딩의 행부터)의 정수배가 **아니게**
+  //     잡혀 있고(108 은 66 도 126 도 아니다), 이것이 그 선택을 직접 재는
+  //     단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
   //
   //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
@@ -1900,9 +1903,12 @@ test('the bridge row does not push the rail past its column', async ({
   }));
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
-  // And the affordance that slack was protecting is still there: the list
-  // stops mid-row rather than on one, which is what says it continues — 19px
-  // of the third row's 48 at the 127px cap.
+  // And the affordance that budget accounting has to keep buying on purpose:
+  // the list stops mid-row rather than on one, which is what says it
+  // continues — 42px of the second row's 60 at the 108px cap (the shape moved
+  // from "two rows + slice" to "one row + slice" when the rows grew to 60px
+  // and 136px of rail could no longer hold both; the cap must never land on
+  // the 66px pitch or the cut row — and the signal — disappears).
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(108);
 });

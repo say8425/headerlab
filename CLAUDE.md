@@ -843,12 +843,15 @@ on reasoning that was sound when written.
 wrong four times for the same reason every time: the leftover depends on what else is
 on screen, and a figure quoted without its state gets read in the state it was not
 measured in. Measured in the built popup at four saved sites (2026-08-17, headed;
-re-derived 2026-08-18 when the all-sites bar grew 4px for the standard shadcn `xs`
-Grant — every leftover and note-state list figure moved down 4px with it):
+re-measured 2026-08-18 twice — first when the all-sites bar grew 4px for the standard
+shadcn `xs` Grant, then when the site rows grew to 60px for the all-sites-matching
+8px padding and the list's cap came down 127→108 to keep a cut row visible at all;
+every note-state list figure below is space-squeezed and did not move with row
+height):
 
 | state of the rail                                  | site list | real leftover |
 | -------------------------------------------------- | --------- | ------------- |
-| no notes above the list                            | 127px     | **9px**       |
+| no notes above the list                            | 108px     | **28px**      |
 | one error note (`sync-error` or `icon-error`)      | ~43–61px  | **0px**       |
 | both error notes                                   | 0px       | **0px**       |
 

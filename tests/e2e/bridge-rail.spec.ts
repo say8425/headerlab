@@ -215,11 +215,12 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   //
   // Stated rather than derived: a derived figure would follow a collapse down
   // and pass, which is exactly the defect this assertion exists to catch. The
-  // cap went 127 -> 119 -> 127 inside one branch; ScopeRail.tsx's site-list
-  // docblock records why the middle value was right when written and wrong two
-  // commits later.
-  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
-  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(127);
+  // cap went 127 -> 119 -> 127 inside one branch, and 127 -> 108 when the rows
+  // grew to 60px (all-sites-matching 8px padding) and a visible cut row had to
+  // be bought back; ScopeRail.tsx's site-list docblock records why each middle
+  // value was right when written and wrong commits later.
+  expect(idleMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(108);
+  expect(liveMeasurement.boxes['[data-testid="site-list"]']![3]).toEqual(108);
 
   // Every probe must resolve to a real box before the comparison below can
   // mean anything — the same guard header-modification.spec.ts's own

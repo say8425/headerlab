@@ -197,7 +197,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     <div
       ref={rowRef}
       tabIndex={-1}
-      className="flex h-[52px] items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+      className="flex h-[60px] items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
       data-testid="site"
       data-state={state}
     >
