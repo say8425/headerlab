@@ -304,12 +304,20 @@
     box-sizing: border-box;
 }
 
+/* 748×600 은 디자인의 크기지, 도달 가능성의 상한이 아니다. Chrome 은 확장
+   팝업을 800×600 DIP 로 제한하고 브라우저의 확대 설정이 팩업에도 적용되므로,
+   125% 에서는 748 CSS px 를 담으려 935 device px 가 필요한데 800 만 온다 —
+   뷰포트는 640×480 이 되고, 예전의 `overflow: hidden` 은 그 부족분을 스크롤이
+   아니라 삭제로 처리했다: 규칙 삭제 버튼, New rule, 요청 타입 전부가 그냥
+   사라졌다(scrollWidth 는 748 로 남아 있으므로 브라우저는 내용이 있다는 걸
+   알고 있었다 — 도달만 막았을 뿐). hidden 을 걷으면 부족분은 뷰포트 스크롤
+   바가 된다. 명목 크기에서는 scrollWidth === clientWidth 이므로 스크롤바가
+   생기지 않는다 — e2e 의 너비 가드가 정확히 그것을 단언한다. */
 html,
 body {
     margin: 0;
     width: 748px;
     height: 600px;
-    overflow: hidden;
 }
 
 body {

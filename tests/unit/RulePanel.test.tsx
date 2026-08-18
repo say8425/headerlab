@@ -116,7 +116,10 @@ describe('RulePanel', () => {
     expect(onAddRule).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes the rule whose × was clicked, not the first one', async () => {
+  it('deletes the rule whose × was clicked, not the first one — on the second click', async () => {
+    // Armed before it fires (useArmed): one click offers the second, the
+    // second calls the handler. Pinned that the first click alone does
+    // nothing, so the guard cannot be deleted without this failing.
     const onDeleteRule = vi.fn();
     renderPanel({
       rules: [rule({ id: 'a', name: 'First' }), rule({ id: 'b', name: 'Second' })],
@@ -124,6 +127,8 @@ describe('RulePanel', () => {
     });
     const second = screen.getAllByTestId('rule')[1]!;
     await userEvent.click(within(second).getByRole('button', { name: 'Delete rule' }));
+    expect(onDeleteRule).not.toHaveBeenCalled();
+    await userEvent.click(within(second).getByRole('button', { name: 'Confirm delete rule' }));
     expect(onDeleteRule).toHaveBeenCalledTimes(1);
     expect(onDeleteRule).toHaveBeenCalledWith('b');
   });

@@ -6,7 +6,7 @@ import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
-import { effectiveDomain } from '@/lib/permissions/origins';
+import { effectiveDomain, scopingHosts } from '@/lib/permissions/origins';
 import {
   probeAllSites,
   probeGrants,
@@ -49,6 +49,22 @@ export default function App() {
    */
   const [bridgeRequestError, setBridgeRequestError] =
     useState<ScopeRailProps['bridgeRequestError']>(null);
+  /**
+   * The last thing this popup needs to say out loud, or null.
+   *
+   * This is the announcement channel the rail renders (`role="status"`), and
+   * it exists because the interactions that most needed it had no other way
+   * to report their outcome: a Grant button that unmounts on success takes
+   * the focus to `<body>` with it, and a declined prompt leaves the screen
+   * byte-identical to before the click — either way a screen reader has no
+   * event to read and a keyboard user has no idea the click landed.
+   *
+   * Kept here rather than derived below for the same reason
+   * `bridgeRequestError` is: it is a fact about a click this popup just made,
+   * not about the state, and it should not outlive the interaction that
+   * caused it into the next session's first render.
+   */
+  const [announcement, setAnnouncement] = useState<string | null>(null);
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -280,11 +296,39 @@ export default function App() {
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
 
   // The three judgements that stop compile() emitting anything for this rule
-  // set (compile.ts:28, :40, :51), none of which is rule-level and so none of
-  // which reaches `byRow`. `isSuppressed` is called, never restated
+  // set (compile.ts:28, :40, :51), none of which is rule-level and so none
+  // of which reaches `byRow`. `isSuppressed` is called, never restated
   // (lib/compile/suppression.ts).
   const live = active.enabled && !state.globalPause && !isSuppressed(active);
-  const tally = ruleTally(active.headers, active.id, routed.byRow, { live });
+
+  // The fourth judgement, handed to the tally in the same caller-answers
+  // shape: whether the hosts that scope this rule set are granted. Counted
+  // from the same `routed.byHost` the site rows render their Grant buttons
+  // from, against the same `scopingHosts` the auditor probes (audit.ts) —
+  // one definition of "what scopes this profile", so the hosts that hold
+  // rules out of `live` here are exactly the rows wearing amber below.
+  //
+  // All-sites never reaches `byHost` at all (`scopingHosts` scopes nothing
+  // in that mode), so its answer comes from the `<all_urls>` probe instead:
+  // ungranted blocks everything the same way. `null` — probe not yet
+  // answered — stays out of the verdict, on the rule `allSitesGranted`'s own
+  // docblock states: never accuse the browser of withholding a permission
+  // nobody has asked about.
+  const ungrantedHosts = new Set(
+    [...routed.byHost.values()]
+      .flatMap((ds) => ds.filter((d) => d.kind === 'permission-missing'))
+      .map((d) => d.host!),
+  );
+  const access: 'all' | 'some' | 'none' = active.filter.allSites
+    ? allSitesGranted === false
+      ? 'none'
+      : 'all'
+    : ungrantedHosts.size === 0
+      ? 'all'
+      : ungrantedHosts.size >= scopingHosts(active.filter).length
+        ? 'none'
+        : 'some';
+  const tally = ruleTally(active.headers, active.id, routed.byRow, { live, access });
 
   // Why the rules are held, when it is not the rules' own fault. A count
   // reading "1 blocked" beside a perfectly good rule points the user at the
@@ -298,9 +342,21 @@ export default function App() {
   // (lib/compile/suppression.ts). The two read very differently and must not
   // be swapped: "by an unusable site" sends the reader hunting for a broken
   // entry, which in the empty case does not exist.
+  //
+  // Access is asked last, for the same reason the pause is asked second: it
+  // cannot outrank a verdict that already stops everything. A suppressed
+  // profile is never audited (audit.ts), so its access reads 'all' and the
+  // chain never has to choose between the two.
   const REASON_BLAME = { 'unusable-site': 'sites', 'no-scope': 'scope' } as const;
   const reason = suppressionReason(active);
-  const blockedBy = reason !== null ? REASON_BLAME[reason] : state.globalPause ? 'pause' : null;
+  const blockedBy =
+    reason !== null
+      ? REASON_BLAME[reason]
+      : state.globalPause
+        ? 'pause'
+        : access === 'none'
+          ? 'access'
+          : null;
 
   // The permission decides `off`; the port decides the other two. Kept in this
   // order because a held permission with no port is the state that actually
@@ -329,11 +385,13 @@ export default function App() {
       <ScopeRail
         tally={tally}
         paused={state.globalPause}
+        announcement={announcement}
         onTogglePause={(paused) => patch(() => ({ globalPause: paused }))}
         domains={active.filter.domains}
         byHost={routed.byHost}
         notes={routed.scope}
         blockedBy={blockedBy}
+        sitesNeedingAccess={ungrantedHosts.size}
         lastError={status.lastError}
         iconError={status.iconError}
         bridge={bridgeMode}
@@ -409,7 +467,12 @@ export default function App() {
         }}
         onGrantAllSites={async () => {
           const granted = await requestAllSites();
-          if (mountedRef.current) setAllSitesGranted(granted);
+          if (mountedRef.current) {
+            setAllSitesGranted(granted);
+            setAnnouncement(
+              granted ? 'All sites — access granted' : 'The permission was not granted',
+            );
+          }
         }}
         resourceTypes={active.filter.resourceTypes}
         onAddDomain={(typed) => {
@@ -440,7 +503,19 @@ export default function App() {
             filter: { ...p.filter, domains: p.filter.domains.filter((d) => d !== domain) },
           }))
         }
-        onToggleType={(type: ResourceType) =>
+        onToggleType={(type: ResourceType) => {
+          // The refusal half of the guard below, read here so the user can be
+          // told. Refused is the honest word: the checkbox does not move,
+          // nothing else changes, and before this the click said nothing at
+          // all — the one interaction in the rail that failed in total
+          // silence. Read off `active` for the telling and re-checked against
+          // the draft below for the writing, the same two-reads bargain
+          // `onAddDomain` makes: neither may be the only one.
+          const has = active.filter.resourceTypes.includes(type);
+          if (has && active.filter.resourceTypes.length === 1) {
+            setAnnouncement('The last request type cannot be removed');
+            return;
+          }
           patchProfile((p) => {
             const has = p.filter.resourceTypes.includes(type);
             // DNR rejects an empty resourceTypes array, and its default
@@ -450,10 +525,16 @@ export default function App() {
               ? p.filter.resourceTypes.filter((t) => t !== type)
               : [...p.filter.resourceTypes, type];
             return { ...p, filter: { ...p.filter, resourceTypes: next } };
-          })
-        }
+          });
+        }}
         onGrant={async (host) => {
-          await requestHost(host);
+          // The boolean is the dialog's own answer, and it is the difference
+          // between the two outcomes this handler used to render
+          // identically: granted cleared the diagnostic, declined left it,
+          // and nothing on screen said which had happened. It still reaches
+          // the status region below; the re-probe that follows remains the
+          // ground truth for what the rows show.
+          const granted = await requestHost(host);
           // Re-read state now rather than trust the `state` closed over when
           // this callback was created — see stateRef's comment above. Both
           // domainsToAudit and auditDiagnostics run against the same snapshot,
@@ -464,6 +545,9 @@ export default function App() {
           const grants = await probeGrants(domainsToAudit(current.profiles));
           if (mountedRef.current) {
             setGrantDiagnostics(auditDiagnostics(current.profiles, grants));
+            setAnnouncement(
+              granted ? `${host} — access granted` : 'The permission was not granted',
+            );
           }
         }}
       />

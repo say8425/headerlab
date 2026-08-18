@@ -23,11 +23,17 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
   return {
     tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 },
     paused: false,
+    // Silent and unburdened by default: the announcement channel and the
+    // access clauses are what the tests about them opt into, so a readout
+    // assertion written for the ordinary rail cannot pass by accidentally
+    // landing in a granted-half state.
+    announcement: null,
     onTogglePause: vi.fn(),
     domains: [],
     byHost: new Map(),
     notes: [],
     blockedBy: null,
+    sitesNeedingAccess: 0,
     lastError: null,
     iconError: null,
     // Off and granted by default: the states this change introduces have to be
@@ -136,6 +142,52 @@ describe('the readout', () => {
     );
   });
 
+  it('names a missing grant as the step that is left, not as a fault', () => {
+    // The first screen a new user reads: healthy rules scoped to a host the
+    // extension has no permission for. "until access is granted" joins the
+    // 'until' half of the table — nothing is wrong with the rules, the
+    // sentence names the missing step, and the Grant buttons below it are
+    // that step. Pinned against the scope wording so the two "until" causes
+    // cannot converge.
+    const tally = { total: 1, live: 0, off: 0, unfinished: 0, blocked: 1 };
+    const { rerender } = renderRail({ tally, blockedBy: 'access' });
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 1 rules live1 blocked until access is granted',
+    );
+
+    rerender(<ScopeRail {...props({ tally, blockedBy: 'scope' })} />);
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 1 rules live1 blocked until a site is set',
+    );
+  });
+
+  it('says how many sites still need access while the granted ones keep the count', () => {
+    // The half-granted state: the rules ARE live on the granted hosts, so
+    // the count does not move — the clause names the hosts they cannot
+    // reach, in the same words the rows below wear. With nothing granted
+    // the blocked clause carries the story instead, so the clause stands
+    // down (asserted in the second half).
+    const tally = { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 };
+    const { rerender } = renderRail({ tally, sitesNeedingAccess: 1 });
+    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live1 site needs access');
+
+    rerender(<ScopeRail {...props({ tally, sitesNeedingAccess: 2 })} />);
+    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live2 sites need access');
+
+    rerender(
+      <ScopeRail
+        {...props({
+          tally: { total: 3, live: 0, off: 0, unfinished: 0, blocked: 3 },
+          sitesNeedingAccess: 3,
+          blockedBy: 'access',
+        })}
+      />,
+    );
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0of 3 rules live3 blocked until access is granted',
+    );
+  });
+
   it('names unfinished rules, so a row left quiet is still said out loud', () => {
     // The rail is where "unfinished" gets said. The rule itself shows no
     // problem block — an empty name on a row created one click ago is not a
@@ -153,6 +205,27 @@ describe('the readout', () => {
     expect(screen.getByTestId('readout').textContent).toBe(
       '3of 9 rules live1 off · 2 unfinished · 3 blocked',
     );
+  });
+});
+
+describe('the announcement channel', () => {
+  it('is mounted before anything can fill it, empty when there is nothing to say', () => {
+    // A live region that appears together with its first message is never
+    // spoken — the browser only announces changes to a region it was already
+    // watching — so the region itself must exist in the ordinary state.
+    // Presence asserted before content, and in the silent default.
+    renderRail();
+    expect(screen.getByTestId('announcement').getAttribute('role')).toBe('status');
+    expect(screen.getByTestId('announcement').textContent).toEqual('');
+  });
+
+  it('renders the outcome App hands it, either way of a permission prompt', () => {
+    // The two strings the grant flow produces. The region is the speaker,
+    // App is the decision — this pins only that what is decided arrives.
+    const { rerender } = renderRail({ announcement: 'api.example.com — access granted' });
+    expect(screen.getByTestId('announcement').textContent).toBe('api.example.com — access granted');
+    rerender(<ScopeRail {...props({ announcement: 'The permission was not granted' })} />);
+    expect(screen.getByTestId('announcement').textContent).toBe('The permission was not granted');
   });
 });
 
@@ -378,10 +451,13 @@ describe('sites', () => {
     expect(onGrant).not.toHaveBeenCalledWith('host-a.example.com');
   });
 
-  it('removes the domain whose remove control was clicked', async () => {
+  it('removes the domain whose remove control was clicked, on the second click', async () => {
+    // Armed before it fires (useArmed), like the rule row's delete.
     const onRemoveDomain = vi.fn();
     renderRail({ domains: ['a.example.com', 'b.example.com'], onRemoveDomain });
     await userEvent.click(screen.getByRole('button', { name: 'Remove b.example.com' }));
+    expect(onRemoveDomain).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm removal of b.example.com' }));
     expect(onRemoveDomain).toHaveBeenCalledTimes(1);
     expect(onRemoveDomain).toHaveBeenCalledWith('b.example.com');
   });
@@ -695,14 +771,16 @@ describe('adding a site', () => {
 
 describe('request types', () => {
   it('shows exactly the eight offered types, in order, named as Chrome names them', () => {
-    // A bare length check would pass eight arbitrary rows. The accessible names
-    // are the real ResourceType values even where the visible label is shorter,
-    // because that is the word the user has to match against every other tool.
+    // A bare length check would pass eight arbitrary rows. The accessible
+    // names carry the real ResourceType values even where the visible label
+    // is shorter, because that is the word the user has to match against
+    // every other tool — and the one that differs also contains the visible
+    // word, so speaking a row by what it shows on screen works too.
     renderRail();
     expect(screen.getAllByTestId('type-check').map((c) => c.getAttribute('aria-label'))).toEqual([
       'main_frame',
       'sub_frame',
-      'xmlhttprequest',
+      'xhr (xmlhttprequest)',
       'script',
       'stylesheet',
       'image',
@@ -714,7 +792,7 @@ describe('request types', () => {
   it('shows xmlhttprequest as xhr, because the rail column is not 14 characters wide', () => {
     renderRail();
     expect(
-      screen.getByRole('checkbox', { name: 'xmlhttprequest' }).closest('label')?.textContent,
+      screen.getByRole('checkbox', { name: 'xhr (xmlhttprequest)' }).closest('label')?.textContent,
     ).toBe('xhr');
   });
 
@@ -816,26 +894,32 @@ describe('the bridge row', () => {
     ['off', false],
     ['idle', true],
     ['live', true],
-  ])('%s names the row and leaves the state to the switch', (mode, on) => {
+  ])('%s names the row and leaves the visible state to the switch', (mode, on) => {
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
-    // The label is the row's NAME, in every state — a reader who does not know
-    // what this row is learns that from the words, and what it is doing from
-    // the dot, the switch and the title. Pinned across all three states in one
-    // test so an implementation that reintroduced a state word anywhere fails.
-    expect(row.textContent).toEqual('Agent bridge');
+    // The visible label is the row's NAME, in every state — a reader who does
+    // not know what this row is learns that from the words, and what it is
+    // doing from the dot, the switch and the detail span. The sr-only detail
+    // below the label is part of the row's *text*, so the row's own
+    // textContent is not the place this is pinned anymore; the label element
+    // is. Pinned across all three states in one test so an implementation
+    // that reintroduced a state word anywhere visible fails.
+    expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge');
     const control = within(row).getByRole('switch');
     expect(control.getAttribute('aria-checked')).toEqual(String(on));
   });
 
   it.each([
-    ['off', 'bg-muted-foreground', 'off'],
-    ['idle', 'bg-pending', 'nothing is connected'],
+    ['off', 'border-muted-foreground', 'off'],
+    ['idle', 'border-pending', 'nothing is connected'],
     ['live', 'bg-live', 'live'],
-  ])('%s carries its state on the dot and in the title', (mode, dot, phrase) => {
-    // The three dots must be three different colours: `off` and `idle` shared
-    // one until the label stopped saying which was which, and two states that
-    // look identical while calling for opposite actions is exactly the silence
+  ])('%s carries its state on the dot and in the detail span', (mode, dot, phrase) => {
+    // Colour is one channel and shape is the other: `live` is a filled dot,
+    // the not-running states are rings, so the distinction survives
+    // colour-blind vision (and the detail span below says it in words).
+    // `off` and `idle` still need different colours — they shared one until
+    // the label stopped saying which was which, and two states that look
+    // identical while calling for opposite actions is exactly the silence
     // this rail exists to remove.
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
@@ -924,20 +1008,20 @@ describe('the bridge row', () => {
     it('keeps the label and swaps the dot to the pending colour', () => {
       render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
       const row = screen.getByTestId('bridgestate');
-      expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
+      expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('border-pending');
       // The label is the row's name and does not move for state — what an
       // unreachable bridge changes is the dot and the title, checked here and
       // in the test below.
       expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge');
     });
 
-    it('carries the command and Chrome’s own words in title, not on the row', () => {
+    it("carries the command and Chrome's own words in title, not on the visible row", () => {
       render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
-      const row = screen.getByTestId('bridgestate');
       const label = screen.getByTestId('bridge-label');
-      // What to run is on screen only via title — the row's own text is the
-      // name and nothing else, in this state as in every other.
-      expect(row.textContent).toEqual('Agent bridge');
+      // What to run reaches a pointer via the title and everything else via the
+      // detail span — the *visible* row is the name and nothing else, in this
+      // state as in every other.
+      expect(label.textContent).toEqual('Agent bridge');
       const title = label.getAttribute('title');
       // The remedy leads; Chrome's string trails it — checked as two
       // separate assertions rather than one exact string so the order is
@@ -960,9 +1044,9 @@ describe('the bridge row', () => {
   // the error treatment's words.
   it('explains an idle bridge without claiming an error nobody reported', () => {
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: null })} />);
-    const row = screen.getByTestId('bridgestate');
-    expect(row.textContent).toEqual('Agent bridge');
-    const title = screen.getByTestId('bridge-label').getAttribute('title')!;
+    const label = screen.getByTestId('bridge-label');
+    expect(label.textContent).toEqual('Agent bridge');
+    const title = label.getAttribute('title')!;
     // It names the remedy, because "permission held, nothing connected" is
     // almost always `bridge install` never having been run...
     expect(title).toContain('headerlab bridge install');
@@ -993,6 +1077,39 @@ describe('the bridge row', () => {
     expect(onDisableBridge).toHaveBeenCalledTimes(2);
   });
 
+  it('describes the switch with an element that is really in the document', () => {
+    // The defect this pins: `aria-describedby` used to point at the visible
+    // label, whose subtree text is just "Agent bridge" — the accessible-name
+    // algorithm takes content before it ever falls back to the label's
+    // `title`, so the description the markup promised was never delivered
+    // and every failure state stayed hover-only. The ids have to resolve to
+    // elements that really exist and really carry the report, checked the
+    // way tooltip.test.tsx checks its own description (resolve, then read).
+    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+    const describedBy = within(screen.getByTestId('bridgestate'))
+      .getByRole('switch')
+      .getAttribute('aria-describedby')!;
+    const texts = describedBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent ?? null);
+    expect(texts).not.toContain(null);
+    expect(texts.join(' ')).toContain('Agent bridge');
+    const detail = document.getElementById('bridge-detail')!;
+    // The state word first — the one thing the dot's colour said alone —
+    // then the remedy, then Chrome's own words, same order as the title.
+    expect(detail.textContent).toMatch(/^cannot be reached — /);
+    expect(detail.textContent).toContain('headerlab bridge install');
+    expect(detail.textContent).toContain('Native host has exited.');
+  });
+
+  it('keeps the detail span present but empty while the probe is out', () => {
+    // `unknown` says nothing anywhere else; the span must not invent a state
+    // either. It stays mounted (a description target that appears late is
+    // read late) and empty.
+    render(<ScopeRail {...props({ bridge: 'unknown' })} />);
+    expect(screen.getByTestId('bridge-detail').textContent).toEqual('');
+  });
+
   it('says on the row itself when a request was declined, rather than going quiet', () => {
     // The defect this replaces: the request came back refused, the row went on
     // reading "Bridge off", and nothing anywhere said a request had even been
@@ -1010,7 +1127,7 @@ describe('the bridge row', () => {
     // gets without hovering — `data-request` is for tests and `title` needs a
     // pointer. Without this the amber could be deleted and every other
     // assertion in this file would still pass.
-    expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('bg-pending');
+    expect(row.querySelector('[aria-hidden="true"]')!.className).toContain('border-pending');
   });
 
   it('leaves the dot neutral when no request has failed', () => {
@@ -1018,8 +1135,8 @@ describe('the bridge row', () => {
     // borrow the pending colour, or the amber says nothing when it appears.
     render(<ScopeRail {...props({ bridge: 'off' })} />);
     const dot = screen.getByTestId('bridgestate').querySelector('[aria-hidden="true"]')!;
-    expect(dot.className).toContain('bg-muted-foreground');
-    expect(dot.className).not.toContain('bg-pending');
+    expect(dot.className).toContain('border-muted-foreground');
+    expect(dot.className).not.toContain('border-pending');
   });
 
   it("carries Chrome's own message when the request could not be made", () => {

@@ -12,6 +12,13 @@ import type { Diagnostic, ResourceType } from '@/lib/model/types';
 export interface ScopeRailProps {
   tally: RuleTally;
   paused: boolean;
+  /**
+   * The last outcome worth announcing, or null while there is nothing to say.
+   *
+   * Rendered into the always-mounted `role="status"` span at the top of the
+   * rail — see that span for why it must never be the one to appear.
+   */
+  announcement: string | null;
   onTogglePause: (paused: boolean) => void;
   domains: readonly string[];
   /** Host-scoped diagnostics, keyed by the normalized host they name. */
@@ -23,8 +30,24 @@ export interface ScopeRailProps {
    *
    * `null` means the blocked rules are individually broken and the count can
    * speak for itself.
+   *
+   * `'access'` is the fourth verdict: every host that scopes the rule set is
+   * ungranted, so nothing compiled for it can match a request. It completes
+   * the sentence the same way `'scope'` does — "until" rather than "by",
+   * because nothing is wrong with the rules; the sentence names the missing
+   * step, and the Grant buttons below it are that step.
    */
-  blockedBy: 'sites' | 'scope' | 'pause' | null;
+  blockedBy: 'sites' | 'scope' | 'pause' | 'access' | null;
+  /**
+   * How many scoping hosts are still ungranted, when some but not all are.
+   *
+   * App computes this beside the tally's `access` verdict, from the same
+   * `byHost` this rail renders its rows from — the count shown here and the
+   * rows wearing Grant below can never disagree, because they are the same
+   * computation read once. Only read when the tally's rules are live (granted
+   * hosts remain), which is the state whose sentence it finishes.
+   */
+  sitesNeedingAccess: number;
   /** Applying to every site by explicit choice. */
   allSites: boolean;
   /**
@@ -116,6 +139,36 @@ const NOTE_CLASS =
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
 
 /**
+ * Text a screen reader must read that a sighted user must not see.
+ *
+ * Two hiding mechanisms were tried first and both are excluded by the e2e
+ * layout guards, which have caught real defects and must not grow exception
+ * lists for this:
+ *
+ * - Tailwind's `sr-only` (1px box, `overflow: hidden`, `nowrap`) hides by
+ *   overflowing its own box — exactly what the clipping guard forbids of a
+ *   text leaf (`scrollHeight > clientHeight`; that guard exists because the
+ *   readout's big number once rendered 32px of glyphs in a 30px box).
+ * - Moving the span off-canvas (`absolute`, `-left-[9999px]`) keeps its box
+ *   honest but lets its shrink-to-fit width — a full sentence — exceed the
+ *   parent, which the width guard reads as an element wider than what holds
+ *   it.
+ *
+ * `clip-path` hides by painting nothing at all: the box keeps its parent's
+ * width (`inset-x-0`, so the width guard sees it fit) and its content's
+ * height (so nothing overflows to clip), the clip removes every pixel from
+ * every mode — `forced-colors` cannot repaint what is never painted — and
+ * screen readers read it because it is rendered content, which is the entire
+ * point. `pointer-events-none` because an invisible box that can catch a
+ * pointer is a ghost the user cannot dismiss.
+ *
+ * `inset-x-0` resolves against the nearest *positioned* ancestor, so each
+ * mount point's parent carries `relative` — the span's width then matches
+ * the parent the width guard compares it against.
+ */
+const VISUALLY_HIDDEN = 'pointer-events-none absolute inset-x-0 top-0 [clip-path:inset(50%)]';
+
+/**
  * The row's name, in every state.
  *
  * It used to carry the state too ("Agent bridge live"), which put the state in
@@ -200,11 +253,13 @@ function bridgeTitle(
 export function ScopeRail({
   tally,
   paused,
+  announcement,
   onTogglePause,
   domains,
   byHost,
   notes,
   blockedBy,
+  sitesNeedingAccess,
   lastError,
   iconError,
   allSites,
@@ -242,10 +297,14 @@ export function ScopeRail({
   // the reader looking for a broken entry that does not exist. It is also the
   // only one of the three that is not a complaint — the sentence finishes the
   // thought the count starts rather than reporting a fault.
+  // "until access is granted" joins that half of the table: the rules are
+  // registered and nothing about them is wrong, the missing grant is a step
+  // rather than a fault, and the Grant buttons below are the step.
   const BLAMED = {
     sites: ' by an unusable site',
     scope: ' until a site is set',
     pause: ' while paused',
+    access: ' until access is granted',
   } as const;
   const blame = blockedBy === null ? '' : BLAMED[blockedBy];
 
@@ -253,6 +312,15 @@ export function ScopeRail({
   if (tally.off > 0) subcount.push(`${tally.off} off`);
   if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
   if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
+  // The half-granted state says so without touching the count: the rules are
+  // live on the granted hosts, and this clause names the ones they cannot
+  // reach — the same hosts whose rows wear Grant below. Only shown when
+  // something still goes out; with nothing granted the blocked clause above
+  // already carries the whole story.
+  if (sitesNeedingAccess > 0 && blockedBy !== 'access')
+    subcount.push(
+      sitesNeedingAccess === 1 ? '1 site needs access' : `${sitesNeedingAccess} sites need access`,
+    );
 
   /**
    * The whole second line as one string, or empty when there is nothing to add.
@@ -311,8 +379,51 @@ export function ScopeRail({
     bridgeLastCommandAt,
   );
 
+  /**
+   * The state as one word, for the detail span the switch points at. It is
+   * the same fact the dot's shape now carries — running, not running, or
+   * nothing to say yet — in the one channel that works for everyone: text.
+   * "cannot be reached" rather than "idle" when a connection was expected,
+   * because that is the state with a remedy attached, and the remedy leads
+   * the title it sits beside.
+   */
+  const bridgeStateWord =
+    bridge === 'live'
+      ? 'live'
+      : bridge === 'unknown'
+        ? null
+        : bridge === 'off'
+          ? 'off'
+          : bridgeUnreachable
+            ? 'cannot be reached'
+            : 'idle';
+  const bridgeDetail =
+    bridgeStateWord === null
+      ? ''
+      : bridgeRowTitle === null
+        ? bridgeStateWord
+        : `${bridgeStateWord} — ${bridgeRowTitle}`;
+
   return (
-    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
+    <aside className="relative flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
+      {/* The rail's one announcement channel, and it is mounted before
+          anything can fill it — a live region that *appears* with its first
+          message is never spoken, because the browser only announces changes
+          to a region it was already watching. So this span exists in every
+          state, empty or not.
+
+          Clipped out of sight (`VISUALLY_HIDDEN`, see there) is the
+          zero-pixel bargain: nothing the eye can find, while giving screen
+          readers the one thing they had no path to at all — the outcome of a
+          permission prompt (either way: a Grant button that unmounts on
+          success takes the focus to <body> with it, and a decline used to
+          leave the screen identical to before the click) and a refused
+          uncheck that changes nothing on screen. What it says is App's
+          decision; this is only the speaker. The aside's `relative` is what
+          the span's `inset-x-0` resolves against — see the constant. */}
+      <span role="status" data-testid="announcement" className={VISUALLY_HIDDEN}>
+        {announcement}
+      </span>
       <div className="flex h-6 shrink-0 items-center gap-2 px-3">
         <span
           className="flex size-6 shrink-0 items-center justify-center rounded-md bg-foreground text-background"
@@ -446,8 +557,11 @@ export function ScopeRail({
             replaced. The narrower grant and the row's single purpose are what
             make the exception affordable; do not read it as licence to let
             the all-sites switch prompt again. */}
+        {/* `relative` for the `bridge-detail` span below it — its
+            `inset-x-0` has to resolve against this row, the parent the e2e
+            width guard compares it with, not against the viewport. */}
         <div
-          className="mt-1 flex h-5 items-center gap-[7px]"
+          className="relative mt-1 flex h-5 items-center gap-[7px]"
           data-testid="bridgestate"
           data-bridge={bridge}
           {...(bridgeRequestError === null ? {} : { 'data-request': bridgeRequestError.reason })}
@@ -457,7 +571,15 @@ export function ScopeRail({
               rather than wrong, the same reading that keeps a pending site
               row out of the error palette. `unknown` gets the slot with no
               fill at all — reserving the space must not put a phantom state
-              on screen, the same bargain the all-sites glyph makes. */}
+              on screen, the same bargain the all-sites glyph makes.
+
+              Shape is the second channel, and it says the one thing colour
+              was saying alone: a filled dot is running, a ring is not.
+              Colour-blind vision reads that distinction off the silhouette;
+              the detail span below says it in words. `border` rather than a
+              second filled tone because `box-sizing: border-box` is global,
+              so the 6px box wears a 1px ring and a transparent middle at no
+              cost to the geometry. */}
           <span
             className={`size-1.5 shrink-0 rounded-full ${
               bridge === 'live'
@@ -466,8 +588,8 @@ export function ScopeRail({
                   ? 'bg-transparent'
                   : // `bridgeUnreachable` implies `idle`, so it is not repeated here.
                     bridge === 'idle' || bridgeRequestError !== null
-                    ? 'bg-pending'
-                    : 'bg-muted-foreground'
+                    ? 'border border-pending bg-transparent'
+                    : 'border border-muted-foreground bg-transparent'
             }`}
             aria-hidden="true"
           />
@@ -508,17 +630,36 @@ export function ScopeRail({
           >
             {BRIDGE_NAME}
           </span>
+          {/* The whole report, in the one place every user can reach. It
+              used to live only in the label's `title` above, which a pointer
+              reaches by hovering and nothing else reaches at all — and the
+              `aria-describedby` below pointed at that label, which computes
+              to the label's own subtree text ("Agent bridge") and stops:
+              the accessible-name algorithm takes content before it ever
+              falls back to a title, so the description the markup seemed to
+              promise was never delivered. The fix is not a design change
+              but a correction of that mechanism: the description text gets
+              an element of its own, this span, which costs nothing
+              (`VISUALLY_HIDDEN`, for the reasons that constant's own
+              docblock gives) and says everything the title says — plus the
+              state word, so the dot's colour is never the only voice for
+              it. The row's `relative` (below) is what the span's `inset-x-0`
+              resolves against. */}
+          <span id="bridge-detail" data-testid="bridge-detail" className={VISUALLY_HIDDEN}>
+            {bridgeDetail}
+          </span>
           <span className="flex-1" />
           {bridge === 'unknown' ? null : (
             <Switch
               size="sm"
               aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
-              // The whole report lives in the label's `title`, which a pointer
-              // reaches by hovering and a keyboard reaches not at all. Pointing
-              // the control at the label costs no pixels and is the difference
-              // between "no silent failures" holding for everyone and holding
-              // for mouse users.
-              aria-describedby="bridge-label"
+              // The name the switch needs beside its label, and the report
+              // it carries: `bridge-label` for the constant words,
+              // `bridge-detail` for the state and the remedy. Both ids
+              // resolve to elements really in this document — see the
+              // detail span above for why pointing at a `title`-bearing
+              // element alone announces nothing.
+              aria-describedby="bridge-label bridge-detail"
               checked={bridge !== 'off'}
               onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
               className={SWITCH_CLASS}
@@ -567,8 +708,20 @@ export function ScopeRail({
           676px of content in a 600px box and pushed the request types 37px
           down, instead of the site list shrinking from 132 to 48. The e2e
           suite opens exactly that page (a note plus eight sites), so the class
-          cannot be dropped in silence. */}
-      <div className="mt-3 flex min-h-0 flex-col gap-1.5">
+          cannot be dropped in silence.
+
+          `overflow-hidden` closes the other half of what that pressure does.
+          `min-h-0` lets this section shrink, but shrinking alone only decides
+          *how much* is visible — a box smaller than its `shrink-0` children
+          with `overflow: visible` lets those children paint beyond it, so with
+          both error notes above on screen the collapsed section's add field
+          overprinted the request-types heading below (measured in the built
+          popup: 30.5px of two texts in the same pixels). Clipping here means
+          the shortfall is paid by this section's own list, which is the one
+          part of the rail that is allowed to give way — never by a section
+          that did not move. At nominal size the content fits and nothing is
+          clipped, so the class costs nothing until the failure it contains. */}
+      <div className="mt-3 flex min-h-0 flex-col gap-1.5 overflow-hidden">
         <div className={HEAD_CLASS}>
           Sites{' '}
           <span className={HEAD_COUNT_CLASS} data-testid="site-count">

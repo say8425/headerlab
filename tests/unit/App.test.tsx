@@ -151,6 +151,70 @@ describe('App', () => {
     await waitFor(() => expect(readout()).toBe('0of 2 rules live2 blocked'));
   });
 
+  it('stops counting rules as live when no scoping host is granted', async () => {
+    // The first screen every new user sees: healthy rules, a host the
+    // extension has no permission for, and — before the tally learned about
+    // access — a readout claiming "2 of 2 rules live · no problems" over
+    // headers that were never going out. The Grant buttons are on the rows
+    // below the very number that was lying about them.
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'api.example.com', granted: false },
+    ]);
+    await seed(stateWith());
+    render(<App />);
+
+    await waitFor(() =>
+      expect(readout()).toBe('0of 2 rules live2 blocked until access is granted'),
+    );
+    expect(await screen.findAllByRole('button', { name: 'Grant' })).toHaveLength(1);
+  });
+
+  it('keeps the count when only some scoping hosts are ungranted, and says which', async () => {
+    // The half-granted state: the rules go out on the granted host, so
+    // "2 of 2 live" is the truth — and the clause names the one host they
+    // cannot reach, in the same words its row wears below.
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'a.example.com', granted: true },
+      { domain: 'b.example.com', granted: false },
+    ]);
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['a.example.com', 'b.example.com'];
+    await seed(s);
+    render(<App />);
+
+    await waitFor(() => expect(readout()).toBe('2of 2 rules live1 site needs access'));
+    expect(await screen.findAllByRole('button', { name: 'Grant' })).toHaveLength(1);
+  });
+
+  it('stops counting rules as live in all-sites mode when <all_urls> is missing', async () => {
+    // The same defect through the other door: all-sites produces no
+    // per-host diagnostic at all, so `byHost` has nothing to say and the
+    // verdict has to come from the probe. Asserted against the granted
+    // half in the same test so the two cannot quietly converge.
+    const p = createProfile('Local', 0);
+    const s = stateWith();
+    s.profiles[0] = {
+      ...s.profiles[0]!,
+      filter: { ...p.filter, allSites: true, domains: [] },
+    };
+
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(false);
+    await seed(s);
+    const first = render(<App />);
+    // waitFor, not a bare read: the verdict comes from the probe, which
+    // answers after mount.
+    await waitFor(() =>
+      expect(readout()).toBe('0of 2 rules live2 blocked until access is granted'),
+    );
+    first.unmount();
+
+    vi.spyOn(probe, 'probeAllSites').mockResolvedValue(true);
+    await seed(s);
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+    expect(readout()).toBe('2of 2 rules liveno problems');
+  });
+
   it('offers Grant on the site row itself, and requests only the host whose button was clicked', async () => {
     // Two distinct ungranted hosts: with only one possible host, a handler that
     // ignored its `host` argument and reused a fixed string would still pass.
@@ -241,6 +305,69 @@ describe('App', () => {
     // And it is the *pending* state that proves the recomputed audit reached
     // the row — a row rendered from state alone would look granted.
     expect(rows[0]!.getAttribute('data-state')).toBe('pending');
+  });
+
+  it('announces a granted prompt and lands the focus on the row that waited', async () => {
+    // Success used to be the louder failure: the Grant button unmounts with
+    // the diagnostic that fed it, the focus fell to <body>, and the next Tab
+    // restarted from the top of the rail — a screen reader heard nothing
+    // about the state that just changed. The announcement says it and the
+    // row takes the focus (never the Remove button beside it — the Enter
+    // that follows a confirmed grant must not delete the site).
+    // The probe answers `false` right up until the prompt is granted —
+    // `requestHost`'s mock flips the flag it reads — so the row really opens
+    // pending and really settles granted, rather than the fixed-value mock
+    // that never offers a Grant button at all.
+    let granted = false;
+    vi.spyOn(probe, 'probeGrants').mockImplementation(async () => [
+      { domain: 'api.example.com', granted },
+    ]);
+    vi.spyOn(probe, 'requestHost').mockImplementation(async () => {
+      granted = true;
+      return true;
+    });
+    await seed(stateWith());
+    render(<App />);
+
+    const grant = await screen.findByRole('button', { name: 'Grant' });
+    await userEvent.click(grant);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('announcement').textContent).toBe(
+        'api.example.com — access granted',
+      ),
+    );
+    // The row itself: reading its name and its new state line *is* the
+    // confirmation once the focus is there. Waited for, because the focus
+    // move is an effect that runs after the render the announcement
+    // already rode in on.
+    const row = screen.getAllByTestId('site')[0]!;
+    expect(row.getAttribute('data-state')).toBe('granted');
+    await waitFor(() => expect(document.activeElement).toBe(row));
+  });
+
+  it('announces a declined prompt — the one outcome that used to change nothing at all', async () => {
+    // A decline left the screen byte-identical to before the click: same
+    // button, same pending row, no message anywhere. The click might as
+    // well not have registered. The re-probe still grounds what the rows
+    // show; the announcement is what says the answer was "no".
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'api.example.com', granted: false },
+    ]);
+    vi.spyOn(probe, 'requestHost').mockResolvedValue(false);
+    await seed(stateWith());
+    render(<App />);
+
+    const grant = await screen.findByRole('button', { name: 'Grant' });
+    await userEvent.click(grant);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('announcement').textContent).toBe('The permission was not granted'),
+    );
+    // And the row is still honestly pending with its remedy — the way back
+    // is not taken away by the refusal.
+    expect(screen.getAllByTestId('site')[0]!.getAttribute('data-state')).toBe('pending');
+    expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy();
   });
 
   it('writes the pause switch through to storage', async () => {
@@ -669,14 +796,25 @@ describe('editing scope', () => {
     expect(screen.getAllByTestId('site')).toHaveLength(1);
   });
 
-  it('removes the site whose × was clicked', async () => {
+  it('removes the site whose × was clicked — the second of two clicks', async () => {
+    // Removal is armed before it fires (useArmed): the first click changes
+    // colour and name, the second does the write. Both halves are pinned
+    // here — the storage change and the fact that one click alone did
+    // nothing to it.
     const s = stateWith();
     s.profiles[0]!.filter.domains = ['a.example.com', 'b.example.com'];
     vi.spyOn(probe, 'probeGrants').mockResolvedValue([]);
     await seed(s);
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Remove a.example.com' }));
+    const arm = await screen.findByRole('button', { name: 'Remove a.example.com' });
+    await userEvent.click(arm);
+    expect((await stored()).profiles[0]!.filter.domains).toEqual([
+      'a.example.com',
+      'b.example.com',
+    ]);
+    // Same box, second click, offered in words rather than by moving.
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm removal of a.example.com' }));
     await waitFor(async () =>
       expect((await stored()).profiles[0]!.filter.domains).toEqual(['b.example.com']),
     );
@@ -686,14 +824,24 @@ describe('editing scope', () => {
     // Its default also silently excludes main_frame, so an empty list is not
     // "match everything", it is "match almost nothing, quietly". This guard
     // moved here from the filter block when that component was replaced.
+    // The refusal is no longer silent: the checkbox does not move and
+    // nothing else changes on screen, so the announcement channel is the
+    // one thing that says the click landed and was declined.
     const s = stateWith();
     s.profiles[0]!.filter.resourceTypes = ['script'];
     await seed(s);
     render(<App />);
 
-    await userEvent.click(await screen.findByRole('checkbox', { name: 'script' }));
+    // The app must be loaded before the channel's silence can mean anything —
+    // before that there is no rail at all, just the loading screen.
+    const checkbox = await screen.findByRole('checkbox', { name: 'script' });
+    expect(screen.getByTestId('announcement').textContent).toEqual('');
+    await userEvent.click(checkbox);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect((await stored()).profiles[0]!.filter.resourceTypes).toEqual(['script']);
+    expect(screen.getByTestId('announcement').textContent).toBe(
+      'The last request type cannot be removed',
+    );
   });
 
   it('adds and removes a request type that is not the last one', async () => {
@@ -822,15 +970,37 @@ describe('editing rules', () => {
     expect((await stored()).profiles[0]!.headers.map((h) => h.name)).toEqual(['X-A', 'X-B', '']);
   });
 
-  it('deletes the rule whose × was clicked, and leaves the other one', async () => {
+  it('deletes the rule whose × was clicked on the second click, and leaves the other one', async () => {
+    // Same armed guard as the site rows' × (useArmed): the first click arms,
+    // the second writes. One click alone must leave storage untouched.
     await seed(stateWith());
     render(<App />);
     await screen.findByDisplayValue('X-A');
 
     const second = screen.getAllByTestId('rule')[1]!;
     await userEvent.click(within(second).getByRole('button', { name: 'Delete rule' }));
+    expect((await stored()).profiles[0]!.headers).toHaveLength(2);
+    await userEvent.click(within(second).getByRole('button', { name: 'Confirm delete rule' }));
     await waitFor(async () => expect((await stored()).profiles[0]!.headers).toHaveLength(1));
     expect((await stored()).profiles[0]!.headers[0]!.name).toBe('X-A');
+  });
+
+  it('stands an armed delete down on Escape, so Enter never fires it by accident', async () => {
+    // An armed control that stayed armed is a trap for whoever presses Enter
+    // next; Escape is the one withdrawal that happens without the focus
+    // moving, so it is named for itself. After it, the control is back to
+    // offering the first click, not the second.
+    await seed(stateWith());
+    render(<App />);
+    await screen.findByDisplayValue('X-A');
+
+    const first = screen.getAllByTestId('rule')[0]!;
+    await userEvent.click(within(first).getByRole('button', { name: 'Delete rule' }));
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('button', { name: 'Confirm delete rule' })).toBeNull();
+    expect(within(first).getByRole('button', { name: 'Delete rule' })).toBeTruthy();
+    expect((await stored()).profiles[0]!.headers).toHaveLength(2);
   });
 
   it('writes an edited header name through to storage, leaving its neighbour alone', async () => {

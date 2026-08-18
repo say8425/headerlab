@@ -834,11 +834,32 @@ own `mt-2`→`mt-1` — 16px) plus the site list's `max-height` dropping `132px`
 switch/label branch spent 8px on the all-sites row's padding (`h-12`/4px →
 `h-14`/8px), then freed 27px above the site list by deleting two reservations — the
 scope note's stacked `mt-3` and `AddSiteField`'s fixed `h-[15px]` line. Between those
-two commits the list's cap was written down as 119px, correctly against the tree of
-the day and wrongly against the tree three commits later; it is 127px again, and
-`mt-auto` on the request types now resolves to **13px** of real leftover. Re-measure
-with that design file's `measure()` before spending it — this figure has moved three
-times, each time on reasoning that was sound when written.
+two commits the list's cap was written down as 119px, correctly against the tree of the
+day and wrongly against the tree three commits later; it is 127px again. Re-measure
+with that design file's `measure()` before spending any figure below — each has moved
+on reasoning that was sound when written.
+
+**The 13px is one row of a table, not a property of the rail.** A single number was
+wrong four times for the same reason every time: the leftover depends on what else is
+on screen, and a figure quoted without its state gets read in the state it was not
+measured in. Measured in the built popup at four saved sites (2026-08-17, headed):
+
+| state of the rail                                  | site list | real leftover |
+| -------------------------------------------------- | --------- | ------------- |
+| no notes above the list                            | 127px     | **13px**      |
+| one error note (`sync-error` or `icon-error`)      | ~47–65px  | **0px**       |
+| both error notes                                   | 0px       | **0px**       |
+
+Under the states that read 0, the shortfall was paid by *overprinting* — the section's
+`overflow` was `visible`, so the add field painted across the request-types heading
+below (measured: 30.5px of two texts in the same pixels). The sites section now clips
+(`overflow-hidden` on the `min-h-0` flex column), so the same pressure costs the list
+instead of a section that never moved; the reserved-slot redesign that would give the
+notes a real home is the open design pass Known gaps records. The popup's other
+pressure axis — browser zoom, where the fixed 748×600 stops fitting — is handled the
+same way in kind: since the `overflow: hidden` on `html, body` came out (style.css),
+a shortfall is a scrollbar rather than deleted controls. Nominal size is untouched;
+the e2e width guard asserts `scrollWidth === clientWidth` there.
 
 **Measuring "is this rail full" has two traps that both silently report "no
 problem."** `clientHeight − scrollHeight` is structurally always 0 here: the site list
@@ -1061,7 +1082,7 @@ that no longer renders, passing while describing nothing.
 - **A note that appears cannot live in this rail, and two pre-existing ones already
   break it.** `sync-error` and `icon-error` are plain conditional blocks, and the rail
   carried zero slack from the bridge row until the switch/label branch freed 27px above
-  the list (see Interface, and re-measure before trusting the 13px it left). Measured at
+  the list (see Interface, whose table is the current figures). Measured at
   four saved sites *at the time*: the site list's cap is 127px with neither note showing,
   65px with only `sync-error`, 34px with only `icon-error`, and 0px with both — the
   user's saved sites pushed off screen by an error message about something else. The
@@ -1069,11 +1090,24 @@ that no longer renders, passing while describing nothing.
   have not been re-measured since. **A third offender joined them**: `AddSiteField`'s
   duplicate-site note is now created rather than reserved, so it too costs the list
   ~21px when it appears. That one is bounded — it is guaranteed one line, asserted in
-  both suites — which the two above are not. None is the same fix shape as the bridge
-  row's own note (that one folded into an existing fixed-height row; these are prose
-  with no existing row to fold into), so this needs its own design pass rather than a
-  while-we-are-here
+  both suites — which the two above are not. Two things have since been fixed about the
+  worst state: with both notes up, the section's `overflow: hidden` (added 2026-08-17)
+  makes the shortfall clip inside the sites section instead of letting the add field
+  overprint the request-types heading — but the list still collapses to 0px, so the
+  *reservation* problem stands. None is the same fix shape as the bridge row's own note
+  (that one folded into an existing fixed-height row; these are prose with no existing
+  row to fold into), so this needs its own design pass rather than a while-we-are-here
   patch.
+- **The bridge's `status()` cannot see grants, so its tally can over-report.** The
+  popup's readout holds rules out of `live` when no scoping host is granted
+  (`Liveness.access`, App.tsx computes it from `byHost` and the `<all_urls>` probe).
+  The CLI bridge's `status()` builds its payload synchronously and never probes, so it
+  leaves the field absent — which the type documents as "unanswered", never "granted",
+  but which leaves `tally.live` claiming rules are going out for a host the extension
+  has no permission for: the same lie the popup used to tell. Fixing it means making
+  the payload builder async (probeGrants through the socket handler) and re-deriving
+  the CLI's own wording; until then the popup is the surface that tells the truth
+  here.
 - **Three hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
   `packages/headerlab/lib/socket.d.mts`, `packages/headerlab/lib/install.d.mts` — because `tests/`
   and `tests/e2e/` import `.mjs` modules from TypeScript and `allowJs` is off. Nothing

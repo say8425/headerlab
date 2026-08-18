@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { rowError } from '@/lib/compile/validate';
+import { useArmed } from '@/lib/view/useArmed';
 import { useCommittedDraft } from '@/lib/view/useCommittedDraft';
 import type { Diagnostic, HeaderRule, HeaderTarget, Operation } from '@/lib/model/types';
 
@@ -113,6 +114,9 @@ export interface RuleCardProps {
 export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: RuleCardProps) {
   const name = useCommittedDraft(rule.name, (next) => onPatch({ name: next }));
   const value = useCommittedDraft(rule.value, (next) => onPatch({ value: next }));
+  // Two clicks for the one write here that nothing can undo — the reasoning
+  // lives in the hook's own docblock, stated once for both delete buttons.
+  const del = useArmed(onDelete);
   const removes = rule.operation === 'remove';
   // The stored name, not `name.draft` — the remove-value sentence is a
   // static readout of what is actually saved, not of what is mid-edit in
@@ -210,9 +214,21 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             block reads as one control that would flip both on one click.
             Built anyway (the owner's call, made knowing the concern), with
             the two-button nature discoverable by all three routes: the
-            `hover:brightness-110` on each half lights only the half under
+            `hover:brightness-95` on each half darkens only the half under
             the cursor, the two `aria-label`s stay unmerged, and each half
             takes focus separately with its own visible ring.
+
+            The hover used to *lighten* (`brightness-110`), and that inverted
+            on the light palette: `--tray` and the badge tints are near-white
+            fills, and brightening them clamps at #ffffff — exactly the
+            card's own colour in light, so the hovered half melted into the
+            row instead of standing apart from it. This gutter's whole
+            discoverability argument is that hover tells you which half you
+            are on; a device that erases the half it should be naming is
+            worse than none. Darkening moves away from the card in both
+            palettes — light's tray drops below the white card, dark's tray
+            is already darker than its card and drops further — so the one
+            device reads correctly everywhere.
 
             **Each half owns its own outer corner** — `rounded-t-[4px]` on
             the direction, `rounded-b-[4px]` on the operation, `rounded-none`
@@ -273,7 +289,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
       <div className="flex w-12 shrink-0 flex-col">
         <Badge
           asChild
-          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-110 ${TARGET_TONE[rule.target]}`}
+          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-95 ${TARGET_TONE[rule.target]}`}
         >
           <button
             type="button"
@@ -312,7 +328,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               box) differs, which is not a font change. */}
         <Badge
           asChild
-          className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-110"
+          className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-95"
         >
           <button
             type="button"
@@ -574,8 +590,18 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                      node. Today's fixtures only seed short values, so this
                      never fires there, but Task 8/9 — which owns that
                      assertion — should know the reason going in rather than
-                     find the symptom. */
-                className={`min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[12px] leading-[18px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-sans placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground${errorDiag ? ' invisible pointer-events-none' : ''}`}
+                     find the symptom.
+
+                     `[overscroll-behavior:contain]` is for the same capped
+                     state: a wheel that reaches this scroller's boundary
+                     used to chain onward to the rule list and drag the row
+                     being edited out from under the cursor. At the boundary
+                     the field is saying "nothing more to show"; containing
+                     the overscroll ends the motion there instead of handing
+                     it to a parent the user was not addressing. Short
+                     values never scroll in here, so nominal rows never
+                     reach it. */
+                className={`min-w-0 max-h-24 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0 font-mono text-[12px] leading-[18px] font-medium text-foreground-2 shadow-none outline-none [field-sizing:content] [overflow-wrap:anywhere] [overscroll-behavior:contain] placeholder:font-sans placeholder:text-[12px] placeholder:font-medium placeholder:text-muted-foreground focus-visible:ring-0 group-data-off/rule:text-muted-foreground${errorDiag ? ' invisible pointer-events-none' : ''}`}
                 placeholder="value"
                 value={value.draft}
                 onChange={(e) => value.setDraft(e.target.value)}
@@ -627,13 +653,17 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
       {/* `variant="ghost"` sets no text colour of its own — it inherits the
             row's full-strength ink, the loudest colour in the row, on the
             control that is destructive. The mockup's `.te-icb` and the old
-            `.hl-del` both wear `--muted-foreground`; this restores that. */}
+            `.hl-del` both wear `--muted-foreground`; this restores that.
+            Armed, the same control borrows `text-destructive` and offers its
+            second click in its name — the box, the icon and the position are
+            the same in both states, which is the whole of how it avoids the
+            Interface rule's forbidden reflow. See `useArmed`. */}
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label="Delete rule"
-        onClick={onDelete}
-        className="text-muted-foreground"
+        aria-label={del.armed ? 'Confirm delete rule' : 'Delete rule'}
+        {...del.controlProps}
+        className={del.armed ? 'text-destructive' : 'text-muted-foreground'}
       >
         <Trash2 />
       </Button>

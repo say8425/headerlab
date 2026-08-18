@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { Ban, CircleCheck, CircleMinus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useArmed } from '@/lib/view/useArmed';
 import type { Diagnostic } from '@/lib/model/types';
 
 export interface SiteRowProps {
@@ -161,10 +163,40 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     (d) => d.kind === 'permission-missing' && d.host !== undefined,
   );
 
+  /**
+   * Focus retention across the Grant button's disappearance.
+   *
+   * The button is the row's only focusable control, and success unmounts it
+   * (the diagnostic clears, the state line takes its place), which drops the
+   * focus to `<body>` — the next Tab starts over from the top of the rail,
+   * and a screen reader reads nothing about the state that just changed. So
+   * when the wait ends, the focus moves to the row itself: reading its name
+   * and state line *is* the confirmation, and the status region says the
+   * rest (App.tsx owns that message).
+   *
+   * The row, never the Remove button — focus placed on a control is an
+   * invitation to press it, and the Enter that follows a confirmed grant
+   * must not delete the site it was granted for. `tabIndex={-1}` keeps this
+   * programmatic slot out of the tab order entirely.
+   */
+  const rowRef = useRef<HTMLDivElement>(null);
+  const wasAwaitingGrant = useRef(false);
+  useEffect(() => {
+    if (wasAwaitingGrant.current && awaitingGrant === undefined) rowRef.current?.focus();
+    wasAwaitingGrant.current = awaitingGrant !== undefined;
+  }, [awaitingGrant]);
+
+  // The other destructive control in the popup, wearing the same two-click
+  // guard the rule row's delete does — one hook, one reasoning
+  // (lib/view/useArmed.ts).
+  const del = useArmed(onRemove);
+
   const Icon = STATE_ICON[state];
 
   return (
     <div
+      ref={rowRef}
+      tabIndex={-1}
       className="flex h-12 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
       data-testid="site"
       data-state={state}
@@ -215,16 +247,24 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
             up under the hostname rather than under that icon, since the icon
             has no counterpart on this line.
 
-            A pending permission is state and remedy, and nothing else. The
-            sentence this replaces spent four lines telling a developer what
-            a Grant button beside a hostname already says; two of them filled
-            the rail. A `?` explaining the button went the same way for the
-            same reason — a help mark on every pending row is a repeated
-            affordance for something nobody was confused by.
+          A pending permission is state and remedy, and nothing else. The
+          sentence this replaces spent four lines telling a developer what a
+          Grant button beside a hostname already says; two of them filled the
+          rail. A `?` explaining the button went the same way for the same
+          reason — a help mark on every pending row is a repeated affordance
+          for something nobody was confused by.
 
-            Never on an unusable row: granting a host that cannot be used
-            changes nothing, so the button would be an action that looks like
-            the remedy and is not. */}
+          Never on an unusable row: granting a host that cannot be used
+          changes nothing, so the button would be an action that looks like
+          the remedy and is not.
+
+          What the row does not say in pixels it says in the button's
+          `title`: the diagnostic's own message, which `audit.ts` composes
+          for exactly this state and which nothing rendered at all before —
+          the one sentence explaining "registered but not applying" was
+          computed and dropped. A `title` is the zero-pixel path: the second
+          line stays empty as decided above, and a pointer that hovers gets
+          the whole explanation. */}
         <span className="flex h-5 items-center pl-5" data-testid="site-line">
           {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
             <Button
@@ -232,6 +272,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
               variant="secondary"
               data-testid="site-pending"
               className={GRANT_BUTTON_CLASS}
+              title={awaitingGrant.message}
               onClick={() => onGrant(awaitingGrant.host!)}
             >
               Grant
@@ -252,13 +293,15 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           the row, on its destructive control, while the identical button on a
           rule row already wears `--muted-foreground`. The mockup's `.te-icb`
           is `--ink-3`; this is that, and it is what makes the two delete
-          buttons one control rather than two. */}
+          buttons one control rather than two. Armed, it borrows
+          `text-destructive` and says so in its name, exactly as the rule
+          row's delete does — same box, same position, second click. */}
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label={`Remove ${domain}`}
-        onClick={onRemove}
-        className="text-muted-foreground"
+        aria-label={del.armed ? `Confirm removal of ${domain}` : `Remove ${domain}`}
+        {...del.controlProps}
+        className={del.armed ? 'text-destructive' : 'text-muted-foreground'}
       >
         <Trash2 />
       </Button>

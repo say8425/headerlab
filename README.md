@@ -95,7 +95,9 @@ read the write as if the site were already live.
 
 Access is asked for per site, on the row that names the site — never as a side effect of
 typing a hostname or flipping a switch. Until you press **Grant**, the row is amber and
-says so:
+says so — and the rail's count refuses to flatter it: rules scoped only to hosts you have
+not granted read **blocked until access is granted** rather than live, and when some hosts
+are granted the count stays honest on both ends ("3 of 4 rules live · 1 site needs access"):
 
 ![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
 

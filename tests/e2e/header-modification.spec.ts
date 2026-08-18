@@ -348,7 +348,16 @@ test('the popup renders its rules from stored state', async ({
   await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
   // The rail's readout is computed from the same compile() the background
   // runs, so it is the popup's own claim about whether the rule is going out.
-  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules liveno problems');
+  // This host is deliberately ungranted — the e2e build's only host
+  // permission is the loopback echo server (see the comment by the Grant
+  // fixtures below) — which is exactly the first screen a new user sees, and
+  // the claim it used to make here ("1 of 1 rules live · no problems") was
+  // false: nothing could match. The tally's access verdict now holds the
+  // rule out of `live` and the subcount names the missing step, beside the
+  // Grant button that is that step.
+  await expect(page.getByTestId('readout')).toHaveText(
+    '0of 1 rules live1 blocked until access is granted',
+  );
 
   await page.close();
 });
@@ -1190,18 +1199,22 @@ test('a control appearing in the rail does not move anything', async ({
   expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
 
   // --- the readout's second line changing ---
-  // Switching the only rule off swaps "no problems" for "1 off" under the big
-  // number. That line sits above the whole rail, so before this guard it moved
-  // the pause bar, the all-sites switch, the site row and the request types
-  // 22.1px at once — from a click on the other side of the popup.
+  // Switching the only rule off swaps the access-blocked clause for "1 off"
+  // under the big number. That line sits above the whole rail, so before this
+  // guard it moved the pause bar, the all-sites switch, the site row and the
+  // request types 22.1px at once — from a click on the other side of the
+  // popup.
   //
   // This guard was briefly deleted, when the healthy state rendered no line at
   // all and the movement it forbids became real. That answer is gone: the line
   // is always present and always says something (ScopeRail.tsx's `subline`
   // docblock records both rejected alternatives), so the promise holds again
   // and is asserted again. What changed is the starting text — an empty box is
-  // no longer one of the states.
-  await expect(subcount).toHaveText('no problems');
+  // no longer one of the states, and this fixture's host is ungranted (the
+  // comment above), so the starting clause is the access one the tally now
+  // owes. Toggling the rule off takes it out of every count but `off`, which
+  // is what makes the swap observable.
+  await expect(subcount).toHaveText('1 blocked until access is granted');
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
   await expect(subcount).toHaveText('1 off');
   expect(await boxes(), 'the subcount changing must move nothing').toEqual(withGrant);
@@ -1666,10 +1679,12 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 26 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //   레일 27 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live",
+  //             subcount "2 off · 7 sites need access")
   //             · Sites 카운트 1 · run state 1("Active")
-  //             · bridge row 1(라벨 "Agent bridge off" — 컨트롤이 스위치가 되면서
-  //               텍스트를 가진 잎이 하나 사라졌다)
+  //             · bridge row 2(보이는 라벨 "Agent bridge" + 캔버스 밖 detail
+  //               span — 스위치의 aria-describedby 가 실제 텍스트를 가리키게
+  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다)
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -1690,10 +1705,22 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 이면 버튼이 없어 26" 이라고 적어두었는데, 이제 버튼 자체가 없으므로 네
   // 상태 모두 26 이고 이 수는 더 이상 상태에 매이지 않는다.
   //
+  // 26 → 27 은 H-3: 스위치의 description 이 라벨이 아니라 실제 텍스트를
+  // 가리키게 하면서 브리지 행에 detail span 이 하나 들어왔다. sr-only 가
+  // 아니라 캔버스 밖 배치(OFFCANVAS_TEXT)인 것도 이 테스트 때문이다 —
+  // 1px 클립 숨김은 자기 상자를 넘치는 글자라서 바로 아래 1a 가 잡는다.
+  // detail span 은 상태마다 길이가 달라지지만 잎 하나로 세는 지표에는
+  // 상태 무관 +1 이다. (알림 채널의 status span 은 비어 있으면 글자가
+  // 없어 세지 않는다 — 이 페이지는 아무 것도 공지하지 않는다.)
+  //
+  // subcount 가 "2 off · 7 sites need access" 로 늘어난 것은 잎 수와
+  // 무관하다(문장은 여전히 한 개의 span 잎)지만 길이 예산과 관계가 있으므로
+  // 위 구성에 적어둔다.
+  //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 26,
+    rail: 27,
     panel: 12,
   });
 

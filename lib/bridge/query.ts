@@ -78,6 +78,13 @@ export function status(state: AppState): StatusPayload {
     // 대한 거짓 문장이 사람에게 닿는다. 빈 화면 얘기가 아니다: `createProfile`
     // 은 새 규칙 세트를 **일부러** 스코프 없이 만들므로, 갓 설치한 확장에
     // `rule add` 를 `site add` 보다 먼저 치면 바로 이 상태다.
+    //
+    // 넷째 항인 `access` 는 여기서 답하지 않는다: 이 payload 는 동기적으로
+    // 만들어지고 권한 조사(probe)는 비동기라, 답을 기다리려면 소켓 핸들러
+    // 전체가 바뀌어야 한다. 비워 두면 "묻지 않았다" 는 뜻이지 "허가됐다" 는
+    // 뜻이 아니므로(Access 의 docblock 참조), 권한 없는 호스트에 대해
+    // `tally.live` 는 팝업이 고치기 전과 같은 값을 그대로 말한다 — CLAUDE.md
+    // 의 Known gaps 가 이 갭을 기록한다.
     tally: profile
       ? ruleTally(profile.headers, profile.id, routed.byRow, {
           live: profile.enabled && !state.globalPause && !isSuppressed(profile),
