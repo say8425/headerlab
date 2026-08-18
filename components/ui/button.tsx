@@ -18,6 +18,9 @@ const buttonVariants = cva(
           'hover:bg-tray hover:text-foreground aria-expanded:bg-tray aria-expanded:text-foreground dark:hover:bg-tray/50',
         destructive:
           'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40',
+        // The palette's "something needs you" pair as a solid fill — the
+        // remedy a pending row offers. Named for the state, like its tokens.
+        pending: 'bg-pending-bg text-pending hover:bg-pending-bg/80',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

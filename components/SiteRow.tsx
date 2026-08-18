@@ -109,16 +109,17 @@ const STATE_LINE_TONE: Record<RowState, string> = {
  * "All-sites reaches the same state, so it must offer the same remedy rather
  * than a second vocabulary" (CLAUDE.md, No silent failures) — a pending site
  * and an on-but-ungranted all-sites mode are the same fact (waiting on the
- * same kind of permission), so both wear the plain shadcn `secondary` button
- * at the `xs` size with nothing painted over it. It used to carry an amber
- * custom class; the state's amber now lives where it already was — the row's
- * glyph and the readout's clause — and the button is the standard control
- * rather than a one-off. The standard `xs` is 24px, which is why the second
- * line reserves `h-6` below: the line is sized to the tallest thing it can
- * hold, and that is this button.
+ * same kind of permission), so both wear the same button: the standard shadcn
+ * Button at the `xs` size, in the `pending` variant that carries the palette's
+ * amber — this palette's "something needs you", the same tone the row's glyph
+ * and the readout's clause already wear. A neutral button next to an amber
+ * row asked the reader to do the colour maths; the remedy now wears the state
+ * it answers. The `xs` size is 24px, which is why the second line reserves
+ * `h-6` below: the line is sized to the tallest thing it can hold, and that
+ * is this button.
  */
 export const GRANT_BUTTON_PROPS = {
-  variant: 'secondary',
+  variant: 'pending',
   size: 'xs',
 } as const;
 
