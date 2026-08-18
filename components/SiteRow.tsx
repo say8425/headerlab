@@ -103,24 +103,24 @@ const STATE_LINE_TONE: Record<RowState, string> = {
 } as const;
 
 /**
- * The Grant button's classes, exported so `ScopeRail`'s all-sites bar can use
- * the exact same ones for its own Grant button.
+ * The Grant button's shape, stated once because two rows render it — this
+ * one and `ScopeRail`'s all-sites bar.
  *
  * "All-sites reaches the same state, so it must offer the same remedy rather
  * than a second vocabulary" (CLAUDE.md, No silent failures) — a pending site
  * and an on-but-ungranted all-sites mode are the same fact (waiting on the
- * same kind of permission), so one class string shared by both call sites is
- * what makes that promise hold by construction instead of by two people
- * remembering to keep two copies in sync.
- *
- * `hover:bg-pending-bg` is not decorative: shadcn's `secondary` variant ships
- * `hover:bg-tray/80`, and `bg-pending-bg` above only overrides the base
- * (unprefixed) utility — `twMerge` treats a `hover:`-prefixed class as a
- * different group, so without this the button's fill would flash grey on
- * hover. Verified in the built CSS.
+ * same kind of permission), so both wear the plain shadcn `secondary` button
+ * at the `xs` size with nothing painted over it. It used to carry an amber
+ * custom class; the state's amber now lives where it already was — the row's
+ * glyph and the readout's clause — and the button is the standard control
+ * rather than a one-off. The standard `xs` is 24px, which is why the second
+ * line reserves `h-6` below: the line is sized to the tallest thing it can
+ * hold, and that is this button.
  */
-export const GRANT_BUTTON_CLASS =
-  'h-5 rounded-[4px] bg-pending-bg text-pending hover:bg-pending-bg';
+export const GRANT_BUTTON_PROPS = {
+  variant: 'secondary',
+  size: 'xs',
+} as const;
 
 export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
@@ -197,7 +197,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     <div
       ref={rowRef}
       tabIndex={-1}
-      className="flex h-12 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+      className="flex h-[52px] items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
       data-testid="site"
       data-state={state}
     >
@@ -265,13 +265,11 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           computed and dropped. A `title` is the zero-pixel path: the second
           line stays empty as decided above, and a pointer that hovers gets
           the whole explanation. */}
-        <span className="flex h-5 items-center pl-5" data-testid="site-line">
+        <span className="flex h-6 items-center pl-5" data-testid="site-line">
           {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
             <Button
-              size="xs"
-              variant="secondary"
+              {...GRANT_BUTTON_PROPS}
               data-testid="site-pending"
-              className={GRANT_BUTTON_CLASS}
               title={awaitingGrant.message}
               onClick={() => onGrant(awaitingGrant.host!)}
             >
@@ -293,15 +291,26 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           the row, on its destructive control, while the identical button on a
           rule row already wears `--muted-foreground`. The mockup's `.te-icb`
           is `--ink-3`; this is that, and it is what makes the two delete
-          buttons one control rather than two. Armed, it borrows
-          `text-destructive` and says so in its name, exactly as the rule
-          row's delete does — same box, same position, second click. */}
+          buttons one control rather than two.
+
+          Armed has to be *seen*, not inferred: a 12px glyph changing ink is
+          invisible at a glance, which is how a two-click guard reads as "the
+          button is broken". The armed state paints the box — shadcn's own
+          `destructive` fill tokens, `bg-destructive/10` — so the control
+          visibly changes state while its geometry does not, and the title
+          says what the second click does for a pointer that hovers. Same
+          shape as the rule row's delete, one hook (useArmed). */}
       <Button
         variant="ghost"
         size="icon-xs"
         aria-label={del.armed ? `Confirm removal of ${domain}` : `Remove ${domain}`}
+        title={del.armed ? `Click again to remove ${domain}` : undefined}
         {...del.controlProps}
-        className={del.armed ? 'text-destructive' : 'text-muted-foreground'}
+        className={
+          del.armed
+            ? 'bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive'
+            : 'text-muted-foreground'
+        }
       >
         <Trash2 />
       </Button>

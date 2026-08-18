@@ -1463,6 +1463,9 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 것이 이 단언의 존재 이유다. 36 은 여전히 목록이 완전히 접히지 않고 한
   // 행의 일부(48 중 36)를 보여주며 listScrolls: true 로 남아 있어, "목록만
   // 양보하고 이웃은 그대로"라는 이 단언의 주제를 여전히 보여준다.
+  // (그 뒤 55 를 거쳐 51: AddSiteField 의 예약 줄이 사라지며 48 행이 되고,
+  // 다시 표준 xs Grant 를 위한 all-sites 바의 4px 로 51 이 되었다. 아래의
+  // 정확값 단언이 현재 값이다.)
   const underPressure = await unusablePage.evaluate(() => {
     const rail = document.querySelector('aside')!;
     const list = document.querySelector('[data-testid="site-list"]')!;
@@ -1478,10 +1481,14 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // above this list, so the list — the only child allowed to give way — is
   // what gets them back. Under the same pressure it now shows more, which is
   // the direction this assertion exists to protect.
+  // 55 -> 51: the all-sites bar's reserved second line grew h-5 -> h-6 for
+  // the standard shadcn `xs` Grant (24px), so 4px of fixed rail content above
+  // the list comes out of the list again. Same direction, smaller figure —
+  // re-measured, not derived.
   expect(underPressure).toEqual({
     notes: 1,
     railScrolls: false,
-    listHeight: 55,
+    listHeight: 51,
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
@@ -1590,7 +1597,9 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     new Set(['granted', 'pending', 'unusable']),
   );
   expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
-  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
+  // 48 -> 52: 행의 예약 둘째 줄이 h-5 -> h-6 (표준 shadcn xs Grant 의 24px 에
+  // 맞춘 것 — 줄은 자기가 담을 수 있는 가장 큰 것에 사이즈를 맞춘다).
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([52]));
 
   // Grant 버튼이 그 띠 안에 온전히 들어간다.
   const grantFits = await page.evaluate(() => {
@@ -1727,8 +1736,9 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
   //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
-  //     피치(48 + 6 = 54)의 정수배가 **아니게** 잡혀 있고, 이것이 그 선택을
-  //     직접 재는 단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
+  //     피치(52 + 6 = 58, 2026-08-18 의 행 높이부터)의 정수배가 **아니게**
+  //     잡혀 있고, 이것이 그 선택을 직접 재는 단언이다 — 정수배로 바꾸면
+  //     잘린 행이 사라져 빨개진다.
   //
   //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다

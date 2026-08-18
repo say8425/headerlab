@@ -67,15 +67,29 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           element because the e2e layout guard measures *this* box — an outer
           div carrying the border while the input sat inside it, padded
           smaller, would measure a rectangle the user never sees as "the
-          control". The icon is the one piece that cannot live on the input
-          itself, so it is positioned over it from a `relative` wrapper that
-          adds no border, padding or margin of its own — it does not change
-          what the input's own rect is. */}
+          control". The plus cannot live on the input itself, so it is
+          positioned over it from a `relative` wrapper that adds no border,
+          padding or margin of its own — it does not change what the input's
+          own rect is.
+
+          The plus is a control, not a decoration: clicking it does exactly
+          what Enter does (`add`), because a glyph sitting inside a field
+          reads as part of the field's behaviour and a click that does
+          nothing is a button that lies. Shaped like the `?` help trigger in
+          the section heading above (20px box, 14px glyph, tone on hover)
+          rather than a shadcn Button — it is an overlay on the input's own
+          geometry, and the standard sizes would move what the layout guard
+          measures. `cursor-pointer` because a Chromium button's default
+          arrow says "not clickable" at a glance. */}
       <div className="relative">
-        <Plus
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-foreground-2"
-        />
+        <button
+          type="button"
+          aria-label="Add the typed site"
+          onClick={add}
+          className="absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-[4px] text-foreground-2 hover:text-foreground"
+        >
+          <Plus aria-hidden="true" className="size-3.5" />
+        </button>
         <Input
           aria-label="Add a site"
           data-testid="add-field"

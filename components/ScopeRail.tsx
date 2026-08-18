@@ -1,6 +1,6 @@
 import { ArrowUpDown, CircleHelp, Globe } from 'lucide-react';
 import { AddSiteField, type AddSiteResult } from './AddSiteField';
-import { GRANT_BUTTON_CLASS, SiteRow } from './SiteRow';
+import { GRANT_BUTTON_PROPS, SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -134,7 +134,7 @@ const NOTE_CLASS =
  * palette, not the same size. The two inside the readout card (run state and
  * bridge) are `sm`, because that card's rows are 20px and a 14px control sits
  * inside one without crowding the label; the all-sites switch keeps the
- * default 18.4px, since it heads a 48px section rather than a readout line.
+ * default 18.4px, since it heads a 60px section rather than a readout line.
  */
 const SWITCH_CLASS = 'data-checked:bg-live [&_[data-slot=switch-thumb]]:dark:bg-white';
 
@@ -808,7 +808,7 @@ export function ScopeRail({
             made the empty list mean two things in the first place. */}
 
         <div
-          className="mx-3 flex h-14 shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
+          className="mx-3 flex h-[60px] shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
           data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
@@ -843,7 +843,8 @@ export function ScopeRail({
             </div>
 
             {/* The second line, reserved in every state and sized to the
-                tallest thing it can hold — the Grant button — exactly as a
+                tallest thing it can hold — the Grant button, which is the
+                shadcn `xs` height this line's `h-6` reserves — exactly as a
                 site row's is. The mode being on and the access being missing
                 is *said* here rather than left to a tint, in the same words a
                 pending site row uses, because it is the same state.
@@ -855,14 +856,9 @@ export function ScopeRail({
                 switch moving. Every way of reaching this state — turning the
                 mode on, declining once, or a store migrated from a build that
                 never asked — therefore arrives at the same button. */}
-            <span className="flex h-5 items-center pl-5">
+            <span className="flex h-6 items-center pl-5">
               {allSitesState === 'pending' ? (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  className={GRANT_BUTTON_CLASS}
-                  onClick={onGrantAllSites}
-                >
+                <Button {...GRANT_BUTTON_PROPS} onClick={onGrantAllSites}>
                   Grant
                 </Button>
               ) : (
@@ -902,14 +898,15 @@ export function ScopeRail({
             there, not in use — and each row says so on its own second line.
 
             The height stops at 127px, which is deliberately NOT a multiple of
-            the 54px row pitch: two rows and the gap after them are 108px and
-            three are 156px, so a third site leaves that row cut across the
-            middle — 19px of 48, not the wider 24px an unpressured rail
-            could afford — and the cut row is the affordance saying the list
-            continues regardless of exactly how much of it shows. 156 or 162
+            the row pitch — 58px since the rows grew to 52 for the standard
+            `xs` Grant (two rows and the gap after them are 110px, three are
+            168px), so a third site leaves that row cut across the middle —
+            17px of 52 — and the cut row is the affordance saying the list
+            continues regardless of exactly how much of it shows. 110 or 168
             would each show a whole number of rows and say nothing; nor would
-            108, which is why the cap sits above two full rows rather than at
-            them. The reference mockup capped the list at a fixed 176px, which
+            116 (two 58px pitches), which is why the cap sits above two full
+            rows rather than at them. The reference mockup capped the list at
+            a fixed 176px, which
             this does not copy — a hard cap opens a hole between the last site
             and everything below it when there are only one or two.
             `max-height` lets the list be as tall as it has content for, and

@@ -128,7 +128,13 @@ describe('RulePanel', () => {
     const second = screen.getAllByTestId('rule')[1]!;
     await userEvent.click(within(second).getByRole('button', { name: 'Delete rule' }));
     expect(onDeleteRule).not.toHaveBeenCalled();
-    await userEvent.click(within(second).getByRole('button', { name: 'Confirm delete rule' }));
+    // Armed is a visible state, not an implied one: a 12px glyph changing ink
+    // is invisible at a glance, so the box itself paints with the destructive
+    // fill — pinned here because that visibility is the whole point of the
+    // two-click guard.
+    const armed = within(second).getByRole('button', { name: 'Confirm delete rule' });
+    expect(armed.className).toContain('bg-destructive/10');
+    await userEvent.click(armed);
     expect(onDeleteRule).toHaveBeenCalledTimes(1);
     expect(onDeleteRule).toHaveBeenCalledWith('b');
   });

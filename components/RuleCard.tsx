@@ -610,9 +610,16 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                   // Shift+Enter keeps the newline; a bare Enter is a commit —
                   // the same bargain the pre-mockup value editor struck, and
                   // the reason it is a textarea rather than an input again.
+                  // Enter also leaves the field: a commit is the end of an
+                  // edit, and a caret still sitting in a committed value
+                  // invites typing that restarts the cycle the key was meant
+                  // to close. The blur re-fires `commit`, which is a no-op
+                  // for an already-sent draft (`useCommittedDraft` guards on
+                  // what it last sent).
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     value.commit();
+                    e.currentTarget.blur();
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
                     value.cancel();
@@ -654,16 +661,23 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             row's full-strength ink, the loudest colour in the row, on the
             control that is destructive. The mockup's `.te-icb` and the old
             `.hl-del` both wear `--muted-foreground`; this restores that.
-            Armed, the same control borrows `text-destructive` and offers its
-            second click in its name — the box, the icon and the position are
-            the same in both states, which is the whole of how it avoids the
-            Interface rule's forbidden reflow. See `useArmed`. */}
+            Armed has to be *seen*, not inferred from a 12px glyph changing
+            ink: the state paints the box with shadcn's own `destructive`
+            fill tokens, the title says what the second click does, and the
+            box, the icon and the position are the same in both states —
+            which is the whole of how it avoids the Interface rule's
+            forbidden reflow. See `useArmed`. */}
       <Button
         variant="ghost"
         size="icon-xs"
         aria-label={del.armed ? 'Confirm delete rule' : 'Delete rule'}
+        title={del.armed ? 'Click again to delete this rule' : undefined}
         {...del.controlProps}
-        className={del.armed ? 'text-destructive' : 'text-muted-foreground'}
+        className={
+          del.armed
+            ? 'bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive'
+            : 'text-muted-foreground'
+        }
       >
         <Trash2 />
       </Button>

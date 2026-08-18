@@ -632,6 +632,25 @@ describe('adding a site', () => {
     expect(field()).toHaveProperty('value', '');
   });
 
+  it('adds from the + inside the field, and asks for nothing when it is empty', async () => {
+    // The plus used to be an `aria-hidden` glyph with `pointer-events-none`
+    // — a mark shaped like a button that did nothing, which is worse than no
+    // mark. It is the field's submit now, and the empty-field half is the
+    // same promise Enter makes: blank input is dropped, not appended.
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
+    renderRail({ onAddDomain });
+    const plus = screen.getByRole('button', { name: 'Add the typed site' });
+    expect(plus.className).toContain('cursor-pointer');
+    await userEvent.click(plus);
+    expect(onAddDomain).not.toHaveBeenCalled();
+
+    await userEvent.type(field(), 'api.example.com');
+    await userEvent.click(plus);
+    expect(onAddDomain).toHaveBeenCalledTimes(1);
+    expect(onAddDomain).toHaveBeenCalledWith('api.example.com');
+    expect(field()).toHaveProperty('value', '');
+  });
+
   it('adds on blur, for a domain typed and then clicked away from', async () => {
     const onAddDomain = vi.fn(() => ({ added: true as const }));
     renderRail({ onAddDomain });

@@ -839,15 +839,17 @@ day and wrongly against the tree three commits later; it is 127px again. Re-meas
 with that design file's `measure()` before spending any figure below — each has moved
 on reasoning that was sound when written.
 
-**The 13px is one row of a table, not a property of the rail.** A single number was
+**The leftover is one row of a table, not a property of the rail.** A single number was
 wrong four times for the same reason every time: the leftover depends on what else is
 on screen, and a figure quoted without its state gets read in the state it was not
-measured in. Measured in the built popup at four saved sites (2026-08-17, headed):
+measured in. Measured in the built popup at four saved sites (2026-08-17, headed;
+re-derived 2026-08-18 when the all-sites bar grew 4px for the standard shadcn `xs`
+Grant — every leftover and note-state list figure moved down 4px with it):
 
 | state of the rail                                  | site list | real leftover |
 | -------------------------------------------------- | --------- | ------------- |
-| no notes above the list                            | 127px     | **13px**      |
-| one error note (`sync-error` or `icon-error`)      | ~47–65px  | **0px**       |
+| no notes above the list                            | 127px     | **9px**       |
+| one error note (`sync-error` or `icon-error`)      | ~43–61px  | **0px**       |
 | both error notes                                   | 0px       | **0px**       |
 
 Under the states that read 0, the shortfall was paid by *overprinting* — the section's
@@ -1086,7 +1088,8 @@ that no longer renders, passing while describing nothing.
   four saved sites *at the time*: the site list's cap is 127px with neither note showing,
   65px with only `sync-error`, 34px with only `icon-error`, and 0px with both — the
   user's saved sites pushed off screen by an error message about something else. The
-  13px softens those three figures without changing the shape of the problem, and they
+  leftover those freed (13px then, 9px since the `xs` Grant re-measure) softens those
+  three figures without changing the shape of the problem, and they
   have not been re-measured since. **A third offender joined them**: `AddSiteField`'s
   duplicate-site note is now created rather than reserved, so it too costs the list
   ~21px when it appears. That one is bounded — it is guaranteed one line, asserted in

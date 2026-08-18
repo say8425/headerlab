@@ -358,14 +358,16 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['row state line, granted', '--live', '--card'],
   ['row state line, unusable', '--destructive', '--card'],
   ['row state line, not in use — All sites is on', '--muted-foreground', '--card'],
-  // The Grant button (shadcn Button, `secondary` variant, size `xs`) wears the
-  // same pale fill/ink pair as the mockup's `.te-btn--subtle` and as the
-  // all-sites bar's own ungranted label two rows up — the same state gets the
-  // same vocabulary everywhere it appears.
+  // The Grant button is the plain shadcn Button, `secondary` variant, size
+  // `xs`, shared by the site row and the all-sites bar — the standard
+  // fill/ink pair the well behind the rule rows already pins two entries
+  // below, stated here too because this is the one button whose subject is
+  // access. The amber that used to paint it lives on the row's glyph and
+  // the readout's clause; the remedy itself is deliberately uncoloured.
   [
-    'Grant button label — Button secondary, shared by the site row and the all-sites bar (SiteRow.GRANT_BUTTON_CLASS)',
-    '--pending',
-    '--pending-bg',
+    'Grant button label — Button secondary, shared by the site row and the all-sites bar (GRANT_BUTTON_PROPS)',
+    '--foreground',
+    '--tray',
   ],
   ['the ? mark — the CircleHelp beside the SITES heading', '--muted-foreground', '--rail'],
   // Two elements, one pairing: the tooltip's own surface (shadcn's
