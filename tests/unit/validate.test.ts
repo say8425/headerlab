@@ -139,6 +139,11 @@ describe('validateHeaders', () => {
     expect(d[0]?.kind).toBe('duplicate-header');
     // Flags the later of two rows touching the same header.
     expect(d[0]?.headerRuleId).toBe('b');
+    // The direct wording, pinned: a validation error reads like one — the
+    // fact, in the voice every form the reader has filled in uses. And
+    // "declared" specifically, never "set": the earlier row could be any
+    // operation, and this message must not claim one (see validate.ts).
+    expect(d[0]?.message).toBe('Already declared.');
   });
 
   it('does not call the same name on different targets a duplicate', () => {

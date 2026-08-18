@@ -141,26 +141,26 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // out, deterministically, by list order rather than by Chrome's own
         // unspecified resolution between two conflicting entries.
         //
-        // Remedy first (Task 13), same reasoning as the other two error
-        // messages in this file: what to do about it survives truncation,
-        // not just the fact that something is wrong.
+        // "Already declared", owner's wording (2026-08-18): a validation
+        // error should read like one — the fact first, in the voice every
+        // form the reader has ever filled in uses. This replaces "Rename or
+        // delete. An earlier row uses this header.", which led with the
+        // remedy on the truncation argument (Task 13); the owner chose the
+        // direct statement over that convention, and the remedy a reader
+        // needs here is the obvious one — the row is a duplicate, and the
+        // row itself is what they are looking at.
         //
-        // "already touches", not "already sets" — a re-review caught the
-        // earlier wording naming an operation this code never checks.
-        // `seen` stores only the `target name` key, never which operation
-        // the earlier row used, so the earlier row could be `append` or
-        // `remove` just as easily as `set`; saying "sets" was a claim about
-        // something this function does not know. `detectConflicts` faces the
-        // identical shape of fact and names it `firstToucher`
-        // (`lib/compile/conflicts.ts`) — that function *can* say which
-        // operation, since it holds the earlier rule and composes `already
-        // ${operation}s`, a message this one has no way to write (there is
-        // no earlier rule here, only a key that already occurred). "touches"
-        // is not quoted from that message — no message anywhere uses the
-        // word — it echoes the *concept* `firstToucher` names, chosen so a
-        // reader who has seen one already recognises the other rather than
-        // parsing a second verb for the same fact.
-        message: 'Rename or delete. An earlier row uses this header.',
+        // "declared", never "set": the earlier wording debate ("uses", not
+        // "sets") survives in adapted form. `seen` stores only the
+        // `target name` key, never which operation the earlier row used, so
+        // the earlier row could be `append` or `remove` just as easily as
+        // `set`; "declared" makes no claim about an operation, the same way
+        // "uses" did not. `detectConflicts` faces the identical shape of
+        // fact and names it `firstToucher` (`lib/compile/conflicts.ts`) —
+        // that function *can* say which operation, since it holds the
+        // earlier rule and composes `already ${operation}s`, a message this
+        // one has no way to write.
+        message: 'Already declared.',
       });
     }
     seen.add(key);
