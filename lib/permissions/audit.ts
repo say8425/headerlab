@@ -70,9 +70,12 @@ export function auditDiagnostics(
         severity: 'warning',
         profileId: profile.id,
         host,
-        message:
-          `HeaderLab needs permission for ${host}. ` +
-          'The rule is registered but will not apply until you grant it.',
+        // Direct, owner's wording (2026-08-18): the fact, bare. This text
+        // renders as the Grant button's `title` and nowhere else — the
+        // button beside it is the remedy, and since the readout learned
+        // about access its own sentence ("blocked until access is granted")
+        // says what the old second clause spent sixteen words on.
+        message: `Needs permission for ${host}.`,
       });
     }
   }

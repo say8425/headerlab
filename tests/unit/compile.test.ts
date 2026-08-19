@@ -348,9 +348,7 @@ describe('compile emits diagnostics', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
-          'No rule is applied until every site here is usable.',
+        message: 'Unusable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
   });
@@ -441,9 +439,7 @@ describe('compile emits diagnostics', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p0',
-        message:
-          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
     // And the half the diagnostics were lying about: P1 compiles and survives.
@@ -472,9 +468,7 @@ describe('compile emits diagnostics', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
   });

@@ -28,10 +28,12 @@ export interface Armed {
  *
  * **Arming changes appearance, not geometry** — the form the Interface rule
  * asks to look for first. The control keeps its exact box and position;
- * what follows the state is colour and the accessible name, so the second
- * click is offered in words ("Confirm…") rather than by the box growing a
- * twin beside it. A confirm dialog would move the interface; a second
- * inline button would change the row's width. Neither survives the rule.
+ * what follows the state is the fill, the colour and the accessible name,
+ * so the second click is offered in words ("Confirm…") and in a visibly
+ * different box rather than by the box growing a twin beside it. A confirm
+ * dialog would move the interface; a second inline button would change the
+ * row's width. Neither survives the rule. (The callers own the paint — the
+ * hook owns only the arming itself.)
  *
  * **Blur disarms, and that covers more than it seems.** An armed control
  * left armed is a trap laid for whoever presses Enter next, so it must

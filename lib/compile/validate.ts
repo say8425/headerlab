@@ -83,7 +83,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'incomplete',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: 'No name yet, so nothing is sent.',
+        // Direct, owner's wording (2026-08-18): the fact, bare. This message
+        // never renders on the row anyway — an unfinished row stays quiet and
+        // the rail's "N unfinished" carries the state — so "so nothing is
+        // sent" was narration with no audience.
+        message: 'No name.',
       });
       continue;
     }
@@ -94,12 +98,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        // Remedy first (Task 13): this renders truncated at ~338px/11px when
-        // it takes over a rule row's value line, same as every other
-        // bounded-row-meets-unbounded-text spot in this popup, and the tail
-        // is what gets cut. The character set the user can actually act on
-        // has to survive that; the fact of the failure is what can afford to.
-        message: 'Not a valid header name — no spaces or colons.',
+        // The character set the user can actually act on is what has to
+        // survive the truncation of a rule row's value line; the fact of
+        // the failure is what can afford to be cut. "Invalid", not "Not a
+        // valid" — the same fact in the voice a validation error uses.
+        message: 'Invalid header name — no spaces or colons.',
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.

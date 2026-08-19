@@ -75,18 +75,18 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       // legitimate — but that advice was only ever true in regex mode, and in
       // structured mode an empty list is now its own suppressed state, so
       // following it would move the profile from one silence to another.
-      // States the cause, then the remedy. The version this replaces named
-      // only the consequence — "the whole profile is not applied" — which
-      // leaves a user who pasted something reasonable with nothing to act on.
-      // "Profile" is gone from the wording too: the UI has one implicit rule
-      // set and no profiles, so the word named something the reader cannot
-      // see. The internal `profileId` is untouched.
+      // Direct, owner's wording (2026-08-18): the bad value, then the rule.
+      // The consequence trailing each branch used to say "no rule is applied
+      // until…" — which is the readout's own sentence ("blocked by an
+      // unusable site") and the note's own border colour; naming it here was
+      // the note repeating the screen. "Profile" is gone from the wording
+      // too: the UI has one implicit rule set and no profiles, so the word
+      // named something the reader cannot see. The internal `profileId` is
+      // untouched.
       message: anyValid
         ? `${bad.length === 1 ? 'Unusable site' : 'Unusable sites'}: ${bad.join(', ')}. ` +
-          'A site must be a bare hostname like example.com. ' +
-          'No rule is applied until every site here is usable.'
-        : `No usable site: ${bad.join(', ')}. Use a bare hostname like example.com. ` +
-          'Nothing is applied while every site is unusable.',
+          'Use a bare hostname like example.com.'
+        : `No usable site: ${bad.join(', ')}. Use a bare hostname like example.com.`,
     });
   }
 
@@ -131,8 +131,11 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // these rules apply, so they do not apply. It still has to reach the screen
   // — "never suppress without saying so" holds however ordinary the cause —
   // but it is said calmly and not warned about, because nothing here is wrong
-  // or at risk. Nothing is happening, which is the safe direction, and the two
-  // ways out are named rather than implied.
+  // or at risk. Direct, owner's wording (2026-08-18): the fact, bare. The
+  // consequence ("so nothing is being applied") is the readout's own sentence
+  // now — "N blocked until a site is set" — and the two ways out are the two
+  // controls sitting around the note (the field above, the All-sites switch),
+  // so naming them here was the note doing its neighbours' narration.
   //
   // The standing warning this replaces said the opposite ("these rules apply
   // everywhere"), and it was accurate: with no way to declare all-sites, an
@@ -145,9 +148,7 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       kind: 'no-scope',
       severity: 'incomplete',
       profileId: profile.id,
-      message:
-        'No site set yet, so nothing is being applied. ' +
-        'Add a site above, or turn on All sites.',
+      message: 'No site set.',
     });
   }
 

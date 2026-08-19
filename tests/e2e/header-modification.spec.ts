@@ -1487,10 +1487,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // the standard shadcn `xs` Grant (24px), so 4px of fixed rail content above
   // the list comes out of the list again. Same direction, smaller figure —
   // re-measured, not derived.
+  // 51 -> 82: the *pressure itself* got smaller. The unusable-site note's
+  // copy went direct ("Unusable sites: … Use a bare hostname like
+  // example.com.", the consequence clause dropped — the readout says it), so
+  // the note wraps to fewer lines in the 194px rail and the list takes the
+  // ~31px back. Copy length is rail pressure; this assertion measures both.
   expect(underPressure).toEqual({
     notes: 1,
     railScrolls: false,
-    listHeight: 51,
+    listHeight: 82,
     listScrolls: true,
   });
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);

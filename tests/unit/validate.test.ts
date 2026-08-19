@@ -106,7 +106,7 @@ describe('validateHeaders', () => {
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('invalid-header-name');
     expect(d[0]?.severity).toBe('error');
-    expect(d[0]?.message).toBe('Not a valid header name — no spaces or colons.');
+    expect(d[0]?.message).toBe('Invalid header name — no spaces or colons.');
   });
 
   it('accepts a name that only needs trimming, matching what the compiler emits', () => {

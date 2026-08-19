@@ -88,7 +88,7 @@ describe('App', () => {
     render(<App />);
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Invalid header name/.test(el.textContent ?? ''))).toBe(true);
     const notes = screen.queryAllByTestId('scope-note');
     expect(notes.some((el) => /not a valid header name/.test(el.textContent ?? ''))).toBe(false);
   });
@@ -934,7 +934,7 @@ describe('a rule that has not been named yet', () => {
     await userEvent.tab();
 
     const problems = await screen.findAllByTestId('rule-problem');
-    expect(problems.some((el) => /Not a valid header name/.test(el.textContent ?? ''))).toBe(true);
+    expect(problems.some((el) => /Invalid header name/.test(el.textContent ?? ''))).toBe(true);
   });
 
   it('is not live, because the compiler emits nothing for it', async () => {
@@ -1280,9 +1280,7 @@ describe('all-sites mode', () => {
     expect(readout()).toBe('0of 2 rules live2 blocked until a site is set');
     expect(screen.getByTestId('site-count').textContent).toBe('0');
     expect(screen.getByTestId('scope-note').getAttribute('data-severity')).toBe('incomplete');
-    expect(screen.getByTestId('scope-note').textContent).toBe(
-      'No site set yet, so nothing is being applied. Add a site above, or turn on All sites.',
-    );
+    expect(screen.getByTestId('scope-note').textContent).toBe('No site set.');
     cleanup();
 
     // off + some: ordinary scoped operation, nothing to report.

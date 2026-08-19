@@ -26,9 +26,10 @@ describe('validateFilter', () => {
         kind: 'no-scope',
         severity: 'incomplete',
         profileId: 'p1',
-        message:
-          'No site set yet, so nothing is being applied. ' +
-          'Add a site above, or turn on All sites.',
+        // The fact, bare: the consequence is the readout's sentence
+        // ("blocked until a site is set") and the two ways out are the two
+        // controls around the note.
+        message: 'No site set.',
       },
     ]);
   });
@@ -49,9 +50,7 @@ describe('validateFilter', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
   });
@@ -132,9 +131,7 @@ describe('validateFilter', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
-          'No rule is applied until every site here is usable.',
+        message: 'Unusable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
   });
@@ -147,8 +144,7 @@ describe('validateFilter', () => {
     );
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
-      'Unusable sites: "x y.net", "a b.com". A site must be a bare hostname like example.com. ' +
-        'No rule is applied until every site here is usable.',
+      'Unusable sites: "x y.net", "a b.com". Use a bare hostname like example.com.',
     );
   });
 
@@ -231,9 +227,7 @@ describe('validateFilter', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com", "x y.net". Use a bare hostname like example.com.',
       },
     ]);
   });
