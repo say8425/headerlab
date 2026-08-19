@@ -1487,17 +1487,26 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // the standard shadcn `xs` Grant (24px), so 4px of fixed rail content above
   // the list comes out of the list again. Same direction, smaller figure —
   // re-measured, not derived.
-  // 51 -> 82: the *pressure itself* got smaller. The unusable-site note's
-  // copy went direct ("Unusable sites: … Use a bare hostname like
+  // 51 -> smaller: the *pressure itself* got smaller. The unusable-site
+  // note's copy went direct ("Unusable sites: … Use a bare hostname like
   // example.com.", the consequence clause dropped — the readout says it), so
   // the note wraps to fewer lines in the 194px rail and the list takes the
-  // ~31px back. Copy length is rail pressure; this assertion measures both.
-  expect(underPressure).toEqual({
-    notes: 1,
-    railScrolls: false,
-    listHeight: 82,
-    listScrolls: true,
-  });
+  // lines back. Copy length is rail pressure.
+  //
+  // A range, not a figure: this value depends on how many lines the note's
+  // text wraps to, and that differs by one line between the headed macOS
+  // run and CI's Linux fallback fonts (82 local, 66 on CI — one 15.2px
+  // line, the same font-metric divergence the width guard's own comment
+  // records). The earlier exact figures (55, 51) were latently just as
+  // dependent; the shorter copy simply landed nearer a wrap boundary and
+  // made it visible. What this assertion owns is *which element yields* —
+  // the list, not the rail, with exactly one note as the pressure — and
+  // both platforms sit inside the bound with a margin on either side.
+  expect(underPressure.notes).toBe(1);
+  expect(underPressure.railScrolls).toBe(false);
+  expect(underPressure.listScrolls).toBe(true);
+  expect(underPressure.listHeight).toBeGreaterThanOrEqual(60);
+  expect(underPressure.listHeight).toBeLessThanOrEqual(90);
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
 
   // readout 의 두 번째 줄은 넘칠 때 잘리는 대신 줄임표로 끊고, 문장 전체는
