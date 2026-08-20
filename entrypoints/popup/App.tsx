@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
-import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
+import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { domainsToAudit, auditDiagnostics } from '@/lib/permissions/audit';
@@ -32,8 +32,14 @@ export default function App() {
    * A cache with one job: telling "probed, and not granted" apart from "never
    * probed". Both look identical in `grantDiagnostics` — neither produces a
    * diagnostic for a granted host — and conflating them is what let an
-   * unprobed row claim access. A ref rather than state because writing it must
-   * not itself re-render; the `setGrantDiagnostics` beside it is what does.
+   * unprobed row claim access.
+   *
+   * State rather than a ref, and that is the whole of the fix: the
+   * diagnostics are derived from this map during render, so recording an
+   * answer has to re-render or the row keeps the reading taken before the
+   * probe returned. It was a ref while an effect wrote the diagnostics into
+   * state of their own — and an effect runs after the paint that triggered
+   * it, which is the frame a newly added site rendered as granted in.
    */
   const [knownGrants, setKnownGrants] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   // `null` until the probe answers. The switch must not show "needs
@@ -74,7 +80,20 @@ export default function App() {
    * not about the state, and it should not outlive the interaction that
    * caused it into the next session's first render.
    */
-  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState<{ text: string; nonce: number } | null>(null);
+  /**
+   * Say something in the status region, even when it is the same something.
+   *
+   * A `role="status"` region is only read when its content *changes*, and the
+   * two outcomes worth announcing are both fixed strings. Decline the
+   * permission prompt twice and the second `setState` stored an identical
+   * value, React bailed out, the DOM text never moved and a screen reader
+   * said nothing — about the very interaction this channel exists to report.
+   * The nonce makes each announcement a distinct value; the rail renders only
+   * `text`, so nothing about the wording changes.
+   */
+  const announce = (text: string) =>
+    setAnnouncement((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }));
 
   // onGrant (below) awaits a user-gesture-gated permission prompt, which is
   // not instantaneous — long enough for `state` to change underneath it (a
@@ -380,38 +399,18 @@ export default function App() {
       : 'all'
     : ungrantedHosts.size === 0
       ? 'all'
-      : ungrantedHosts.size >= scopingHosts(active.filter).length
+      : // Deduped on BOTH sides. `ungrantedHosts` is a Set and `auditDiagnostics`
+        // emits one diagnostic per unique host, but `scopingHosts` maps the
+        // stored list straight through — so two entries that normalize to one
+        // host (`example.com` and `*.example.com`) made the denominator 2
+        // against a numerator of 1, and `none` became unreachable: the readout
+        // called every rule live while nothing could match. Commit-time
+        // normalization dedupes what the popup and the CLI write, but not what
+        // `state set` writes or what older stores already hold.
+        ungrantedHosts.size >= new Set(scopingHosts(active.filter)).size
         ? 'none'
         : 'some';
   const tally = ruleTally(active.headers, active.id, routed.byRow, { live, access });
-
-  // Why the rules are held, when it is not the rules' own fault. A count
-  // reading "1 blocked" beside a perfectly good rule points the user at the
-  // wrong object; suppression is caused by the scope, and a pause by the
-  // switch above. Suppression is asked first because it outranks the pause:
-  // fixing the pause would still leave nothing applied.
-  //
-  // Which *kind* of suppression comes from `suppressionReason`, never from
-  // re-reading the filter here — the popup restating the compiler's decision
-  // is how the aliveness predicate diverged four ways before
-  // (lib/compile/suppression.ts). The two read very differently and must not
-  // be swapped: "by an unusable site" sends the reader hunting for a broken
-  // entry, which in the empty case does not exist.
-  //
-  // Access is asked last, for the same reason the pause is asked second: it
-  // cannot outrank a verdict that already stops everything. A suppressed
-  // profile is never audited (audit.ts), so its access reads 'all' and the
-  // chain never has to choose between the two.
-  const REASON_BLAME = { 'unusable-site': 'sites', 'no-scope': 'scope' } as const;
-  const reason = suppressionReason(active);
-  const blockedBy =
-    reason !== null
-      ? REASON_BLAME[reason]
-      : state.globalPause
-        ? 'pause'
-        : access === 'none'
-          ? 'access'
-          : null;
 
   // The permission decides `off`; the port decides the other two. Kept in this
   // order because a held permission with no port is the state that actually
@@ -520,9 +519,7 @@ export default function App() {
           const granted = await requestAllSites();
           if (mountedRef.current) {
             setAllSitesGranted(granted);
-            setAnnouncement(
-              granted ? 'All sites — access granted' : 'The permission was not granted',
-            );
+            announce(granted ? 'All sites — access granted' : 'The permission was not granted');
           }
         }}
         resourceTypes={active.filter.resourceTypes}
@@ -564,7 +561,7 @@ export default function App() {
           // `onAddDomain` makes: neither may be the only one.
           const has = active.filter.resourceTypes.includes(type);
           if (has && active.filter.resourceTypes.length === 1) {
-            setAnnouncement('The last request type cannot be removed');
+            announce('The last request type cannot be removed');
             return;
           }
           patchProfile((p) => {
@@ -592,7 +589,7 @@ export default function App() {
           // so the domains probed and the diagnostics built from the grants
           // stay consistent with each other.
           const current = stateRef.current;
-          if (!current) return;
+          if (!current) return granted;
           const grants = await probeGrants(domainsToAudit(current.profiles));
           if (mountedRef.current) {
             // Into the same record the render above reads, so the host just
@@ -602,10 +599,11 @@ export default function App() {
               for (const grant of grants) next.set(grant.domain, grant.granted);
               return next;
             });
-            setAnnouncement(
-              granted ? `${host} — access granted` : 'The permission was not granted',
-            );
+            announce(granted ? `${host} — access granted` : 'The permission was not granted');
           }
+          // Handed back so the row can unlatch its focus move when the prompt
+          // was declined — see `SiteRow`'s `grantPressed`.
+          return granted;
         }}
       />
       <RulePanel
@@ -613,7 +611,6 @@ export default function App() {
         profileId={active.id}
         byRow={routed.byRow}
         tally={tally}
-        blockedBy={blockedBy}
         sitesNeedingAccess={ungrantedHosts.size}
         autoFocusFirstRule={autoFocusFirstRule}
         onPatchRule={patchRule}

@@ -125,16 +125,20 @@ describe('App', () => {
   });
 
   it('stops counting rules as live when the rule set is suppressed', async () => {
-    // One usable domain and one that is not (a pasted URL — the input Phase 2a
-    // recorded as its worst defect). isSuppressed is true, compile.ts skips the
-    // whole set, zero rules are registered. The diagnostic it earns has no
-    // headerRuleId, so nothing reaches the cards and every rule looks healthy.
+    // NOTHING usable, which since 2026-08-20 is the only thing that still
+    // suppresses a set for its domains. The fixture used to be
+    // `['api.example.com', 'a b.com']` — one good, one not — and that is
+    // exactly the case the change was made for: the bad entry is dropped now
+    // and the good host keeps the rules going out, so that fixture asserts
+    // nothing about suppression any more. It was re-pointed rather than
+    // deleted because the behaviour under test is alive: a set that cannot
+    // scope anything registers no rule, and the count must not call those
+    // rules live. The rules themselves are fine, which is why the count says
+    // `blocked` and not something that blames them.
     const s = stateWith();
-    s.profiles[0]!.filter.domains = ['api.example.com', 'a b.com'];
+    s.profiles[0]!.filter.domains = ['a b.com'];
     await seed(s);
     render(<App />);
-    // "by an unusable site": the rules themselves are fine, so a bare
-    // "2 blocked" would point the user at the wrong object entirely.
     await waitFor(() => expect(readout()).toBe('0 of 2 live· 2 blocked'));
   });
 
@@ -165,7 +169,12 @@ describe('App', () => {
     await seed(stateWith());
     render(<App />);
 
-    await waitFor(() => expect(readout()).toBe('0 of 2 live· 2 blocked'));
+    // The remedy is named. This asserted a bare '2 blocked' until the count's
+    // blame suffix was dropped took the cause with it — leaving the state a
+    // new user opens in (rules configured, nothing granted) saying only that
+    // something is blocked, and nothing about what to do. The clause below is
+    // what says it, and the Grant button on the row is where it is done.
+    await waitFor(() => expect(readout()).toBe('0 of 2 live· 2 blocked · 1 site needs access'));
     expect(await screen.findAllByRole('button', { name: 'Grant' })).toHaveLength(1);
   });
 
@@ -804,6 +813,55 @@ describe('editing scope', () => {
     expect(within(bad).getByTestId('site-invalid').textContent).toBe('invalid');
     // And the rules really are going out, rather than being held for the typo.
     await waitFor(() => expect(readout()).toBe('2 of 2 live'));
+  });
+
+  it('reads access as none when two stored entries name the same ungranted host', async () => {
+    // `ungrantedHosts` is a Set and `auditDiagnostics` emits one diagnostic per
+    // unique host, but `scopingHosts` maps the stored list straight through —
+    // so the numerator was deduped and the denominator was not. Two entries
+    // that normalize to one host made it 1 >= 2, `access` fell to 'some', and
+    // `ruleTally` counted every rule live while nothing could match: the
+    // readout claiming rules are going out for a host with no permission,
+    // which is the exact lie this popup is built to avoid.
+    //
+    // The list is reachable: commit-time normalization dedupes what the popup
+    // and the CLI write, but not what `state set` writes or what an older
+    // store already holds.
+    const s = stateWith();
+    s.profiles[0]!.filter.domains = ['example.com', '*.example.com'];
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([{ domain: 'example.com', granted: false }]);
+    await seed(s);
+    render(<App />);
+
+    // Absence before presence: the count must not read "live" at all.
+    await waitFor(() => expect(readout()).not.toContain('2 of 2 live'));
+    expect(readout()).toBe('0 of 2 live· 2 blocked · 1 site needs access');
+  });
+
+  it('does not steal focus later when the permission prompt was declined', async () => {
+    // The focus move is armed by pressing Grant and cleared by the wait
+    // ending. Declining leaves the diagnostic exactly where it was, so the
+    // flag stayed armed and spent itself on the next unrelated thing that
+    // cleared this row's diagnostic — turning All sites on does it, because
+    // `domainsToAudit` then returns nothing and every `permission-missing`
+    // clears at once. The row would take focus off the switch the user had
+    // just flipped, which is the theft the gate exists to stop.
+    vi.spyOn(probe, 'probeGrants').mockResolvedValue([
+      { domain: 'api.example.com', granted: false },
+    ]);
+    const requestHost = vi.spyOn(probe, 'requestHost').mockResolvedValue(false);
+    await seed(stateWith());
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Grant' }));
+    expect(requestHost).toHaveBeenCalledTimes(1);
+
+    const toggle = screen.getByRole('switch', { name: 'Apply to every site' });
+    await userEvent.click(toggle);
+
+    // The row must not have taken focus from the control just used.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull());
+    expect(document.activeElement).not.toBe(screen.getByTestId('site'));
   });
 
   it('offers Grant while the probe is still out, rather than claiming access', async () => {

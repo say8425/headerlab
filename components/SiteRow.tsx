@@ -27,7 +27,15 @@ export interface SiteRowProps {
   inert: boolean;
   /** Whatever is wrong with this site's access, already matched to its host. */
   diagnostics: readonly Diagnostic[];
-  onGrant: (host: string) => void;
+  /**
+   * Ask the browser for this host.
+   *
+   * Resolves to what the prompt answered when the caller knows it — `false`
+   * for a decline, which is what lets the row unlatch its focus move below.
+   * Typed to tolerate a caller that answers nothing, since only the outcome
+   * `false` changes anything here.
+   */
+  onGrant: (host: string) => void | Promise<boolean | void>;
   onRemove: () => void;
 }
 
@@ -183,9 +191,12 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
    * is the only `DiagnosticKind` that ever sets `host`, so `byHost` cannot
    * contain anything else, and `auditDiagnostics` emits at most one per host —
    * a sibling branch for the other cases was code no user could reach, and a
-   * contrast pair and three tests were describing it. An unusable site is still
-   * explained in words; that message has no `host`, so it reaches the screen as
-   * a scope note in the rail.
+   * contrast pair and three tests were describing it. An unusable site is
+   * still explained in words, but not through this: its diagnostic carries a
+   * `profileId` and no `host`, so it never reaches `byHost` at all. What the
+   * reader gets is on the row itself — the `invalid` Badge below and the
+   * remedy in this row's accessible name — since the rail-wide scope note
+   * that used to carry it is gone (2026-08-19).
    */
   const awaitingGrant = diagnostics.find(
     (d) => d.kind === 'permission-missing' && d.host !== undefined,
@@ -330,7 +341,18 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
                 // Armed here, read by the focus effect above: pressing this is
                 // the only thing that earns the focus move.
                 grantPressed.current = true;
-                onGrant(awaitingGrant.host!);
+                // And disarmed again if the prompt was declined. The effect
+                // only clears the flag once the wait ENDS, and declining
+                // leaves the diagnostic exactly where it was — so the flag
+                // would stay armed indefinitely and spend itself on the next
+                // unrelated thing that clears this row's diagnostic (turning
+                // All sites on does it: `domainsToAudit` returns nothing, so
+                // every `permission-missing` clears at once). That is the
+                // focus theft this gate was written to stop, arriving one
+                // step later.
+                void Promise.resolve(onGrant(awaitingGrant.host!)).then((granted) => {
+                  if (granted === false) grantPressed.current = false;
+                });
               }}
             >
               Grant

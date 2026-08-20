@@ -71,18 +71,29 @@ describe('apply — site.add', () => {
     expect(result.state.profiles[0]!.filter.domains).toEqual(['a.com', 'b.com']);
   });
 
-  // `effectiveDomain` hands back an entry it cannot fix verbatim (origins.ts),
-  // and once stored it flips `suppressionReason` to 'unusable-site' — the
-  // whole rule set stops compiling, every good rule along with it. Storing it
-  // without saying so would be exactly the silent suppression "Never
-  // suppress without saying so" forbids; the popup shows the row, the CLI
-  // gets this note.
-  it('says which entry cannot scope anything, rather than reporting plain success', () => {
+  // `effectiveDomain` hands back an entry it cannot fix verbatim (origins.ts).
+  // Storing it without saying so would be exactly the silent suppression
+  // "Never suppress without saying so" forbids; the popup shows the row, the
+  // CLI gets this note.
+  //
+  // **The consequence is asserted, not just the hostname.** Both cases below
+  // used to be one test asserting `toContain('a b.com')`, which pinned that
+  // the entry is named and nothing about what the sentence claims — so when
+  // the outcome itself changed (2026-08-20: a bad entry is dropped and its
+  // usable neighbours keep compiling, instead of the whole set failing
+  // closed) the note went on promising a total outage and no test noticed.
+  // That is the "assertion that cannot fail" shape CLAUDE.md names as this
+  // repo's recurring defect.
+  it('says an unusable entry is skipped when the set still has a usable host', () => {
+    const result = ok(apply(scoped(['ok.com']), { cmd: 'site.add', domains: ['a b.com'] }));
+    expect(result.state.profiles[0]!.filter.domains).toEqual(['ok.com', 'a b.com']);
+    expect(result.note).toBe('cannot be used and will be skipped: a b.com');
+  });
+
+  it('says no rule is applied when the entry leaves nothing usable at all', () => {
     const result = ok(apply(scoped([]), { cmd: 'site.add', domains: ['a b.com'] }));
     expect(result.state.profiles[0]!.filter.domains).toEqual(['a b.com']);
-    // The unusable host name is interpolated into a longer sentence
-    // explaining the consequence, not just echoed back.
-    expect(result.note).toContain('a b.com');
+    expect(result.note).toBe('cannot scope anything, so no rule is applied until fixed: a b.com');
   });
 
   it('mints the implicit rule set when storage holds none', () => {

@@ -56,10 +56,13 @@ export function apply(state: AppState, command: Command): ApplyResult {
       // `effectiveDomain` hands back the input verbatim when nothing usable
       // could be salvaged from it (origins.ts). Storing it anyway is right —
       // the row is how the user sees and fixes the mistake — but storing it
-      // *silently* is not: once stored, `suppressionReason` returns
-      // 'unusable-site' and the whole profile stops compiling, every good
-      // rule along with it. "Never suppress without saying so" applies here
-      // exactly as it does to a filter with no usable domain at all.
+      // *silently* is not, and what the silence would hide depends on what
+      // else is in the list. Since 2026-08-20 an unusable entry is dropped
+      // from the scope and its usable neighbours go on compiling; only a list
+      // with nothing usable left suppresses the set (suppression.ts). So this
+      // reports the outcome that actually happened rather than the worst one:
+      // saying "the whole rule set is suppressed" over a set that is still
+      // applying would be its own false alarm.
       const unusable: string[] = [];
       for (const typed of command.domains) {
         const host = effectiveDomain(typed);
@@ -75,8 +78,12 @@ export function apply(state: AppState, command: Command): ApplyResult {
       const notes: string[] = [];
       if (already.length > 0) notes.push(`already listed: ${already.join(', ')}`);
       if (unusable.length > 0) {
+        // Asked of the resulting list, not of the entries just added: what
+        // decides the outcome is whether anything usable survives the write.
         notes.push(
-          `cannot scope anything and suppresses the whole rule set until fixed: ${unusable.join(', ')}`,
+          domains.some(isValidDomain)
+            ? `cannot be used and will be skipped: ${unusable.join(', ')}`
+            : `cannot scope anything, so no rule is applied until fixed: ${unusable.join(', ')}`,
         );
       }
       const note = notes.length === 0 ? undefined : notes.join('; ');

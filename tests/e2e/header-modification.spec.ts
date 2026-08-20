@@ -358,7 +358,9 @@ test('the popup renders its rules from stored state', async ({
   // false: nothing could match. The tally's access verdict now holds the
   // rule out of `live` and the subcount names the missing step, beside the
   // Grant button that is that step.
-  await expect(page.getByTestId('readout')).toHaveText('0 of 1 live· 1 blocked');
+  await expect(page.getByTestId('readout')).toHaveText(
+    '0 of 1 live· 1 blocked · 1 site needs access',
+  );
 
   await page.close();
 });
@@ -1358,9 +1360,9 @@ test('a control appearing in the rail does not move anything', async ({
   // comment above), so the starting clause is the access one the tally now
   // owes. Toggling the rule off takes it out of every count but `off`, which
   // is what makes the swap observable.
-  await expect(subcount).toHaveText('· 1 blocked');
+  await expect(subcount).toHaveText('· 1 blocked · 1 site needs access');
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
-  await expect(subcount).toHaveText('· 1 off');
+  await expect(subcount).toHaveText('· 1 off · 1 site needs access');
   expect(await boxes(), 'the subcount changing must move nothing').toEqual(withGrant);
 
   // --- the help bubble opening ---

@@ -51,13 +51,18 @@ export type SuppressionReason =
  *
  * The reason has to come from here rather than from each caller, for exactly
  * the argument this module's comment already makes about the yes/no answer.
- * The rail routes a row to its state from this reason — a valid entry whose
- * profile some *other* entry suppressed reads `suppressed`, not `granted` —
- * and filterDiagnostics picks the message; both of those are a second reading
- * of the same decision, and a second reading is how the four-way divergence
- * started. (The rail used to word the cause beside its rule count as well;
- * that suffix went on 2026-08-20, the reason it carries did not.) One function decides,
- * `isSuppressed` is derived from it, and nothing else re-tests the fields.
+ * `compile.ts` asks it before emitting, `audit.ts` before probing, and
+ * `filterDiagnostics` picks its message from it; every one of those is a
+ * second reading of the same decision, and a second reading is how the
+ * four-way divergence started. One function decides, `isSuppressed` is
+ * derived from it, and nothing else re-tests the fields.
+ *
+ * The rail reads it through none of these. A row's state comes from its own
+ * `usable`/`inert`/`diagnostics` (SiteRow), which is why an unusable entry
+ * marks itself and its neighbours are unaffected. A `suppressed` row state
+ * existed briefly, for a valid entry whose profile some *other* entry had
+ * killed; it went when that could no longer happen (2026-08-20), and this
+ * paragraph is here so the claim is not restored from a stale reading.
  */
 export function suppressionReason(profile: Profile): SuppressionReason | null {
   const { allSites, domains, mode } = profile.filter;

@@ -11,37 +11,23 @@ import type { Diagnostic, ResourceType } from '@/lib/model/types';
 export interface ScopeRailProps {
   paused: boolean;
   /**
-   * The last outcome worth announcing, or null while there is nothing to say.
+   * The last outcome worth announcing, or null while there is nothing to say,
+   * with a nonce that makes each saying distinct.
    *
    * Rendered into the always-mounted `role="status"` span at the top of the
    * rail — see that span for why it must never be the one to appear.
+   *
+   * The nonce is not decoration. A live region is read when its content
+   * *changes*, and both messages this channel carries are fixed strings — so
+   * declining the permission prompt twice stored the same text, the DOM never
+   * moved, and the second decline was announced to nobody. Keying the span on
+   * the nonce remounts the text node, which is a change the region reports.
    */
-  announcement: string | null;
+  announcement: { text: string; nonce: number } | null;
   onTogglePause: (paused: boolean) => void;
   domains: readonly string[];
   /** Host-scoped diagnostics, keyed by the normalized host they name. */
   byHost: ReadonlyMap<string, Diagnostic[]>;
-  /**
-   * What is stopping the rules, when it is not the rules themselves.
-   *
-   * `null` means the blocked rules are individually broken and the count can
-   * speak for itself.
-   *
-   * `'access'` is the fourth verdict: every host that scopes the rule set is
-   * ungranted, so nothing compiled for it can match a request. It completes
-   * the sentence the same way `'scope'` does — "until" rather than "by",
-   * because nothing is wrong with the rules; the sentence names the missing
-   * step, and the Grant buttons below it are that step.
-   */
-  /**
-   * How many scoping hosts are still ungranted, when some but not all are.
-   *
-   * App computes this beside the tally's `access` verdict, from the same
-   * `byHost` this rail renders its rows from — the count shown here and the
-   * rows wearing Grant below can never disagree, because they are the same
-   * computation read once. Only read when the tally's rules are live (granted
-   * hosts remain), which is the state whose sentence it finishes.
-   */
   /** Applying to every site by explicit choice. */
   allSites: boolean;
   /**
@@ -70,7 +56,7 @@ export interface ScopeRailProps {
   onAddDomain: (domain: string) => AddSiteResult;
   onRemoveDomain: (domain: string) => void;
   onToggleType: (type: ResourceType) => void;
-  onGrant: (host: string) => void;
+  onGrant: (host: string) => void | Promise<boolean | void>;
   /**
    * What the agent bridge is doing.
    *
@@ -357,8 +343,13 @@ export function ScopeRail({
           uncheck that changes nothing on screen. What it says is App's
           decision; this is only the speaker. The aside's `relative` is what
           the span's `inset-x-0` resolves against — see the constant. */}
-      <span role="status" data-testid="announcement" className={VISUALLY_HIDDEN}>
-        {announcement}
+      <span
+        key={announcement?.nonce ?? 'idle'}
+        role="status"
+        data-testid="announcement"
+        className={VISUALLY_HIDDEN}
+      >
+        {announcement?.text}
       </span>
       <div className="flex h-6 shrink-0 items-center gap-2 px-3">
         <span
@@ -836,15 +827,20 @@ export function ScopeRail({
             them; every figure in this docblock has been overtaken at least
             once.
 
-            **Why the cap came down from 127 rather than up: measured, not
-            chosen.** The rail offers this list 136px at nominal (127 of cap
-            plus the 9px of real leftover below, re-measured in the built
-            popup with 60px rows). Two full rows need 126px, and the third
-            row starts at 132 — so "two full rows plus a visible slice", the
-            shape this cap had at 48px and 52px rows, no longer fits: 136
-            would buy a 4px sliver that reads as nothing. The choice was
-            between two clean rows with no signal and one full row plus a
-            clearly sliced second; the slice is the signal, so the slice won.
+            **Superseded — this paragraph records the 127 -> 108 move, whose
+            arithmetic the 108 -> 174 move above replaced.** Read it as
+            history, not as the current shape: it argues for one full row
+            plus a sliced second, and the cap now shows two full rows and a
+            42px slice of the third. It is kept because the *method* is what
+            carries forward. At the time the rail offered this list 136px at
+            nominal (127 of cap plus 9px of real leftover, measured in the
+            built popup with 60px rows). Two full rows needed 126px and the
+            third began at 132, so "two full rows plus a visible slice" no
+            longer fit: 136 would have bought a 4px sliver that reads as
+            nothing. The choice was between two clean rows with no signal and
+            one full row plus a clearly sliced second; the slice is the
+            signal, so the slice won — and that is the rule the 174px cap was
+            chosen by too.
             The reference mockup capped the list at a fixed 176px, which
             this does not copy — a hard cap opens a hole between the last
             site and everything below it when there are only one or two.

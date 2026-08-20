@@ -77,10 +77,37 @@ describe('the announcement channel', () => {
   it('renders the outcome App hands it, either way of a permission prompt', () => {
     // The two strings the grant flow produces. The region is the speaker,
     // App is the decision — this pins only that what is decided arrives.
-    const { rerender } = renderRail({ announcement: 'api.example.com — access granted' });
+    const { rerender } = renderRail({
+      announcement: { text: 'api.example.com — access granted', nonce: 1 },
+    });
     expect(screen.getByTestId('announcement').textContent).toBe('api.example.com — access granted');
-    rerender(<ScopeRail {...props({ announcement: 'The permission was not granted' })} />);
+    rerender(
+      <ScopeRail
+        {...props({ announcement: { text: 'The permission was not granted', nonce: 2 } })}
+      />,
+    );
     expect(screen.getByTestId('announcement').textContent).toBe('The permission was not granted');
+  });
+
+  it('says the same outcome twice as two separate sayings', () => {
+    // A live region is read when its content CHANGES. Both messages this
+    // channel carries are fixed strings, so declining the prompt twice stored
+    // the identical text: React bailed out, the DOM never moved, and the
+    // second decline reached nobody — the interaction the region exists for.
+    //
+    // The nonce fixes it by keying the span, so an identical message arrives
+    // as a NEW node. That is what is asserted: same text, different element.
+    // Asserting the text alone would pass against the defect, since the text
+    // is precisely what does not change.
+    const said = { text: 'The permission was not granted', nonce: 1 };
+    const { rerender } = renderRail({ announcement: said });
+    const first = screen.getByTestId('announcement');
+
+    rerender(<ScopeRail {...props({ announcement: { ...said, nonce: 2 } })} />);
+    const second = screen.getByTestId('announcement');
+
+    expect(second.textContent).toBe('The permission was not granted');
+    expect(second).not.toBe(first);
   });
 });
 

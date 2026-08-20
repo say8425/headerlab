@@ -787,7 +787,7 @@ the count is not, which is the half to defend: `blocked` exists in `ruleTally` s
 line cannot read "no problems" while zero rules go out. Measured before dropping it —
 the line has 171px, one blamed clause runs 142-176px, and it truncated the moment a
 second segment joined. Each cause is now said where it can be acted on: on the row
-(an `invalid` Badge, or `suppressed` on a sibling), on the run-state switch, and in
+(an `invalid` Badge on the row that holds the bad value), on the run-state switch, and in
 the readout's own "N sites need access" clause. `suppressionReason` still returns `'no-scope'` and
 `lib/bridge/query.ts` still ships it to the CLI, because that is a **`SuppressionReason`**
 (`lib/compile/suppression.ts`) and always was; the identically-spelled `DiagnosticKind`

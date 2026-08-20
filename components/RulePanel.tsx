@@ -28,14 +28,6 @@ export interface RulePanelProps {
   onAddRule: () => void;
   /** How many rules are going out, and what is holding the rest. */
   tally: RuleTally;
-  /**
-   * Which of the whole-set verdicts is holding the rules, or null.
-   *
-   * Read for one thing only: suppressing the "N sites need access" clause when
-   * a missing grant is *already* the whole story, so the line does not say it
-   * twice.
-   */
-  blockedBy: 'sites' | 'scope' | 'pause' | 'access' | null;
   /** Scoping hosts that have no permission yet. */
   sitesNeedingAccess: number;
 }
@@ -97,7 +89,6 @@ export function RulePanel({
   onDeleteRule,
   onAddRule,
   tally,
-  blockedBy,
   sitesNeedingAccess,
 }: RulePanelProps) {
   // **The count lives here, not in the rail (owner's call, 2026-08-20).** It
@@ -114,9 +105,14 @@ export function RulePanel({
   if (tally.off > 0) detail.push(`${tally.off} off`);
   if (tally.unfinished > 0) detail.push(`${tally.unfinished} unfinished`);
   if (tally.blocked > 0) detail.push(`${tally.blocked} blocked`);
-  // Only when something still goes out; with nothing granted the blocked
-  // count above already carries the whole story.
-  if (sitesNeedingAccess > 0 && blockedBy !== 'access')
+  // Shown whenever a scoping host is ungranted — including when that is the
+  // *whole* reason nothing is live. It used to stand down in that case, on the
+  // grounds that "the blocked count above already carries the whole story";
+  // that was true while the count carried a blame suffix (" until access is
+  // granted") and stopped being true when the suffix was dropped. Without this
+  // clause the state a new user opens in — rules configured, nothing granted —
+  // printed "0 of 3 live · 3 blocked" and named no remedy at all.
+  if (sitesNeedingAccess > 0)
     detail.push(
       sitesNeedingAccess === 1 ? '1 site needs access' : `${sitesNeedingAccess} sites need access`,
     );

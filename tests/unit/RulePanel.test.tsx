@@ -31,7 +31,6 @@ function props(over: Partial<RulePanelProps> = {}): RulePanelProps {
     onDeleteRule: vi.fn(),
     onAddRule: vi.fn(),
     tally: { total: 1, live: 1, off: 0, unfinished: 0, blocked: 0 },
-    blockedBy: null,
     sitesNeedingAccess: 0,
     ...over,
     // Set after the spread rather than defaulted inside it: `over` is
@@ -230,7 +229,7 @@ describe('the readout in the panel head', () => {
     // the count does not move — the clause names the hosts they cannot
     // reach, in the same words the rows below wear. With nothing granted
     // the blocked clause carries the story instead, so the clause stands
-    // down (asserted in the third case).
+    // down (the third case below asserts it does NOT — see the note there).
     const tally = { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 };
     const { rerender } = renderPanel({ tally, sitesNeedingAccess: 1 });
     expect(screen.getByTestId('readout').textContent).toBe('3 of 3 live· 1 site needs access');
@@ -238,16 +237,23 @@ describe('the readout in the panel head', () => {
     rerender(<RulePanel {...props({ tally, sitesNeedingAccess: 2 })} />);
     expect(screen.getByTestId('readout').textContent).toBe('3 of 3 live· 2 sites need access');
 
+    // Nothing granted at all — and this case used to assert the OPPOSITE, that
+    // the clause stood down here because the blocked count "carried the whole
+    // story". It stopped carrying it when the count's blame suffix was
+    // dropped, leaving the first screen a new user sees naming no remedy. The
+    // clause is what names one, so it is asserted present exactly where it was
+    // once asserted absent.
     rerender(
       <RulePanel
         {...props({
           tally: { total: 3, live: 0, off: 0, unfinished: 0, blocked: 3 },
           sitesNeedingAccess: 3,
-          blockedBy: 'access',
         })}
       />,
     );
-    expect(screen.getByTestId('readout').textContent).toBe('0 of 3 live· 3 blocked');
+    expect(screen.getByTestId('readout').textContent).toBe(
+      '0 of 3 live· 3 blocked · 3 sites need access',
+    );
   });
 
   it('names unfinished rules, so a row left quiet is still said out loud', () => {
