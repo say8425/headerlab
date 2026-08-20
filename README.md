@@ -10,7 +10,7 @@ until you grant it.
 
 | Light | Dark |
 |---|---|
-| ![The HeaderLab popup in light theme: three of four rules live, two granted sites, four header rules](docs/screenshots/popup-light.png) | ![The same popup in dark theme, which follows the operating system setting](docs/screenshots/popup-dark.png) |
+| ![The HeaderLab popup in light theme: the count beside the Rules heading reads 3 of 4 live, 1 off, with two granted sites in the rail and four header rules](docs/screenshots/popup-light.png) | ![The same popup in dark theme, which follows the operating system setting](docs/screenshots/popup-dark.png) |
 
 ## Install
 
@@ -95,18 +95,19 @@ read the write as if the site were already live.
 
 Access is asked for per site, on the row that names the site — never as a side effect of
 typing a hostname or flipping a switch. Until you press **Grant**, the row is amber and
-says so — and the rail's count refuses to flatter it: rules scoped only to hosts you have
-not granted read **blocked until access is granted** rather than live, and when some hosts
-are granted the count stays honest on both ends ("3 of 4 rules live · 1 site needs access"):
+says so — and the count beside **Rules** refuses to flatter it: a rule scoped only to
+hosts you have not granted is counted **blocked**, never live, and the hosts still waiting
+are named beside it, so the count stays honest on both ends
+("3 of 4 live · 1 off · 1 site needs access"):
 
-![A site row for internal.example.com in the pending state, amber, with a Grant button](docs/screenshots/popup-permission.png)
+![A site row for internal.example.com in the pending state, amber, with a Grant button, and the count beside the Rules heading reading 3 of 4 live, 1 off, 1 site needs access](docs/screenshots/popup-permission.png)
 
-Anything that would stop a rule going out is said on that rule's own row, and counted in
-the rail. Here the second rule asks Chrome to `append` a request header it will not append
-— the row says which and what to do instead, the readout reads **2 of 4 rules live · 1 off
-· 1 blocked**, and nothing moves to make room for the message:
+Anything that would stop a rule going out is said on that rule's own row, and counted
+beside the **Rules** heading. Here the second rule asks Chrome to `append` a request header
+it will not append — the row says which and what to do instead, the count reads
+**2 of 4 live · 1 off · 1 blocked**, and nothing moves to make room for the message:
 
-![The rules list with the second row showing "Use Set. Chrome does not append request headers." in red where its value would be, and the rail reading 2 of 4 rules live, 1 off, 1 blocked](docs/screenshots/popup-blocked.png)
+![The rules list with the second row showing "Use Set. Chrome does not append request headers." in red where its value would be, and the count beside the Rules heading reading 2 of 4 live, 1 off, 1 blocked](docs/screenshots/popup-blocked.png)
 
 <sub>Captured from the real production build loaded in Chrome. Only the manifest was
 patched, to pre-grant the two example hosts so the granted state could be photographed
