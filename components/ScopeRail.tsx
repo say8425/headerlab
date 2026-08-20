@@ -771,16 +771,26 @@ export function ScopeRail({
                       ? 'font-semibold text-live'
                       : 'font-medium text-muted-foreground'
                   }`}
-                  // Hidden only when the glyph above already carries these
-                  // exact words; the off state has no glyph, so hiding its
-                  // line would take the sentence out of the tree entirely.
+                  // `granted` is the only state with words left, and the
+                  // glyph above already carries them, so this span never
+                  // reaches the accessibility tree. It is kept rather than
+                  // branched away because the slot around it must not move.
                   aria-hidden={allSitesState === 'granted' || undefined}
                 >
-                  {allSitesState === 'granted'
-                    ? 'Access granted'
-                    : allSitesState === 'off'
-                      ? 'The list below applies'
-                      : ''}
+                  {/* The `off` state said "The list below applies" here until
+                      2026-08-20 (owner's call). It was a mode description on a
+                      row whose switch already says the mode, in the state the
+                      popup opens in — so it was the line most often on screen
+                      and the least often read.
+
+                      The empty band it leaves is deliberate and costs nothing
+                      new: this slot is `h-6` because it must hold the Grant
+                      button in the `pending` state, and it already rendered
+                      empty while the `<all_urls>` probe was out. Shrinking the
+                      bar in `off` instead would move everything below it every
+                      time the switch is flipped, which is the reflow the
+                      Interface rule exists to stop. */}
+                  {allSitesState === 'granted' ? 'Access granted' : ''}
                 </span>
               )}
             </span>

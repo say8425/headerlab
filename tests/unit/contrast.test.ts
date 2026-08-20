@@ -346,7 +346,11 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // actually paints them now.
   ['"All sites" — the label on its row, any state', '--foreground', '--card'],
   ['all-sites state line, granted — "Access granted"', '--live', '--card'],
-  ['all-sites state line, off — "The list below applies"', '--muted-foreground', '--card'],
+  // The all-sites row's `off` line is gone (2026-08-20) and its pair went with
+  // it — the subject is what a contrast pair guards, and this one no longer
+  // renders. The tokens keep their coverage on the site row's own "not in use"
+  // line, which is the identical `--muted-foreground` on `--card` pair listed
+  // below, so nothing is left unguarded by the removal.
   // Every site row now carries a second line naming its state, coloured to
   // match — mirroring the mockup's `.te-l2--live` / `.te-l2--err`, which
   // colours the line itself rather than leaving severity to the icon alone.
