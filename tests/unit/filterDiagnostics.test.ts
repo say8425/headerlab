@@ -13,25 +13,15 @@ describe('validateFilter', () => {
     expect(validateFilter(profileWith({ domains: ['api.example.com'] }))).toEqual([]);
   });
 
-  it('states plainly, and without warning, that no site has been set yet', () => {
-    // The standing warning this replaces read "No site set, so these rules
-    // apply everywhere" — accurate then, because an empty list was the only
-    // spelling of "everywhere". With the mode named, an empty list means
-    // nowhere: nothing is applied, nothing is at risk, and there is nothing to
-    // warn about. It is still *said*, because a suppression nobody can see is
-    // the silence this project exists to remove.
-    const d = validateFilter(profileWith({ domains: [] }));
-    expect(d).toEqual([
-      {
-        kind: 'no-scope',
-        severity: 'incomplete',
-        profileId: 'p1',
-        // The fact, bare: the consequence is the readout's sentence
-        // ("blocked until a site is set") and the two ways out are the two
-        // controls around the note.
-        message: 'No site set.',
-      },
-    ]);
+  it('says nothing when no site has been set — the readout says it instead', () => {
+    // The no-scope diagnostic is gone (owner's ruling, 2026-08-19): its note
+    // was removed from the rail and the diagnostic followed, because the
+    // saying-so is the readout's own sentence — "N blocked until a site is
+    // set" — which is always on screen rather than appearing and departing.
+    // `suppressionReason` still names the reason for the readout's blame, and
+    // the compiler still fails the profile closed; only the duplicate voice
+    // is gone.
+    expect(validateFilter(profileWith({ domains: [] }))).toEqual([]);
   });
 
   it('says nothing at all when all-sites is on — that is the answer to "where"', () => {
@@ -116,9 +106,14 @@ describe('validateFilter', () => {
   });
 
   it('names the unusable entry when only some domains are usable', () => {
-    // compile.ts suppresses the whole profile here, and `empty-filter` stays
-    // quiet because one entry is valid — this diagnostic is what closes that
-    // silence, so the exact message is part of the contract.
+    // The profile is NOT suppressed here any more (2026-08-20): the bad entry
+    // is dropped from the scope and `api.example.com` goes on working. That is
+    // what makes this diagnostic a `warning` rather than an `error` — nothing
+    // is being held — and it is also what makes it load-bearing, because a
+    // dropped entry is a suppression like any other and would otherwise be
+    // silent. The exact message is part of the contract: "Skipped" is the
+    // consequence, and the remedy has to stay the LAST sentence because
+    // `SiteRow` renders that sentence on the row itself.
     // Internal whitespace, not a pasted URL: a URL is normalized to its host
     // now and is perfectly usable, so it can no longer stand for "unusable".
     const d = validateFilter(
@@ -129,9 +124,9 @@ describe('validateFilter', () => {
     expect(d).toEqual([
       {
         kind: 'invalid-domain',
-        severity: 'error',
+        severity: 'warning',
         profileId: 'p1',
-        message: 'Unusable site: "a b.com". Use a bare hostname like example.com.',
+        message: 'Unusable site: "a b.com". Skipped. Use a bare hostname like example.com.',
       },
     ]);
   });
@@ -144,7 +139,7 @@ describe('validateFilter', () => {
     );
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
-      'Unusable sites: "x y.net", "a b.com". Use a bare hostname like example.com.',
+      'Unusable sites: "x y.net", "a b.com". Skipped. Use a bare hostname like example.com.',
     );
   });
 
@@ -174,15 +169,16 @@ describe('validateFilter', () => {
     // table, once for a filter applying to every site and once for one
     // applying to none.
     //
-    // Off + empty is the only `no-scope`; off + anything unusable is
-    // `invalid-domain` in both modes; regex + empty is scoped by its pattern;
-    // and all-sites reports nothing about the list at all, because it compiles
-    // none of it.
+    // Off + empty says nothing here — the readout's own blocked count is the
+    // saying-so since the no-scope diagnostic was removed (2026-08-19);
+    // off + anything unusable is `invalid-domain` in both modes; regex + empty
+    // is scoped by its pattern; and all-sites reports nothing about the list
+    // at all, because it compiles none of it.
     const kinds = (f: Partial<Filter>) => validateFilter(profileWith(f)).map((x) => x.kind);
     const rx = { mode: 'regex', regex: '^https://' } as const;
     const all = { allSites: true } as const;
 
-    expect(kinds({ domains: [] })).toEqual(['no-scope']);
+    expect(kinds({ domains: [] })).toEqual([]);
     expect(kinds({ domains: ['ok.com'] })).toEqual([]);
     expect(kinds({ domains: ['a b.com'] })).toEqual(['invalid-domain']);
     expect(kinds({ domains: ['ok.com', 'a b.com'] })).toEqual(['invalid-domain']);

@@ -23,11 +23,13 @@ describe('domainsToAudit', () => {
   });
 
   it('skips a profile whose domain list is only partly usable', () => {
-    // Replaces an earlier per-entry expectation of ['ok.com']. The compiler
-    // suppresses this profile whole, so auditing its surviving host would put
-    // a permission badge on a rule that was never registered — exactly what
-    // this module's docstring says it avoids.
-    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])])).toEqual([]);
+    // And back again: the per-entry expectation of ['ok.com'] this once
+    // replaced is correct once more (2026-08-20). The compiler no longer
+    // suppresses a partly-usable profile — it drops the bad entry and
+    // registers a rule scoped to `ok.com` — so that host does need a
+    // permission badge, and withholding one would leave the user with a rule
+    // that cannot fire and nothing saying why.
+    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])])).toEqual(['ok.com']);
   });
 
   it('audits every host of a profile whose domains are all usable', () => {
@@ -94,16 +96,17 @@ describe('auditDiagnostics', () => {
     expect(d[0]?.host).toBe('x.com');
   });
 
-  it('says nothing about a profile the compiler suppressed', () => {
-    // "The rule is registered but will not apply until you grant it" would be
-    // a lie here: no rule was registered, and granting the permission changes
-    // nothing. The unusable entry is what the user has to fix, and
-    // validateFilter is what says so.
-    expect(
-      auditDiagnostics(
-        [p('a', 'A', ['api.example.com', 'a b.com'])],
-        [{ domain: 'api.example.com', granted: false }],
-      ),
-    ).toEqual([]);
+  it('reports the usable host of a partly-usable profile', () => {
+    // This asserted `[]` while any bad entry suppressed the whole profile —
+    // "registered but not applying" would have been a lie about a rule that
+    // was never registered. Since 2026-08-20 the rule IS registered, scoped to
+    // `api.example.com`, so withholding the badge would be the opposite lie.
+    const d = auditDiagnostics(
+      [p('a', 'A', ['api.example.com', 'a b.com'])],
+      [{ domain: 'api.example.com', granted: false }],
+    );
+    expect(d).toHaveLength(1);
+    expect(d[0]?.kind).toBe('permission-missing');
+    expect(d[0]?.host).toBe('api.example.com');
   });
 });

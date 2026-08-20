@@ -16,7 +16,7 @@ function row(over: Partial<HeaderRule> = {}): HeaderRule {
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
   return {
-    kind: 'no-scope',
+    kind: 'invalid-domain',
     severity: 'warning',
     profileId: 'p1',
     message: 'm',
@@ -32,7 +32,10 @@ describe('routeDiagnostics', () => {
     // diagnostic into every bucket.
     const onRule = diag({ kind: 'invalid-header-name', severity: 'error', headerRuleId: 'h1' });
     const onHost = diag({ kind: 'permission-missing', host: 'api.example.com' });
-    const onScreen = diag({ kind: 'no-scope' });
+    // Profile-scoped and nothing else — no `headerRuleId`, no `host` — which
+    // is what sends it to `scope`. (`no-scope` was this fixture's kind until
+    // that kind was retired with the diagnostic nothing produces any more.)
+    const onScreen = diag({ kind: 'invalid-domain' });
     const routed = routeDiagnostics([onRule, onHost, onScreen]);
 
     expect([...routed.byRow.entries()]).toEqual([[rowKey('p1', 'h1'), [onRule]]]);

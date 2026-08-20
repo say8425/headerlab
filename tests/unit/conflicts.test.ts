@@ -125,8 +125,8 @@ describe('detectConflicts', () => {
   it('says nothing about a profile that has no scope at all', () => {
     // Suppressed, so it emits no rule — and a profile that emits no rule can
     // neither discard a neighbour's row nor have its own discarded. Filing it
-    // as a conflict would contradict the `no-scope` diagnostic reporting that
-    // it is not applied.
+    // as a conflict would contradict the readout, which already reports that
+    // this profile is not applied — it counts the rules as blocked.
     expect(
       detectConflicts([
         p('a', 'A', [], [{ name: 'Authorization' }], 0),
@@ -233,26 +233,32 @@ describe('detectConflicts', () => {
     ).toEqual([]);
   });
 
-  it('excludes a profile whose domain list is only partly usable', () => {
-    // The mixed case is suppressed by compile.ts just as the all-invalid one
-    // is, so the same reasoning applies — even though the hosts overlap.
-    expect(
-      detectConflicts([
-        p('a', 'A', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
-      ]),
-    ).toEqual([]);
+  it('counts a partly-usable profile, because it is the one that still applies', () => {
+    // This asserted `[]` until 2026-08-20, when the mixed case stopped being
+    // suppressed: the bad entry is dropped and `x.com` still scopes the rule,
+    // so this profile emits and can genuinely take a neighbour's header. Not
+    // flagging it would be the conflict detector reading the stored list
+    // instead of `scopingHosts` — the exact defect CLAUDE.md records under
+    // "One predicate, one definition".
+    const d = detectConflicts([
+      p('a', 'A', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 0),
+      p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
+    ]);
+    expect(d).toHaveLength(1);
+    expect(d[0]?.kind).toBe('profile-conflict');
+    expect(d[0]?.profileId).toBe('b');
   });
 
-  it('does not name a suppressed profile as the loser either', () => {
-    // Exclusion has to be symmetric: a profile that emits no rule cannot have
-    // its row discarded by anyone.
-    expect(
-      detectConflicts([
-        p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 1),
-      ]),
-    ).toEqual([]);
+  it('names a partly-usable profile as the loser, on the same reading', () => {
+    // The mirror of the case above, and it has to move with it: the losing
+    // side is decided by `scopingHosts` too, so a profile whose list carries
+    // one bad entry is still a profile whose row can be discarded.
+    const d = detectConflicts([
+      p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
+      p('b', 'B', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 1),
+    ]);
+    expect(d).toHaveLength(1);
+    expect(d[0]?.profileId).toBe('b');
   });
 
   it('does not let a suppressed profile hide a conflict between its neighbours', () => {

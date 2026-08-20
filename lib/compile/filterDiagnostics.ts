@@ -49,7 +49,8 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // Raised above the regex branch on purpose. compile.ts's suppression is
   // mode-agnostic and conditions.ts sets requestDomains for a regex rule too,
   // so a regex profile that lists a broken domain dies the same way — and the
-  // regex branch below returns before the no-scope check could catch it.
+  // regex branch below returns early, so anything raised after it is
+  // unreachable in regex mode.
   //
   // The reason comes from `suppressionReason`, never from re-reading the
   // fields. That is what collapsed the old branch: this used to ask
@@ -59,14 +60,28 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // *warning* — a profile applying to nothing, filed under the same kind and
   // severity as one applying to everything. The two now split by reason:
   //   'unusable-site' -> here, an error, in either mode
-  //   'no-scope'      -> below, incomplete, structured only
+  //   'no-scope'      -> nothing at all any more; the readout says it (below)
   const reason = suppressionReason(profile);
-  const anyValid = analyses.some((a) => a.valid);
-  if (reason === 'unusable-site') {
-    const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
+  const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
+  // Raised for **any** unusable entry now, not only for one that kills the
+  // profile. Since 2026-08-20 a bad entry is dropped from the scope and its
+  // usable neighbours go on working (see `suppression.ts`), and that drop is a
+  // suppression like any other: silent, unless said. The two cases are one
+  // diagnostic with two severities rather than two kinds, because a reader
+  // acts on them identically — fix the entry — and only the consequence
+  // differs.
+  // The all-sites exemption used to arrive for free: this branch only ran for
+  // `reason === 'unusable-site'`, and `suppressionReason` returns null in that
+  // mode. Widening the branch to every unusable entry broke that coupling and
+  // started reporting a list all-sites does not compile — so the mode is named
+  // here now, where it can be read. The docblock above argues the case: the
+  // entry is still marked broken on its own row, which is where a value the
+  // user can edit belongs.
+  if (bad.length > 0 && !filter.allSites) {
+    const fatal = reason === 'unusable-site';
     diagnostics.push({
       kind: 'invalid-domain',
-      severity: 'error',
+      severity: fatal ? 'error' : 'warning',
       profileId: profile.id,
       // Two different problems needing two different actions: with a usable
       // entry left the fix is to repair the bad lines, with none left there is
@@ -83,10 +98,13 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       // too: the UI has one implicit rule set and no profiles, so the word
       // named something the reader cannot see. The internal `profileId` is
       // untouched.
-      message: anyValid
-        ? `${bad.length === 1 ? 'Unusable site' : 'Unusable sites'}: ${bad.join(', ')}. ` +
-          'Use a bare hostname like example.com.'
-        : `No usable site: ${bad.join(', ')}. Use a bare hostname like example.com.`,
+      // The remedy is the last sentence in both branches, and it has to stay
+      // there: `SiteRow` carries that exact sentence on the row's own Badge
+      // and in its accessible name, and a test pins the two to each other.
+      message: fatal
+        ? `No usable site: ${bad.join(', ')}. Use a bare hostname like example.com.`
+        : `${bad.length === 1 ? 'Unusable site' : 'Unusable sites'}: ${bad.join(', ')}. ` +
+          'Skipped. Use a bare hostname like example.com.',
     });
   }
 
@@ -127,30 +145,16 @@ export function validateFilter(profile: Profile): Diagnostic[] {
     });
   }
 
-  // The state a fresh install opens in: nothing has been said about where
-  // these rules apply, so they do not apply. It still has to reach the screen
-  // — "never suppress without saying so" holds however ordinary the cause —
-  // but it is said calmly and not warned about, because nothing here is wrong
-  // or at risk. Direct, owner's wording (2026-08-18): the fact, bare. The
-  // consequence ("so nothing is being applied") is the readout's own sentence
-  // now — "N blocked until a site is set" — and the two ways out are the two
-  // controls sitting around the note (the field above, the All-sites switch),
-  // so naming them here was the note doing its neighbours' narration.
-  //
-  // The standing warning this replaces said the opposite ("these rules apply
-  // everywhere"), and it was accurate: with no way to declare all-sites, an
-  // empty list really did compile to a rule matching every site. Removing the
-  // warning without `Filter.allSites` would have been removing the only notice
-  // of that; with it, the state being warned about no longer happens by
-  // accident, so the warning has nothing left to describe.
-  if (reason === 'no-scope') {
-    diagnostics.push({
-      kind: 'no-scope',
-      severity: 'incomplete',
-      profileId: profile.id,
-      message: 'No site set.',
-    });
-  }
+  // **No `no-scope` diagnostic any more — owner's ruling (2026-08-19).** The
+  // popup used to render it as a note above the sites ("No site set yet, so
+  // nothing is being applied. Add a site above, or turn on All sites."); the
+  // note is gone and the diagnostic went with it, because the saying-so it
+  // existed for is the readout's own sentence — "N blocked until a site is
+  // set" sits beside the count in every state, and "never suppress without
+  // saying so" is satisfied by a sentence that is always on screen rather
+  // than a note that appeared and departed. `suppressionReason` still names
+  // the reason (the readout's blame asks it, never this file), and the
+  // compiler still fails the profile closed exactly as before.
 
   return diagnostics;
 }

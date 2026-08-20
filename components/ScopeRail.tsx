@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
-import type { RuleTally } from '@/lib/view/rules';
 import type { Diagnostic, ResourceType } from '@/lib/model/types';
 
 export interface ScopeRailProps {
-  tally: RuleTally;
   paused: boolean;
   /**
    * The last outcome worth announcing, or null while there is nothing to say.
@@ -23,8 +21,6 @@ export interface ScopeRailProps {
   domains: readonly string[];
   /** Host-scoped diagnostics, keyed by the normalized host they name. */
   byHost: ReadonlyMap<string, Diagnostic[]>;
-  /** Whole-screen problems that are about scope rather than any one rule. */
-  notes: readonly Diagnostic[];
   /**
    * What is stopping the rules, when it is not the rules themselves.
    *
@@ -37,7 +33,6 @@ export interface ScopeRailProps {
    * because nothing is wrong with the rules; the sentence names the missing
    * step, and the Grant buttons below it are that step.
    */
-  blockedBy: 'sites' | 'scope' | 'pause' | 'access' | null;
   /**
    * How many scoping hosts are still ungranted, when some but not all are.
    *
@@ -47,7 +42,6 @@ export interface ScopeRailProps {
    * computation read once. Only read when the tally's rules are live (granted
    * hosts remain), which is the state whose sentence it finishes.
    */
-  sitesNeedingAccess: number;
   /** Applying to every site by explicit choice. */
   allSites: boolean;
   /**
@@ -120,12 +114,21 @@ const HEAD_CLASS =
 const HEAD_COUNT_CLASS = 'font-medium text-muted-foreground';
 /**
  * A note parked against its cause: a neutral card with a coloured edge, never a
- * coloured block. A pending site is already carrying colour; a stack of amber
- * slabs beside it would rebuild the wall of yellow this layout exists to
- * remove. Severity is carried by the edge, not by the mass.
+ * coloured block. Severity is carried by the edge, not by the mass — which is
+ * the rule, and it outlived the case that produced it. The argument used to
+ * run "a pending site is already carrying colour, so a stack of amber slabs
+ * beside it would rebuild the wall of yellow this layout exists to remove";
+ * that stack was the scope notes, and they are gone (2026-08-19). Both
+ * remaining users are `border-l-destructive`, so no amber note exists to be
+ * stacked. The rule stays because the next note added here should obey it,
+ * not because anything is currently at risk of breaking it.
  *
- * `[overflow-wrap:anywhere]` because these name hosts, and a host is one word —
- * without it a domain longer than the rail pushes the note out of the column.
+ * `[overflow-wrap:anywhere]` outlived its stated reason the same way. It was
+ * for hostnames, and the notes that named hosts are the ones that went — but
+ * both survivors render a message this code did not write (`lastError` is
+ * Chrome's own text, `iconError` likewise), and those can carry a long
+ * unbroken token: a rejected regex, a header name, a URL. The guard moves onto
+ * that rather than dying with its first subject.
  */
 const NOTE_CLASS =
   'mx-3 shrink-0 rounded-md border border-rail-border border-l-[3px] bg-background px-2.5 py-2 text-[10.5px] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
@@ -246,20 +249,16 @@ function bridgeTitle(
  * it cuts in half is itself the "there is more" signal.
  *
  * Only the site list may give way when the rail is under pressure — a long
- * scope note, a smaller font, a taller field. Every other child is `shrink-0`,
+ * reconcile error, a smaller font, a taller field. Every other child is `shrink-0`,
  * so the checklist and the readout keep their size and the list shows fewer
  * rows rather than the column overflowing.
  */
 export function ScopeRail({
-  tally,
   paused,
   announcement,
   onTogglePause,
   domains,
   byHost,
-  notes,
-  blockedBy,
-  sitesNeedingAccess,
   lastError,
   iconError,
   allSites,
@@ -279,69 +278,6 @@ export function ScopeRail({
   onDisableBridge,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
-
-  // The big number answers "is it on", which is the question asked most often.
-  // The line under it names what is not going out — the old footer reported
-  // "applying" and "off" and left every rule that was switched on and going
-  // nowhere out of both figures.
-  // "Unfinished" is named here rather than shown on the rule itself. A rule
-  // created one click ago has an empty name because nothing has been typed
-  // into it yet, and marking that row red accuses the user of a mistake the
-  // product made. Saying it in the count keeps the state from going unsaid
-  // without putting a complaint on an untouched row.
-  // "Blocked" on its own points at the rule, and the rule is often not what is
-  // wrong: an unusable site stops every rule while each one is perfectly good.
-  // Naming the cause is what keeps the count from blaming the wrong object.
-  // "until a site is set" rather than "by an unusable site": nothing is
-  // unusable in that state and nothing is wrong, so blaming a site would send
-  // the reader looking for a broken entry that does not exist. It is also the
-  // only one of the three that is not a complaint — the sentence finishes the
-  // thought the count starts rather than reporting a fault.
-  // "until access is granted" joins that half of the table: the rules are
-  // registered and nothing about them is wrong, the missing grant is a step
-  // rather than a fault, and the Grant buttons below are the step.
-  const BLAMED = {
-    sites: ' by an unusable site',
-    scope: ' until a site is set',
-    pause: ' while paused',
-    access: ' until access is granted',
-  } as const;
-  const blame = blockedBy === null ? '' : BLAMED[blockedBy];
-
-  const subcount: string[] = [];
-  if (tally.off > 0) subcount.push(`${tally.off} off`);
-  if (tally.unfinished > 0) subcount.push(`${tally.unfinished} unfinished`);
-  if (tally.blocked > 0) subcount.push(`${tally.blocked} blocked${blame}`);
-  // The half-granted state says so without touching the count: the rules are
-  // live on the granted hosts, and this clause names the ones they cannot
-  // reach — the same hosts whose rows wear Grant below. Only shown when
-  // something still goes out; with nothing granted the blocked clause above
-  // already carries the whole story.
-  if (sitesNeedingAccess > 0 && blockedBy !== 'access')
-    subcount.push(
-      sitesNeedingAccess === 1 ? '1 site needs access' : `${sitesNeedingAccess} sites need access`,
-    );
-
-  /**
-   * The whole second line as one string, or empty when there is nothing to add.
-   *
-   * Resolved here rather than branched in the markup so the line has exactly
-   * one value: it is both what is rendered and what `title` carries, and those
-   * two must not be able to disagree.
-   *
-   * The healthy state — rules configured and all of them going out — says "no
-   * problems" rather than nothing. It went through both other answers first:
-   * an empty box reserved in every state (no movement, but a blank lower half
-   * of the card whenever nothing is wrong, which is most of the time), and no
-   * box at all (no void, but the rail below jumped 20px the moment a rule was
-   * toggled off). Saying something short is the answer that costs neither.
-   *
-   * Still distinct from "nothing configured yet": that names an empty rule
-   * set, this names a full one with nothing wrong in it, and a reader who
-   * cannot tell those apart cannot tell whether their rules exist.
-   */
-  const subline =
-    tally.total === 0 ? 'nothing configured yet' : subcount.join(' · ') || 'no problems';
 
   /**
    * The all-sites row's state, in the same four-way shape a site row uses.
@@ -440,72 +376,15 @@ export function ScopeRail({
           same question asked twice — how much is going out, and is any of it —
           so they share a card rather than sitting as two bands on the rail. */}
       <div className="mx-3 mt-3 shrink-0 rounded-[10px] bg-card p-3 shadow-sm">
-        <div data-testid="readout">
-          <div className="flex h-7 items-baseline gap-[7px] tabular-nums">
-            {/* No `leading-1`: at this weight macOS's system-ui glyphs have
-                more ascent+descent than the nominal em square, so a line box
-                the size of the font clips its own text — measured at 32px of
-                content in a 30px box. CI renders the same stack under Linux
-                Chromium's fallback fonts, with different metrics again, which
-                is why this is a comfortable multiple rather than a number
-                tuned against one machine's font. */}
-            <b className="text-[24px] leading-7 tracking-[-0.03em] text-foreground [font-weight:650]">
-              {tally.live}
-            </b>
-            <span className="text-[12px] leading-4 font-medium text-foreground-2">
-              of {tally.total} rules live
-            </span>
-          </div>
-          {/* One line is always reserved, empty or not. `display: none` on an
-              empty count was the widest-reaching reflow in the popup: the
-              healthy state has nothing to add, so switching one rule off made
-              this line appear and pushed the run state, the all-sites switch,
-              every site row and the request types down at once — from a click
-              on the other side of the screen.
-
-              One line, not two. The longest message this can hold wraps to two
-              in a 199px column, and reserving for that would spend 16px of rail
-              on a sentence most sessions never see. A message growing a line
-              because it has more to say is content changing; an empty line
-              appearing because a control did is the defect.
-
-              That bound is a *ceiling*, so the text has to be told what to do
-              when it reaches it. It was not: the box was `h-4 overflow-hidden`
-              with the sentence as a bare anonymous flex item, so the longest
-              real message — "1 off · 1 unfinished · 2 blocked by an unusable
-              site" — wrapped to 22px inside a 16px box and `items-center` then
-              sliced *both* lines through the middle. Measured in the built
-              popup at 748×600. The clause it cut is the one this component
-              argues hardest for ten lines above: naming the cause is what keeps
-              the count from blaming the rule for an unusable site.
-
-              So it truncates rather than wraps, with an ellipsis saying so and
-              `title` carrying the whole sentence — the same bargain the
-              hostname on a site row and the duplicate note in AddSiteField
-              already make. `truncate` needs the text in its own `min-w-0` flex
-              child; as a bare text node it is an anonymous box that
-              `text-overflow` cannot address. */}
-          {/* Always rendered, and never empty — see the `subline` docblock
-              above for the two answers this replaces and why each failed. A
-              box whose presence never changes is what lets the Interface rule
-              hold here without reserving a void: it is not reflow-prevention
-              by blank space, it is a line that always has something true to
-              say. */}
-          <div
-            className="mt-1 flex h-4 items-center gap-[5px] overflow-hidden text-[11px] leading-[14px] font-medium text-foreground-2"
-            data-testid="subcount"
-          >
-            {tally.off > 0 && (
-              <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
-            )}
-            <span className="min-w-0 truncate" title={subline}>
-              {subline}
-            </span>
-          </div>
-        </div>
-
+        {/* The count that used to open this card is gone (owner's call,
+            2026-08-20) — a 24px number and a line naming what was held, 48px
+            spent at the top of the rail, which is the part that runs out first
+            as the site list grows. It reads in the panel head now
+            (`RulePanel`), right-aligned beside "Rules", where there was width
+            to spare. What stays is the half this card was really for: whether
+            anything is running at all, and the two switches that decide it. */}
         <div
-          className="group/run mt-3 flex h-5 items-center gap-[7px]"
+          className="group/run flex h-5 items-center gap-[7px]"
           data-testid="runstate"
           data-paused={paused || undefined}
         >
@@ -669,8 +548,12 @@ export function ScopeRail({
       </div>
 
       {/* A failed reconcile means nothing is applying, which contradicts the
-          run state directly above it — so it sits here rather than among the
-          scope notes, above everything it makes untrue. */}
+          run state directly above it — so it sits at the top of the rail,
+          above everything it makes untrue. It used to be placed "rather than
+          among the scope notes"; those are gone (2026-08-19), and with them
+          the only other notes this one could have been grouped with. The
+          placement is unchanged and the reason survives it: the note goes
+          above what it contradicts. */}
       {lastError !== null && (
         <div className={`${NOTE_CLASS} mt-3 border-l-destructive`} data-testid="sync-error">
           <b className="mb-0.5 block font-bold text-destructive">Rules not registered</b>
@@ -704,11 +587,21 @@ export function ScopeRail({
           all-sites row and the add field, because those three are `shrink-0`
           and only the list between them can collapse.
 
-          Measured by removing it: with a scope note on screen the rail went to
+          Measured by removing it: with a note on screen the rail went to
           676px of content in a 600px box and pushed the request types 37px
-          down, instead of the site list shrinking from 132 to 48. The e2e
-          suite opens exactly that page (a note plus eight sites), so the class
-          cannot be dropped in silence.
+          down, instead of the site list shrinking from 132 to 48. Those
+          figures are from the tree of the day, when the note on that page was
+          a scope note; the notes are gone (2026-08-19) and the e2e suite now
+          plants a sync-error to make the same pressure, so the page it opens
+          is still a note plus eight sites — see the overflow guard in the
+          e2e header-modification spec, "목록이 넘쳐도 잘리지 않고", and the
+          reasoning written at its seed.
+          (Named rather than pathed on purpose: a quoted path under the test
+          directory is a false red in the shipped-source guard that keeps the
+          Tailwind carve-out sound. Its own docblock says to reword.)
+
+          What that test actually pins is the *pair* below rather than this
+          class alone; read the next paragraph before deleting either.
 
           `overflow-hidden` closes the other half of what that pressure does.
           `min-h-0` lets this section shrink, but shrinking alone only decides
@@ -721,7 +614,18 @@ export function ScopeRail({
           part of the rail that is allowed to give way — never by a section
           that did not move. At nominal size the content fits and nothing is
           clipped, so the class costs nothing until the failure it contains. */}
-      <div className="mt-3 flex min-h-0 flex-col gap-1.5 overflow-hidden">
+      {/* `pb-[3px]` is the add field's focus ring, not spacing. `overflow-hidden`
+          above clips at this box's *padding* edge, and the field is the last
+          child — flush with that edge, measured: the input's bottom and this
+          box's bottom were the same pixel. The ring is a 3px box-shadow drawn
+          outside the border box, so all 3px of its lower arc were cut off and
+          a keyboard user saw a ring open at the bottom. Three pixels of padding
+          put the ring inside the clip without moving the field: padding grows
+          the box the clip uses, not the content's position. The rail can afford
+          it — the leftover is 28px with no notes up (CLAUDE.md, Interface) —
+          and the alternative, dropping the clip, is what let the field
+          overprint the request-types heading under pressure. */}
+      <div className="mt-3 flex min-h-0 flex-col gap-1.5 overflow-hidden pb-[3px]">
         <div className={HEAD_CLASS}>
           Sites{' '}
           <span className={HEAD_COUNT_CLASS} data-testid="site-count">
@@ -783,7 +687,6 @@ export function ScopeRail({
                     </span>
                   ))}
                 </span>
-                <span>Matched by host — a port or path is dropped.</span>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -897,15 +800,31 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 108px, which is deliberately NOT a multiple of
+            The height stops at 174px, which is deliberately NOT a multiple of
             the row pitch. The rows are 60px (8px padding above and below,
             matching the all-sites bar, since the standard `xs` Grant made the
-            second line 24px), so the pitch is 66: one full row plus its gap
-            is 66px, two are 126px, and the cap sits between them — 42px of
-            the second row shows, sliced through its second line, and the cut
-            row is the affordance saying the list continues regardless of
-            exactly how much of it shows. 66 or 126 would each show a whole
-            number of rows and say nothing.
+            second line 24px) and the gap is 6, so two whole rows occupy 132px
+            and the third begins there — the cap sits 42px into it, slicing
+            that row through its second line. The cut row is the affordance
+            saying the list continues regardless of exactly how much of it
+            shows; 132 or 192 would each show a whole number of rows and say
+            nothing.
+
+            **The cap went 108 -> 174 on 2026-08-20, and the 66px came from
+            two things leaving the rail rather than from a preference.** The
+            readout moved to the panel head (see the card above) and the run
+            state gave up an `mt-3` that had only ever separated it from that
+            readout. Measured in the built popup at eight sites, before and
+            after: the leftover the request-types section was absorbing through
+            its `mt-auto` read 73px, and this cap took 66 of it. What is left
+            is 19px of real slack, which is deliberate — the last time this
+            rail was spent to zero it cost a redesign. The remaining 19 would
+            not buy a better shape anyway: 186 leaves 54px of the third row
+            showing, near enough to a whole one to stop reading as a slice,
+            and 192 is exactly three rows, which is the on-pitch case the
+            paragraph above rejects. Re-measure both numbers before spending
+            them; every figure in this docblock has been overtaken at least
+            once.
 
             **Why the cap came down from 127 rather than up: measured, not
             chosen.** The rail offers this list 136px at nominal (127 of cap
@@ -992,7 +911,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[108px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[174px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {
@@ -1028,56 +947,22 @@ export function ScopeRail({
           <AddSiteField onAdd={onAddDomain} />
         </div>
 
-        {/* Last in the section, after the field, and the copy says "above" to
-            match: the note names two controls and they both sit before it.
-
-            **No top margin of its own — that was the actual complaint.** This
-            section is a `gap-1.5` flex column, so every other child sits 6px
-            from its neighbour; `NOTE_CLASS` used to add `mt-3` on top of that
-            gap, giving this one child 18px and detaching it from the field it
-            follows without attaching it to anything else. The margin now lives
-            at the two call sites that are not inside a gapped column (the sync
-            and icon errors), and this note simply takes the section's own
-            rhythm.
-
-            The head of the section was tried and rejected by the owner. It did
-            solve the geometry — `mt-auto` on the request types sends every
-            spare pixel of the rail to just above that section, so anything
-            rendered last in this one sits on top of that gap (measured empty:
-            12px above the note, 43px below) — but it put a problem statement
-            ahead of the controls a reader is coming here to use. Placement
-            lost to reading order. Do not move it up again without asking; the
-            gap below it is known and accepted. */}
-        {notes.map((d, i) => (
-          <div
-            key={`${d.kind}-${i}`}
-            data-testid="scope-note"
-            data-severity={d.severity}
-            className={`${NOTE_CLASS} ${
-              d.severity === 'error'
-                ? 'border-l-destructive'
-                : // `incomplete` is not a complaint. Nothing is wrong and nothing
-                  // is at risk — the configuration simply is not finished yet,
-                  // which is the state a fresh install opens in. Amber is this
-                  // palette's "something needs you", and spending it on the one
-                  // note that is asking for nothing would rebuild the standing
-                  // warning this state replaces, in a different colour.
-                  d.severity === 'incomplete'
-                  ? 'border-l-muted-foreground'
-                  : 'border-l-pending'
-            }`}
-          >
-            {d.message}
-          </div>
-        ))}
+        {/* The scope notes are gone (owner's ruling, 2026-08-19), and this is
+            where they used to render — last in the section, after the field.
+            Their subjects moved onto the things they were about: an unusable
+            entry now wears its invalid Badge on its own row (SiteRow), and
+            "no site set" is the readout's own sentence ("blocked until a site
+            is set"). What the notes' arrival-and-departure geometry once cost
+            this section is recorded in CLAUDE.md's Interface table; the two
+            error notes that remain (sync-error, icon-error) render above the
+            section, not here, and are untouched by this. */}
       </div>
 
       {/* Last, and pushed to the foot by `mt-auto`: the leftover space in a
           rail with two sites belongs at the bottom of the column, not as a
-          hole in the middle of it. Above the checklist rather than below is
-          also where the scope notes go — every one of them is about the sites,
-          and the checklist is the least-touched control on screen, so it is
-          the one that can afford to be the thing you scroll past. */}
+          hole in the middle of it. The checklist is the least-touched control
+          on screen, so it is the one that can afford to be the thing you
+          scroll past. */}
       <div className="mt-auto shrink-0 pt-2" data-testid="rail-section-types">
         <div className={HEAD_CLASS}>
           Request types{' '}

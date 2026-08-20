@@ -289,7 +289,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
       <div className="flex w-12 shrink-0 flex-col">
         <Badge
           asChild
-          className={`h-[18px] w-12 shrink-0 justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-95 ${TARGET_TONE[rule.target]}`}
+          className={`h-[18px] w-12 shrink-0 cursor-pointer justify-center gap-[3px] rounded-t-[4px] rounded-b-none border-0 px-0 py-0 text-[11px] font-semibold tracking-[0.01em] hover:brightness-95 ${TARGET_TONE[rule.target]}`}
         >
           <button
             type="button"
@@ -328,7 +328,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
               box) differs, which is not a font change. */}
         <Badge
           asChild
-          className="h-[18px] w-12 shrink-0 justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-95"
+          className="h-[18px] w-12 shrink-0 cursor-pointer justify-center rounded-t-none rounded-b-[4px] border-0 bg-tray px-0 py-0 text-[11px] font-semibold tracking-[0.01em] text-muted-foreground hover:brightness-95"
         >
           <button
             type="button"

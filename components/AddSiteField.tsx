@@ -27,9 +27,9 @@ export interface AddSiteFieldProps {
  *
  * Blank input is dropped rather than appended. An empty *entry* in a non-empty
  * list is a domain that can never match, silently narrowing the scope to
- * nothing — and an empty list is now its own stated state (`no-scope`) rather
- * than a spelling of "every site", so there is nothing to be gained by letting
- * a blank one in either.
+ * nothing — and an empty list is now its own state, counted by the readout as
+ * blocked rather than being a spelling of "every site", so there is nothing to
+ * be gained by letting a blank one in either.
  */
 export function AddSiteField({ onAdd }: AddSiteFieldProps) {
   const [draft, setDraft] = useState('');

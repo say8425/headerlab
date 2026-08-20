@@ -1,8 +1,8 @@
 import { Plus } from 'lucide-react';
 import { RuleCard } from './RuleCard';
-import { Button } from '@/components/ui/button';
 import { rowKey } from '@/lib/compile/validate';
 import type { Diagnostic, HeaderRule } from '@/lib/model/types';
+import type { RuleTally } from '@/lib/view/rules';
 
 export interface RulePanelProps {
   rules: readonly HeaderRule[];
@@ -26,6 +26,18 @@ export interface RulePanelProps {
   onPatchRule: (ruleId: string, patch: Partial<HeaderRule>) => void;
   onDeleteRule: (ruleId: string) => void;
   onAddRule: () => void;
+  /** How many rules are going out, and what is holding the rest. */
+  tally: RuleTally;
+  /**
+   * Which of the whole-set verdicts is holding the rules, or null.
+   *
+   * Read for one thing only: suppressing the "N sites need access" clause when
+   * a missing grant is *already* the whole story, so the line does not say it
+   * twice.
+   */
+  blockedBy: 'sites' | 'scope' | 'pause' | 'access' | null;
+  /** Scoping hosts that have no permission yet. */
+  sitesNeedingAccess: number;
 }
 
 /**
@@ -41,10 +53,16 @@ export interface RulePanelProps {
  * and response: the direction pill on each card says which it is, so grouping
  * would spend a header on something already legible from the row.
  *
- * **The list is the only thing here that scrolls.** The head keeps its place,
- * so "New rule" is reachable from any scroll position, and the well below it
- * is sized to the panel rather than to its contents — `flex-1`, never a
+ * **The list is the only thing here that scrolls.** The well below the head is
+ * sized to the panel rather than to its contents — `flex-1`, never a
  * `max-height`.
+ *
+ * The head used to carry a second "New rule" button so the action was
+ * reachable from any scroll position. It is gone (owner's call): the ghost row
+ * at the end of the list is the same action, and two controls doing one thing
+ * is a duplicate the head does not need to spend width on. The trade is real
+ * and worth naming — with a long list you now scroll to the bottom to add —
+ * and it is the accepted one.
  *
  * Both `min-h-0`s below are belt and braces, measured to be exactly that —
  * removing either changes nothing (e2e stays at 7 passed). They are inert for
@@ -78,7 +96,32 @@ export function RulePanel({
   onPatchRule,
   onDeleteRule,
   onAddRule,
+  tally,
+  blockedBy,
+  sitesNeedingAccess,
 }: RulePanelProps) {
+  // **The count lives here, not in the rail (owner's call, 2026-08-20).** It
+  // was the rail's opening card — a 24px number over a second line naming what
+  // was held — and it cost the rail 48px at the top, which is the part of the
+  // popup that runs out first as the site list grows. The panel head had the
+  // room and was carrying one word.
+  //
+  // One line, not two: the head is `h-7`, and the count and its detail read as
+  // one sentence at this size. The number keeps its own emphasis so "is it on"
+  // is still answerable at a glance, and only the detail truncates — the count
+  // is short, always relevant, and must never be the half that gets cut.
+  const detail: string[] = [];
+  if (tally.off > 0) detail.push(`${tally.off} off`);
+  if (tally.unfinished > 0) detail.push(`${tally.unfinished} unfinished`);
+  if (tally.blocked > 0) detail.push(`${tally.blocked} blocked`);
+  // Only when something still goes out; with nothing granted the blocked
+  // count above already carries the whole story.
+  if (sitesNeedingAccess > 0 && blockedBy !== 'access')
+    detail.push(
+      sitesNeedingAccess === 1 ? '1 site needs access' : `${sitesNeedingAccess} sites need access`,
+    );
+  const detailLine = detail.join(' · ');
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background p-3">
       <header className="mb-2.5 flex h-7 shrink-0 items-center gap-[7px]">
@@ -86,15 +129,32 @@ export function RulePanel({
           Rules
         </h2>
         <span className="flex-1" />
-        {/* Never scrolls away — the list below it does. */}
-        <Button
-          size="sm"
-          className="gap-1.5 rounded-md pr-2.5 pl-2 text-[12px] leading-4 font-semibold"
-          onClick={onAddRule}
+        {/* `tabular-nums` so the number does not jitter the words beside it as
+            rules go live one at a time. */}
+        <div
+          className="flex min-w-0 items-center gap-[5px] text-[11px] leading-[14px] font-medium text-foreground-2 tabular-nums"
+          data-testid="readout"
         >
-          <Plus aria-hidden="true" />
-          New rule
-        </Button>
+          {tally.total === 0 ? (
+            <span className="shrink-0">nothing configured yet</span>
+          ) : (
+            <>
+              {/* The neutral dot the rail's line used to carry, kept with the
+                  same meaning: something is switched off by hand. */}
+              {tally.off > 0 && (
+                <span className="size-1.5 shrink-0 rounded-full bg-input" aria-hidden="true" />
+              )}
+              <span className="shrink-0">
+                <b className="font-semibold text-foreground">{tally.live}</b> of {tally.total} live
+              </span>
+              {detailLine !== '' && (
+                <span className="min-w-0 truncate" data-testid="subcount" title={detailLine}>
+                  · {detailLine}
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </header>
 
       {/* The well, and the scroll container, as one element.
@@ -145,8 +205,36 @@ export function RulePanel({
             than against either literal, so a third drift fails a test
             instead of waiting for someone to notice a screenshot looks 2px
             off. */}
+        {/* The focus ring is drawn **inward** on this one control, and that is
+            a clipping fix rather than a style preference. The well above is a
+            scroll container — `scroll-list` is `overflow-y: auto`, which forces
+            `overflow-x` to compute to a clipping value however it is written,
+            so it cannot be told to let a ring through. This button is the only
+            focusable thing inside it that is *itself* flush with that edge
+            (every control on a rule row is inset by the row's own padding), so
+            the global `:focus-visible` outline — 2px at `outline-offset: 1px`,
+            i.e. 3px outside the border box — had all 3px of its left arc cut
+            off. Measured: room 0 on the left, 8 on the right, the 8 being the
+            scrollbar gutter, which is why only one side looked wrong.
+            `outline-offset: -2px` puts the whole ring inside the border box, so
+            the room it needs is zero and no geometry moves. The alternative —
+            padding the well — shifts every rule row inward and narrows the
+            list, to fix one control.
+
+            `cursor-pointer` for the reason `AddSiteField` already records at
+            its own `+`: a `<button>` takes the browser's arrow by default —
+            there is no `cursor` rule in the build at all, this is the UA
+            sheet — and an arrow over a full-width row says "not clickable" at
+            exactly the moment the row is inviting a click.
+
+            The `!` is load-bearing and is not a specificity fight. style.css's
+            `:focus-visible` is **unlayered**, and Tailwind v4 emits utilities
+            inside `@layer utilities`; unlayered CSS beats layered CSS whatever
+            the selectors say, so the plain utility lost and the measured
+            offset stayed at 1px. Verified by measuring the computed style with
+            the class present, not by reading the class list. */}
         <button
-          className="mb-px flex h-[52px] shrink-0 items-center gap-2.5 bg-tray pr-2 pl-3 text-left"
+          className="mb-px flex h-[52px] shrink-0 cursor-pointer items-center gap-2.5 bg-tray pr-2 pl-3 text-left focus-visible:[outline-offset:-2px]!"
           aria-label="New rule at end"
           onClick={onAddRule}
         >

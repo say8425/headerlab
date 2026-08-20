@@ -21,11 +21,21 @@ import { bridgeStatusItem, DEFAULT_BRIDGE_STATUS, getBridgeStatus } from '@/lib/
 import type { BridgeStatus } from '@/lib/storage/session';
 import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { useAppState } from '@/lib/storage/useAppState';
-import type { Diagnostic, HeaderRule, Profile, ResourceType } from '@/lib/model/types';
+import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
 
 export default function App() {
   const { state, valid, patch } = useAppState();
-  const [grantDiagnostics, setGrantDiagnostics] = useState<Diagnostic[]>([]);
+
+  /**
+   * Every per-host grant answer this popup has actually established.
+   *
+   * A cache with one job: telling "probed, and not granted" apart from "never
+   * probed". Both look identical in `grantDiagnostics` — neither produces a
+   * diagnostic for a granted host — and conflating them is what let an
+   * unprobed row claim access. A ref rather than state because writing it must
+   * not itself re-render; the `setGrantDiagnostics` beside it is what does.
+   */
+  const [knownGrants, setKnownGrants] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   // `null` until the probe answers. The switch must not show "needs
   // permission" for the instant before the browser has been asked — a badge
   // that appears and withdraws itself on every open is one people learn to
@@ -150,9 +160,37 @@ export default function App() {
   useEffect(() => {
     if (!state) return;
     let cancelled = false;
+    const hosts = domainsToAudit(state.profiles);
+
+    // **Answer from what has been established, and read silence as "no".**
+    // `grantDiagnostics` starts empty and only fills once the probe resolves,
+    // and `SiteRow` reads "no diagnostic" as `granted` — so a host nothing had
+    // asked about yet rendered green and said "Access granted" for a frame or
+    // more. Adding a site made it visible: type one and the row was briefly
+    // green before flipping to Grant. That is the same defect as the
+    // suppressed-sibling one, arriving through a different door — the absence
+    // of an answer reported as a positive answer.
+    //
+    // So a host whose answer is not yet known is treated as ungranted, which
+    // puts the Grant button up immediately. The direction matters: offering a
+    // remedy that turns out to be unnecessary costs a moment of a button;
+    // claiming an access that was never checked is the trust posture inverted.
+    //
+    // `knownGrants` is what keeps that from becoming a flicker of its own.
+    // This popup writes state on every keystroke, so this effect re-runs
+    // constantly; without a memory, every keystroke would reset every row to
+    // "unknown" and strobe the Grant buttons of hosts already probed. Answers
+    // accumulate, so only a genuinely new host is ever unknown. A fresh mount
+    // knows nothing and briefly shows Grant on granted rows — the one case
+    // this trade does not fix, and the safe side of it.
     (async () => {
-      const grants = await probeGrants(domainsToAudit(state.profiles));
-      if (!cancelled) setGrantDiagnostics(auditDiagnostics(state.profiles, grants));
+      const grants = await probeGrants(hosts);
+      if (cancelled) return;
+      setKnownGrants((prev) => {
+        const next = new Map(prev);
+        for (const grant of grants) next.set(grant.domain, grant.granted);
+        return next;
+      });
     })();
     return () => {
       cancelled = true;
@@ -292,6 +330,23 @@ export default function App() {
   const patchProfile = (map: (profile: Profile) => Profile) =>
     patch((s) => ({ profiles: s.profiles.map((p) => (p.id === active.id ? map(p) : p)) }));
 
+  // Derived here, in render, rather than written into state by the effect
+  // above — and that is the whole fix rather than a tidying. An effect runs
+  // *after* the paint that triggered it, so the frame in which a newly added
+  // host first appears is a frame the effect has not reached yet: the row
+  // rendered with no diagnostic and `SiteRow` reads no diagnostic as
+  // `granted`. Measured by sampling every animation frame while typing a site
+  // in: 'granted|Access granted' was observed before 'pending|GRANT'.
+  // Deriving from `knownGrants` removes the window instead of narrowing it —
+  // there is no frame in which the answer has not been consulted, because
+  // consulting it is what produces the row.
+  const grantDiagnostics = auditDiagnostics(
+    state.profiles,
+    domainsToAudit(state.profiles).map((domain) => ({
+      domain,
+      granted: knownGrants.get(domain) ?? false,
+    })),
+  );
   const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
 
@@ -383,15 +438,11 @@ export default function App() {
     // header value widening the track instead of wrapping inside it.
     <div className="flex h-full" data-testid="popup-root">
       <ScopeRail
-        tally={tally}
         paused={state.globalPause}
         announcement={announcement}
         onTogglePause={(paused) => patch(() => ({ globalPause: paused }))}
         domains={active.filter.domains}
         byHost={routed.byHost}
-        notes={routed.scope}
-        blockedBy={blockedBy}
-        sitesNeedingAccess={ungrantedHosts.size}
         lastError={status.lastError}
         iconError={status.iconError}
         bridge={bridgeMode}
@@ -544,7 +595,13 @@ export default function App() {
           if (!current) return;
           const grants = await probeGrants(domainsToAudit(current.profiles));
           if (mountedRef.current) {
-            setGrantDiagnostics(auditDiagnostics(current.profiles, grants));
+            // Into the same record the render above reads, so the host just
+            // granted is known rather than defaulting to ungranted.
+            setKnownGrants((prev) => {
+              const next = new Map(prev);
+              for (const grant of grants) next.set(grant.domain, grant.granted);
+              return next;
+            });
             setAnnouncement(
               granted ? `${host} — access granted` : 'The permission was not granted',
             );
@@ -555,6 +612,9 @@ export default function App() {
         rules={active.headers}
         profileId={active.id}
         byRow={routed.byRow}
+        tally={tally}
+        blockedBy={blockedBy}
+        sitesNeedingAccess={ungrantedHosts.size}
         autoFocusFirstRule={autoFocusFirstRule}
         onPatchRule={patchRule}
         onDeleteRule={(ruleId) =>

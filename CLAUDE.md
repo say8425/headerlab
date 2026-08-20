@@ -755,14 +755,44 @@ The diagnostics layer exists so nothing fails quietly. Two rules follow from it:
 
 **Never suppress without saying so.** A profile with no usable domain is not applied —
 because a filter with no domain condition matches *every site* — and that suppression
-must reach the screen. Fail-open is asymmetric here: headers skip per row, domains
-suppress the whole profile.
+must reach the screen.
+
+**The asymmetry used to be "headers skip per row, domains suppress the whole profile".
+It is narrower now (owner's call, 2026-08-20): an unusable domain is skipped per entry
+too, and only the LAST one suppresses.** One typo taking every good host down with it
+was the complaint, and it was a bigger hammer than the danger needed. The danger is
+real and unchanged, so read the pairing before touching either half:
+`conditions.ts` drops unusable entries before they reach `requestDomains`, and
+`suppressionReason` fails the profile closed exactly when nothing usable is left.
+Filtering without that check would widen an all-invalid profile from "these hosts" to
+every site; the check without the filter would hand `updateDynamicRules` a malformed
+domain, and that call is transactional — it would reject every other rule in the batch.
+Neither half is safe alone, which is why the old code chose the hammer.
+A skipped entry is still *said*: `invalid-domain` is raised for any unusable entry now,
+as a `warning` when its neighbours still apply and an `error` when nothing is left, and
+the row itself wears an `invalid` Badge.
 
 **Applying everywhere is a mode, not an empty list.** `filter.domains: []` used to mean
 both "not scoped yet" and "deliberately everywhere", and the standing warning about it
 existed only because the code could not tell those apart. `filter.allSites` names the
 second one, so the first can mean what it looks like: nothing applies, stated calmly
-(`no-scope`, severity `incomplete`) rather than warned about. All-sites keeps the stored
+rather than warned about. **Where it is stated moved on 2026-08-19, and the two
+same-named types are the trap.** It used to be a `no-scope` *diagnostic* of severity
+`incomplete`, rendered as a note above the site list; the note and the diagnostic went
+together, and the saying-so is now the readout's own always-on-screen count — "N
+blocked" — which never appears or departs, so it costs the rail nothing. **That count
+carried its cause as a suffix until 2026-08-20** (" until a site is set", " by an
+unusable site", " while paused", " until access is granted"); the suffix is gone and
+the count is not, which is the half to defend: `blocked` exists in `ruleTally` so this
+line cannot read "no problems" while zero rules go out. Measured before dropping it —
+the line has 171px, one blamed clause runs 142-176px, and it truncated the moment a
+second segment joined. Each cause is now said where it can be acted on: on the row
+(an `invalid` Badge, or `suppressed` on a sibling), on the run-state switch, and in
+the readout's own "N sites need access" clause. `suppressionReason` still returns `'no-scope'` and
+`lib/bridge/query.ts` still ships it to the CLI, because that is a **`SuppressionReason`**
+(`lib/compile/suppression.ts`) and always was; the identically-spelled `DiagnosticKind`
+member was retired with its producer, since nothing emitted it any more. Do not read the
+surviving string as evidence the diagnostic is back. All-sites keeps the stored
 site list and compiles none of it, so the switch is reversible — which means **what the
 list holds and what scopes the rule are no longer the same thing.** Ask `scopingHosts`,
 never `filter.domains`; the conflict detector read the list directly and would have
@@ -821,7 +851,18 @@ own sub-line. When adding one, ask what its absence looks like — if the answer
 **State changes appearance, not geometry.** Colour, weight, opacity and content may
 follow state freely; box dimensions and positions should not.
 
-**The rail now carries zero slack, measured.** Adding the bridge row cost 21px the
+**The rail gave up its readout on 2026-08-20, and every figure below predates that.**
+The count — a 24px number over a line naming what was held — was the rail's opening
+card and cost it roughly 48px at the top, which is the part that runs out first as the
+site list grows. It reads in the panel head now, right-aligned beside "Rules"
+(`RulePanel`), where the measured space is 453px against a worst realistic line of
+323px — so it no longer truncates, which is what it did in the rail's 171px. The card
+that held it keeps the two switches. **Re-measure before spending any number in this
+section**: the one figure already re-taken is the site list under pressure, which
+stopped yielding at all with a single note up (it sat at its 108px cap) and needed both
+error notes planted to press again. The e2e overflow guard carries that measurement.
+
+**The rail once carried zero slack, measured.** Adding the bridge row cost 21px the
 layout did not have to spare: `docs/design/2026-08-12-agent-bridge-rail-budget.html`
 measured the *built* popup and found 7px genuinely free, not the 28px a source-level
 reading of the Tailwind classes suggested. The remaining 21px came from four existing
@@ -1100,7 +1141,17 @@ that no longer renders, passing while describing nothing.
   worst state: with both notes up, the section's `overflow: hidden` (added 2026-08-17)
   makes the shortfall clip inside the sites section instead of letting the add field
   overprint the request-types heading — but the list still collapses to 0px, so the
-  *reservation* problem stands. None is the same fix shape as the bridge row's own note
+  *reservation* problem stands. **A fourth offender was retired rather than fixed, and
+  how is the reusable part**: the unusable-site note was an appearing note in this same
+  rail, and it is gone (2026-08-19) because its message moved onto the object it was
+  about — the row holding the bad value now wears an `invalid` Badge in the slot a
+  pending row keeps for its Grant button, so the note's whole cost became zero without
+  a reservation being added anywhere. That is a third fix shape, alongside the two
+  below: not "reserve the space" and not "fold into an existing row", but *re-home the
+  message on the thing it names*. It only works when such a thing exists on screen —
+  which is exactly what `sync-error` and `icon-error` lack (they are about the rule set
+  as a whole, not about any one row), and why they are still here.
+  None is the same fix shape as the bridge row's own note
   (that one folded into an existing fixed-height row; these are prose with no existing
   row to fold into), so this needs its own design pass rather than a while-we-are-here
   patch.

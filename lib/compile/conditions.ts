@@ -27,18 +27,28 @@ export function filterToCondition(filter: Filter, tabId?: number | null): DnrRul
   // Normalized once here so requestDomains and the urlFilter anchor agree with
   // each other and with the permission audit in lib/permissions/origins.ts —
   // "API.Example.com" and "api.example.com" must compile to the same
-  // condition. Validity (an invalid domain must suppress the whole profile's
-  // rule, not just be dropped here) is decided by the caller — see
-  // lib/compile/compile.ts — because dropping just the bad domain would
-  // leave a rule with no domain condition, which DNR matches against every
-  // site.
+  // condition.
+  //
+  // **Unusable entries are dropped here (owner's call, 2026-08-20), and the
+  // suppression that used to cover them still guards the case that made
+  // dropping unsafe.** This line took the list raw and left validity to the
+  // caller, because dropping the bad entry out of a list that held nothing
+  // else would leave a rule with no domain condition — and DNR matches that
+  // against every site. That reasoning only ever applied to the *last* one:
+  // one bad entry among good ones is simply a narrower rule. So the drop
+  // happens here and `suppressionReason` fails the profile closed exactly
+  // when nothing usable is left, which is the state this comment was really
+  // about. The two must stay paired: filtering here without that check would
+  // widen an all-invalid profile to every site, and the check without this
+  // filter would hand `updateDynamicRules` a malformed domain — and that call
+  // is transactional, so it would take every other rule down with it.
   //
   // All-sites drops the list entirely: applying everywhere *is* a rule with no
   // `requestDomains`, and that is now something the user asked for rather than
   // something the compiler fell into. The stored entries are left untouched in
   // state so turning the mode back off restores the scope they had built —
   // this is the only place that decides not to compile them.
-  const domains = filter.allSites ? [] : filter.domains.map(normalizeDomain);
+  const domains = filter.allSites ? [] : filter.domains.filter(isValidDomain).map(normalizeDomain);
 
   const condition: DnrRuleCondition = {
     resourceTypes: [...filter.resourceTypes],

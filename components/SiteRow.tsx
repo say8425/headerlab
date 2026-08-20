@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Ban, CircleCheck, CircleMinus, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useArmed } from '@/lib/view/useArmed';
 import type { Diagnostic } from '@/lib/model/types';
@@ -45,11 +46,37 @@ export interface SiteRowProps {
  * `domain` may carry a port that no match pattern can express — the diagnostic
  * is the only party that already knows which host was probed.
  */
-/** What each row state is called when it cannot be seen. */
+/**
+ * How to fix an unusable entry, stated once.
+ *
+ * Two places say it — the invalid Badge's `title`, for a pointer that hovers,
+ * and the row's accessible name below, for a reader that cannot see the Badge
+ * at all. It is the second sentence of `filterDiagnostics`'s own
+ * `invalid-domain` message, and it is repeated here rather than read from the
+ * diagnostic because the diagnostic never reaches this row: `invalid-domain`
+ * carries a `profileId` and no `host`, so `routeDiagnostics` files it under
+ * `scope` — the bucket the popup stopped rendering when the notes went. The
+ * duplication is deliberate and bounded; `filterDiagnostics.test.ts` pins the
+ * message that owns the wording.
+ */
+const UNUSABLE_REMEDY = 'Use a bare hostname like example.com.';
+
+/**
+ * What each row state is called when it cannot be seen.
+ *
+ * `unusable` carries the remedy as well as the name, and that is the whole
+ * accessibility budget for this state. The word "invalid" on screen is
+ * `aria-hidden` (it only repeats what this label already says) and its
+ * `title` reaches a pointer and nothing else — so without the remedy here, a
+ * reader who cannot see the row would be told that something is wrong and
+ * never told what to do about it. The rail-wide note this replaced said it in
+ * rendered text that any reader could reach; losing that when the note went
+ * would be the silent half of a fix.
+ */
 const STATE_LABEL = {
   granted: 'Access granted',
   pending: 'Awaiting permission',
-  unusable: 'Unusable site',
+  unusable: `Unusable site. ${UNUSABLE_REMEDY}`,
   idle: 'Not in use',
 } as const;
 
@@ -60,16 +87,15 @@ type RowState = keyof typeof STATE_LABEL;
  *
  * The line exists in every state — see the markup for why — so the question is
  * only what fills it. A blank band inside a card reads as a rendering fault,
- * and these three states each have something true to put there.
+ * and these two states each have something true to put there.
  *
- * `pending` is absent on purpose: that state's line is the button, and a word
- * for it would be a branch nothing can reach. A pending row with no grantable
- * host would fall through to an empty line, which is the honest rendering of
- * "waiting, with nothing to press".
+ * `pending` and `unusable` are absent on purpose: a pending row's line is the
+ * button, and an unusable row's line is the invalid Badge below — the owner's
+ * ruling that the error lives on the row that holds the bad value, not in a
+ * band above the list.
  */
-const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
+const STATE_LINE: Record<Exclude<RowState, 'pending' | 'unusable'>, string> = {
   granted: 'Access granted',
-  unusable: 'Cannot be used',
   idle: 'Not in use while All sites is on',
 };
 
@@ -91,9 +117,10 @@ const STATE_TONE = {
 
 /**
  * The second line's colour and weight, mirroring the mockup's `.te-l2--live`
- * / `.te-l2--err` — severity is said in the line itself, not only on the icon
- * beside it. `pending` is never seen: that state's line holds the Grant
- * button, or nothing (see `STATE_LINE`), never this span's text.
+ * — severity is said in the line itself, not only on the icon beside it.
+ * `pending` and `unusable` are never *seen*: those lines hold the Grant
+ * button and the invalid Badge. Both stay in the record so the template
+ * below can index by any state without a branch that cannot render.
  */
 const STATE_LINE_TONE: Record<RowState, string> = {
   granted: 'font-semibold text-live',
@@ -179,12 +206,27 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
    * invitation to press it, and the Enter that follows a confirmed grant
    * must not delete the site it was granted for. `tabIndex={-1}` keeps this
    * programmatic slot out of the tab order entirely.
+   *
+   * **Gated on the button actually having been pressed, not on the wait
+   * ending.** This asked "was this row awaiting a grant on the previous
+   * render, and is it not now" — a fair reading of "the wait ended" while an
+   * unprobed row rendered as granted. It stopped being one when unknown
+   * access started rendering as *pending* (App.tsx, `knownGrants`): every
+   * already-granted row now opens pending and resolves a moment later, which
+   * that reading counted as a grant completing. The result was a popup that
+   * stole focus to a site row on open and scrolled the list to it — reported
+   * from the built extension, and visible in `pnpm screenshots` as a ring on
+   * a row nobody had touched. Nothing should be focused when the popup opens;
+   * this effect exists for the one keyboard user who just pressed Grant, and
+   * now it can only fire for them.
    */
   const rowRef = useRef<HTMLDivElement>(null);
-  const wasAwaitingGrant = useRef(false);
+  const grantPressed = useRef(false);
   useEffect(() => {
-    if (wasAwaitingGrant.current && awaitingGrant === undefined) rowRef.current?.focus();
-    wasAwaitingGrant.current = awaitingGrant !== undefined;
+    if (grantPressed.current && awaitingGrant === undefined) {
+      grantPressed.current = false;
+      rowRef.current?.focus();
+    }
   }, [awaitingGrant]);
 
   // The other destructive control in the popup, wearing the same two-click
@@ -266,16 +308,42 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           computed and dropped. A `title` is the zero-pixel path: the second
           line stays empty as decided above, and a pointer that hovers gets
           the whole explanation. */}
+        {/* The invalid mark, owner's ruling (2026-08-19): the error lives on
+            the row that holds the bad value, in the slot a pending row offers
+            its remedy — one word on the design system's destructive Badge,
+            with the fix in the `title` for a pointer that asks. The rail-wide
+            band this replaces listed every bad entry under one message; the
+            row already knows which entry it is. `aria-hidden` because the
+            icon on line 1 already carries the state as its accessible name —
+            without that, the row would announce "Unusable site" and "invalid"
+            back to back. That label carries the `title`'s remedy too, for the
+            same reason: a `title` on an `aria-hidden` span is announced to
+            nobody, so hiding the word without moving the sentence would have
+            left a reader who cannot see this Badge with no way to reach it. */}
         <span className="flex h-6 items-center pl-5" data-testid="site-line">
           {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
             <Button
               {...GRANT_BUTTON_PROPS}
               data-testid="site-pending"
               title={awaitingGrant.message}
-              onClick={() => onGrant(awaitingGrant.host!)}
+              onClick={() => {
+                // Armed here, read by the focus effect above: pressing this is
+                // the only thing that earns the focus move.
+                grantPressed.current = true;
+                onGrant(awaitingGrant.host!);
+              }}
             >
               Grant
             </Button>
+          ) : state === 'unusable' ? (
+            <Badge
+              variant="destructive"
+              data-testid="site-invalid"
+              title={UNUSABLE_REMEDY}
+              aria-hidden="true"
+            >
+              invalid
+            </Badge>
           ) : (
             <span
               className={`text-[11px] leading-[14px] ${STATE_LINE_TONE[state]}`}

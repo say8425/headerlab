@@ -5,10 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import type { Diagnostic } from '@/lib/model/types';
 
-function diag(over: Partial<Diagnostic> = {}): Diagnostic {
-  return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
-}
-
 function permission(host: string): Diagnostic {
   return {
     kind: 'permission-missing',
@@ -21,7 +17,6 @@ function permission(host: string): Diagnostic {
 
 function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
   return {
-    tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 },
     paused: false,
     // Silent and unburdened by default: the announcement channel and the
     // access clauses are what the tests about them opt into, so a readout
@@ -31,9 +26,6 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     onTogglePause: vi.fn(),
     domains: [],
     byHost: new Map(),
-    notes: [],
-    blockedBy: null,
-    sitesNeedingAccess: 0,
     lastError: null,
     iconError: null,
     // Off and granted by default: the states this change introduces have to be
@@ -67,146 +59,9 @@ function renderRail(over: Partial<ScopeRailProps> = {}) {
   return render(<ScopeRail {...props(over)} />);
 }
 
-describe('the readout', () => {
-  it('reports live, off and blocked together — and different figures read back differently', () => {
-    // A single fixture would pass a component that renders any of these as a
-    // literal. Re-rendering with a different tally forces it to read its prop.
-    const { rerender } = renderRail({
-      tally: { total: 5, live: 2, off: 1, unfinished: 0, blocked: 2 },
-    });
-    expect(screen.getByTestId('readout').textContent).toBe('2of 5 rules live1 off · 2 blocked');
-    rerender(
-      <ScopeRail {...props({ tally: { total: 9, live: 7, off: 2, unfinished: 0, blocked: 0 } })} />,
-    );
-    expect(screen.getByTestId('readout').textContent).toBe('7of 9 rules live2 off');
-  });
-
-  it('says nothing is configured yet when there are no rules at all', () => {
-    renderRail({ tally: { total: 0, live: 0, off: 0, unfinished: 0, blocked: 0 } });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 0 rules livenothing configured yet',
-    );
-  });
-
-  it('says the healthy state out loud rather than leaving the line blank', () => {
-    // It reads "no problems", not "0 off · 0 blocked" — a row of zeroes is
-    // noise that never changes. Saying something short is what lets the box
-    // exist in every state without reserving a void, which is the whole of
-    // ScopeRail's `subline` reasoning; the two alternatives it rejects are an
-    // empty reserved box and no box at all.
-    renderRail({ tally: { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 } });
-    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules liveno problems');
-  });
-
-  it('names only blocked when nothing is switched off', () => {
-    renderRail({ tally: { total: 3, live: 1, off: 0, unfinished: 0, blocked: 2 } });
-    expect(screen.getByTestId('readout').textContent).toBe('1of 3 rules live2 blocked');
-  });
-
-  it('says what is holding the rules when it is not the rules themselves', () => {
-    // "1 blocked" beside a perfectly good rule points the user at the wrong
-    // object. An unusable site stops every rule while each one is fine, and a
-    // pause does the same — so the count names the cause instead of implying
-    // the rule is at fault. All three renderings are pinned together, because
-    // an implementation that ignored the prop would still pass any one alone.
-    const tally = { total: 2, live: 1, off: 0, unfinished: 0, blocked: 1 };
-    const { rerender } = renderRail({ tally, blockedBy: 'sites' });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '1of 2 rules live1 blocked by an unusable site',
-    );
-
-    rerender(<ScopeRail {...props({ tally, blockedBy: 'pause' })} />);
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '1of 2 rules live1 blocked while paused',
-    );
-
-    rerender(<ScopeRail {...props({ tally, blockedBy: null })} />);
-    expect(screen.getByTestId('readout').textContent).toBe('1of 2 rules live1 blocked');
-  });
-
-  it('distinguishes having no scope from having a broken one', () => {
-    // Two states that both stop every rule and call for opposite actions.
-    // "by an unusable site" sends the reader hunting through the list for a
-    // broken entry — which, when nothing has been added yet, does not exist.
-    // Pinned against the unusable wording in the same test so the two cannot
-    // quietly converge on one string.
-    const tally = { total: 2, live: 0, off: 0, unfinished: 0, blocked: 2 };
-    const { rerender } = renderRail({ tally, blockedBy: 'scope' });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 2 rules live2 blocked until a site is set',
-    );
-
-    rerender(<ScopeRail {...props({ tally, blockedBy: 'sites' })} />);
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 2 rules live2 blocked by an unusable site',
-    );
-  });
-
-  it('names a missing grant as the step that is left, not as a fault', () => {
-    // The first screen a new user reads: healthy rules scoped to a host the
-    // extension has no permission for. "until access is granted" joins the
-    // 'until' half of the table — nothing is wrong with the rules, the
-    // sentence names the missing step, and the Grant buttons below it are
-    // that step. Pinned against the scope wording so the two "until" causes
-    // cannot converge.
-    const tally = { total: 1, live: 0, off: 0, unfinished: 0, blocked: 1 };
-    const { rerender } = renderRail({ tally, blockedBy: 'access' });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 1 rules live1 blocked until access is granted',
-    );
-
-    rerender(<ScopeRail {...props({ tally, blockedBy: 'scope' })} />);
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 1 rules live1 blocked until a site is set',
-    );
-  });
-
-  it('says how many sites still need access while the granted ones keep the count', () => {
-    // The half-granted state: the rules ARE live on the granted hosts, so
-    // the count does not move — the clause names the hosts they cannot
-    // reach, in the same words the rows below wear. With nothing granted
-    // the blocked clause carries the story instead, so the clause stands
-    // down (asserted in the second half).
-    const tally = { total: 3, live: 3, off: 0, unfinished: 0, blocked: 0 };
-    const { rerender } = renderRail({ tally, sitesNeedingAccess: 1 });
-    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live1 site needs access');
-
-    rerender(<ScopeRail {...props({ tally, sitesNeedingAccess: 2 })} />);
-    expect(screen.getByTestId('readout').textContent).toBe('3of 3 rules live2 sites need access');
-
-    rerender(
-      <ScopeRail
-        {...props({
-          tally: { total: 3, live: 0, off: 0, unfinished: 0, blocked: 3 },
-          sitesNeedingAccess: 3,
-          blockedBy: 'access',
-        })}
-      />,
-    );
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '0of 3 rules live3 blocked until access is granted',
-    );
-  });
-
-  it('names unfinished rules, so a row left quiet is still said out loud', () => {
-    // The rail is where "unfinished" gets said. The rule itself shows no
-    // problem block — an empty name on a row created one click ago is not a
-    // mistake to report — so if this count went missing the state would be
-    // genuinely hidden, which is the silence the product exists to remove.
-    renderRail({ tally: { total: 4, live: 3, off: 0, unfinished: 1, blocked: 0 } });
-    expect(screen.getByTestId('readout').textContent).toBe('3of 4 rules live1 unfinished');
-  });
-
-  it('keeps unfinished distinct from off and from blocked when all three are present', () => {
-    // Three different figures with three different values, so a component that
-    // rendered any one of them in another's place cannot pass. This is also the
-    // reading order the count is written in.
-    renderRail({ tally: { total: 9, live: 3, off: 1, unfinished: 2, blocked: 3 } });
-    expect(screen.getByTestId('readout').textContent).toBe(
-      '3of 9 rules live1 off · 2 unfinished · 3 blocked',
-    );
-  });
-});
+// The readout moved to the panel head (owner's call, 2026-08-20) and its suite
+// moved with it — see RulePanel.test.tsx, 'the readout in the panel head'. The
+// rail no longer receives `tally`, `blockedBy` or `sitesNeedingAccess` at all.
 
 describe('the announcement channel', () => {
   it('is mounted before anything can fill it, empty when there is nothing to say', () => {
@@ -407,6 +262,16 @@ describe('sites', () => {
     // row with identical accessible names — two opposite meanings distinguished
     // by nothing but a colour. All three are asserted together, because giving
     // every row the same label would satisfy any one of them alone.
+    //
+    // The unusable label carries the remedy as well as the state, and this is
+    // where that is pinned. When the scope notes went (2026-08-19) the
+    // sentence telling the reader what to do about a bad entry moved onto the
+    // row: on screen as the invalid Badge's `title`, which a pointer can
+    // reach and a screen reader cannot, and here as the one channel that is
+    // read out. Asserting the whole string rather than a prefix is the point
+    // — a label trimmed back to "Unusable site" would leave the remedy
+    // reachable by mouse only, which is the state this assertion exists to
+    // catch.
     renderRail({
       domains: ['ok.example.com', 'pending.example.com', 'a b.com'],
       byHost: new Map([['pending.example.com', [permission('pending.example.com')]]]),
@@ -414,7 +279,11 @@ describe('sites', () => {
     const labels = screen
       .getAllByTestId('site')
       .map((row) => within(row).getByRole('img').getAttribute('aria-label'));
-    expect(labels).toEqual(['Access granted', 'Awaiting permission', 'Unusable site']);
+    expect(labels).toEqual([
+      'Access granted',
+      'Awaiting permission',
+      'Unusable site. Use a bare hostname like example.com.',
+    ]);
   });
 
   it('grants the host the diagnostic names, not the domain text that carries a port', async () => {
@@ -749,10 +618,14 @@ describe('adding a site', () => {
   });
 
   it('keeps the host-only rule behind a ?, out of the rail until it is asked for', async () => {
-    // The one fact the chip cannot convey: a port could never have narrowed
-    // anything, because requestDomains is host-only. It is worth knowing once,
-    // not worth permanent space in a 196px column — so the rail carries a `?`
-    // and nothing else until someone reaches for it.
+    // The bubble is two worked pairs and nothing else. It used to close with
+    // a sentence naming the rule they demonstrate ("Matched by host — a port
+    // or path is dropped."); that is gone (owner's call), on the grounds that
+    // the pairs already show the transformation and a developer reads the
+    // example faster than the sentence describing it. What the rail carries
+    // permanently is still only a `?` — the point of this test — and the
+    // exact-match below is what keeps the pairs from being quietly reworded
+    // into prose again.
     renderRail();
     expect(screen.queryByTestId('help-bubble')).toBeNull();
 
@@ -765,8 +638,7 @@ describe('adding a site', () => {
     // Worked pairs first, then the rule they demonstrate — a developer
     // pattern-matches the transformation faster than a sentence describing it.
     expect(screen.getByTestId('help-bubble').textContent).toBe(
-      'https://x.com/a/b→x.comlocalhost:3000→localhost' +
-        'Matched by host — a port or path is dropped.',
+      'https://x.com/a/b→x.comlocalhost:3000→localhost',
     );
   });
 
@@ -843,39 +715,20 @@ describe('request types', () => {
   });
 });
 
-describe('scope notes', () => {
-  it('shows nothing when there is nothing to say', () => {
-    renderRail();
+describe('the rail after the scope notes were removed', () => {
+  // The notes are gone (owner's ruling, 2026-08-19): an unusable entry wears
+  // its invalid Badge on its own row (SiteRow) and "no site set" is the
+  // readout's own sentence. What remains here is the negative — no element
+  // may resurrect under the old testid — plus the two error notes that were
+  // never scope notes and are untouched.
+  it('renders no scope-note element in any state', () => {
+    renderRail({ domains: ['a b.com', 'api.example.com'] });
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     expect(screen.queryByTestId('sync-error')).toBeNull();
-  });
-
-  it('shows one note per scope diagnostic, in order, with its severity marked', () => {
-    renderRail({
-      notes: [
-        diag({ kind: 'no-scope', message: 'No site set.' }),
-        diag({ kind: 'invalid-domain', severity: 'error', message: 'Unusable site.' }),
-      ],
-    });
-    const notes = screen.getAllByTestId('scope-note');
-    expect(notes.map((n) => n.textContent)).toEqual(['No site set.', 'Unusable site.']);
-    expect(notes.map((n) => n.getAttribute('data-severity'))).toEqual(['warning', 'error']);
-  });
-
-  it('puts its notes above the request-type checklist, where they cannot be scrolled past', () => {
-    // The rail scrolls. With two sites awaiting permission the real diagnostic
-    // copy is tall enough that anything below the checklist falls past 600px —
-    // measured on the built popup, where a scope note landed roughly 37px out
-    // of sight. A warning you have to go looking for is the failure
-    // this layout exists to remove, and the checklist is the least-touched
-    // control on screen, so it is the part that can afford to be scrolled to.
-    renderRail({
-      domains: ['api.example.com'],
-      notes: [diag({ kind: 'no-scope', message: 'No site set.' })],
-    });
-    const note = screen.getByTestId('scope-note');
-    const types = screen.getByText('Request types');
-    expect(note.compareDocumentPosition(types) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The unusable row carries its own mark instead.
+    const bad = screen.getAllByTestId('site')[0]!;
+    expect(bad.getAttribute('data-state')).toBe('unusable');
+    expect(within(bad).getByTestId('site-invalid').textContent).toBe('invalid');
   });
 
   it('says the toolbar is out of date without claiming the rules failed', () => {

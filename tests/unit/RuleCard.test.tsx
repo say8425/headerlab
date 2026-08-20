@@ -18,7 +18,7 @@ function rule(over: Partial<HeaderRule> = {}): HeaderRule {
 }
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
-  return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
+  return { kind: 'invalid-domain', severity: 'warning', profileId: 'p1', message: 'm', ...over };
 }
 
 function renderCard(

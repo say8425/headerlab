@@ -356,7 +356,15 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // above the list onto the row itself, so the guard moved with them rather
   // than being deleted.
   ['row state line, granted', '--live', '--card'],
-  ['row state line, unusable', '--destructive', '--card'],
+  // Was 'row state line, unusable'. That span stopped rendering when the
+  // unusable row's line became the invalid Badge (2026-08-19), so the guard
+  // moved onto the Badge rather than being deleted — the same ink on the same
+  // row. The Badge's own fill is `bg-destructive/10`, an alpha tint this file
+  // cannot see (see the docblock at the top), so `--card` remains the honest
+  // background to hold the ink against: a 10% wash is the nearest thing to
+  // the pair a reader actually gets, and pinning it here is what keeps the
+  // ink from being toned down until the word stops reading.
+  ['invalid Badge — the word on an unusable site row', '--destructive', '--card'],
   ['row state line, not in use — All sites is on', '--muted-foreground', '--card'],
   // The Grant button is the shadcn Button in its `pending` variant, size
   // `xs`, shared by the site row and the all-sites bar — the palette's amber
@@ -381,23 +389,25 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
     '--pending',
     '--rail',
   ],
-  ['scope note body — a note card in the rail', '--foreground', '--background'],
+  // Was 'scope note body'. The scope notes are gone (2026-08-19) but
+  // `NOTE_CLASS` is not: the sync-error and icon-error notes still wear it,
+  // still `text-foreground` on `bg-background`. Same pair, named for what
+  // paints it now.
+  ['note body — the sync-error / icon-error card in the rail', '--foreground', '--background'],
   [
     'reconcile failure heading — the bold line of the sync-error note',
     '--destructive',
     '--background',
   ],
-  // Parked in Task 1: both tokens were in COLOR_TOKENS but nothing painted
-  // with them yet. shadcn's Button (components/ui/button.tsx, `default`
-  // variant) is the first thing that does — `bg-primary text-primary-foreground`.
-  // The panel head's "New rule" is that button, and the only call site of the
-  // `default` variant in the popup; it used to be `.hl-newbtn`, which painted
-  // the identical white-on-ink through `--background`/`--foreground` instead.
-  [
-    'primary button — shadcn Button, i.e. the panel head\'s "New rule"',
-    '--primary-foreground',
-    '--primary',
-  ],
+  // The `--primary` pair is **gone, subject and all**. shadcn's Button in its
+  // `default` variant was the only thing painting it, and the panel head's
+  // "New rule" was that variant's only call site in the popup — both removed
+  // (owner's call). Every surviving Button names a variant: `pending` for the
+  // two Grants, `ghost` for the two deletes. Deleted rather than kept, because
+  // a pair pinned to nothing passes while describing nothing, which this file
+  // has been caught doing twice. The tokens stay declared in both palettes and
+  // `COLOR_TOKENS` still pins that, so re-adding a primary control re-adds a
+  // guard rather than discovering one is missing.
 ];
 
 const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
@@ -431,15 +441,18 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['state icon, pending — CircleMinus on the site row', '--pending', '--card'],
   ['state icon, unusable — Ban on the site row', '--destructive', '--card'],
   ['state icon, not in use — CircleMinus on the site row', '--muted-foreground', '--card'],
-  // The scope note's left edge is what separates the card from the rail. The
-  // `incomplete` one is neutral rather than amber — see the stylesheet — so it
-  // is the edge most at risk of being toned down until it stops dividing
-  // anything.
-  [
-    'incomplete note edge — a scope note of severity `incomplete`',
-    '--muted-foreground',
-    '--background',
-  ],
+  // The `incomplete` note edge is **gone, subject and all** (2026-08-19).
+  // It guarded the neutral left border a scope note of severity `incomplete`
+  // wore, and that border was painted by exactly one branch of exactly one
+  // element — the severity ternary in the scope-note block, deleted with the
+  // block. No note wears a neutral edge now: the two that remain
+  // (sync-error, icon-error) are both `border-l-destructive`. `incomplete`
+  // itself still exists as a severity — `validate.ts` gives it to
+  // `incomplete-header` — but that one is routed `byRow` and rendered inside
+  // a rule row, which wears no note edge at all. Deleted rather than moved,
+  // because this is the case CLAUDE.md's Testing section warns about twice:
+  // a contrast pair pinned to an element that no longer renders passes while
+  // describing nothing.
 ];
 
 describe.each(['light', 'dark'] as const)('%s palette contrast', (theme) => {
