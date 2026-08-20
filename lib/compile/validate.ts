@@ -83,7 +83,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'incomplete',
         profileId: profile.id,
         headerRuleId: rule.id,
-        message: 'No name yet, so nothing is sent.',
+        // Direct, owner's wording (2026-08-18): the fact, bare. This message
+        // never renders on the row anyway — an unfinished row stays quiet and
+        // the rail's "N unfinished" carries the state — so "so nothing is
+        // sent" was narration with no audience.
+        message: 'No name.',
       });
       continue;
     }
@@ -94,12 +98,11 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         severity: 'error',
         profileId: profile.id,
         headerRuleId: rule.id,
-        // Remedy first (Task 13): this renders truncated at ~338px/11px when
-        // it takes over a rule row's value line, same as every other
-        // bounded-row-meets-unbounded-text spot in this popup, and the tail
-        // is what gets cut. The character set the user can actually act on
-        // has to survive that; the fact of the failure is what can afford to.
-        message: 'Not a valid header name — no spaces or colons.',
+        // The character set the user can actually act on is what has to
+        // survive the truncation of a rule row's value line; the fact of
+        // the failure is what can afford to be cut. "Invalid", not "Not a
+        // valid" — the same fact in the voice a validation error uses.
+        message: 'Invalid header name — no spaces or colons.',
       });
       // A name this broken cannot be meaningfully checked for the other two
       // conditions; reporting three errors for one typo helps nobody.
@@ -141,26 +144,26 @@ export function validateHeaders(profile: Profile): Diagnostic[] {
         // out, deterministically, by list order rather than by Chrome's own
         // unspecified resolution between two conflicting entries.
         //
-        // Remedy first (Task 13), same reasoning as the other two error
-        // messages in this file: what to do about it survives truncation,
-        // not just the fact that something is wrong.
+        // "Already declared", owner's wording (2026-08-18): a validation
+        // error should read like one — the fact first, in the voice every
+        // form the reader has ever filled in uses. This replaces "Rename or
+        // delete. An earlier row uses this header.", which led with the
+        // remedy on the truncation argument (Task 13); the owner chose the
+        // direct statement over that convention, and the remedy a reader
+        // needs here is the obvious one — the row is a duplicate, and the
+        // row itself is what they are looking at.
         //
-        // "already touches", not "already sets" — a re-review caught the
-        // earlier wording naming an operation this code never checks.
-        // `seen` stores only the `target name` key, never which operation
-        // the earlier row used, so the earlier row could be `append` or
-        // `remove` just as easily as `set`; saying "sets" was a claim about
-        // something this function does not know. `detectConflicts` faces the
-        // identical shape of fact and names it `firstToucher`
-        // (`lib/compile/conflicts.ts`) — that function *can* say which
-        // operation, since it holds the earlier rule and composes `already
-        // ${operation}s`, a message this one has no way to write (there is
-        // no earlier rule here, only a key that already occurred). "touches"
-        // is not quoted from that message — no message anywhere uses the
-        // word — it echoes the *concept* `firstToucher` names, chosen so a
-        // reader who has seen one already recognises the other rather than
-        // parsing a second verb for the same fact.
-        message: 'Rename or delete. An earlier row uses this header.',
+        // "declared", never "set": the earlier wording debate ("uses", not
+        // "sets") survives in adapted form. `seen` stores only the
+        // `target name` key, never which operation the earlier row used, so
+        // the earlier row could be `append` or `remove` just as easily as
+        // `set`; "declared" makes no claim about an operation, the same way
+        // "uses" did not. `detectConflicts` faces the identical shape of
+        // fact and names it `firstToucher` (`lib/compile/conflicts.ts`) —
+        // that function *can* say which operation, since it holds the
+        // earlier rule and composes `already ${operation}s`, a message this
+        // one has no way to write.
+        message: 'Already declared.',
       });
     }
     seen.add(key);

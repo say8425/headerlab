@@ -18,7 +18,7 @@ function rule(over: Partial<HeaderRule> = {}): HeaderRule {
 }
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
-  return { kind: 'no-scope', severity: 'warning', profileId: 'p1', message: 'm', ...over };
+  return { kind: 'invalid-domain', severity: 'warning', profileId: 'p1', message: 'm', ...over };
 }
 
 function renderCard(
@@ -243,10 +243,15 @@ describe('RuleCard controls', () => {
     expect(onPatch).toHaveBeenLastCalledWith({ target: 'request' });
   });
 
-  it('deletes the rule', async () => {
+  it('deletes the rule on the second click, armed by the first', async () => {
+    // Two clicks, one box (useArmed): the first offers the second in its
+    // name, the second calls the handler. Pinned that the first alone does
+    // nothing, so the guard cannot be deleted without this failing.
     const onDelete = vi.fn();
     renderCard({}, { onDelete });
     await userEvent.click(screen.getByRole('button', { name: 'Delete rule' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete rule' }));
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });

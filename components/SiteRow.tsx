@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { Ban, CircleCheck, CircleMinus, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useArmed } from '@/lib/view/useArmed';
 import type { Diagnostic } from '@/lib/model/types';
 
 export interface SiteRowProps {
@@ -24,7 +27,15 @@ export interface SiteRowProps {
   inert: boolean;
   /** Whatever is wrong with this site's access, already matched to its host. */
   diagnostics: readonly Diagnostic[];
-  onGrant: (host: string) => void;
+  /**
+   * Ask the browser for this host.
+   *
+   * Resolves to what the prompt answered when the caller knows it — `false`
+   * for a decline, which is what lets the row unlatch its focus move below.
+   * Typed to tolerate a caller that answers nothing, since only the outcome
+   * `false` changes anything here.
+   */
+  onGrant: (host: string) => void | Promise<boolean | void>;
   onRemove: () => void;
 }
 
@@ -43,11 +54,37 @@ export interface SiteRowProps {
  * `domain` may carry a port that no match pattern can express — the diagnostic
  * is the only party that already knows which host was probed.
  */
-/** What each row state is called when it cannot be seen. */
+/**
+ * How to fix an unusable entry, stated once.
+ *
+ * Two places say it — the invalid Badge's `title`, for a pointer that hovers,
+ * and the row's accessible name below, for a reader that cannot see the Badge
+ * at all. It is the second sentence of `filterDiagnostics`'s own
+ * `invalid-domain` message, and it is repeated here rather than read from the
+ * diagnostic because the diagnostic never reaches this row: `invalid-domain`
+ * carries a `profileId` and no `host`, so `routeDiagnostics` files it under
+ * `scope` — the bucket the popup stopped rendering when the notes went. The
+ * duplication is deliberate and bounded; `filterDiagnostics.test.ts` pins the
+ * message that owns the wording.
+ */
+const UNUSABLE_REMEDY = 'Use a bare hostname like example.com.';
+
+/**
+ * What each row state is called when it cannot be seen.
+ *
+ * `unusable` carries the remedy as well as the name, and that is the whole
+ * accessibility budget for this state. The word "invalid" on screen is
+ * `aria-hidden` (it only repeats what this label already says) and its
+ * `title` reaches a pointer and nothing else — so without the remedy here, a
+ * reader who cannot see the row would be told that something is wrong and
+ * never told what to do about it. The rail-wide note this replaced said it in
+ * rendered text that any reader could reach; losing that when the note went
+ * would be the silent half of a fix.
+ */
 const STATE_LABEL = {
   granted: 'Access granted',
   pending: 'Awaiting permission',
-  unusable: 'Unusable site',
+  unusable: `Unusable site. ${UNUSABLE_REMEDY}`,
   idle: 'Not in use',
 } as const;
 
@@ -58,16 +95,15 @@ type RowState = keyof typeof STATE_LABEL;
  *
  * The line exists in every state — see the markup for why — so the question is
  * only what fills it. A blank band inside a card reads as a rendering fault,
- * and these three states each have something true to put there.
+ * and these two states each have something true to put there.
  *
- * `pending` is absent on purpose: that state's line is the button, and a word
- * for it would be a branch nothing can reach. A pending row with no grantable
- * host would fall through to an empty line, which is the honest rendering of
- * "waiting, with nothing to press".
+ * `pending` and `unusable` are absent on purpose: a pending row's line is the
+ * button, and an unusable row's line is the invalid Badge below — the owner's
+ * ruling that the error lives on the row that holds the bad value, not in a
+ * band above the list.
  */
-const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
+const STATE_LINE: Record<Exclude<RowState, 'pending' | 'unusable'>, string> = {
   granted: 'Access granted',
-  unusable: 'Cannot be used',
   idle: 'Not in use while All sites is on',
 };
 
@@ -89,9 +125,10 @@ const STATE_TONE = {
 
 /**
  * The second line's colour and weight, mirroring the mockup's `.te-l2--live`
- * / `.te-l2--err` — severity is said in the line itself, not only on the icon
- * beside it. `pending` is never seen: that state's line holds the Grant
- * button, or nothing (see `STATE_LINE`), never this span's text.
+ * — severity is said in the line itself, not only on the icon beside it.
+ * `pending` and `unusable` are never *seen*: those lines hold the Grant
+ * button and the invalid Badge. Both stay in the record so the template
+ * below can index by any state without a branch that cannot render.
  */
 const STATE_LINE_TONE: Record<RowState, string> = {
   granted: 'font-semibold text-live',
@@ -101,24 +138,25 @@ const STATE_LINE_TONE: Record<RowState, string> = {
 } as const;
 
 /**
- * The Grant button's classes, exported so `ScopeRail`'s all-sites bar can use
- * the exact same ones for its own Grant button.
+ * The Grant button's shape, stated once because two rows render it — this
+ * one and `ScopeRail`'s all-sites bar.
  *
  * "All-sites reaches the same state, so it must offer the same remedy rather
  * than a second vocabulary" (CLAUDE.md, No silent failures) — a pending site
  * and an on-but-ungranted all-sites mode are the same fact (waiting on the
- * same kind of permission), so one class string shared by both call sites is
- * what makes that promise hold by construction instead of by two people
- * remembering to keep two copies in sync.
- *
- * `hover:bg-pending-bg` is not decorative: shadcn's `secondary` variant ships
- * `hover:bg-tray/80`, and `bg-pending-bg` above only overrides the base
- * (unprefixed) utility — `twMerge` treats a `hover:`-prefixed class as a
- * different group, so without this the button's fill would flash grey on
- * hover. Verified in the built CSS.
+ * same kind of permission), so both wear the same button: the standard shadcn
+ * Button at the `xs` size, in the `pending` variant that carries the palette's
+ * amber — this palette's "something needs you", the same tone the row's glyph
+ * and the readout's clause already wear. A neutral button next to an amber
+ * row asked the reader to do the colour maths; the remedy now wears the state
+ * it answers. The `xs` size is 24px, which is why the second line reserves
+ * `h-6` below: the line is sized to the tallest thing it can hold, and that
+ * is this button.
  */
-export const GRANT_BUTTON_CLASS =
-  'h-5 rounded-[4px] bg-pending-bg text-pending hover:bg-pending-bg';
+export const GRANT_BUTTON_PROPS = {
+  variant: 'pending',
+  size: 'xs',
+} as const;
 
 export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove }: SiteRowProps) {
   /**
@@ -153,19 +191,67 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
    * is the only `DiagnosticKind` that ever sets `host`, so `byHost` cannot
    * contain anything else, and `auditDiagnostics` emits at most one per host —
    * a sibling branch for the other cases was code no user could reach, and a
-   * contrast pair and three tests were describing it. An unusable site is still
-   * explained in words; that message has no `host`, so it reaches the screen as
-   * a scope note in the rail.
+   * contrast pair and three tests were describing it. An unusable site is
+   * still explained in words, but not through this: its diagnostic carries a
+   * `profileId` and no `host`, so it never reaches `byHost` at all. What the
+   * reader gets is on the row itself — the `invalid` Badge below and the
+   * remedy in this row's accessible name — since the rail-wide scope note
+   * that used to carry it is gone (2026-08-19).
    */
   const awaitingGrant = diagnostics.find(
     (d) => d.kind === 'permission-missing' && d.host !== undefined,
   );
 
+  /**
+   * Focus retention across the Grant button's disappearance.
+   *
+   * The button is the row's only focusable control, and success unmounts it
+   * (the diagnostic clears, the state line takes its place), which drops the
+   * focus to `<body>` — the next Tab starts over from the top of the rail,
+   * and a screen reader reads nothing about the state that just changed. So
+   * when the wait ends, the focus moves to the row itself: reading its name
+   * and state line *is* the confirmation, and the status region says the
+   * rest (App.tsx owns that message).
+   *
+   * The row, never the Remove button — focus placed on a control is an
+   * invitation to press it, and the Enter that follows a confirmed grant
+   * must not delete the site it was granted for. `tabIndex={-1}` keeps this
+   * programmatic slot out of the tab order entirely.
+   *
+   * **Gated on the button actually having been pressed, not on the wait
+   * ending.** This asked "was this row awaiting a grant on the previous
+   * render, and is it not now" — a fair reading of "the wait ended" while an
+   * unprobed row rendered as granted. It stopped being one when unknown
+   * access started rendering as *pending* (App.tsx, `knownGrants`): every
+   * already-granted row now opens pending and resolves a moment later, which
+   * that reading counted as a grant completing. The result was a popup that
+   * stole focus to a site row on open and scrolled the list to it — reported
+   * from the built extension, and visible in `pnpm screenshots` as a ring on
+   * a row nobody had touched. Nothing should be focused when the popup opens;
+   * this effect exists for the one keyboard user who just pressed Grant, and
+   * now it can only fire for them.
+   */
+  const rowRef = useRef<HTMLDivElement>(null);
+  const grantPressed = useRef(false);
+  useEffect(() => {
+    if (grantPressed.current && awaitingGrant === undefined) {
+      grantPressed.current = false;
+      rowRef.current?.focus();
+    }
+  }, [awaitingGrant]);
+
+  // The other destructive control in the popup, wearing the same two-click
+  // guard the rule row's delete does — one hook, one reasoning
+  // (lib/view/useArmed.ts).
+  const del = useArmed(onRemove);
+
   const Icon = STATE_ICON[state];
 
   return (
     <div
-      className="flex h-12 items-center gap-1 rounded-lg bg-card pt-1 pr-1.5 pb-1 pl-2.5 shadow-sm"
+      ref={rowRef}
+      tabIndex={-1}
+      className="flex h-[60px] items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
       data-testid="site"
       data-state={state}
     >
@@ -215,27 +301,71 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
             up under the hostname rather than under that icon, since the icon
             has no counterpart on this line.
 
-            A pending permission is state and remedy, and nothing else. The
-            sentence this replaces spent four lines telling a developer what
-            a Grant button beside a hostname already says; two of them filled
-            the rail. A `?` explaining the button went the same way for the
-            same reason — a help mark on every pending row is a repeated
-            affordance for something nobody was confused by.
+          A pending permission is state and remedy, and nothing else. The
+          sentence this replaces spent four lines telling a developer what a
+          Grant button beside a hostname already says; two of them filled the
+          rail. A `?` explaining the button went the same way for the same
+          reason — a help mark on every pending row is a repeated affordance
+          for something nobody was confused by.
 
-            Never on an unusable row: granting a host that cannot be used
-            changes nothing, so the button would be an action that looks like
-            the remedy and is not. */}
-        <span className="flex h-5 items-center pl-5" data-testid="site-line">
+          Never on an unusable row: granting a host that cannot be used
+          changes nothing, so the button would be an action that looks like
+          the remedy and is not.
+
+          What the row does not say in pixels it says in the button's
+          `title`: the diagnostic's own message, which `audit.ts` composes
+          for exactly this state and which nothing rendered at all before —
+          the one sentence explaining "registered but not applying" was
+          computed and dropped. A `title` is the zero-pixel path: the second
+          line stays empty as decided above, and a pointer that hovers gets
+          the whole explanation. */}
+        {/* The invalid mark, owner's ruling (2026-08-19): the error lives on
+            the row that holds the bad value, in the slot a pending row offers
+            its remedy — one word on the design system's destructive Badge,
+            with the fix in the `title` for a pointer that asks. The rail-wide
+            band this replaces listed every bad entry under one message; the
+            row already knows which entry it is. `aria-hidden` because the
+            icon on line 1 already carries the state as its accessible name —
+            without that, the row would announce "Unusable site" and "invalid"
+            back to back. That label carries the `title`'s remedy too, for the
+            same reason: a `title` on an `aria-hidden` span is announced to
+            nobody, so hiding the word without moving the sentence would have
+            left a reader who cannot see this Badge with no way to reach it. */}
+        <span className="flex h-6 items-center pl-5" data-testid="site-line">
           {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
             <Button
-              size="xs"
-              variant="secondary"
+              {...GRANT_BUTTON_PROPS}
               data-testid="site-pending"
-              className={GRANT_BUTTON_CLASS}
-              onClick={() => onGrant(awaitingGrant.host!)}
+              title={awaitingGrant.message}
+              onClick={() => {
+                // Armed here, read by the focus effect above: pressing this is
+                // the only thing that earns the focus move.
+                grantPressed.current = true;
+                // And disarmed again if the prompt was declined. The effect
+                // only clears the flag once the wait ENDS, and declining
+                // leaves the diagnostic exactly where it was — so the flag
+                // would stay armed indefinitely and spend itself on the next
+                // unrelated thing that clears this row's diagnostic (turning
+                // All sites on does it: `domainsToAudit` returns nothing, so
+                // every `permission-missing` clears at once). That is the
+                // focus theft this gate was written to stop, arriving one
+                // step later.
+                void Promise.resolve(onGrant(awaitingGrant.host!)).then((granted) => {
+                  if (granted === false) grantPressed.current = false;
+                });
+              }}
             >
               Grant
             </Button>
+          ) : state === 'unusable' ? (
+            <Badge
+              variant="destructive"
+              data-testid="site-invalid"
+              title={UNUSABLE_REMEDY}
+              aria-hidden="true"
+            >
+              invalid
+            </Badge>
           ) : (
             <span
               className={`text-[11px] leading-[14px] ${STATE_LINE_TONE[state]}`}
@@ -252,13 +382,26 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           the row, on its destructive control, while the identical button on a
           rule row already wears `--muted-foreground`. The mockup's `.te-icb`
           is `--ink-3`; this is that, and it is what makes the two delete
-          buttons one control rather than two. */}
+          buttons one control rather than two.
+
+          Armed has to be *seen*, not inferred: a 12px glyph changing ink is
+          invisible at a glance, which is how a two-click guard reads as "the
+          button is broken". The armed state paints the box — shadcn's own
+          `destructive` fill tokens, `bg-destructive/10` — so the control
+          visibly changes state while its geometry does not, and the title
+          says what the second click does for a pointer that hovers. Same
+          shape as the rule row's delete, one hook (useArmed). */}
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label={`Remove ${domain}`}
-        onClick={onRemove}
-        className="text-muted-foreground"
+        aria-label={del.armed ? `Confirm removal of ${domain}` : `Remove ${domain}`}
+        title={del.armed ? `Click again to remove ${domain}` : undefined}
+        {...del.controlProps}
+        className={
+          del.armed
+            ? 'bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive'
+            : 'text-muted-foreground'
+        }
       >
         <Trash2 />
       </Button>

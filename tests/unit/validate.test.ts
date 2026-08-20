@@ -106,7 +106,7 @@ describe('validateHeaders', () => {
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('invalid-header-name');
     expect(d[0]?.severity).toBe('error');
-    expect(d[0]?.message).toBe('Not a valid header name — no spaces or colons.');
+    expect(d[0]?.message).toBe('Invalid header name — no spaces or colons.');
   });
 
   it('accepts a name that only needs trimming, matching what the compiler emits', () => {
@@ -139,6 +139,11 @@ describe('validateHeaders', () => {
     expect(d[0]?.kind).toBe('duplicate-header');
     // Flags the later of two rows touching the same header.
     expect(d[0]?.headerRuleId).toBe('b');
+    // The direct wording, pinned: a validation error reads like one — the
+    // fact, in the voice every form the reader has filled in uses. And
+    // "declared" specifically, never "set": the earlier row could be any
+    // operation, and this message must not claim one (see validate.ts).
+    expect(d[0]?.message).toBe('Already declared.');
   });
 
   it('does not call the same name on different targets a duplicate', () => {

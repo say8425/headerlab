@@ -74,6 +74,23 @@ export function routeDiagnostics(diagnostics: readonly Diagnostic[]): RoutedDiag
  */
 export interface Liveness {
   live: boolean;
+  /**
+   * Whether the hosts that scope this rule set are granted — the caller's
+   * answer again, for the same reason `live` is.
+   *
+   * A rule cannot match anything on a host the extension has no permission
+   * for, so `access: 'none'` holds rules out of `live` exactly as `live:
+   * false` does — but only when *every* scoping host is missing. `'some'` is
+   * reported, not acted on: the rules still go out to the granted hosts, and
+   * this count's job is to say what goes out, not what could.
+   *
+   * Optional because one caller cannot answer it: the bridge's `status()`
+   * builds its payload synchronously and never probes grants, so it leaves
+   * the question unanswered. Absent means "not asked" — the count stays as it
+   * was before this field existed — never "granted". See CLAUDE.md, Known
+   * gaps, for what that leaves open on the CLI side.
+   */
+  access?: 'all' | 'some' | 'none';
 }
 
 export interface RuleTally {
@@ -103,6 +120,16 @@ export interface RuleTally {
  * nothing about them reaches `byRow` and every rule still looks healthy.
  * Without `live` the readout says "3 of 3 rules live" while zero rules are
  * registered — one screen contradicting itself.
+ *
+ * `access` is the fourth judgement of that shape, and it is why `Liveness`
+ * grew its second field. A `permission-missing` diagnostic carries `host` and
+ * never `headerRuleId`, so `routeDiagnostics` files it under `byHost` where
+ * this loop cannot see it — and it is a warning by design, because the Grant
+ * button on the site row is the remedy, not an error to raise here. Without
+ * the caller handing the answer in, a rule scoped solely to an ungranted host
+ * counted as live with "no problems", which is the first screen every new
+ * user reads: they press Grant nowhere, the header never goes out, and the
+ * readout spends the whole debugging session insisting it did.
  *
  * `blocked` is what this readout adds. The count it replaces reported
  * "applying" and "off" and left the difference between them unnamed, so a rule
@@ -157,6 +184,12 @@ export function ruleTally(
     }
 
     if (!liveness.live) continue;
+    // After the liveness test, before the row's own health: with no granted
+    // host anywhere in the scope the rule cannot match a request no matter
+    // how healthy it is, and a healthy rule going nowhere is what `blocked`
+    // exists to name. `'some'` deliberately does not stop here — the rule
+    // still applies on the hosts that are granted.
+    if (liveness.access === 'none') continue;
     if (hasRowError(problems)) continue;
     live += 1;
   }

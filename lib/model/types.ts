@@ -147,20 +147,6 @@ export type DiagnosticKind =
   | 'permission-missing'
   | 'tab-lock-stale'
   /**
-   * Nothing says where these rules apply, so nothing is applied.
-   *
-   * Replaces `empty-filter`, which had to cover this *and* its opposite — a
-   * filter deliberately left open to every site — because an empty domain list
-   * was the only spelling of both. `Filter.allSites` separates them, so this
-   * kind now names one state: no site listed and all-sites off.
-   *
-   * Carries severity `incomplete` rather than `warning`. Nothing is wrong here
-   * and nothing is at risk; the rules simply have no scope yet, which is the
-   * state a fresh install opens in. Reporting it as a warning is what put a
-   * standing complaint on a screen the user had not finished filling in.
-   */
-  | 'no-scope'
-  /**
    * A rule that has not been given a name yet.
    *
    * Distinct from `invalid-header-name` because they are not the same event.

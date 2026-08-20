@@ -51,11 +51,18 @@ export type SuppressionReason =
  *
  * The reason has to come from here rather than from each caller, for exactly
  * the argument this module's comment already makes about the yes/no answer.
- * The rail names the cause next to its rule count ("blocked until a site is
- * set" versus "blocked by an unusable site") and filterDiagnostics picks the
- * message; both of those are a second reading of the same decision, and a
- * second reading is how the four-way divergence started. One function decides,
- * `isSuppressed` is derived from it, and nothing else re-tests the fields.
+ * `compile.ts` asks it before emitting, `audit.ts` before probing, and
+ * `filterDiagnostics` picks its message from it; every one of those is a
+ * second reading of the same decision, and a second reading is how the
+ * four-way divergence started. One function decides, `isSuppressed` is
+ * derived from it, and nothing else re-tests the fields.
+ *
+ * The rail reads it through none of these. A row's state comes from its own
+ * `usable`/`inert`/`diagnostics` (SiteRow), which is why an unusable entry
+ * marks itself and its neighbours are unaffected. A `suppressed` row state
+ * existed briefly, for a valid entry whose profile some *other* entry had
+ * killed; it went when that could no longer happen (2026-08-20), and this
+ * paragraph is here so the claim is not restored from a stale reading.
  */
 export function suppressionReason(profile: Profile): SuppressionReason | null {
   const { allSites, domains, mode } = profile.filter;
@@ -67,15 +74,33 @@ export function suppressionReason(profile: Profile): SuppressionReason | null {
   // batch — it is kept so switching back off restores the user's scope.
   if (allSites) return null;
 
-  // Checked before emptiness: `every` is vacuously true on an empty array, so
-  // the order is what keeps the two states apart rather than collapsing them.
-  if (!domains.every(isValidDomain)) return 'unusable-site';
+  // **One bad entry no longer kills the good ones (owner's call, 2026-08-20).**
+  // This used to be `!domains.every(isValidDomain)` — any unusable entry
+  // failed the whole profile closed. The reason was real but narrower than the
+  // rule it produced: `conditions.ts` took the list raw, so a malformed domain
+  // would have reached `updateDynamicRules`, which is transactional and would
+  // have rejected every rule in the batch. That file now drops unusable
+  // entries, so what is left to decide here is only the case dropping cannot
+  // survive — nothing usable remaining, where an empty domain condition means
+  // *every site* rather than none.
+  const usable = domains.filter(isValidDomain);
 
-  // An empty list is now suppressed, where v1 compiled it to a rule matching
-  // every site. That change is the point of `allSites`: "everywhere" has a
-  // name now, so an empty list can finally mean what it looks like. A regex is
-  // its own condition, so an empty list there is scoped and stays alive.
-  if (domains.length === 0 && mode !== 'regex') return 'no-scope';
+  if (mode !== 'regex') {
+    // An empty list is suppressed, where v1 compiled it to a rule matching
+    // every site. That change is the point of `allSites`: "everywhere" has a
+    // name now, so an empty list can finally mean what it looks like. The two
+    // empties are told apart by what the user actually typed: entries that
+    // could not be used, versus no entries at all.
+    if (usable.length === 0) return domains.length > 0 ? 'unusable-site' : 'no-scope';
+    return null;
+  }
+
+  // A regex is its own condition, so the list only narrows it further and an
+  // empty one is scoped and stays alive. A list that was entirely unusable is
+  // still fatal here, and for a reason the structured branch does not share:
+  // dropping every entry would silently widen the rule from "these hosts"
+  // to "everywhere this pattern matches", which is not what the user wrote.
+  if (domains.length > 0 && usable.length === 0) return 'unusable-site';
 
   return null;
 }

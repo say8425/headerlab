@@ -9,9 +9,13 @@ import type { ResourceType } from '@/lib/model/types';
  * here is left alone rather than dropped.
  *
  * `xmlhttprequest` is shown as `xhr` because the rail's two columns are 94px
- * wide and the full token is not — but the accessible name stays the real
+ * wide and the full token is not — but the accessible name keeps the real
  * Chrome resource type, because that is the word the user will have to match
- * against every other tool they own.
+ * against every other tool they own. It *contains* the visible word too
+ * ("xhr (xmlhttprequest)"): an explicit `aria-label` overrides the wrapping
+ * label's text, so without this a voice-command user saying "click xhr" is
+ * naming a control whose announced name never mentions it (WCAG 2.5.3,
+ * label in name). Rows whose label is already the full type say it once.
  */
 const OFFERED: ReadonlyArray<readonly [ResourceType, string]> = [
   ['main_frame', 'main_frame'],
@@ -23,6 +27,10 @@ const OFFERED: ReadonlyArray<readonly [ResourceType, string]> = [
   ['font', 'font'],
   ['media', 'media'],
 ];
+
+/** The checkbox's name: the visible word first when it differs, the real type always. */
+const nameOf = (type: ResourceType, label: string) =>
+  label === type ? type : `${label} (${type})`;
 
 /**
  * The offered types alone, for the rail's "N of 8" count.
@@ -57,7 +65,7 @@ export function TypeChecklist({ selected, onToggle }: TypeChecklistProps) {
         >
           <Checkbox
             data-testid="type-check"
-            aria-label={type}
+            aria-label={nameOf(type, label)}
             checked={selected.includes(type)}
             onCheckedChange={() => onToggle(type)}
             className="size-4 rounded-[4px] border-boundary"

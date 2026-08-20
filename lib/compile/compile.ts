@@ -59,17 +59,21 @@ export function compile(state: AppState): CompileResult {
       if (!profile) continue;
 
       // A row diagnosed error must never reach compileHeaders — see
-      // hasRowError's own comment for why. Fail-open is asymmetric here
-      // (CLAUDE.md): headers skip per row, domains suppress the whole
-      // profile (isSuppressed, below, is the second half).
+      // hasRowError's own comment for why. Headers skip per row; domains skip
+      // per entry too since 2026-08-20 (conditions.ts drops the unusable
+      // ones), and only a list with nothing usable left fails the profile
+      // closed — isSuppressed, below, is that second half.
       const compilable = profile.headers.filter(
         (rule) => !hasRowError(byRow.get(rowKey(profile.id, rule.id))),
       );
       const action = compileHeaders(compilable);
       if (!action.requestHeaders && !action.responseHeaders) continue;
 
-      // Fail the whole profile closed rather than drop the bad domain — the
-      // reasoning, and the three other modules that must agree with it, are in
+      // Fail closed when nothing usable is left to scope with. The bad
+      // domains are already gone by here (conditions.ts drops them); what
+      // this catches is the list where dropping them leaves no domain
+      // condition at all, which DNR matches against every site. The pairing,
+      // and the three other modules that must agree with it, are in
       // lib/compile/suppression.ts.
       if (isSuppressed(profile)) continue;
 

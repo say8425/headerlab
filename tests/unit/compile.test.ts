@@ -107,7 +107,7 @@ describe('compile', () => {
     expect(out.session).toHaveLength(0);
   });
 
-  it('suppresses a profile when any one of several domains is invalid', () => {
+  it('drops the invalid domain and keeps compiling the rest', () => {
     const p = profile({
       filter: {
         mode: 'structured',
@@ -118,7 +118,14 @@ describe('compile', () => {
       },
     });
     const out = compile(state({ profiles: [p] }));
-    expect(out.dynamic).toHaveLength(0);
+    // Was `toHaveLength(0)`: one bad entry used to fail the profile closed.
+    // It now scopes to what is usable — and the condition is asserted, not
+    // just the count, because a rule that compiled with the bad domain still
+    // in it would have the right length and be rejected by
+    // `updateDynamicRules`, which is transactional and would take every other
+    // rule with it.
+    expect(out.dynamic).toHaveLength(1);
+    expect(out.dynamic[0]?.condition.requestDomains).toEqual(['api.example.com']);
   });
 
   it("does not let one profile's invalid domain suppress the others", () => {
@@ -187,10 +194,11 @@ describe('compile', () => {
       }),
     );
     expect(result.dynamic).toEqual([]);
-    // Said out loud, and calmly: nothing is wrong, nothing is at risk, and
-    // there is nothing being applied to be quiet about.
-    expect(result.diagnostics.map((d) => d.kind)).toEqual(['no-scope']);
-    expect(result.diagnostics[0]?.severity).toBe('incomplete');
+    // Said out loud, and calmly — by the readout, not by a diagnostic: the
+    // no-scope diagnostic is gone (2026-08-19) and "blocked until a site is
+    // set" is always on screen beside the count. Nothing is wrong, nothing
+    // is at risk, and there is nothing being applied to be quiet about.
+    expect(result.diagnostics).toEqual([]);
     // And it asks for no grant, because it registers no rule.
     expect(result.requiredOrigins).toEqual([]);
   });
@@ -341,16 +349,19 @@ describe('compile emits diagnostics', () => {
         ],
       }),
     );
-    expect(result.dynamic).toHaveLength(0);
+    // The rule now goes out, scoped to the usable host — that is the fix.
+    // What must NOT change is that the dropped entry is still said out loud:
+    // a silently narrowed scope is the same silence this test was written for,
+    // arriving from the other direction.
+    expect(result.dynamic).toHaveLength(1);
+    expect(result.dynamic[0]?.condition.requestDomains).toEqual(['api.example.com']);
     expect(result.session).toHaveLength(0);
     expect(result.diagnostics).toEqual([
       {
         kind: 'invalid-domain',
-        severity: 'error',
+        severity: 'warning',
         profileId: 'p1',
-        message:
-          'Unusable site: "a b.com". A site must be a bare hostname like example.com. ' +
-          'No rule is applied until every site here is usable.',
+        message: 'Unusable site: "a b.com". Skipped. Use a bare hostname like example.com.',
       },
     ]);
   });
@@ -441,9 +452,7 @@ describe('compile emits diagnostics', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p0',
-        message:
-          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
     // And the half the diagnostics were lying about: P1 compiles and survives.
@@ -472,9 +481,7 @@ describe('compile emits diagnostics', () => {
         kind: 'invalid-domain',
         severity: 'error',
         profileId: 'p1',
-        message:
-          'No usable site: "a b.com". Use a bare hostname like example.com. ' +
-          'Nothing is applied while every site is unusable.',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
       },
     ]);
   });

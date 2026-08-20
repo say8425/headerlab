@@ -16,7 +16,7 @@ function row(over: Partial<HeaderRule> = {}): HeaderRule {
 
 function diag(over: Partial<Diagnostic> = {}): Diagnostic {
   return {
-    kind: 'no-scope',
+    kind: 'invalid-domain',
     severity: 'warning',
     profileId: 'p1',
     message: 'm',
@@ -32,7 +32,10 @@ describe('routeDiagnostics', () => {
     // diagnostic into every bucket.
     const onRule = diag({ kind: 'invalid-header-name', severity: 'error', headerRuleId: 'h1' });
     const onHost = diag({ kind: 'permission-missing', host: 'api.example.com' });
-    const onScreen = diag({ kind: 'no-scope' });
+    // Profile-scoped and nothing else — no `headerRuleId`, no `host` — which
+    // is what sends it to `scope`. (`no-scope` was this fixture's kind until
+    // that kind was retired with the diagnostic nothing produces any more.)
+    const onScreen = diag({ kind: 'invalid-domain' });
     const routed = routeDiagnostics([onRule, onHost, onScreen]);
 
     expect([...routed.byRow.entries()]).toEqual([[rowKey('p1', 'h1'), [onRule]]]);
@@ -270,6 +273,57 @@ describe('ruleTally', () => {
     expect(ruleTally([], 'p1', new Map(), live)).toEqual({
       total: 0,
       live: 0,
+      off: 0,
+      unfinished: 0,
+      blocked: 0,
+    });
+  });
+
+  it('blocks every healthy rule when no scoping host is granted', () => {
+    // The fourth judgement, in the caller-answers shape: `permission-missing`
+    // carries `host` and never `headerRuleId`, so it files under `byHost` and
+    // nothing about it reaches `byRow` — every rule here looks healthy while
+    // none can match a request. Without the caller handing the answer in, the
+    // readout says "2 of 2 rules live · no problems" over a scope it cannot
+    // act on, which is the first screen a new user reads. Off stays off, an
+    // unnamed rule stays unfinished, and the rest land in `blocked` — the
+    // remainder absorbs them exactly as `live: false` would.
+    const rows = [row({ id: 'a' }), row({ id: 'b' }), row({ id: 'off', enabled: false })];
+    expect(ruleTally(rows, 'p1', new Map(), { live: true, access: 'none' })).toEqual({
+      total: 3,
+      live: 0,
+      off: 1,
+      unfinished: 0,
+      blocked: 2,
+    });
+  });
+
+  it('keeps rules live when only some scoping hosts are ungranted', () => {
+    // 'some' is reported, not acted on: the rules still go out on the granted
+    // hosts, and the count's job is to say what goes out. The half-granted
+    // state is the rail's clause ("1 site needs access"), never a blocked
+    // figure — blocking here would under-report rules that are genuinely
+    // being applied, the one direction this product exists to rule out.
+    const rows = [row({ id: 'a' }), row({ id: 'b' })];
+    expect(ruleTally(rows, 'p1', new Map(), { live: true, access: 'some' })).toEqual({
+      total: 2,
+      live: 2,
+      off: 0,
+      unfinished: 0,
+      blocked: 0,
+    });
+  });
+
+  it('treats an unanswered access question as it treated it before the field existed', () => {
+    // The bridge's `status()` builds its payload synchronously and cannot
+    // probe grants, so it leaves the field out. Absent means "not asked",
+    // never "granted" — and never "denied" either: the count must not move
+    // on a question nobody answered, or the CLI would flip between answers
+    // as its caller's shape changed. Pinned against both explicit answers.
+    const rows = [row({ id: 'a' })];
+    expect(ruleTally(rows, 'p1', new Map(), { live: true })).toEqual({
+      total: 1,
+      live: 1,
       off: 0,
       unfinished: 0,
       blocked: 0,

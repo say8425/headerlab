@@ -11,7 +11,10 @@ import { startEchoServer, type EchoServer } from './echo-server';
 declare const chrome: {
   storage: {
     local: { set(items: Record<string, unknown>): Promise<void> };
-    session: { get(key: string): Promise<Record<string, unknown>> };
+    session: {
+      get(key: string): Promise<Record<string, unknown>>;
+      set(items: Record<string, unknown>): Promise<void>;
+    };
   };
   declarativeNetRequest: {
     getDynamicRules(): Promise<
@@ -348,7 +351,16 @@ test('the popup renders its rules from stored state', async ({
   await expect(page.getByRole('textbox', { name: 'Header name' })).toHaveValue('X-From-E2E');
   // The rail's readout is computed from the same compile() the background
   // runs, so it is the popup's own claim about whether the rule is going out.
-  await expect(page.getByTestId('readout')).toHaveText('1of 1 rules liveno problems');
+  // This host is deliberately ungranted — the e2e build's only host
+  // permission is the loopback echo server (see the comment by the Grant
+  // fixtures below) — which is exactly the first screen a new user sees, and
+  // the claim it used to make here ("1 of 1 rules live · no problems") was
+  // false: nothing could match. The tally's access verdict now holds the
+  // rule out of `live` and the subcount names the missing step, beside the
+  // Grant button that is that step.
+  await expect(page.getByTestId('readout')).toHaveText(
+    '0 of 1 live· 1 blocked · 1 site needs access',
+  );
 
   await page.close();
 });
@@ -621,8 +633,14 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
       };
     });
 
-  await page.getByRole('button', { name: 'New rule', exact: true }).focus();
-  await page.keyboard.press('Tab'); // -> the row's switch
+  // Anchored on the row's own switch. It used to start at the panel head's
+  // "New rule" button and Tab twice; that button is gone (owner's call), so
+  // the anchor moved down one stop rather than the test being rewritten.
+  // What must not change is that the badge is reached **by Tab**: the ring
+  // this test measures comes from `:focus-visible`, which a programmatic
+  // `.focus()` on a non-text control does not satisfy — focusing the badge
+  // directly would measure an element wearing no ring and call it unclipped.
+  await page.getByRole('switch', { name: 'X-Trace enabled' }).focus();
   await page.keyboard.press('Tab'); // -> the direction badge
 
   const direction = await measureFocused();
@@ -644,6 +662,128 @@ test('the fused direction badge and operation chip each keep a keyboard focus ri
     operation.ringFitsInsideClipper,
     `the ring must not be clipped by any ancestor (nearest clipper: ${operation.clipperTestId})`,
   ).toBe(true);
+
+  await page.close();
+});
+
+test('the add-site field and the ghost row each keep their focus ring inside what clips them', async ({
+  context,
+  extensionId,
+}) => {
+  // Regression guard, same family as the badge/chip ring above and the same
+  // shape of defect: a ring is drawn *outside* its element's border box, and
+  // an ancestor with `overflow-hidden` cuts whatever falls beyond its padding
+  // edge. Here the ancestor is the sites section, which clips so that the add
+  // field cannot overprint the request-types heading when the rail is under
+  // pressure — and the field is that section's last child, so its lower arc
+  // was flush against the clip edge. Measured before the fix: the field's
+  // bottom and the section's bottom were the same pixel, room 0, and a
+  // keyboard user saw a ring open along the bottom.
+  //
+  // The room is asserted per side rather than the ring's own box being
+  // compared, because this control's visible ring is a `box-shadow`
+  // (`focus-visible:ring-3`) and not the `outline` the badge/chip guard
+  // measures — a computed box-shadow cannot be split on commas without
+  // tripping over `rgba(0, 0, 0, 0)`, so the geometry is asked directly.
+  // RING_PX is that utility's width; re-derive it if the class changes.
+  const RING_PX = 3;
+
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 748, height: 600 });
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.locator('[data-testid="add-field"]').waitFor();
+  await page.locator('[data-testid="add-field"]').focus();
+
+  const room = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    const r = el.getBoundingClientRect();
+    // The nearest ancestor that actually clips — anything below it passes the
+    // ring through untouched, however many clean wrappers sit in between.
+    let clipper: HTMLElement | null = el.parentElement;
+    while (clipper) {
+      const ov = getComputedStyle(clipper);
+      if (ov.overflowX !== 'visible' || ov.overflowY !== 'visible') break;
+      clipper = clipper.parentElement;
+    }
+    const c = clipper?.getBoundingClientRect() ?? null;
+    return {
+      focused: el.getAttribute('data-testid'),
+      clipped: clipper !== null,
+      left: c ? r.left - c.left : Infinity,
+      top: c ? r.top - c.top : Infinity,
+      right: c ? c.right - r.right : Infinity,
+      bottom: c ? c.bottom - r.bottom : Infinity,
+    };
+  });
+
+  // The field really is the focused element, so the rest is about the ring
+  // this test names rather than whatever else the popup focused first.
+  expect(room.focused).toBe('add-field');
+  // And it really is inside a clipping ancestor — without this the four
+  // assertions below would pass vacuously on `Infinity` the day the clip is
+  // removed, which is exactly the "assertion that cannot fail" shape.
+  expect(room.clipped).toBe(true);
+  expect(room.bottom).toBeGreaterThanOrEqual(RING_PX);
+  expect(room.top).toBeGreaterThanOrEqual(RING_PX);
+  expect(room.left).toBeGreaterThanOrEqual(RING_PX);
+  expect(room.right).toBeGreaterThanOrEqual(RING_PX);
+
+  // The same defect on the panel's side, and the reason this test covers two
+  // controls rather than one: the ghost "New rule" row is a full-width button
+  // sitting flush against the left edge of the rules well, and that well is a
+  // scroll container (`scroll-list`). `overflow-y: auto` forces the other axis
+  // to a clipping value however it is written, so the ring could not simply be
+  // let through. Measured before the fix: room 0 on the left, 8 on the right —
+  // the 8 being the scrollbar gutter, which is why only one side looked wrong.
+  //
+  // Its ring is an `outline` (style.css's global `:focus-visible`), not the
+  // box-shadow the field above wears, so the room it needs is computed from
+  // the live style instead of a constant: `outlineWidth + outlineOffset`,
+  // floored at 0 because a negative offset draws inward and needs none. That
+  // is what makes this assertion able to fail rather than trivially true —
+  // the fix sets `outline-offset: -2px`, so the requirement is 0 today, and
+  // the day the offset goes back to the global +1px the requirement becomes
+  // 3px against a room of 0 and this goes red.
+  const ghost = page.getByRole('button', { name: 'New rule at end' });
+  await ghost.focus();
+  // Arrive by keyboard. `:focus-visible` does not match a programmatic focus
+  // on a button, and an element wearing no ring at all would sail through
+  // every assertion below — the `outlineWidth > 0` check is the backstop.
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+
+  const ghostRing = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    let clipper: HTMLElement | null = el.parentElement;
+    while (clipper) {
+      const ov = getComputedStyle(clipper);
+      if (ov.overflowX !== 'visible' || ov.overflowY !== 'visible') break;
+      clipper = clipper.parentElement;
+    }
+    const c = clipper?.getBoundingClientRect() ?? null;
+    const need = Math.max(parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset), 0);
+    return {
+      label: el.getAttribute('aria-label'),
+      outlineStyle: cs.outlineStyle,
+      outlineWidth: parseFloat(cs.outlineWidth),
+      clipped: clipper !== null,
+      need,
+      fits:
+        !c ||
+        (r.left - c.left >= need - 0.5 &&
+          c.right - r.right >= need - 0.5 &&
+          r.top - c.top >= need - 0.5 &&
+          c.bottom - r.bottom >= need - 0.5),
+    };
+  });
+
+  expect(ghostRing.label).toBe('New rule at end');
+  expect(ghostRing.outlineStyle).toBe('solid');
+  expect(ghostRing.outlineWidth).toBeGreaterThan(0);
+  expect(ghostRing.clipped).toBe(true);
+  expect(ghostRing.fits, `the ring needs ${ghostRing.need}px on every side`).toBe(true);
 
   await page.close();
 });
@@ -1155,7 +1295,18 @@ test('a control appearing in the rail does not move anything', async ({
             continue;
           }
           const r = el.getBoundingClientRect();
-          out[selector] = [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
+          // The readout is measured by its RIGHT edge, not its left one. It
+          // moved into the panel head and is right-aligned there (2026-08-20),
+          // so its x and width change with the text by design — that is what
+          // right-alignment is — while the edge it is anchored to must not.
+          // Recording x here would make this guard fail on the one element
+          // whose content it is deliberately changing, and dropping the
+          // element instead would take its guarantee with it. Everything else
+          // is still pinned on all four numbers.
+          out[selector] =
+            selector === '[data-testid="readout"]'
+              ? [r.right, r.y, r.height].map((v) => Math.round(v * 100) / 100)
+              : [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 100) / 100);
         }
         return out;
       },
@@ -1171,7 +1322,11 @@ test('a control appearing in the rail does not move anything', async ({
   // that cannot fail.
   const withGrant = await boxes();
   expect(
-    Object.values(withGrant).filter((b) => b.length !== 4),
+    // A miss is recorded as `[]` by the helper above, and that is what this
+    // looks for. It asked for exactly four numbers until the readout began
+    // recording three (its right edge, y and height — see the helper), which
+    // would have made this fail on a probe that matched perfectly well.
+    Object.values(withGrant).filter((b) => b.length === 0),
     'every probe must match an element',
   ).toEqual([]);
 
@@ -1190,20 +1345,24 @@ test('a control appearing in the rail does not move anything', async ({
   expect(await boxes(), 'the Grant button arriving must move nothing').toEqual(withGrant);
 
   // --- the readout's second line changing ---
-  // Switching the only rule off swaps "no problems" for "1 off" under the big
-  // number. That line sits above the whole rail, so before this guard it moved
-  // the pause bar, the all-sites switch, the site row and the request types
-  // 22.1px at once — from a click on the other side of the popup.
+  // Switching the only rule off swaps the access-blocked clause for "1 off"
+  // under the big number. That line sits above the whole rail, so before this
+  // guard it moved the pause bar, the all-sites switch, the site row and the
+  // request types 22.1px at once — from a click on the other side of the
+  // popup.
   //
   // This guard was briefly deleted, when the healthy state rendered no line at
   // all and the movement it forbids became real. That answer is gone: the line
   // is always present and always says something (ScopeRail.tsx's `subline`
   // docblock records both rejected alternatives), so the promise holds again
   // and is asserted again. What changed is the starting text — an empty box is
-  // no longer one of the states.
-  await expect(subcount).toHaveText('no problems');
+  // no longer one of the states, and this fixture's host is ungranted (the
+  // comment above), so the starting clause is the access one the tally now
+  // owes. Toggling the rule off takes it out of every count but `off`, which
+  // is what makes the swap observable.
+  await expect(subcount).toHaveText('· 1 blocked · 1 site needs access');
   await page.getByRole('switch', { name: 'X-Reflow enabled' }).click();
-  await expect(subcount).toHaveText('1 off');
+  await expect(subcount).toHaveText('· 1 off · 1 site needs access');
   expect(await boxes(), 'the subcount changing must move nothing').toEqual(withGrant);
 
   // --- the help bubble opening ---
@@ -1264,7 +1423,13 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
 }) => {
   const boxes = async (page: import('@playwright/test').Page) => {
     const out: Record<string, { x: number; y: number }> = {};
-    for (const id of ['readout', 'runstate', 'rail-section-types', 'type-grid']) {
+    // `readout` left this list when it left the rail (2026-08-20). This probe
+    // is about the RAIL holding still while the site list absorbs pressure,
+    // and the readout is in the panel head now — a different column, which
+    // this fixture does not press. It is also right-aligned there, so its x
+    // tracks its own text width by design and would report movement that is
+    // neither the rail's nor a defect.
+    for (const id of ['runstate', 'rail-section-types', 'type-grid']) {
       const b = await page.locator(`[data-testid="${id}"]`).first().boundingBox();
       out[id] = { x: Math.round(b!.x), y: Math.round(b!.y) };
     }
@@ -1349,14 +1514,19 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 잰다. storage 는 확장 전체에 하나뿐이라 나중에 다시 심으면 그때 이미
   // 열려 있는 다른 페이지도 watch 를 타고 같이 다시 그려지고, `boxes(page)`
   // 비교(3번)가 재는 것이 바뀐다. 그리고 unusable 은 애초에 과밀 페이지 안에
-  // 함께 만들 수 없다: 도메인 목록에 무효한 항목이 하나라도 있으면
-  // `isSuppressed` 가 프로필 전체를 억제해 `domainsToAudit` 가 그 프로필을
-  // 건너뛰고, granted/pending 이어야 할 나머지 호스트까지 확률되지 않은 채
-  // 전부 granted 로 주저앉는다(lib/compile/suppression.ts).
+  // 함께 만들 수 없다: unusable 행 하나를 얻으려면 무효한 항목을 심어야 하는데,
+  // 그러면 그 목록의 상태 구성이 과밀 페이지가 재려는 것과 달라진다. (예전에는
+  // 이유가 더 셌다 — 무효한 항목 하나가 프로필 전체를 억제해 나머지 호스트가
+  // 확률되지 않은 채 전부 granted 로 주저앉았다. 2026-08-20 부터는 무효한
+  // 항목만 스코프에서 빠지고 나머지는 정상 동작한다: lib/compile/suppression.ts.)
   //
-  // 사이트를 여덟 개 심는 것은 그 억제가 **scope note 를 하나 띄우기** 때문이다.
-  // 노트 + 여덟 행이 레일이 실제로 압력을 받는 유일한 상태이고, 거기서
-  // 양보해야 하는 것은 사이트 목록 하나뿐이다 — 아래 두 단언이 그것을 잰다.
+  // 사이트를 여덟 개 심는 것은 그것이 목록을 cap 위로 넘치게 하는 값이기
+  // 때문이다. 다만 넘치는 것만으로는 이 단언의 주제가 되지 않는다 — 목록은
+  // 자기 cap(174px)에 앉아 있을 뿐이고, "압력을 받으면 양보하는 쪽은
+  // 목록이다"를 보이려면 cap **아래로** 밀어내는 것이 레일에 하나 더 있어야
+  // 한다. 예전에는 그 억제가 스코프 노트를 띄워 그 역할을 했다. 노트는
+  // 사라졌으므로(2026-08-19) 남아 있는 두 에러 노트 중 하나(sync-error)를
+  // 아래에서 직접 심어 같은 압력을 만든다.
   // 과밀 페이지에는 이 상태를 만들 수 없다(무효한 항목이 하나라도 있으면 위에
   // 적은 대로 나머지 행의 상태가 전부 무너진다), 그래서 여기 있다.
   await serviceWorker.evaluate(async () => {
@@ -1433,10 +1603,51 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   await unusablePage.setViewportSize({ width: 748, height: 600 });
   await unusablePage.goto(`chrome-extension://${extensionId}/popup.html`);
   await unusablePage.locator('[data-testid="site"][data-state="unusable"]').waitFor();
+
+  // 압력의 원천을 여기서, 페이지가 이미 그려진 **뒤에** 심는다. 순서가
+  // 본질이다: 상태를 쓰면 `stateItem.watch` 가 reconcile 을 깨우고
+  // (background.ts), reconcile 은 끝나면서 `recordStatus({lastError: null,
+  // …})` 로 이 레코드를 덮어쓴다(lib/sync/ruleSync.ts). 그래서 상태 쓰기
+  // **옆에서** 심으면 경쟁이 되고, 경쟁은 실측으로 졌다 — 팝업은
+  // `getSyncStatus()` 를 마운트에서 한 번 읽을 뿐 watch 하지 않으므로
+  // (App.tsx) 덮어쓰기가 이기면 노트는 영영 나타나지 않고 아래 waitFor 가
+  // 30초 뒤 타임아웃으로 죽는다. 위의 goto + waitFor 가 그 사이에 IPC 를
+  // 여러 번 왕복하므로 그 reconcile 은 이미 끝났고, 여기부터 reload 까지는
+  // 상태를 쓰는 것이 없으니 reconcile 은 다시 깨지 않는다.
+  //
+  // 값이 살아남았음을 재확인까지 한다 — 남은 경쟁이 있다면 측정이 조용히
+  // 틀리는 대신 이 단언에서 시끄럽게 죽어야 한다.
+  // 키는 lib/storage/session.ts 의 `session:syncStatus` 에서 area 접두사를
+  // 뗀 `syncStatus` 그대로다.
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.session.set({
+      syncStatus: {
+        lastError: 'Rule 2 is invalid',
+        ruleCount: 0,
+        iconError: 'The toolbar icon could not be updated.',
+      },
+    });
+  });
+  await unusablePage.reload();
+  await unusablePage.locator('[data-testid="site"][data-state="unusable"]').waitFor();
+  await unusablePage.locator('[data-testid="sync-error"]').waitFor();
+  await unusablePage.locator('[data-testid="icon-error"]').waitFor();
+  expect(
+    await serviceWorker.evaluate(
+      async () =>
+        (
+          (await chrome.storage.session.get('syncStatus')).syncStatus as {
+            lastError: string | null;
+          }
+        ).lastError,
+    ),
+    '심은 sync-error 가 reconcile 에 덮이지 않고 살아 있다',
+  ).toBe('Rule 2 is invalid');
   const unusableLines = await measureLines(unusablePage);
 
   // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
-  // 제자리에 있다. 목록의 max-height 는 127px 이므로, 그보다 작아졌다는 것이
+  // 제자리에 있다. 목록의 max-height 는 174px 이므로(60px 행이 된 뒤의 값 —
+  // ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
   // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
   //
   // 36 은 48 에서 다시 잰 값이다(예전에는 132→48 이었다). 브리지 행이 레일에
@@ -1444,17 +1655,29 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 진짜 여유는 7px 뿐이었고(docs/design/2026-08-12-agent-bridge-rail-budget.html),
   // 나머지 21px 중 16px 은 다른 네 여백에서, 5px 는 이 목록의 cap 자체에서
   // 가져왔다(132→127, ScopeRail.tsx 의 site-list 문서화 참고). 이 페이지는
-  // 그 cap 위에 스코프 노트까지 더해 훨씬 세게 누르므로 같은 21px 압박이
+  // 그 cap 위에 노트까지 더해(당시 스코프 노트, 지금은 위에서 심는
+  // sync-error) 훨씬 세게 누르므로 같은 21px 압박이
   // 132→127 보다 여기서 더 크게(48→36) 나타난다. 부등호로 완화하지 않고
   // 정확한 값으로 다시 고정한다 — 레이아웃이 움직일 때마다 다시 재야 하는
   // 것이 이 단언의 존재 이유다. 36 은 여전히 목록이 완전히 접히지 않고 한
   // 행의 일부(48 중 36)를 보여주며 listScrolls: true 로 남아 있어, "목록만
   // 양보하고 이웃은 그대로"라는 이 단언의 주제를 여전히 보여준다.
+  // (그 뒤 55 를 거쳐 51: AddSiteField 의 예약 줄이 사라지며 48 행이 되고,
+  // 다시 표준 xs Grant 를 위한 all-sites 바의 4px 로 51 이 되었다. 60px 행은
+  // 이 값에 영향을 주지 않는다 — 이 쪽은 cap 이 아니라 남는 공간이 목록을
+  // 조이는 상태라 행 높이와 무관하다. 아래의 정확값 단언이 현재 값이다.)
   const underPressure = await unusablePage.evaluate(() => {
     const rail = document.querySelector('aside')!;
     const list = document.querySelector('[data-testid="site-list"]')!;
     return {
-      notes: document.querySelectorAll('[data-testid="scope-note"]').length,
+      // 부재를 먼저, 존재를 나중에. 스코프 노트는 사라졌으므로 그 testid 로
+      // 되살아나는 요소가 없다는 것이 먼저 단언되고, 압력을 실제로 만드는
+      // 노트는 남아 있는 에러 노트 쪽이다 — 둘을 한 숫자로 합치면 "노트가
+      // 하나 있다"가 어느 쪽인지 말하지 못한다.
+      scopeNotes: document.querySelectorAll('[data-testid="scope-note"]').length,
+      errorNotes: document.querySelectorAll(
+        '[data-testid="sync-error"], [data-testid="icon-error"]',
+      ).length,
       railScrolls: rail.scrollHeight > rail.clientHeight,
       listHeight: list.clientHeight,
       listScrolls: list.scrollHeight > list.clientHeight,
@@ -1465,65 +1688,46 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // above this list, so the list — the only child allowed to give way — is
   // what gets them back. Under the same pressure it now shows more, which is
   // the direction this assertion exists to protect.
-  expect(underPressure).toEqual({
-    notes: 1,
-    railScrolls: false,
-    listHeight: 55,
-    listScrolls: true,
-  });
+  // 55 -> 51: the all-sites bar's reserved second line grew h-5 -> h-6 for
+  // the standard shadcn `xs` Grant (24px), so 4px of fixed rail content above
+  // the list comes out of the list again. Same direction, smaller figure —
+  // re-measured, not derived.
+  // 51 -> smaller: the *pressure itself* got smaller. The unusable-site
+  // note's copy went direct ("Unusable sites: … Use a bare hostname like
+  // example.com.", the consequence clause dropped — the readout says it), so
+  // the note wraps to fewer lines in the 194px rail and the list takes the
+  // lines back. Copy length is rail pressure.
+  //
+  // A range, not a figure: this value depends on how many lines the note's
+  // text wraps to, and that differs by one line between the headed macOS
+  // run and CI's Linux fallback fonts (82 local, 66 on CI — one 15.2px
+  // line, the same font-metric divergence the width guard's own comment
+  // records). The earlier exact figures (55, 51) were latently just as
+  // dependent; the shorter copy simply landed nearer a wrap boundary and
+  // made it visible. What this assertion owns is *which element yields* —
+  // the list, not the rail, with exactly one note as the pressure — and
+  // both platforms sit inside the bound with a margin on either side.
+  expect(underPressure.scopeNotes).toBe(0);
+  expect(underPressure.errorNotes).toBe(2);
+  expect(underPressure.railScrolls).toBe(false);
+  expect(underPressure.listScrolls).toBe(true);
+  // Re-measured after the readout left the rail (2026-08-20). That freed 48px
+  // at the top, and a single note stopped pressing at all — the list simply sat
+  // at its 174px cap, which makes "the list is the one that yields" a claim the
+  // fixture no longer demonstrated. Both remaining notes are planted now, and
+  // the list gives way to 26px. The bound is a range for the reason the old one
+  // was: note copy wraps to a different number of lines under CI's fallback
+  // fonts. What it owns is unchanged — the list is BELOW its cap, so it is the
+  // element that yielded, and above zero, so it yielded without being erased.
+  expect(underPressure.listHeight).toBeGreaterThan(0);
+  expect(underPressure.listHeight).toBeLessThanOrEqual(60);
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
 
-  // readout 의 두 번째 줄은 넘칠 때 잘리는 대신 줄임표로 끊고, 문장 전체는
-  // title 로 남는다.
-  //
-  // 이 페이지가 그것을 재는 자리인 이유: 억제된 프로필이라 " by an unusable
-  // site" 가 붙어 이 팝업이 만들 수 있는 가장 긴 두 번째 줄이 여기서 나온다.
-  // 과밀 페이지의 그 줄은 "2 off" 라서 넘치지 않고, 그래서 거기서는 이 결함이
-  // 보이지 않았다.
-  //
-  // 이 줄은 h-4 한 줄이다. (예전에는 비어 있을 때도 자리를 예약했고 그 예약이
-  // 옳다고 여기 적혀 있었다. 지금은 내용이 있을 때만 그려진다 — ScopeRail.tsx 의
-  // 해당 docblock 참조. 이 테스트가 보는 것은 내용이 있는 상태라 영향은 없다.)
-  // 높이가 한 줄로 고정인 이상 넘칠 때 무엇을 할지
-  // 말해 줘야 하는데, 그 지시가 없어서 문장이 두 줄로 감싸이고 items-center 가
-  // 16px 상자 안에서 위아래를 다 썰어 냈다(고치기 전 실측 22/16, title 없음).
-  // 잘려 나간 것이 하필 원인을 대는 절이었다 — ScopeRail 의 docblock 이 열 줄에
-  // 걸쳐 "원인을 이름 붙이는 것이 규칙을 엉뚱하게 탓하지 않게 한다"고 논증하는
-  // 바로 그 부분.
-  const subcount = await unusablePage.evaluate(() => {
-    const box = document.querySelector('[data-testid="subcount"]')!;
-    const text = box.querySelector('[title]');
-    if (!text) return { found: false };
-    return {
-      found: true,
-      // 문장 전체가 닿을 수 있는 곳에 남아 있는가.
-      title: text.getAttribute('title'),
-      // 세로로 감싸이지 않는가 — 이것이 고친 것이다.
-      wraps: box.scrollHeight > box.clientHeight,
-      // 가로로는 실제로 넘치는가. 넘치지 않으면 위 두 단언이 공허하다:
-      // 짧은 문장은 자르지 않아도 감싸이지 않고 title 도 필요 없다.
-      truncates: text.scrollWidth > text.clientWidth,
-      // 세 번째 약속 — 잘린 자리에 실제로 "…" 이 그려지는가. `truncates` 는
-      // 가로로 넘친다는 것만 재고, 넘친 텍스트가 말줄임표로 끊기는지 그냥
-      // 잘려 사라지는지는 구분하지 못한다(`overflow: hidden` 만으로도
-      // truncates 는 참이 된다). Tailwind 의 `truncate` 유틸리티가 실제로
-      // 셋(`overflow-hidden`, `text-overflow: ellipsis`, `white-space:
-      // nowrap`) 을 다 거는지 계산된 스타일로 직접 확인한다 — 클래스 이름을
-      // 읽는 게 아니라 브라우저가 실제로 적용한 값을 읽는다.
-      ellipsisStyle: {
-        overflow: getComputedStyle(text).overflowX,
-        textOverflow: getComputedStyle(text).textOverflow,
-        whiteSpace: getComputedStyle(text).whiteSpace,
-      },
-    };
-  });
-  expect(subcount).toEqual({
-    found: true,
-    title: '1 off · 1 unfinished · 2 blocked by an unusable site',
-    wraps: false,
-    truncates: true,
-    ellipsisStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  });
+  // (readout 두 번째 줄의 말줄임 보증은 이 페이지를 떠났다. 원인 절이
+  // 사라진 뒤로 여기의 줄은 '1 off · 1 unfinished · 2 blocked' 160px 이고
+  // 상자는 171px 이라 더 이상 넘치지 않는다 — 넘치지 않는 상태에서
+  // truncates 를 단언하면 공허하게 통과한다. 실제로 넘치는 고정물을 가진
+  // 전용 테스트로 옮겼다: 아래 'readout 의 두 번째 줄은 …' 참고.)
 
   await unusablePage.close();
 
@@ -1573,11 +1777,21 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const lineHeights = [...(await measureLines(page)), ...unusableLines];
   // 세 상태가 실제로 렌더됐는지 먼저 확인한다 — 없는 상태를 비교하면
   // "전부 같다"가 공허하게 통과한다.
+  // Three states, and the claim is that the second line is one height in
+  // every one of them — a state left out of this set is a state the claim was
+  // never tested against. A fourth briefly lived here: `suppressed`, for a
+  // valid row whose profile some *other* entry had killed. It is gone because
+  // its cause is (2026-08-20): an unusable entry is dropped from the scope
+  // now, so its neighbours are ordinary granted/pending rows again and there
+  // is no such state left to render.
   expect(new Set(lineHeights.map((l) => l.state))).toEqual(
     new Set(['granted', 'pending', 'unusable']),
   );
   expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
-  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([48]));
+  // 48 -> 52 -> 60: 행의 예약 둘째 줄이 h-5 -> h-6 (표준 shadcn xs Grant 의
+  // 24px), 다시 상하 패딩이 all-sites 바와 같은 8px 로. 줄은 자기가 담을 수
+  // 있는 가장 큰 것에 사이즈를 맞춘다.
+  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([60]));
 
   // Grant 버튼이 그 띠 안에 온전히 들어간다.
   const grantFits = await page.evaluate(() => {
@@ -1666,10 +1880,12 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b 가 `rows: 8` 을 정확값으로 고정하는 것과 같은 이유다.
   //
   // 구성 — 이 숫자가 무엇으로 이루어졌는지 알아야 실패를 읽을 수 있다:
-  //   레일 26 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live", subcount "2 off")
+  //   레일 27 = 브랜드 1 · readout 3(큰 숫자, "of 10 rules live",
+  //             subcount "2 off · 7 sites need access")
   //             · Sites 카운트 1 · run state 1("Active")
-  //             · bridge row 1(라벨 "Agent bridge off" — 컨트롤이 스위치가 되면서
-  //               텍스트를 가진 잎이 하나 사라졌다)
+  //             · bridge row 2(보이는 라벨 "Agent bridge" + 캔버스 밖 detail
+  //               span — 스위치의 aria-describedby 가 실제 텍스트를 가리키게
+  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다)
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -1690,18 +1906,35 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 이면 버튼이 없어 26" 이라고 적어두었는데, 이제 버튼 자체가 없으므로 네
   // 상태 모두 26 이고 이 수는 더 이상 상태에 매이지 않는다.
   //
+  // 26 → 27 은 H-3: 스위치의 description 이 라벨이 아니라 실제 텍스트를
+  // 가리키게 하면서 브리지 행에 detail span 이 하나 들어왔다. sr-only 가
+  // 아니라 캔버스 밖 배치(OFFCANVAS_TEXT)인 것도 이 테스트 때문이다 —
+  // 1px 클립 숨김은 자기 상자를 넘치는 글자라서 바로 아래 1a 가 잡는다.
+  // detail span 은 상태마다 길이가 달라지지만 잎 하나로 세는 지표에는
+  // 상태 무관 +1 이다. (알림 채널의 status span 은 비어 있으면 글자가
+  // 없어 세지 않는다 — 이 페이지는 아무 것도 공지하지 않는다.)
+  //
+  // subcount 가 "2 off · 7 sites need access" 로 늘어난 것은 잎 수와
+  // 무관하다(문장은 여전히 한 개의 span 잎)지만 길이 예산과 관계가 있으므로
+  // 위 구성에 적어둔다.
+  //
   // 마크업을 바꿔서 이 수가 달라졌다면 그건 이 단언이 잡으라고 있는 사고가
   // 아니라 정상적인 변경이다 — 다시 재서 여기와 위 구성을 함께 고쳐라.
+  // 27 -> 24 -> 23 / 12 -> 14: readout 이 레일에서 패널 헤더로 옮겨 가고
+  // (2026-08-20), 이어서 all-sites 행의 off 줄("The list below applies")이
+  // 제거되며 레일이 텍스트 노드를 하나 더 잃었다. 이 주석 바로 위가 말하는
+  // "정상적인 변경이라면 다시 재라"에 해당하는 경우다.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 26,
-    panel: 12,
+    rail: 23,
+    panel: 14,
   });
 
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
   //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
-  //     피치(48 + 6 = 54)의 정수배가 **아니게** 잡혀 있고, 이것이 그 선택을
-  //     직접 재는 단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
+  //     피치(60 + 6 = 66, 상하 8px 패딩의 행부터)의 정수배가 **아니게**
+  //     잡혀 있고(174 는 132 도 192 도 아니다), 이것이 그 선택을 직접 재는
+  //     단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
   //
   //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
@@ -1791,6 +2024,24 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   await page.close();
 });
 
+// A guard stood here — 'readout 의 두 번째 줄은 넘칠 때 감싸이지 않고 말줄임표로
+// 끊는다'. It pinned that the count's second line truncates with an ellipsis
+// instead of wrapping and being sliced through the middle by `items-center`,
+// which was a real defect in a 16px box in the rail.
+//
+// Its subject is unreachable now (2026-08-20). The count moved to the panel
+// head, where the measured space is 453px against a worst realistic line of
+// 323px ('· 12 off · 12 unfinished · 12 blocked · 12 sites need access') — so
+// no state this popup can produce overflows it, and a truncation assertion
+// there would be one that cannot fail. Forcing it with a fixture the product
+// cannot reach would be worse: a guard describing a shape nobody can get to.
+//
+// What survives is the decision it protected — WHICH half yields when the line
+// is long — and that is pinned where it can still be observed:
+// RulePanel.test.tsx, 'lets only the detail truncate, never the count'.
+// `truncate` stays on the element as the defence; re-measure and bring this
+// back if the panel ever narrows.
+
 test('the bridge row does not push the rail past its column', async ({
   context,
   serviceWorker,
@@ -1863,9 +2114,12 @@ test('the bridge row does not push the rail past its column', async ({
   }));
   expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 
-  // And the affordance that slack was protecting is still there: the list
-  // stops mid-row rather than on one, which is what says it continues — 19px
-  // of the third row's 48 at the 127px cap.
+  // And the affordance that budget accounting has to keep buying on purpose:
+  // the list stops mid-row rather than on one, which is what says it
+  // continues — 42px of the third row's 60 at the 174px cap (the shape moved
+  // from "two rows + slice" to "one row + slice" when the rows grew to 60px
+  // and 136px of rail could no longer hold both; the cap must never land on
+  // the 66px pitch or the cut row — and the signal — disappears).
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(127);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(174);
 });
