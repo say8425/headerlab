@@ -7,6 +7,7 @@ import { rowError } from '@/lib/compile/validate';
 import { useArmed } from '@/lib/view/useArmed';
 import { useCommittedDraft } from '@/lib/view/useCommittedDraft';
 import type { Diagnostic, HeaderRule, HeaderTarget, Operation } from '@/lib/model/types';
+import { isEnterKey } from '@/lib/view/keys';
 
 const OP_NEXT: Record<Operation, Operation> = { set: 'append', append: 'remove', remove: 'set' };
 const TARGET_NEXT: Record<HeaderTarget, HeaderTarget> = {
@@ -382,7 +383,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
             onChange={(e) => name.setDraft(e.target.value)}
             onBlur={name.commit}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') name.commit();
+              if (isEnterKey(e)) name.commit();
               if (e.key === 'Escape') name.cancel();
             }}
           />
@@ -616,7 +617,7 @@ export function RuleCard({ rule, diagnostics, onPatch, onDelete, autoFocus }: Ru
                   // to close. The blur re-fires `commit`, which is a no-op
                   // for an already-sent draft (`useCommittedDraft` guards on
                   // what it last sent).
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (isEnterKey(e) && !e.shiftKey) {
                     e.preventDefault();
                     value.commit();
                     e.currentTarget.blur();

@@ -702,90 +702,67 @@ export function ScopeRail({
             made the empty list mean two things in the first place. */}
 
         <div
-          className="mx-3 flex h-[60px] shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
+          className="mx-3 flex shrink-0 items-center gap-1.5 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
           data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex h-4 items-center gap-1.5">
-              {/* The glyph's *slot* is unconditional; only its meaning is not.
-                  It used to render solely once the state was known, so "All
-                  sites" slid sideways the moment a probe answered — and back
-                  again when the mode went off. State changes appearance, not
-                  geometry (CLAUDE.md, Interface).
+          {/* The glyph's *slot* is unconditional; only its meaning is not. It
+              used to render solely once the state was known, so "All sites"
+              slid sideways the moment a probe answered — and back again when
+              the mode went off. State changes appearance, not geometry.
 
-                  With nothing to report it is a blank 14px carrying no `role`
-                  and no label: reserving the space must not put a phantom
-                  image into the accessibility tree. A globe rather than the
-                  site rows' circle, because this row is a mode and not a
-                  host — the one thing about it that is not the same fact. */}
-              {allSitesState === 'granted' || allSitesState === 'pending' ? (
-                <Globe
-                  className={`size-3.5 shrink-0 ${allSitesState === 'granted' ? 'text-live' : 'text-pending'}`}
-                  data-testid="all-sites-state"
-                  role="img"
-                  aria-label={
-                    allSitesState === 'granted' ? 'Access granted' : 'Awaiting permission'
-                  }
-                />
-              ) : (
-                <span className="size-3.5 shrink-0" data-testid="all-sites-state" data-unknown="" />
-              )}
-              <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-semibold text-foreground">
-                All sites
-              </span>
-            </div>
+              With nothing to report it is a blank 14px carrying no `role` and
+              no label: reserving the space must not put a phantom image into
+              the accessibility tree. A globe rather than the site rows' circle,
+              because this row is a mode and not a host — the one thing about it
+              that is not the same fact. */}
+          {allSitesState === 'granted' || allSitesState === 'pending' ? (
+            <Globe
+              className={`size-3.5 shrink-0 ${allSitesState === 'granted' ? 'text-live' : 'text-pending'}`}
+              data-testid="all-sites-state"
+              role="img"
+              aria-label={allSitesState === 'granted' ? 'Access granted' : 'Awaiting permission'}
+            />
+          ) : (
+            <span className="size-3.5 shrink-0" data-testid="all-sites-state" data-unknown="" />
+          )}
 
-            {/* The second line, reserved in every state and sized to the
-                tallest thing it can hold — the Grant button, which is the
-                shadcn `xs` height this line's `h-6` reserves — exactly as a
-                site row's is. The mode being on and the access being missing
-                is *said* here rather than left to a tint, in the same words a
-                pending site row uses, because it is the same state.
+          <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-semibold text-foreground">
+            All sites
+          </span>
 
-                The only control here that asks the browser for anything. The
-                switch sets the mode and stops (App.tsx): `<all_urls>` is the
-                largest grant this extension can request, so it is spent when a
-                button labelled Grant is pressed, never as a side effect of a
-                switch moving. Every way of reaching this state — turning the
-                mode on, declining once, or a store migrated from a build that
-                never asked — therefore arrives at the same button. */}
-            <span className="flex h-6 items-center pl-5">
-              {allSitesState === 'pending' ? (
-                <Button {...GRANT_BUTTON_PROPS} onClick={onGrantAllSites}>
-                  Grant
-                </Button>
-              ) : (
-                <span
-                  className={`text-[11px] leading-[14px] ${
-                    allSitesState === 'granted'
-                      ? 'font-semibold text-live'
-                      : 'font-medium text-muted-foreground'
-                  }`}
-                  // `granted` is the only state with words left, and the
-                  // glyph above already carries them, so this span never
-                  // reaches the accessibility tree. It is kept rather than
-                  // branched away because the slot around it must not move.
-                  aria-hidden={allSitesState === 'granted' || undefined}
-                >
-                  {/* The `off` state said "The list below applies" here until
-                      2026-08-20 (owner's call). It was a mode description on a
-                      row whose switch already says the mode, in the state the
-                      popup opens in — so it was the line most often on screen
-                      and the least often read.
+          {/* The remedy, on the same line as the label since 2026-08-21.
 
-                      The empty band it leaves is deliberate and costs nothing
-                      new: this slot is `h-6` because it must hold the Grant
-                      button in the `pending` state, and it already rendered
-                      empty while the `<all_urls>` probe was out. Shrinking the
-                      bar in `off` instead would move everything below it every
-                      time the switch is flipped, which is the reflow the
-                      Interface rule exists to stop. */}
-                  {allSitesState === 'granted' ? 'Access granted' : ''}
-                </span>
-              )}
-            </span>
-          </div>
+              It had a reserved second line of its own, which made this row
+              60px in every state — the same shape as a site row, deliberately,
+              because it is the same kind of object. The owner traded that for
+              the vertical space: the rail's scarcest resource is the site
+              list, and this row was spending 24px on a band that says nothing
+              in the state the popup opens in.
+
+              `granted` says nothing here at all. The globe above already
+              carries "Access granted" as its accessible name, so a word beside
+              it would be the same fact twice — and the row is narrow now.
+
+              **The WIDTH is still reserved, and that is not the same rule.**
+              Without it the switch slides 50px left the instant the mode goes
+              pending — under the pointer that just pressed it, which is worse
+              than the vertical movement this change accepted. It is paid out
+              of slack rather than out of the label: the label's text measures
+              46.8px against the 67px this leaves it.
+
+              The only control here that asks the browser for anything. The
+              switch sets the mode and stops (App.tsx): `<all_urls>` is the
+              largest grant this extension can request, so it is spent when a
+              button labelled Grant is pressed, never as a side effect of a
+              switch moving. */}
+          <span className="flex h-6 w-[52px] shrink-0 items-center justify-end">
+            {allSitesState === 'pending' ? (
+              <Button {...GRANT_BUTTON_PROPS} onClick={onGrantAllSites}>
+                Grant
+              </Button>
+            ) : null}
+          </span>
 
           <Switch
             aria-label="Apply to every site"
@@ -917,7 +894,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[174px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[200px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {

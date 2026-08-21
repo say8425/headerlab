@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
@@ -455,8 +455,8 @@ describe('the site list while all-sites is on', () => {
     // naming what is overriding it, would leave the reader looking for why.
     renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.comNot in use while All sites is on',
-      'x.comNot in use while All sites is on',
+      'api.example.comOverridden by All sites',
+      'x.comOverridden by All sites',
     ]);
   });
 
@@ -518,6 +518,30 @@ describe('the site list while all-sites is on', () => {
 
 describe('adding a site', () => {
   const field = () => screen.getByRole('textbox', { name: 'Add a site' });
+
+  it('does not add on the keydown an IME fires to end a composition', async () => {
+    // Typing a Korean hostname and pressing Enter once produces TWO keydowns:
+    // the first ends the composition and carries `isComposing`, the second is
+    // the press the user means. Both read `e.key === 'Enter'`, so the handler
+    // ran twice — the host was added and the field cleared before the syllable
+    // being composed had landed.
+    //
+    // `fireEvent` rather than `userEvent`: composition is not something
+    // userEvent's keyboard model produces, and the whole defect lives in a
+    // field of the *native* event.
+    const onAddDomain = vi.fn(() => ({ added: true as const }));
+    renderRail({ onAddDomain });
+    await userEvent.type(field(), 'api.example.com');
+
+    // Absence before presence. Asserting only the "one call" at the end would
+    // pass a handler that never fired at all.
+    fireEvent.keyDown(field(), { key: 'Enter', isComposing: true });
+    expect(onAddDomain, 'the composition-ending Enter is not a submit').not.toHaveBeenCalled();
+
+    fireEvent.keyDown(field(), { key: 'Enter' });
+    expect(onAddDomain).toHaveBeenCalledTimes(1);
+    expect(onAddDomain).toHaveBeenCalledWith('api.example.com');
+  });
 
   it('adds on Enter, trimmed, and clears itself', async () => {
     const onAddDomain = vi.fn(() => ({ added: true as const }));
@@ -755,7 +779,7 @@ describe('the rail after the scope notes were removed', () => {
     // The unusable row carries its own mark instead.
     const bad = screen.getAllByTestId('site')[0]!;
     expect(bad.getAttribute('data-state')).toBe('unusable');
-    expect(within(bad).getByTestId('site-invalid').textContent).toBe('invalid');
+    expect(within(bad).getByTestId('site-invalid').textContent).toBe('Use a bare hostname');
   });
 
   it('says the toolbar is out of date without claiming the rules failed', () => {

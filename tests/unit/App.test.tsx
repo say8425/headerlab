@@ -759,7 +759,7 @@ describe('editing scope', () => {
     // The error lives on the row now, in the slot a pending row offers its
     // remedy — one word on the destructive Badge, with the fix in the title.
     // The rail-wide band that used to say it is gone.
-    expect(within(site).getByTestId('site-invalid').textContent).toBe('invalid');
+    expect(within(site).getByTestId('site-invalid').textContent).toBe('Use a bare hostname');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
 
     // The remedy is written down twice — `SiteRow`'s `UNUSABLE_REMEDY` and
@@ -810,7 +810,7 @@ describe('editing scope', () => {
     await waitFor(() => expect(good.getAttribute('data-state')).toBe('granted'));
     expect(within(good).getByTestId('site-line').textContent).toBe('Access granted');
     expect(bad.getAttribute('data-state')).toBe('unusable');
-    expect(within(bad).getByTestId('site-invalid').textContent).toBe('invalid');
+    expect(within(bad).getByTestId('site-invalid').textContent).toBe('Use a bare hostname');
     // And the rules really are going out, rather than being held for the typo.
     await waitFor(() => expect(readout()).toBe('2 of 2 live'));
   });
