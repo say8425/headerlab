@@ -23,6 +23,7 @@ pnpm build           # production build → .output/chrome-mv3
 pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
 pnpm dev             # WXT dev server
 pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
+pnpm store:assets    # wxt build && node scripts/store-assets.mjs → docs/store/assets/
 ```
 
 **pnpm, not npm, and the version is pinned.** `package.json`'s `packageManager` names
@@ -57,8 +58,10 @@ components/ui/   shadcn primitives, vendored: badge button checkbox input
 entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
                  point — two hand-written palettes, the @theme inline bridge
                  that exposes them as utilities, and the shadcn data-* variants
-public/          copied to the output root — theme.js, icon/
-scripts/         make-icons.mjs, screenshots.mjs — generators, not shipped
+public/          copied to the output root — theme.js, icon/, _locales/
+scripts/         make-icons.mjs, screenshots.mjs, store-assets.mjs — generators,
+                 not shipped · lib/popup-shots.mjs is the freshness guard, the
+                 stored-state fixtures and the capture loop the last two share
 packages/        the agent-bridge pnpm workspace — headerlab (the `headerlab`
                  CLI plus the native-messaging host it installs, published to
                  npm), plugin (Claude Code / Codex skill, not published).
@@ -665,6 +668,90 @@ unconditionally when the action that runs next needs no worktree (the step after
 *local* action, and a local action with no checkout is the "Can't find action.yml" failure;
 hanging that on a conditional step is how it would be discovered on a release rather than
 on a push).
+
+## Chrome Web Store
+
+**Nothing is listed yet.** `docs/store/` holds everything a submission needs —
+`checklist.md` is the runbook, and the README still says there is no listing, which
+becomes false the day one exists.
+
+**The item's title and its summary are not listing fields. The store reads them out of
+the manifest**, and the dashboard says so itself: that tab is for "information about your
+item that isn't included in the metadata of the manifest." So the title is
+`manifest.name` and the summary is `manifest.description`, and changing either means
+shipping a version rather than editing a form. Chrome's limit on the summary is 132
+characters.
+
+**A listing in five languages is a property of the package.** The dashboard's language
+dropdown offers exactly the locales the uploaded zip carries under `_locales/`, so the
+translated listings exist because `public/_locales/{en,ko,ja,zh_CN,es}/messages.json` and
+`default_locale: 'en'` do. Drop a locale directory and four listings silently become
+unavailable, with nothing failing. `tests/unit/i18n.test.ts` is that guard: it pins
+`default_locale`, pins `description` to `__MSG_extDescription__` so a literal cannot creep
+back and un-localize four listings at once, requires every locale to declare the same key
+set — a key present only in `en` refuses the extension to load for everyone else, and
+never for the developer adding it — and holds every message inside 132 code points.
+`name` is deliberately **not** a `__MSG_`: nine identical characters in every locale buy
+nothing and would add a second key whose absence anywhere is a failed load.
+
+Whether the store counts UTF-16 units or code points has **not** been measured. It does
+not currently matter, because every message is inside the BMP and the two readings agree
+— which is itself an assertion in that file rather than a hope.
+
+**Localisable and not, from the store's own wording:** the detailed description, the
+screenshots and the promo video are per-locale; "The small tile and Marquee promo tile
+cannot be localized", and neither can the category or the URLs.
+
+**A privacy policy is required, and "we store it locally" is not the exemption it looks
+like.** The policy is explicit — extensions must disclose how they handle user data
+"even when data is processed or stored locally on a user's device and is not transmitted
+to external servers or third parties." `PRIVACY.md` at the repository root is what the
+listing points at. `docs/store/privacy.md` carries the tab's answers and flags the one
+judgment nobody should make on the owner's behalf: whether a free-text header field that
+users commonly fill with a bearer token means "Authentication information" gets ticked.
+
+**Trader/non-trader is required of every developer, and the *trader* route publishes
+contact details.** That distinction was blurred here until it mattered: declaring as a
+trader puts a verified address, email and SMS-confirmed phone number on the listing, and
+**what a non-trader has published has not been measured** — the policy pages describe only
+the trader case. Do not assume either way. Google is explicit that the developer
+self-declares and that it cannot decide for anyone.
+
+**This repository's owner declared non-trader (2026-08-21), and that does not restrict
+distribution.** Checked rather than assumed, because `docs/store/checklist.md` sets the
+Distribution tab to all regions in the same file: nothing in the policy ties the
+declaration to a region. The documented effect is that consumers are told
+consumer-protection rights do not apply to contracts with a non-trader — and a free,
+unmonetised Apache-2.0 extension forms no such contract. The status is a fact about the
+publisher rather than about the extension, so it can go stale without a line of code
+moving.
+
+**`pnpm store:assets` generates all 28 images** — 25 screenshots at 1280×800 (five states
+× five locales), the store icon, the small tile and the marquee. It reads each file's PNG
+IHDR after writing and refuses a set the store would reject, so a stylesheet that made the
+page one pixel wider fails here rather than on the twenty-fifth upload. Two failure modes
+it cannot see, both of which need eyes: a machine with no CJK fonts draws empty boxes while
+every check passes, and nothing in this repository reads a pixel's colour.
+
+**The store icon is not the toolbar icon.** The store wants 96×96 of artwork inside 16px
+of transparent padding; `public/icon/active-128.png` is full bleed because a toolbar slot
+has none to give. Same glyph, wrapped in `translate(16,16) scale(0.75)` rather than
+redrawn at new coordinates, so the two cannot drift apart by arithmetic.
+
+**The all-sites screenshot's saved sites read `idle`, not `granted`, and that was measured
+rather than predicted.** The shot was first written expecting `granted` and the capture
+loop's state guard refused it: all-sites keeps the stored list and compiles none of it, so
+those hosts hold their permission and scope nothing — the rows say "Not in use while All
+sites is on". It is the better picture anyway, being what makes the mode legibly
+reversible. The same distinction CLAUDE.md draws elsewhere between `scopingHosts` and
+`filter.domains`, arriving through a screenshot.
+
+**`tests/unit/storeListing.test.ts` holds the five descriptions to one shape** — same line
+skeleton, every API name and URL verbatim, no Markdown (the store renders none, so a `**`
+reaches the reader as itself) — and compares `listing.md`'s summary table against the
+message files rather than trusting it. **It does not catch two bullets swapping places**,
+measured by doing exactly that across the two lists and watching all seven stay green; the
+skeleton is positional. That limit is written into the file beside the assertion.
 
 ## Platform traps that have already cost time
 
