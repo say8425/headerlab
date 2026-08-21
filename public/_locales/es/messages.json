@@ -1,0 +1,6 @@
+{
+  "extDescription": {
+    "message": "Establece, añade o elimina cabeceras HTTP de petición y respuesta. Sin acceso hasta que lo concedas. Sin llamadas de red.",
+    "description": "The Chrome Web Store summary and the description on chrome://extensions. Chrome's limit is 132 characters; tests/unit/i18n.test.ts enforces it."
+  }
+}
