@@ -262,6 +262,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix arregla
 pnpm format:check    # oxfmt --check             (pnpm format para escribir)
 pnpm build           # build de producción → .output/chrome-mv3
 pnpm screenshots     # regenera las imágenes de este README desde el popup real
+pnpm store:assets    # regenera las 28 imágenes de la Chrome Web Store → docs/store/assets/
 ```
 
 **pnpm, no npm.** `package.json` nombra la versión exacta bajo `packageManager`, así que
@@ -275,8 +276,8 @@ artefacto obsoleto ha producido tanto un verde falso que desactivó un guard en 
 como un rojo falso que costó una hora, así que `tests/support/build.ts` detecta la
 obsolescencia y falla indicando el comando a ejecutar.
 
-**`pnpm test:e2e` y `pnpm screenshots` necesitan un navegador que Playwright no instala por
-defecto:**
+**`pnpm test:e2e`, `pnpm screenshots` y `pnpm store:assets` necesitan un navegador que
+Playwright no instala por defecto:**
 
 ```bash
 pnpm exec playwright install --with-deps --no-shell chromium
@@ -287,9 +288,10 @@ pnpm exec playwright install --with-deps --no-shell chromium
 comandos existen precisamente para cargar una. Sin el binario completo fallan de una forma
 que parece un problema de código y no una dependencia que falta.
 
-**`pnpm screenshots` sobrescribe los PNG versionados** de `docs/screenshots/`. Ese es su
-trabajo, pero significa que una ejecución deja cambios en `git status`; haz commit de ellos
-solo cuando la UI haya cambiado de verdad.
+**`pnpm screenshots` y `pnpm store:assets` sobrescriben los PNG versionados** — de
+`docs/screenshots/` y `docs/store/assets/` respectivamente, y el segundo vacía su
+directorio antes de reescribir las 28. Ese es su trabajo, pero significa que una ejecución
+deja cambios en `git status`; haz commit de ellos solo cuando la UI haya cambiado de verdad.
 
 **La build de e2e lleva un permiso de host que la build publicada no tiene, y dada la
 primera afirmación de esta página merece decirse en voz alta.** `pnpm test:e2e` construye

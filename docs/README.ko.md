@@ -241,6 +241,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 로 수
 pnpm format:check    # oxfmt --check             (pnpm format 으로 쓰기)
 pnpm build           # 프로덕션 빌드 → .output/chrome-mv3
 pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 생성
+pnpm store:assets    # 크롬 웹 스토어용 이미지 28 장을 다시 생성 → docs/store/assets/
 ```
 
 **npm 이 아니라 pnpm.** `package.json` 의 `packageManager` 가 정확한 버전을 지정하므로
@@ -252,8 +253,8 @@ pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 �
 조용히 무력화한 가짜 초록과 한 시간을 태운 가짜 빨강을 둘 다 만들어낸 적이 있어서,
 `tests/support/build.ts` 가 낡음을 감지하고 실행할 명령과 함께 실패합니다.
 
-**`pnpm test:e2e` 와 `pnpm screenshots` 는 Playwright 가 기본으로 설치하지 않는 브라우저를
-필요로 합니다:**
+**`pnpm test:e2e` 와 `pnpm screenshots`, `pnpm store:assets` 는 Playwright 가 기본으로
+설치하지 않는 브라우저를 필요로 합니다:**
 
 ```bash
 pnpm exec playwright install --with-deps --no-shell chromium
@@ -264,9 +265,10 @@ pnpm exec playwright install --with-deps --no-shell chromium
 두 명령은 확장을 로드하려고 존재합니다. 전체 바이너리가 없으면 의존성 누락이 아니라 코드
 문제처럼 보이는 방식으로 실패합니다.
 
-**`pnpm screenshots` 는 추적 중인 PNG 를 덮어씁니다** (`docs/screenshots/`). 그게 그 명령의
-일이지만, 한 번 돌리면 `git status` 에 변경이 남습니다 — UI 가 실제로 바뀌었을 때만
-커밋하세요.
+**`pnpm screenshots` 와 `pnpm store:assets` 는 추적 중인 PNG 를 덮어씁니다** (각각
+`docs/screenshots/` 와 `docs/store/assets/`, 뒤엣것은 디렉터리를 비우고 28 장을 다시
+씁니다). 그게 그 명령들의 일이지만, 한 번 돌리면 `git status` 에 변경이 남습니다 — UI 가
+실제로 바뀌었을 때만 커밋하세요.
 
 **e2e 빌드는 배포 빌드에 없는 호스트 권한을 지니며, 이 페이지 첫머리의 주장을 생각하면
 소리 내어 말할 값어치가 있습니다.** `pnpm test:e2e` 는 프로덕션 디렉터리 옆에
