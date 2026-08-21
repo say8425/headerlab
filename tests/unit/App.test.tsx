@@ -757,7 +757,7 @@ describe('editing scope', () => {
     expect(site.getAttribute('data-state')).toBe('unusable');
     expect(site.textContent).toContain('a b.com');
     // The error lives on the row now, in the slot a pending row offers its
-    // remedy — one word on the destructive Badge, with the fix in the title.
+    // remedy — plain red text saying the remedy, with the whole sentence in the title.
     // The rail-wide band that used to say it is gone.
     expect(within(site).getByTestId('site-invalid').textContent).toBe('Use a bare hostname');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);

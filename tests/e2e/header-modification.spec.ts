@@ -1376,7 +1376,7 @@ test('a control appearing in the rail does not move anything', async ({
       const mode = document.querySelector('[data-testid="all-sites"]')!.getBoundingClientRect();
       const field = document.querySelector('[data-testid="add-field"]')!.getBoundingClientRect();
       const line = document.querySelector('[data-testid="site-line"]')!;
-      const text = line.querySelector('span');
+      const text = line.querySelector(':scope > span');
       return {
         rowHeight: round(row.height),
         modeHeight: round(mode.height),
@@ -1413,11 +1413,21 @@ test('a control appearing in the rail does not move anything', async ({
   // test pins each state's line height, but its fixture has all-sites OFF, so
   // it renders no idle row and never sees the string this covers — proven by
   // putting the old over-long copy back and watching that test stay green.
-  // "Not in use while All sites is on" measured 158.8px against a 155px box,
-  // wrapped, and left this row 14px taller than its neighbours; it reads
-  // "Overridden by All sites" now, at 121.3px.
+  // "Not in use while All sites is on" measured 158.8px against the 135px the
+  // text actually gets (`site-line` is 155 and spends 20 on `pl-5` — a
+  // distinction the first version of this comment missed), wrapped, and left
+  // this row 14px taller than its neighbours. It reads "All sites is on" now,
+  // at 70.7px, which is ~47% headroom rather than the 10% the longer string
+  // had against a budget CI's wider fallback fonts could have closed.
   expect(middleIdle.lineHeight, "an idle row's second line is one line").toEqual(14);
   expect(middleIdle.lineTruncated, 'and it fits rather than being clipped to fit').toBe(false);
+  // And the height itself. `not.toEqual` below says only that it differs from a
+  // pending row, and the `toBeCloseTo` after it compares the field's movement
+  // against that same delta — so an idle row of *any* height satisfied both. The
+  // one state this branch wrote new copy for had no height pin at all; a code
+  // reviewer found that. 50px is the granted/unusable height, which is what an
+  // idle row is once its line fits on one line.
+  expect(middleIdle.rowHeight, 'an idle row is 50px, like every non-pending row').toEqual(50);
 
   expect(middleIdle.rowHeight, 'the row height must depend on its state now').not.toEqual(
     middleWithGrant.rowHeight,
@@ -1597,7 +1607,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
     p.evaluate(() =>
       [...document.querySelectorAll('[data-testid="site"]')].map((row) => {
         const line = row.querySelector('[data-testid="site-line"]')!;
-        const text = line.querySelector('span');
+        const text = line.querySelector(':scope > span');
         return {
           state: row.getAttribute('data-state'),
           line: Math.round(line.getBoundingClientRect().height),
@@ -1747,8 +1757,8 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const unusableLines = await measureLines(unusablePage);
 
   // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
-  // 제자리에 있다. 목록의 max-height 는 174px 이므로(60px 행이 된 뒤의 값 —
-  // ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
+  // 제자리에 있다. 목록의 max-height 는 200px 이므로(행이 고정 높이를 잃은 뒤의
+  // 값 — ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
   // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
   //
   // 36 은 48 에서 다시 잰 값이다(예전에는 132→48 이었다). 브리지 행이 레일에
@@ -2076,9 +2086,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
   //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
-  //     피치(60 + 6 = 66, 상하 8px 패딩의 행부터)의 정수배가 **아니게**
-  //     잡혀 있고(174 는 132 도 192 도 아니다), 이것이 그 선택을 직접 재는
+  //     피치의 정수배가 **아니게** 잡혀 있고, 이것이 그 선택을 직접 재는
   //     단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
+  //
+  //     피치는 2026-08-21 부터 하나가 아니다. granted/unusable 행은 50px 라
+  //     피치 56, pending 행은 60px 라 피치 66 이다. 200 은 둘 다 정수배가
+  //     아니지만(56×3=168, 66×3=198), 남는 조각의 크기는 크게 다르다 — 32px
+  //     대 2px. 아래 단언이 재는 것은 "잘린 행이 하나 있다"이지 그것이 얼마나
+  //     보이느냐가 아니므로, pending 목록에서 신호가 약해진 것은 이 단언이
+  //     잡지 못한다. ScopeRail.tsx 의 site-list 문서화가 그 대가를 기록한다.
   //
   //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
@@ -2260,7 +2276,18 @@ test('the bridge row does not push the rail past its column', async ({
 
   // And the affordance that budget accounting has to keep buying on purpose:
   // the list stops mid-row rather than on one, which is what says it
-  // continues — 32px of the fourth row's 50 at the 200px cap.
+  // continues. **The slice depends on what the rows are**, which stopped being
+  // one number when the rows lost their fixed heights: 32px of the fourth row's
+  // 50 for an all-granted list (56px pitch), but only **2px** for an all-pending
+  // one (66px pitch) — and this fixture's four `*.example.com` hosts are all
+  // ungranted, so it is the pending case that is measured here. An earlier
+  // version of this comment quoted the granted arithmetic beside a fixture that
+  // cannot produce it; a code reviewer caught that.
+  //
+  // That is a real weakening: before the row-height change, 174px with uniform
+  // 60px rows sliced the third row 42px in whatever the states were. No single
+  // cap serves both pitches, so this is a cost the change accepted rather than
+  // a bug to fix here — ScopeRail's site-list docblock carries the reasoning.
   //
   // **200 rather than the 219 the rail could give.** The rows lost their fixed
   // heights on 2026-08-21 and came down to 50px, which put the pitch at 56 and

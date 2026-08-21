@@ -101,22 +101,32 @@ type RowState = keyof typeof STATE_LABEL;
  * 2026-08-21, so it is a string like the others now — the error still lives on
  * the row that holds the bad value rather than in a band above the list.
  *
- * **Every string here is measured against the line box**, which is 155px. The
- * markup makes overflow impossible rather than unlikely, but a string that
- * needed truncating would be a string nobody can read.
+ * **Every string here is measured against the space the TEXT gets**, which is
+ * 135px: `site-line` is 155 and spends 20 of it on `pl-5`. Measured in the
+ * built popup — "Access granted" 85, "Use a bare hostname" 115,
+ * "All sites is on" 70.7. The markup makes overflow impossible rather than
+ * unlikely, but a string that needed truncating would be a string nobody can
+ * read, so the headroom is the actual requirement.
  */
 const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
   granted: 'Access granted',
-  // Measured, not guessed: the line box is 155px and this is 121.3px at the
-  // 11px/500 it renders in. "Not in use while All sites is on" was 158.8 —
-  // over by 3.8px, so it wrapped and that row alone stood 14px taller than
-  // its neighbours. The icon's accessible name still says "Not in use"; what
-  // this line owes the reader is the *reason*.
-  idle: 'Overridden by All sites',
+  // **The budget is 135px, not 155.** `site-line` measures 155 but carries
+  // `pl-5`, so the text gets 135 — a distinction the first version of this
+  // comment missed, which made every headroom figure here 20px too generous
+  // and made "Not in use while All sites is on" (158.8px) look 3.8px over
+  // when it was 23.8.
+  //
+  // 70.7px here, so ~47% headroom. "Overridden by All sites" (121px) fitted
+  // too, but with 10% — and this suite's own notes record CI's Linux fallback
+  // fonts differing by enough to change a note's line count, against an
+  // exact-zero-tolerance truncation check. The icon's accessible name already
+  // says "Not in use"; what this line owes the reader is the *reason*, and the
+  // reason is short.
+  idle: 'All sites is on',
   // The remedy rather than the complaint. Red text and the barred glyph
   // already say the value is wrong; repeating "invalid" spends the line on
   // what is visible and leaves the fix in a `title` a pointer has to find.
-  // 115px at 11px/600.
+  // 115px against the 135px budget — 15% headroom, the tightest of the three.
   unusable: 'Use a bare hostname',
 };
 

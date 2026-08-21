@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { isEnterKey } from '@/lib/view/keys';
+import { isEnterKey, isEscapeKey } from '@/lib/view/keys';
 
 /**
  * What happened to an entry the field handed over.
@@ -105,7 +105,7 @@ export function AddSiteField({ onAdd }: AddSiteFieldProps) {
           onBlur={add}
           onKeyDown={(e) => {
             if (isEnterKey(e)) add();
-            if (e.key === 'Escape') {
+            if (isEscapeKey(e)) {
               setDraft('');
               setAlreadyThere(null);
             }

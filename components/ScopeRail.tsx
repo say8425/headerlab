@@ -687,9 +687,13 @@ export function ScopeRail({
             Underneath it the rows would read as one more site among the
             others rather than as the switch that turns all of them off.
 
-            Shaped exactly like a site row — same height, same fill, same
-            reserved second line — because it is the same object: a scope, its
-            access state, and the remedy when that access is missing. It used
+            Shaped like a site row in the ways that carry meaning — same fill,
+            same glyph slot, same Grant button — because it is the same kind of
+            object: a scope, its access state, and the remedy when that access
+            is missing. **Not the same height any more, and no longer a second
+            line at all** (2026-08-21): this row is 40px against a site row's
+            50 or 60, because the owner traded its reserved second line for the
+            vertical space and Grant moved up beside the switch. It used
             to be a coloured bar that changed fill with its state, which meant
             "on and working" and "on and waiting for a grant" were an amber
             tint apart and the Grant button had nowhere to go but the same
@@ -778,31 +782,33 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 174px, which is deliberately NOT a multiple of
-            the row pitch. The rows are 60px (8px padding above and below,
-            matching the all-sites bar, since the standard `xs` Grant made the
-            second line 24px) and the gap is 6, so two whole rows occupy 132px
-            and the third begins there — the cap sits 42px into it, slicing
-            that row through its second line. The cut row is the affordance
-            saying the list continues regardless of exactly how much of it
-            shows; 132 or 192 would each show a whole number of rows and say
-            nothing.
+            The height stops at 200px. **The rows stopped having one pitch on
+            2026-08-21**, when they lost their fixed heights: a granted or
+            unusable row is 50px and a pending one is 60, so with the 6px gap
+            the pitch is 56 or 66 depending on what the list holds. Measured in
+            the built popup at that cap:
 
-            **The cap went 108 -> 174 on 2026-08-20, and the 66px came from
-            two things leaving the rail rather than from a preference.** The
-            readout moved to the panel head (see the card above) and the run
-            state gave up an `mt-3` that had only ever separated it from that
-            readout. Measured in the built popup at eight sites, before and
-            after: the leftover the request-types section was absorbing through
-            its `mt-auto` read 73px, and this cap took 66 of it. What is left
-            is 19px of real slack, which is deliberate — the last time this
-            rail was spent to zero it cost a redesign. The remaining 19 would
-            not buy a better shape anyway: 186 leaves 54px of the third row
-            showing, near enough to a whole one to stop reading as a slice,
-            and 192 is exactly three rows, which is the on-pitch case the
-            paragraph above rejects. Re-measure both numbers before spending
-            them; every figure in this docblock has been overtaken at least
-            once.
+              all granted  rows at 0-50, 56-106, 112-162, 168-218
+                           -> three whole, and 32px of the fourth
+              all pending  rows at 0-60, 66-126, 132-192, 198-258
+                           -> three whole, and **2px** of the fourth
+
+            **So the cut row — the affordance that says the list continues —
+            is much weaker for a pending list than for a granted one, and no
+            single cap can serve both pitches.** That is a real cost of the
+            row-height change and it is stated here rather than left in the
+            arithmetic: before the change, 174px with uniform 60px rows sliced
+            the third row 42px in, whatever the states were. A code reviewer
+            found this; the assertion in header-modification.spec.ts had been
+            written against the granted arithmetic while its own fixture
+            renders four pending rows.
+
+            The 19px between 200 and the 219 the rail could give is the price
+            of keeping any slice at all in the granted case — 219 lands one
+            pixel past the fourth row and shows four whole ones. Re-measure
+            before spending any figure here; every number in this docblock has
+            been overtaken at least once, and two of them were overtaken while
+            still being quoted by other files.
 
             **Superseded — this paragraph records the 127 -> 108 move, whose
             arithmetic the 108 -> 174 move above replaced.** Read it as

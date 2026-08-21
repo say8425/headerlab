@@ -455,8 +455,8 @@ describe('the site list while all-sites is on', () => {
     // naming what is overriding it, would leave the reader looking for why.
     renderRail({ allSites: true, domains: ['api.example.com', 'x.com'] });
     expect(screen.getAllByTestId('site').map((s) => s.textContent)).toEqual([
-      'api.example.comOverridden by All sites',
-      'x.comOverridden by All sites',
+      'api.example.comAll sites is on',
+      'x.comAll sites is on',
     ]);
   });
 

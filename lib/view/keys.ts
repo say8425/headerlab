@@ -20,11 +20,32 @@
  * build-freshness guard reads a quoted path containing a test directory as a
  * shipped file reaching into the suite, and cannot tell a docblock from code.)
  *
- * Not `keyCode === 229`: that is the legacy signal for the same thing, needed
- * for browsers this extension does not target, and it is absent on the second
- * keydown that `isComposing` also reports false for — so the two disagree on
- * exactly the press this guard exists to let through.
+ * Not `keyCode === 229`: that is the legacy signal for the same thing, for
+ * browsers this extension does not target. On the press this guard exists to
+ * let through the two agree — both say "not composing" — so 229 buys nothing
+ * here and costs a second thing to keep true. (An earlier version of this
+ * paragraph said they *disagreed* on that press while describing them agreeing;
+ * it was wrong in the sentence that argued for the choice.)
  */
-export function isEnterKey(event: { key: string; nativeEvent: { isComposing: boolean } }): boolean {
-  return event.key === 'Enter' && !event.nativeEvent.isComposing;
+export type ComposableKeyEvent = { key: string; nativeEvent: { isComposing: boolean } };
+
+/** The half both predicates share: the keydown that ends a composition is not a press. */
+const meansIt = (event: ComposableKeyEvent, key: string): boolean =>
+  event.key === key && !event.nativeEvent.isComposing;
+
+export function isEnterKey(event: ComposableKeyEvent): boolean {
+  return meansIt(event, 'Enter');
+}
+
+/**
+ * Whether an Escape keydown is Escape *meaning* Escape.
+ *
+ * The same defect as Enter's, on the key sitting beside it in all three
+ * handlers. An IME cancels the composition with Escape, and that keydown
+ * carries `isComposing` too — so a composing Escape used to clear the whole
+ * draft rather than just the syllable being composed. Discarding what somebody
+ * typed is the more expensive half of the two.
+ */
+export function isEscapeKey(event: ComposableKeyEvent): boolean {
+  return meansIt(event, 'Escape');
 }
