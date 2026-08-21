@@ -102,7 +102,7 @@ most people ever see. Upload in the numeric order the filenames carry:
 | 1 | `screenshot-1-scoped` | Four rules across two granted sites — the ordinary working state |
 | 2 | `screenshot-2-permission` | A pending site, amber, with its Grant button |
 | 3 | `screenshot-3-blocked` | A rule Chrome would refuse, named on its own row, counted `1 blocked` |
-| 4 | `screenshot-4-allsites` | All-sites mode on, permission not held, saved sites reading "Not in use while All sites is on" |
+| 4 | `screenshot-4-allsites` | All-sites mode on, permission not held, saved sites reading "All sites is on" |
 | 5 | `screenshot-5-dark` | The same popup following a dark OS theme |
 
 Repeat the five for each of the five locales; the filename carries the locale
