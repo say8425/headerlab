@@ -163,11 +163,39 @@ const VISUALLY_HIDDEN = 'pointer-events-none absolute inset-x-0 top-0 [clip-path
  * It used to carry the state too ("Agent bridge live"), which put the state in
  * the one place a reader has no definition for, and left the two states that
  * shared a dot colour — `off` and `idle` — distinguishable only by that word.
- * The name is constant now, the dot carries the state at a glance, and
- * `bridgeTitle` carries the detail; that split is what let `idle` take its own
- * colour below.
+ * Both halves of that fix survive: the name is still constant, so a reader
+ * still learns what the row *is* from the words, and `idle` keeps the colour
+ * it was given in the same breath. What changed is that the dot is no longer
+ * the only eye-channel — {@link BRIDGE_STATE} puts the state word beside the
+ * name rather than inside it, so `off` and `idle` are now separated by two
+ * channels where they were once separated by one.
  */
 const BRIDGE_NAME = 'Agent bridge';
+
+/**
+ * The state, in the two lengths this row has room for.
+ *
+ * `spoken` is what `bridge-detail` says and is unchanged from when it was the
+ * only form; `shown` is what fits beside the name. They differ in one state,
+ * and the split is this file's own precedent rather than a compromise:
+ * `SiteRow` shows `Use a bare hostname` while saying `Unusable site. Use a
+ * bare hostname like example.com.` — short on screen, whole in the ear.
+ *
+ * Why `down` for the unreachable state: the visible slot is 47.48px of text
+ * (measured in the built popup, four saved sites, 748×600 light) and `cannot
+ * be reached` is 105.64px in this font, so it cannot go there. The docblock
+ * on the detail span below already argued `down` over `unreachable` for a
+ * budget that no longer applies; the argument is live again here, against a
+ * smaller box, and `down` measures 31.24px — 34% headroom, against the 15%
+ * this rail accepted for `Use a bare hostname`. Re-derive that budget if the
+ * label, the gap or the switch size moves: it is a leftover, not a property.
+ */
+const BRIDGE_STATE = {
+  off: { shown: 'off', spoken: 'off' },
+  idle: { shown: 'idle', spoken: 'idle' },
+  live: { shown: 'live', spoken: 'live' },
+  unreachable: { shown: 'down', spoken: 'cannot be reached' },
+} as const;
 
 /**
  * The whole of what this row can say beyond its name and its dot.
@@ -302,29 +330,30 @@ export function ScopeRail({
   );
 
   /**
-   * The state as one word, for the detail span the switch points at. It is
-   * the same fact the dot's shape now carries — running, not running, or
-   * nothing to say yet — in the one channel that works for everyone: text.
-   * "cannot be reached" rather than "idle" when a connection was expected,
-   * because that is the state with a remedy attached, and the remedy leads
-   * the title it sits beside.
+   * The state, in the one channel that works for everyone: text. It is the
+   * same fact the dot's shape carries, and now it reaches the eye as well as
+   * the accessibility tree — see {@link BRIDGE_STATE}.
+   *
+   * `unreachable` rather than `idle` when a connection was expected, because
+   * that is the state with a remedy attached, and the remedy leads the title
+   * it sits beside.
    */
-  const bridgeStateWord =
+  const bridgeState =
     bridge === 'live'
-      ? 'live'
+      ? BRIDGE_STATE.live
       : bridge === 'unknown'
         ? null
         : bridge === 'off'
-          ? 'off'
+          ? BRIDGE_STATE.off
           : bridgeUnreachable
-            ? 'cannot be reached'
-            : 'idle';
+            ? BRIDGE_STATE.unreachable
+            : BRIDGE_STATE.idle;
   const bridgeDetail =
-    bridgeStateWord === null
+    bridgeState === null
       ? ''
       : bridgeRowTitle === null
-        ? bridgeStateWord
-        : `${bridgeStateWord} — ${bridgeRowTitle}`;
+        ? bridgeState.spoken
+        : `${bridgeState.spoken} — ${bridgeRowTitle}`;
 
   return (
     <aside className="relative flex h-full w-56 shrink-0 flex-col border-r border-rail-border bg-rail py-3">
@@ -473,27 +502,13 @@ export function ScopeRail({
               title below: a bridge that cannot be reached is not a bridge to
               report a last command for.
 
-              "Bridge down", not "Bridge unreachable": this row now has 124px
-              for the label, re-measured against the built popup — the row is
-              175px and spends 6px on the dot, 24px on the `sm` switch and
-              21px on three 7px gaps, leaving the label and the `flex-1`
-              spacer to share 124px.
-
-              That budget was 87.15625px while a 56.91px Disable button sat
-              where the switch now is, and the 36.85px it gave back changes an
-              answer rather than merely restating it: "Bridge unreachable"
-              measures 115px in this exact font and weight, so it no longer
-              overflows. It is still rejected, but the reason is now taste
-              rather than arithmetic — "Bridge down" says the same thing in
-              73.98px and this row is read at a glance. Re-measure before
-              trusting the 9px: this figure has already moved twice in one
-              branch, 87.15625 → 116 → 124, once when the button became a
-              switch and again when the switch became `sm`. "Bridge lost"
-              fits at 64.05px but asserts prior possession; the common path
-              into this state is the switch turned on and `headerlab bridge
-              install` never run, where nothing was ever had. */}
+              The 124px this row leaves after the dot, the `sm` switch and
+              three 7px gaps is no longer one budget: the label takes 76.52px
+              of it and the state slot beside it takes 47.48px. The choice of
+              word for the unreachable state moved with the budget and is
+              argued at {@link BRIDGE_STATE}, against the smaller number. */}
           <span
-            className="text-[12px] leading-4 font-semibold text-foreground"
+            className="truncate text-[12px] leading-4 font-semibold text-foreground"
             id="bridge-label"
             data-testid="bridge-label"
             {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
@@ -518,18 +533,48 @@ export function ScopeRail({
           <span id="bridge-detail" data-testid="bridge-detail" className={VISUALLY_HIDDEN}>
             {bridgeDetail}
           </span>
-          <span className="flex-1" />
+          {/* The state, in space this row already had. It REPLACES the `flex-1`
+              spacer rather than joining it, so the row gains no box and no
+              gap — this span IS the flex item, which is why its x and width
+              are the same in every state including `unknown`, where it renders
+              nothing.
+
+              `truncate` is the one-line rule: no string can add a second line
+              inside an `h-5` row, and its `overflow: hidden` resolves the flex
+              automatic minimum size to 0, so an over-long word ellipsizes
+              instead of pushing the switch.
+
+              `aria-hidden` because `bridge-detail` already says this word to
+              the switch's description, at the length that has room for the
+              whole sentence. Announcing both would say the state twice. */}
+          <span
+            id="bridge-state"
+            data-testid="bridge-state"
+            aria-hidden="true"
+            className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-muted-foreground"
+          >
+            {bridgeState === null ? '' : bridgeState.shown}
+          </span>
           {bridge === 'unknown' ? null : (
             <Switch
               size="sm"
-              aria-label={bridge === 'off' ? 'Enable the agent bridge' : 'Disable the agent bridge'}
-              // The name the switch needs beside its label, and the report
-              // it carries: `bridge-label` for the constant words,
-              // `bridge-detail` for the state and the remedy. Both ids
-              // resolve to elements really in this document — see the
-              // detail span above for why pointing at a `title`-bearing
-              // element alone announces nothing.
-              aria-describedby="bridge-label bridge-detail"
+              // Named by the element that paints the name, so the two cannot
+              // drift: the accessible name is byte-identical to the visible
+              // text. It was `aria-label={... 'Enable the agent bridge' :
+              // 'Disable the agent bridge'}`, which was wrong twice over — it
+              // named an action where `role="switch"` already conveys one and
+              // `aria-checked` already carries the state, so a screen reader
+              // read "Disable the agent bridge, switch, on": two words in one
+              // utterance pointing opposite ways. It was also the last
+              // "Enable" in a project whose popup has no such control.
+              aria-labelledby="bridge-label"
+              // The report, and only the report. `bridge-label` came out of
+              // this list when it became the name above: keeping it would
+              // open every description with the name it had just been given.
+              // `bridge-detail` resolves to an element really in this
+              // document — see the detail span above for why pointing at a
+              // `title`-bearing element alone announces nothing.
+              aria-describedby="bridge-detail"
               checked={bridge !== 'off'}
               onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
               className={SWITCH_CLASS}

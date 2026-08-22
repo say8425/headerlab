@@ -2039,7 +2039,8 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   //             · Sites 카운트 1 · run state 1("Active")
   //             · bridge row 2(보이는 라벨 "Agent bridge" + 캔버스 밖 detail
   //               span — 스위치의 aria-describedby 가 실제 텍스트를 가리키게
-  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다)
+  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다). 상태 단어
+  //               span 이 들어온 뒤로 이 항목은 3 이다 — 아래 narration 참조
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -2078,8 +2079,13 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // (2026-08-20), 이어서 all-sites 행의 off 줄("The list below applies")이
   // 제거되며 레일이 텍스트 노드를 하나 더 잃었다. 이 주석 바로 위가 말하는
   // "정상적인 변경이라면 다시 재라"에 해당하는 경우다.
+  //
+  // 23 -> 24: 브리지 행이 상태 단어(`bridge-state`)를 얻었다. 이것은 잎을
+  // 더하지만 상자를 더하지는 않는다 — 이미 있던 `flex-1` 스페이서를 대체하는
+  // 것이라 행의 기하는 그대로다. `unknown` 상태에서는 글자가 없어 세지 않으므로
+  // 이 +1 은 상태에 매인다. 이 픽스처는 `off` 로 렌더된다.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 23,
+    rail: 24,
     panel: 14,
   });
 

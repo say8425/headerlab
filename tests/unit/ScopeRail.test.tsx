@@ -814,22 +814,61 @@ describe('the rail after the scope notes were removed', () => {
 
 describe('the bridge row', () => {
   it.each([
-    ['off', false],
-    ['idle', true],
-    ['live', true],
-  ])('%s names the row and leaves the visible state to the switch', (mode, on) => {
+    ['off', false, 'off'],
+    ['idle', true, 'idle'],
+    ['live', true, 'live'],
+  ])('%s names the row and says its state beside the name', (mode, on, word) => {
     render(<ScopeRail {...props({ bridge: mode as 'off' })} />);
     const row = screen.getByTestId('bridgestate');
-    // The visible label is the row's NAME, in every state — a reader who does
-    // not know what this row is learns that from the words, and what it is
-    // doing from the dot, the switch and the detail span. The sr-only detail
-    // below the label is part of the row's *text*, so the row's own
-    // textContent is not the place this is pinned anymore; the label element
-    // is. Pinned across all three states in one test so an implementation
-    // that reintroduced a state word anywhere visible fails.
+    // The label is the row's NAME in every state — a reader who does not know
+    // what this row is learns that from the words — and the slot beside it is
+    // where what it is *doing* reaches the eye.
+    //
+    // This assertion used to read "leaves the visible state to the switch"
+    // and pinned the label alone, so that "an implementation that
+    // reintroduced a state word anywhere visible fails". It did not fail:
+    // the label does not move, so the guard stayed green through the change
+    // that reversed its subject. Asserting both spans is what makes it fail
+    // when either half goes.
     expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge');
+    expect(screen.getByTestId('bridge-state').textContent).toEqual(word);
     const control = within(row).getByRole('switch');
     expect(control.getAttribute('aria-checked')).toEqual(String(on));
+  });
+
+  it('says down when a connection was expected and could not be made', () => {
+    render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
+    // The visible slot has 47.48px of text and `cannot be reached` is
+    // 105.64px, so the two lengths differ here and only here. The whole
+    // sentence still reaches the description below.
+    expect(screen.getByTestId('bridge-state').textContent).toEqual('down');
+  });
+
+  it('keeps the state slot present, and empty, before the state is known', () => {
+    render(<ScopeRail {...props({ bridge: 'unknown' })} />);
+    // Absence before presence. The slot has to exist in `unknown` too: it is
+    // the flex item that used to be a bare spacer, so a slot that unmounted
+    // would make the row's geometry follow its state — the one thing putting
+    // the word here was supposed to avoid.
+    expect(screen.getByTestId('bridge-state').textContent).toEqual('');
+    expect(screen.getByTestId('bridge-label').textContent).toEqual('Agent bridge');
+  });
+
+  it('gives each state its own word', () => {
+    const words: (string | null)[] = [];
+    for (const bridge of ['off', 'idle', 'live'] as const) {
+      const { unmount } = render(<ScopeRail {...props({ bridge })} />);
+      words.push(screen.getByTestId('bridge-state').textContent);
+      unmount();
+    }
+    const { unmount } = render(
+      <ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />,
+    );
+    words.push(screen.getByTestId('bridge-state').textContent);
+    unmount();
+    // Four states, four words. Two of them sharing one would put `off` and
+    // `idle` back where the dot alone once left them.
+    expect(new Set(words).size).toEqual(4);
   });
 
   it.each([
@@ -1000,29 +1039,58 @@ describe('the bridge row', () => {
     expect(onDisableBridge).toHaveBeenCalledTimes(2);
   });
 
-  it('describes the switch with an element that is really in the document', () => {
-    // The defect this pins: `aria-describedby` used to point at the visible
-    // label, whose subtree text is just "Agent bridge" — the accessible-name
+  it('names the switch after the row, and describes it with the report alone', () => {
+    // Two defects pinned here.
+    //
+    // The old one: `aria-describedby` used to point at the visible label,
+    // whose subtree text is just "Agent bridge" — the accessible-name
     // algorithm takes content before it ever falls back to the label's
     // `title`, so the description the markup promised was never delivered
     // and every failure state stayed hover-only. The ids have to resolve to
     // elements that really exist and really carry the report, checked the
     // way tooltip.test.tsx checks its own description (resolve, then read).
+    //
+    // The new one: the switch carried `aria-label={... 'Enable the agent
+    // bridge' : 'Disable the agent bridge'}`, naming an action that
+    // `role="switch"` already conveys, over a state `aria-checked` already
+    // carries. Nothing in the repository pinned that string, which is how it
+    // outlived the popup's own Enable button by a whole release.
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
-    const describedBy = within(screen.getByTestId('bridgestate'))
-      .getByRole('switch')
-      .getAttribute('aria-describedby')!;
-    const texts = describedBy
-      .split(/\s+/)
-      .map((id) => document.getElementById(id)?.textContent ?? null);
-    expect(texts).not.toContain(null);
-    expect(texts.join(' ')).toContain('Agent bridge');
-    const detail = document.getElementById('bridge-detail')!;
+    const control = within(screen.getByTestId('bridgestate')).getByRole('switch');
+    const resolve = (attr: string) =>
+      (control.getAttribute(attr) ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => document.getElementById(id)?.textContent ?? null);
+    // An `aria-label` would win over `aria-labelledby`, so its absence is
+    // part of the claim rather than an incidental detail.
+    expect(control.getAttribute('aria-label')).toBeNull();
+    expect(resolve('aria-labelledby')).toEqual(['Agent bridge']);
+    // The description is the report and only the report: the name came out
+    // of this list when it became the name, or every description would open
+    // by repeating it.
+    const described = resolve('aria-describedby');
+    expect(described).toHaveLength(1);
     // The state word first — the one thing the dot's colour said alone —
     // then the remedy, then Chrome's own words, same order as the title.
-    expect(detail.textContent).toMatch(/^cannot be reached — /);
-    expect(detail.textContent).toContain('headerlab bridge install');
-    expect(detail.textContent).toContain('Native host has exited.');
+    expect(described[0]).toMatch(/^cannot be reached — /);
+    expect(described[0]).toContain('headerlab bridge install');
+    expect(described[0]).toContain('Native host has exited.');
+  });
+
+  it('does not let the switch name invert under the user', () => {
+    const names: (string | null)[] = [];
+    for (const bridge of ['off', 'idle', 'live'] as const) {
+      const { unmount } = render(<ScopeRail {...props({ bridge })} />);
+      const control = within(screen.getByTestId('bridgestate')).getByRole('switch');
+      const id = control.getAttribute('aria-labelledby')!;
+      names.push(document.getElementById(id)?.textContent ?? null);
+      unmount();
+    }
+    // The name is the thing; `aria-checked` is the state. A name that moved
+    // with the state would say it twice and, in `live`, say it backwards.
+    expect(new Set(names).size).toEqual(1);
+    expect(names[0]).toEqual('Agent bridge');
   });
 
   it('keeps the detail span present but empty while the probe is out', () => {
