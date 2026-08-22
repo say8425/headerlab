@@ -249,6 +249,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to fix)
 pnpm format:check    # oxfmt --check             (pnpm format to write)
 pnpm build           # production build → .output/chrome-mv3
 pnpm screenshots     # rebuild the images in this README from the real popup
+pnpm store:assets    # rebuild the Chrome Web Store's 28 images → docs/store/assets/
 ```
 
 **pnpm, not npm.** `package.json` names the exact version under `packageManager`, so
@@ -261,8 +262,8 @@ pnpm screenshots     # rebuild the images in this README from the real popup
 green that silently disabled a guard and a false red that cost an hour, so
 `tests/support/build.ts` detects staleness and fails with the command to run.
 
-**`pnpm test:e2e` and `pnpm screenshots` need a browser Playwright does not install by
-default:**
+**`pnpm test:e2e`, `pnpm screenshots` and `pnpm store:assets` need a browser Playwright
+does not install by default:**
 
 ```bash
 pnpm exec playwright install --with-deps --no-shell chromium
@@ -273,9 +274,10 @@ a stripped build that cannot load extensions — and both of those commands exis
 one. Without the full binary they fail in a way that looks like a code problem rather than
 a missing dependency.
 
-**`pnpm screenshots` overwrites the tracked PNGs** under `docs/screenshots/`. That is its
-job, but it means a run leaves changes in `git status`; commit them only when the UI
-actually changed.
+**`pnpm screenshots` and `pnpm store:assets` overwrite tracked PNGs** — under
+`docs/screenshots/` and `docs/store/assets/` respectively, and the second empties its
+directory before rewriting all 28. That is their job, but it means a run leaves changes in
+`git status`; commit them only when the UI actually changed.
 
 **The e2e build carries a host permission the shipped build does not, and that is worth
 saying out loud given the first claim on this page.** `pnpm test:e2e` builds into

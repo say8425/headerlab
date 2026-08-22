@@ -248,6 +248,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix で修�
 pnpm format:check    # oxfmt --check             (pnpm format で書き込み)
 pnpm build           # 本番ビルド → .output/chrome-mv3
 pnpm screenshots     # この README の画像を実際のポップアップから再生成
+pnpm store:assets    # Chrome ウェブストア用の画像 28 枚を再生成 → docs/store/assets/
 ```
 
 **npm ではなく pnpm。** `package.json` の `packageManager` が正確なバージョンを指定して
@@ -261,8 +262,8 @@ pnpm screenshots     # この README の画像を実際のポップアップか�
 生んだことがあります。そのため `tests/support/build.ts` が古さを検知し、実行すべき
 コマンドを添えて失敗します。
 
-**`pnpm test:e2e` と `pnpm screenshots` は、Playwright が既定でインストールしない
-ブラウザを必要とします:**
+**`pnpm test:e2e`、`pnpm screenshots`、`pnpm store:assets` は、Playwright が既定で
+インストールしないブラウザを必要とします:**
 
 ```bash
 pnpm exec playwright install --with-deps --no-shell chromium
@@ -273,9 +274,10 @@ pnpm exec playwright install --with-deps --no-shell chromium
 2 つのコマンドは拡張機能を読み込むために存在します。完全なバイナリがないと、依存の欠落
 ではなくコードの問題に見える形で失敗します。
 
-**`pnpm screenshots` は追跡中の PNG を上書きします**(`docs/screenshots/`)。それがこの
-コマンドの仕事ですが、一度実行すると `git status` に変更が残ります — UI が実際に変わった
-ときだけコミットしてください。
+**`pnpm screenshots` と `pnpm store:assets` は追跡中の PNG を上書きします**(それぞれ
+`docs/screenshots/` と `docs/store/assets/`。後者はディレクトリを空にしてから 28 枚を
+書き直します)。それがこれらのコマンドの仕事ですが、一度実行すると `git status` に変更が
+残ります — UI が実際に変わったときだけコミットしてください。
 
 **e2e ビルドは配布ビルドにないホスト権限を持ちます。このページ冒頭の主張を考えれば、
 声に出して言う価値があります。** `pnpm test:e2e` は本番ディレクトリの隣に

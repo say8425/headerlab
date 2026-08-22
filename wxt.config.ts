@@ -5,7 +5,23 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: ({ mode }) => ({
     name: 'HeaderLab',
-    description: 'Add, modify and remove HTTP request and response headers.',
+    // The Chrome Web Store reads the item's title and its summary out of this
+    // manifest — neither is a dashboard field — and the dashboard offers a
+    // listing translation only for a locale the package declares under
+    // `_locales/`. So a store listing in five languages is this line plus
+    // `public/_locales/`, not a documentation task.
+    //
+    // `name` deliberately stays a literal: it is the same nine characters in
+    // every locale, and a `__MSG_` name would buy nothing while adding a key
+    // whose absence from any one locale file fails the whole extension to
+    // load. `description` is the half that genuinely differs.
+    //
+    // The message files live under `public/` because that directory is copied
+    // to the output root, so every mode — e2e and bridge-e2e included — ships
+    // them. A `__MSG_` reference with no `_locales` beside it is not a
+    // fallback: Chrome refuses to load the extension at all.
+    default_locale: 'en',
+    description: '__MSG_extDescription__',
     permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
     // Requested at runtime from the popup's Enable button, never at install.

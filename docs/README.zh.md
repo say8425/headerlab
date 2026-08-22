@@ -222,6 +222,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 修复)
 pnpm format:check    # oxfmt --check             (pnpm format 写入)
 pnpm build           # 生产构建 → .output/chrome-mv3
 pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片
+pnpm store:assets    # 重新生成 Chrome 网上应用店的 28 张图片 → docs/store/assets/
 ```
 
 **是 pnpm，不是 npm。** `package.json` 在 `packageManager` 中写明了确切版本，所以
@@ -232,7 +233,8 @@ pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片
 做断言的，而裸工具不会构建。陈旧的产物曾同时制造过一次悄悄让守卫失效的假绿，和一次耗掉
 一小时的假红，因此 `tests/support/build.ts` 现在会检测陈旧并带着该运行的命令失败。
 
-**`pnpm test:e2e` 与 `pnpm screenshots` 需要一个 Playwright 默认不会安装的浏览器：**
+**`pnpm test:e2e`、`pnpm screenshots` 与 `pnpm store:assets` 需要一个 Playwright 默认不会
+安装的浏览器：**
 
 ```bash
 pnpm exec playwright install --with-deps --no-shell chromium
@@ -242,8 +244,9 @@ pnpm exec playwright install --with-deps --no-shell chromium
 无法加载扩展的精简构建 —— 而上面这两条命令恰恰是为加载扩展而存在的。没有完整二进制时，
 它们失败的样子看起来像代码问题，而不是缺少依赖。
 
-**`pnpm screenshots` 会覆盖被追踪的 PNG**（`docs/screenshots/`）。这正是它的职责，但跑一次
-就会在 `git status` 里留下改动 —— 只有在 UI 确实变了的时候才提交它们。
+**`pnpm screenshots` 与 `pnpm store:assets` 会覆盖被追踪的 PNG**（分别是
+`docs/screenshots/` 与 `docs/store/assets/`，后者会先清空目录再重写全部 28 张）。这正是
+它们的职责，但跑一次就会在 `git status` 里留下改动 —— 只有在 UI 确实变了的时候才提交它们。
 
 **e2e 构建带有发布构建所没有的主机权限，考虑到本页开头的主张，这值得明说。**
 `pnpm test:e2e` 会在生产目录旁边生成 `.output/chrome-mv3-e2e` 和
