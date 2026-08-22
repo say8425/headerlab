@@ -19,7 +19,7 @@ MANÉJALO DESDE UN AGENTE DE PROGRAMACIÓN CON IA
 
 HeaderLab incluye una herramienta de línea de comandos opcional y una skill para Claude Code y Codex, así que un agente puede leer y cambiar tus reglas de cabeceras mientras trabaja. Pídeselo con tus palabras — añade una cabecera X-Debug y acótala a staging.example.com, o deja de enviar Referer a la API — y el resultado aparece en el popup igual que si lo hubieras escrito tú.
 
-No te cuesta control: el puente está apagado hasta que enciendes su interruptor en el popup, la herramienta no puede ni encenderse sola ni conceder acceso a un sitio — Chrome acepta ambas cosas solo de tu propio clic — y se comunica por un socket local, nunca por una red.
+No renuncias a ningún control: el puente está apagado hasta que enciendes su interruptor en el popup, la herramienta no puede ni encenderse sola ni conceder acceso a un sitio — Chrome acepta ambas cosas solo de tu propio clic — y se comunica por un socket local, nunca por una red.
 
 QUÉ NO HACE
 

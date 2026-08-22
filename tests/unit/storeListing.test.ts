@@ -22,9 +22,19 @@ const STORE = path.join(REPO_ROOT, 'docs', 'store');
 const LOCALES_DIR = path.join(REPO_ROOT, 'public', '_locales');
 
 /**
- * Kept verbatim in every language: an API name, a licence and a URL are not
- * prose. `main_frame` in particular is a value the user types nowhere but reads
- * in the popup, so a translated one would name a checkbox that does not exist.
+ * Kept verbatim in every language: an API name, a licence, a URL and a button
+ * label are not prose. `main_frame` and `Grant` are values the user types
+ * nowhere but reads in the popup, so a translated one would name a checkbox or
+ * a button that does not exist.
+ *
+ * Neither is localizable even in principle, which is what makes pinning them
+ * the whole guard rather than a nicety: every file under `public/_locales/`
+ * carries exactly one key, `extDescription`, so the popup UI ships in English
+ * in every locale — `Grant` is literal JSX in `components/SiteRow.tsx` and
+ * `components/ScopeRail.tsx`. `Grant` was added on 2026-08-22, when cutting the
+ * install-time permission paragraph left the button one of the few carriers of
+ * the trust posture still in the listing; a locale rendering it 허용 or 授权
+ * would name a nonexistent button and delete that claim, with nothing failing.
  *
  * **A permission string was in that sentence, and in this list, until
  * 2026-08-22.** Both went when the owner cut the paragraph that carried
@@ -55,6 +65,7 @@ const VERBATIM: ReadonlyArray<readonly [string, RegExp]> = [
     /declarativeNetRequest(?!WithHostAccess)/,
   ],
   ['main_frame', /main_frame/],
+  ['Grant', /Grant/],
   ['Apache-2.0', /Apache-2\.0/],
   ['the repository URL', /https:\/\/github\.com\/say8425\/headerlab/],
 ];
