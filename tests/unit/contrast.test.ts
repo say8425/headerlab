@@ -40,7 +40,9 @@ import { describe, expect, it } from 'vitest';
  *
  * And nothing else in this repo covers the gap automatically. **The e2e suite is
  * not the backstop it looks like** — measured: it reads geometry and nothing else,
- * `getBoundingClientRect` in eight places and `getComputedStyle(el).overflowY` in
+ * `getBoundingClientRect` on 27 lines — 29 occurrences, 26 lines in
+ * `header-modification.spec.ts` and 1 in `bridge-rail.spec.ts` — and
+ * `getComputedStyle(el).overflowY` in
  * two, with no colour read anywhere and no snapshot comparison configured (zero
  * `toHaveScreenshot`/`toMatchSnapshot` calls, no snapshot config in
  * `playwright.config.ts`). The `color: 'green'` strings in that file are profile
@@ -370,6 +372,16 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // ink from being toned down until the word stops reading.
   ['invalid Badge — the word on an unusable site row', '--destructive', '--card'],
   ['row state line, not in use — All sites is on', '--muted-foreground', '--card'],
+  // Same two tokens as the line above, and named separately on purpose: this
+  // file has twice been caught pinning a pair for an element that no longer
+  // renders, so a pair that two live elements depend on should say both. The
+  // bridge row's state word (`off`/`idle`/`live`/`down`) is the second.
+  //
+  // The dot beside it is NOT covered here and never has been — its three
+  // colours (`bg-live`, `border-pending`, `border-muted-foreground`) appear in
+  // no pair in this file. That is a pre-existing gap, not one this row's word
+  // introduced; the word is the first non-colour channel that row has had.
+  ['bridge state word — beside the row name, on the rail card', '--muted-foreground', '--card'],
   // The Grant button is the shadcn Button in its `pending` variant, size
   // `xs`, shared by the site row and the all-sites bar — the palette's amber
   // fill/ink pair, the same "something needs you" the row's glyph and the

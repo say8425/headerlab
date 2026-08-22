@@ -1992,6 +1992,37 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 여기서도 상태를 직접 기다린다.
   await expect(page.getByTestId('bridgestate')).toHaveAttribute('data-bridge', 'off');
 
+  // 그 상태가 **화면에** 있는가 — 접근성 트리에만 있는 것과 구별해서.
+  //
+  // `toBeVisible()` 은 이것을 가리지 못한다: 숨겨진 detail span 도 통과한다
+  // (측정: 175×90, `visibility: visible`, `opacity: 1`). 이 이슈가 거부한
+  // "속성만 보는 가드"가 옷만 갈아입은 형태다. 칠해진 글자와 잘린 글자를
+  // 실제로 가르는 것은 `clip-path` 하나 — 라벨과 상태 슬롯은 `none`, detail
+  // span 은 `inset(50%)`.
+  //
+  // 항목마다 다른 회귀에서 실패한다: `clipPath` 는 단어가 다시 접근성
+  // 트리로만 들어갈 때, `text` 는 사라질 때, `height` 와 `truncated` 는 한 줄
+  // 규칙의 두 반쪽이다. `truncated` 는 구조적으로 항상 false 인 항목이 아니다 —
+  // 47.48px 슬롯에 107.70px 문자열을 넣으면 true 로 측정된다.
+  //
+  // `measureLines` 는 재사용하지 않는다. `[data-testid="site"]` 에 고정되어
+  // 있어 여기서는 `[]` 를 돌려주고, 아무것도 검사하지 않은 채 초록이 된다.
+  expect(
+    await page.getByTestId('bridge-state').evaluate((el) => ({
+      text: el.textContent,
+      clipPath: getComputedStyle(el).clipPath,
+      visibility: getComputedStyle(el).visibility,
+      height: Math.round(el.getBoundingClientRect().height),
+      truncated: el.scrollWidth > el.clientWidth,
+    })),
+  ).toEqual({
+    text: 'off',
+    clipPath: 'none',
+    visibility: 'visible',
+    height: 16,
+    truncated: false,
+  });
+
   const clipped = await page.evaluate(() => {
     // 실패했을 때 무엇을 가리키는지 알 수 있는 이름 — 태그, 실제 글자, 그리고
     // 넘친 정도.
@@ -2039,7 +2070,8 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   //             · Sites 카운트 1 · run state 1("Active")
   //             · bridge row 2(보이는 라벨 "Agent bridge" + 캔버스 밖 detail
   //               span — 스위치의 aria-describedby 가 실제 텍스트를 가리키게
-  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다)
+  //               하는 H-3 수정이 텍스트를 가진 잎을 하나 더했다). 상태 단어
+  //               span 이 들어온 뒤로 이 항목은 3 이다 — 아래 narration 참조
   //             · all-sites 2(라벨, 상태 줄)
   //             · 사이트 행 16(호스트 8 + Grant 버튼 7 + granted 상태 줄 1)
   //             · Request types 카운트 1
@@ -2078,8 +2110,13 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // (2026-08-20), 이어서 all-sites 행의 off 줄("The list below applies")이
   // 제거되며 레일이 텍스트 노드를 하나 더 잃었다. 이 주석 바로 위가 말하는
   // "정상적인 변경이라면 다시 재라"에 해당하는 경우다.
+  //
+  // 23 -> 24: 브리지 행이 상태 단어(`bridge-state`)를 얻었다. 이것은 잎을
+  // 더하지만 상자를 더하지는 않는다 — 이미 있던 `flex-1` 스페이서를 대체하는
+  // 것이라 행의 기하는 그대로다. `unknown` 상태에서는 글자가 없어 세지 않으므로
+  // 이 +1 은 상태에 매인다. 이 픽스처는 `off` 로 렌더된다.
   expect(clipped.inspected, 'the clipping check must have had text to look at').toEqual({
-    rail: 23,
+    rail: 24,
     panel: 14,
   });
 

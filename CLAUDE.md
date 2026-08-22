@@ -1057,7 +1057,7 @@ height):
 
 | state of the rail                                  | site list | real leftover |
 | -------------------------------------------------- | --------- | ------------- |
-| no notes above the list  (re-measured 2026-08-21)  | 200px     | **22px**      |
+| no notes above the list  (re-measured 2026-08-22)  | 200px     | **13px**      |
 | one error note (`sync-error` or `icon-error`)      | ~43–61px  | **0px**       |
 | both error notes                                   | ~63px     | **0px**       |
 
@@ -1170,7 +1170,8 @@ picking a class the author did not expect is outside it by construction — the 
 says so at its top. It went green through a grey box that was plainly visible on screen.
 
 **The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
-in eight places, `getComputedStyle(el).overflowY` in two — and no colour at all; there is
+on 27 lines (29 occurrences), `getComputedStyle(el).overflowY` in two — and no colour at
+all; there is
 no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
 the only output with pixels in it is `pnpm screenshots`, and **a human is what reads
 it**; that is how the grey box was found. A colour defect born of alpha or merge order has
