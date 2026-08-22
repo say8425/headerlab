@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, pathKey } from '../lib/commands.mjs';
+import { ERROR_CODES } from '../lib/exit.mjs';
 import { ISSUES_URL } from '../lib/help.mjs';
 
 /**
@@ -133,6 +134,35 @@ test('에이전트 스킬이 표의 모든 명령을 이름으로 담는다', ()
   const missing = COMMANDS.map((c) => `headerlab ${pathKey(c.path)}`).filter(
     (name) => !skill.includes(name),
   );
+  assert.deepEqual(missing, []);
+});
+
+/**
+ * 같은 결합의 나머지 절반. 명령은 위에서 묶여 있었는데 에러 코드는 묶여
+ * 있지 않았고, 갈라진 것은 이쪽이었다: 계약이 열여섯으로 자라는 동안 스킬은
+ * "and four more" 라고 적혀 있었다. 이름조차 없던 셋(`invalid-state`,
+ * `unknown-rule`, `unknown-domain`)은 드문 것도 아니다 — 없는 id 로
+ * `rule rm`, 목록에 없는 도메인으로 `site rm` 이면 나온다. 스킬은 모델에게
+ * `error.code` 로 분기하라고 가르치므로, 이름이 적혀 있지 않은 코드를 받은
+ * 모델에게는 분기할 것이 없다.
+ *
+ * 백틱까지 요구한다. 코드 이름은 전부 평범한 영어 단어의 조합이라
+ * (`unknown-rule`, `invalid-state`) 산문에 우연히 섞여도 맨 `includes` 는
+ * 참이 되고, 그러면 이 가드는 "적혀 있다" 가 아니라 "그 글자가 어딘가 있다"
+ * 를 검사하게 된다. 그 대가는 알고 있어야 한다: 코드를 펜스 친 JSON 예시
+ * 안에만 넣는 것(`{"error":{"code":"unknown-rule"}}`)은 이 가드를 만족시키지
+ * 못한다. 의도한 제약이다 — 예시는 모양을 보여 줄 뿐 그 코드가 무엇인지는
+ * 말하지 않으므로, 설명을 대신할 수 없다.
+ *
+ * **이 가드가 묶는 것은 이름이지 주장이 아니다.** 열여섯 개를 전부 백틱으로
+ * 나열해 놓고 설명을 통째로 거짓으로 적어도 초록이다 — 실제로 그렇게
+ * 변이시켜 확인했다. 그래서 이 절의 산문에서 손으로 센 숫자("and four
+ * more", "Seven come from…")를 지웠다: 가드가 못 보는 자리에 숫자를 두면
+ * 그것이 다음번에 갈라지는 자리가 된다.
+ */
+test('에이전트 스킬이 계약의 모든 에러 코드를 이름으로 담는다', () => {
+  const skill = read('packages/plugin/skills/headerlab/SKILL.md');
+  const missing = ERROR_CODES.filter((code) => !skill.includes(`\`${code}\``));
   assert.deepEqual(missing, []);
 });
 
