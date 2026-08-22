@@ -170,7 +170,7 @@ describe('the store descriptions', () => {
     }
   });
 
-  it('keeps every API name, licence and URL untranslated', () => {
+  it('keeps every API name, licence, URL and button label untranslated', () => {
     for (const locale of packageLocales()) {
       const text = description(locale);
       const missing = VERBATIM.filter(([, pattern]) => !pattern.test(text)).map(([what]) => what);
