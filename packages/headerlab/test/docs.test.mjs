@@ -125,6 +125,56 @@ test('다섯 agent-bridge 문서의 실행 가능한 명령이 바이트 동일�
 });
 
 /**
+ * "켜는 법" 목록에서 설치가 1 번이고 스위치가 2 번이다 — 여섯 문서 모두.
+ *
+ * **바로 위의 순서 있는 `deepEqual` 이 이것을 못 잡는다는 것이 이 테스트가
+ * 있는 이유다.** `bridge install` 은 두 순서 중 어느 쪽에서든 그 문서의 마지막
+ * `headerlab ` 줄이라, 다섯 중 넷만 순서를 바꾸는 드리프트가 초록으로 통과한다.
+ * 측정해서 확인했다: 문서 하나만 옛 순서로 되돌려도 이 파일의 다른 테스트는
+ * 전부 초록이었다.
+ *
+ * 산문을 읽지 않고 검사할 수 있는 이유는 두 앵커가 번역되지 않기 때문이다 —
+ * `headerlab bridge install` 은 명령이고 `Agent bridge` 는 팝업이 실제로 그리는
+ * 글자다. 다섯 언어가 공유하는 것이 정확히 그 둘이고, #61 을 발견하게 한 것도
+ * 같은 사실이다.
+ *
+ * 왜 설치가 먼저여야 하는지는 #61 에 있다. 요약하면: 권한이 먼저 도착하면 아직
+ * 쓰이지 않은 매니페스트를 향해 세 번 시도하고 예산이 소진되며, 그것을 다시
+ * 채우는 트리거 중 팝업을 여는 것은 없다.
+ */
+const TURNING_ON_DOCS = [...BRIDGE_DOCS, 'packages/headerlab/README.md'];
+
+/**
+ * 목록의 1 번과 2 번 항목을 통째로 잘라 온다.
+ *
+ * 마커가 문서마다 하나뿐이라는 것을 여기서 함께 단언한다. 그것이 이 함수의
+ * 전제이고, 전제가 조용히 깨지면 `findIndex` 는 엉뚱한 목록의 1 번을 집어
+ * 오면서도 초록일 수 있다 — 검사할 수 없는 주장을 만드는 쪽이다.
+ */
+function turningOnSteps(text, name) {
+  const lines = text.split('\n');
+  const rows = (n) => lines.filter((l) => l.startsWith(`${n}. `)).length;
+  for (const n of [1, 2, 3]) {
+    assert.equal(rows(n), 1, `${name}: ${n} 번 항목이 하나가 아니다 (${rows(n)})`);
+  }
+  const at = (n) => lines.findIndex((l) => l.startsWith(`${n}. `));
+  const [one, two, three] = [at(1), at(2), at(3)];
+  assert.ok(one < two && two < three, `${name}: 켜는 법 목록이 1/2/3 순서가 아니다`);
+  return { one: lines.slice(one, two).join('\n'), two: lines.slice(two, three).join('\n') };
+}
+
+test('여섯 문서 모두 설치가 1 번, 스위치가 2 번이다', () => {
+  for (const name of TURNING_ON_DOCS) {
+    const { one, two } = turningOnSteps(read(name), name);
+    assert.ok(one.includes('headerlab bridge install'), `${name}: 1 번이 설치가 아니다`);
+    // 부재를 먼저 본다. 1 번이 스위치도 함께 말하고 있으면 순서를 바꾼 것이
+    // 아니라 두 단계를 뭉갠 것이고, 그것은 이 가드가 잡아야 할 쪽이다.
+    assert.equal(one.includes('Agent bridge'), false, `${name}: 1 번이 스위치를 가리킨다`);
+    assert.ok(two.includes('Agent bridge'), `${name}: 2 번이 스위치가 아니다`);
+  }
+});
+
+/**
  * SKILL.md 의 명령표가 표의 명령을 하나도 빠뜨리지 않는다. 스킬은 모델이
  * 읽는 유일한 레퍼런스이므로, 표에만 있고 스킬에 없는 명령은 존재하되
  * 아무도 부를 수 없는 명령이다.

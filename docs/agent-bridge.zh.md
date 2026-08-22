@@ -85,8 +85,8 @@ headerlab state get --json | jq .state | headerlab state set - --force
   —— 那一行依旧处于待授权状态，直到有人点击 **Grant**，与手动添加的站点完全一样。Chrome 要求
   权限授予必须有用户手势，这个限制被遵守而不是被绕开。
 - **CLI 也无法打开桥接。** `chrome.permissions.request()` 需要用户手势才会兑现。没有
-  `headerlab bridge enable`，将来也不会有能用的版本：在没人打开过开关的桥接旁边运行
-  `bridge install`，只是写下一些永远不会连上的文件。
+  `headerlab bridge enable`，将来也不会有能用的版本：`bridge install` 只是写下清单
+  文件，在有人打开开关之前什么都不会连上。
 - **没有任何东西离开这台机器。** CLI、主机与扩展只通过位于权限受限的按用户目录中的 Unix 域
   套接字通信，从不使用网络套接字。**不是 `$TMPDIR`**，这是刻意的：`socketDir()` 不去读各个
   进程各自继承来的 `$TMPDIR`，而是向操作系统询问（以绝对路径调用
@@ -108,13 +108,14 @@ headerlab state get --json | jq .state | headerlab state set - --force
 
 ## 如何打开
 
-1. 在弹窗的桥接行打开开关 —— 在那之前它显示 **Agent bridge off**。这会通过 Chrome 自己的
-   同意对话框请求 `nativeMessaging` 权限。
-2. 从 `chrome://extensions` 复制 id 并运行安装命令：
+1. 从 `chrome://extensions` 复制 id 并运行安装命令：
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. 在弹窗的桥接行打开开关 —— 在那之前它显示 **Agent bridge off**。这会通过 Chrome 自己的
+   同意对话框请求 `nativeMessaging` 权限。
 
 3. 弹窗随即显示 **Agent bridge live**。
 
