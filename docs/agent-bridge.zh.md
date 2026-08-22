@@ -108,13 +108,14 @@ headerlab state get --json | jq .state | headerlab state set - --force
 
 ## 如何打开
 
-1. 在弹窗的桥接行打开开关 —— 在那之前它显示 **Agent bridge off**。这会通过 Chrome 自己的
-   同意对话框请求 `nativeMessaging` 权限。
-2. 从 `chrome://extensions` 复制 id 并运行安装命令：
+1. 从 `chrome://extensions` 复制 id 并运行安装命令：
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. 在弹窗的桥接行打开开关 —— 在那之前它显示 **Agent bridge off**。这会通过 Chrome 自己的
+   同意对话框请求 `nativeMessaging` 权限。
 
 3. 弹窗随即显示 **Agent bridge live**。
 

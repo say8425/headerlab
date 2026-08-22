@@ -122,13 +122,14 @@ Chrome が実行するランチャースクリプトを管理するもので、�
 
 ## 有効にする
 
-1. ポップアップのブリッジ行でスイッチを入れます — それまでは **Agent bridge off** と読めます。
-   これが Chrome 自身の同意ダイアログを通じて `nativeMessaging` 権限を要求します。
-2. `chrome://extensions` から id をコピーしてインストーラを実行します:
+1. `chrome://extensions` から id をコピーしてインストーラを実行します:
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. ポップアップのブリッジ行でスイッチを入れます — それまでは **Agent bridge off** と読めます。
+   これが Chrome 自身の同意ダイアログを通じて `nativeMessaging` 権限を要求します。
 
 3. ポップアップが **Agent bridge live** になります。
 

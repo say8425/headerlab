@@ -128,14 +128,15 @@ documento.
 
 ## Cómo encenderlo
 
-1. Activa el interruptor en la fila del puente del popup — hasta entonces lee **Agent bridge off**.
-   Eso pide a Chrome el permiso `nativeMessaging` a través de su propio diálogo de
-   consentimiento.
-2. Ejecuta el instalador, copiando el id desde `chrome://extensions`:
+1. Ejecuta el instalador, copiando el id desde `chrome://extensions`:
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. Activa el interruptor en la fila del puente del popup — hasta entonces lee **Agent bridge off**.
+   Eso pide a Chrome el permiso `nativeMessaging` a través de su propio diálogo de
+   consentimiento.
 
 3. El popup pasa a leer **Agent bridge live**.
 

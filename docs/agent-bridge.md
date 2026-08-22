@@ -123,13 +123,14 @@ this document out.
 
 ## Turning it on
 
-1. Turn on the switch on the popup's bridge row — it reads **Agent bridge off** until then. This
-   asks Chrome for the `nativeMessaging` permission through its own consent dialog.
-2. Run the installer, copying the id from `chrome://extensions`:
+1. Run the installer, copying the id from `chrome://extensions`:
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. Turn on the switch on the popup's bridge row — it reads **Agent bridge off** until then. This
+   asks Chrome for the `nativeMessaging` permission through its own consent dialog.
 
 3. The popup now reads **Agent bridge live**.
 

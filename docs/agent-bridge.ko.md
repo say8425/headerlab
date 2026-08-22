@@ -120,13 +120,14 @@ headerlab state get --json | jq .state | headerlab state set - --force
 
 ## 켜는 법
 
-1. 팝업의 브리지 행에서 스위치를 켭니다 — 그전까지는 **Agent bridge off** 로 읽힙니다.
-   이것이 Chrome 자신의 동의 대화상자를 통해 `nativeMessaging` 권한을 요청합니다.
-2. `chrome://extensions` 에서 id 를 복사해 설치 명령을 실행합니다:
+1. `chrome://extensions` 에서 id 를 복사해 설치 명령을 실행합니다:
 
    ```bash
    headerlab bridge install --extension-id <id>
    ```
+
+2. 팝업의 브리지 행에서 스위치를 켭니다 — 그전까지는 **Agent bridge off** 로 읽힙니다.
+   이것이 Chrome 자신의 동의 대화상자를 통해 `nativeMessaging` 권한을 요청합니다.
 
 3. 팝업이 **Agent bridge live** 를 읽습니다.
 

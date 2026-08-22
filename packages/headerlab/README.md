@@ -27,9 +27,9 @@ can reach the extension.
 
 **Turning it on** is three steps:
 
-1. Turn on the switch on the popup's **Agent bridge** row.
-2. Run `headerlab bridge install --extension-id <id>`, taking the id from
+1. Run `headerlab bridge install --extension-id <id>`, taking the id from
    `chrome://extensions`.
+2. Turn on the switch on the popup's **Agent bridge** row.
 3. The popup now reads **Agent bridge live**.
 
 The installer echoes back the id it used. Nothing inside the CLI can check that against
