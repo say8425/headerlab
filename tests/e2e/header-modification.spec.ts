@@ -1183,10 +1183,30 @@ test("nothing in the popup is wider than what holds it, at the popup's own width
  * Boxes for the rail elements that sit *below* something state-dependent, keyed
  * so the same name means the same box across two renders.
  *
- * `[data-testid="site"]` is in here as well as the anchors under it: the Grant
- * button lands inside the row, so the row's own height is the first thing that
- * must not change, and an assertion that only watched what came after it would
- * pass a row that grew while everything below happened to be pushed off-screen.
+ * `[data-testid="site"]` and `[data-testid="add-field"]` used to be in here and
+ * are deliberately **not** any more (2026-08-21). The site rows lost their
+ * fixed heights that day, so a row genuinely does grow when its Grant button
+ * arrives and the add field below it genuinely does move down — the owner
+ * traded that reflow for the 10px a granted row was spending on a band sized
+ * for a button it does not have. Leaving them here would have left this file
+ * asserting a promise the product had stopped making.
+ *
+ * `[data-testid="all-sites"]` left with them for half a day and **came back**,
+ * which is the more useful half of the story. Content-sizing that row too made
+ * it 34.39px with the mode off and 40px with a Grant button in it, so the whole
+ * list jumped 5.61px on the one control whose own click causes it. The fix was
+ * not a height on the row: it was a height on the 52px slot that already
+ * reserves Grant's *width*, so the reservation covers both axes of the one box
+ * that varies and the row is 40px in all three states — measured, off and
+ * awaiting and granted. A guard left out because a defect was there is a guard
+ * that has to be put back when the defect goes.
+ *
+ * They did not simply leave. The test body now bounds both by hand: the row
+ * grows by exactly the Grant button's overhang and the add field moves by
+ * exactly the same number, which is a sharper claim than "unchanged" was — it
+ * fails a row that grows twice, or that grows while the field below it stays
+ * put, neither of which a `toEqual` on a pair of boxes could tell apart from
+ * the intended change.
  *
  * `[data-testid="all-sites-state"]` is the one probe here for a *sideways*
  * move. That dot used to render only once its state was known, so "All sites"
@@ -1207,8 +1227,6 @@ const RAIL_BOXES = [
   '[data-testid="runstate"]',
   '[data-testid="all-sites"]',
   '[data-testid="all-sites-state"]',
-  '[data-testid="site"]',
-  '[data-testid="add-field"]',
   '[data-testid="rail-section-types"]',
   '[data-testid="type-grid"]',
 ] as const;
@@ -1330,6 +1348,46 @@ test('a control appearing in the rail does not move anything', async ({
     'every probe must match an element',
   ).toEqual([]);
 
+  /**
+   * The two boxes that legitimately move, measured on their own.
+   *
+   * They left RAIL_BOXES when the rows lost their fixed heights — see that
+   * list's docblock — and this is the sharper claim that replaced "unchanged":
+   * whatever those boxes do, the field below them moves by exactly their sum
+   * and nothing else in the rail does anything. A `toEqual` on a pair of boxes
+   * could not tell a row that grew once from one that grew twice, nor catch a
+   * row growing while the field below it stayed put.
+   *
+   * The all-sites row is measured here too, and its term is **zero today** —
+   * that row is 40px in all three of its states. It is kept because of how it
+   * got there. The first draft of this assertion claimed the field moves by
+   * what the *site* row gained, and the field moved 9.61px against the row's 4;
+   * the missing 5.61 was the all-sites row growing 34.39 -> 40 as its own Grant
+   * button arrived, a second contributor on the same toggle that an assertion
+   * naming only one box would have blamed on the wrong one. That growth was
+   * then fixed at the source — the slot reserving Grant's width got a height
+   * too — so this term reads 0 and will read something again the moment
+   * anybody undoes that.
+   */
+  const middle = () =>
+    page.evaluate(() => {
+      const round = (v: number) => Math.round(v * 100) / 100;
+      const row = document.querySelector('[data-testid="site"]')!.getBoundingClientRect();
+      const mode = document.querySelector('[data-testid="all-sites"]')!.getBoundingClientRect();
+      const field = document.querySelector('[data-testid="add-field"]')!.getBoundingClientRect();
+      const line = document.querySelector('[data-testid="site-line"]')!;
+      const text = line.querySelector(':scope > span');
+      return {
+        rowHeight: round(row.height),
+        modeHeight: round(mode.height),
+        fieldY: round(field.y),
+        lineHeight: round(line.getBoundingClientRect().height),
+        lineTruncated: text ? text.scrollWidth > text.clientWidth : false,
+      };
+    });
+
+  const middleWithGrant = await middle();
+
   // --- the Grant button vacating its row ---
   // All-sites mode makes this row idle, and an idle row offers no Grant — one
   // click, and the button is genuinely gone rather than merely faded.
@@ -1337,6 +1395,52 @@ test('a control appearing in the rail does not move anything', async ({
   await expect(grant).toHaveCount(0);
   expect(await page.getByTestId('site').getAttribute('data-state')).toBe('idle');
   expect(await boxes(), 'the Grant button leaving must move nothing').toEqual(withGrant);
+
+  // And the bounded half of the same promise. Toggling all-sites takes the row
+  // from `pending` to `idle`, which changes what its second line holds and so
+  // changes its height — that is the reflow the fixed `h-6` used to forbid and
+  // the owner traded away on 2026-08-21.
+  //
+  // Asserted rather than tolerated: the row's height must actually differ (a
+  // fixed height quietly restored would fail here, and whoever restored it
+  // would have to come and read why it went), and the add field must move by
+  // exactly that difference — no more, which would mean something else grew
+  // too, and no less, which would mean the field was clipped rather than
+  // pushed.
+  const middleIdle = await middle();
+
+  // The one-line rule, on the one state no other test can reach. The overflow
+  // test pins each state's line height, but its fixture has all-sites OFF, so
+  // it renders no idle row and never sees the string this covers — proven by
+  // putting the old over-long copy back and watching that test stay green.
+  // "Not in use while All sites is on" measured 158.8px against the 135px the
+  // text actually gets (`site-line` is 155 and spends 20 on `pl-5` — a
+  // distinction the first version of this comment missed), wrapped, and left
+  // this row 14px taller than its neighbours. It reads "All sites is on" now,
+  // at 70.7px, which is ~47% headroom rather than the 10% the longer string
+  // had against a budget CI's wider fallback fonts could have closed.
+  expect(middleIdle.lineHeight, "an idle row's second line is one line").toEqual(14);
+  expect(middleIdle.lineTruncated, 'and it fits rather than being clipped to fit').toBe(false);
+  // And the height itself. `not.toEqual` below says only that it differs from a
+  // pending row, and the `toBeCloseTo` after it compares the field's movement
+  // against that same delta — so an idle row of *any* height satisfied both. The
+  // one state this branch wrote new copy for had no height pin at all; a code
+  // reviewer found that. 50px is the granted/unusable height, which is what an
+  // idle row is once its line fits on one line.
+  expect(middleIdle.rowHeight, 'an idle row is 50px, like every non-pending row').toEqual(50);
+
+  expect(middleIdle.rowHeight, 'the row height must depend on its state now').not.toEqual(
+    middleWithGrant.rowHeight,
+  );
+  expect(
+    middleIdle.fieldY - middleWithGrant.fieldY,
+    'the add field must move by exactly what the two boxes above it gained, and nothing else',
+  ).toBeCloseTo(
+    middleIdle.rowHeight -
+      middleWithGrant.rowHeight +
+      (middleIdle.modeHeight - middleWithGrant.modeHeight),
+    1,
+  );
 
   // …and back, so a layout that had simply frozen at the first measurement
   // cannot pass. This direction is the one the owner saw.
@@ -1501,13 +1605,20 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
 
   const measureLines = (p: import('@playwright/test').Page) =>
     p.evaluate(() =>
-      [...document.querySelectorAll('[data-testid="site"]')].map((row) => ({
-        state: row.getAttribute('data-state'),
-        line: Math.round(
-          row.querySelector('[data-testid="site-line"]')!.getBoundingClientRect().height,
-        ),
-        row: Math.round(row.getBoundingClientRect().height),
-      })),
+      [...document.querySelectorAll('[data-testid="site"]')].map((row) => {
+        const line = row.querySelector('[data-testid="site-line"]')!;
+        const text = line.querySelector(':scope > span');
+        return {
+          state: row.getAttribute('data-state'),
+          line: Math.round(line.getBoundingClientRect().height),
+          row: Math.round(row.getBoundingClientRect().height),
+          // The second half of the one-line rule. `truncate` makes wrapping
+          // impossible, so a string too long for the 155px box does not grow
+          // the row any more — it disappears behind an ellipsis instead, which
+          // is quieter and just as wrong. This is what notices.
+          truncated: text ? text.scrollWidth > text.clientWidth : false,
+        };
+      }),
     );
 
   // unusable 한 행의 높이는 과밀 페이지가 아니라 여기서, 그것을 열기 전에
@@ -1522,7 +1633,7 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   //
   // 사이트를 여덟 개 심는 것은 그것이 목록을 cap 위로 넘치게 하는 값이기
   // 때문이다. 다만 넘치는 것만으로는 이 단언의 주제가 되지 않는다 — 목록은
-  // 자기 cap(174px)에 앉아 있을 뿐이고, "압력을 받으면 양보하는 쪽은
+  // 자기 cap(200px)에 앉아 있을 뿐이고, "압력을 받으면 양보하는 쪽은
   // 목록이다"를 보이려면 cap **아래로** 밀어내는 것이 레일에 하나 더 있어야
   // 한다. 예전에는 그 억제가 스코프 노트를 띄워 그 역할을 했다. 노트는
   // 사라졌으므로(2026-08-19) 남아 있는 두 에러 노트 중 하나(sync-error)를
@@ -1646,8 +1757,8 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   const unusableLines = await measureLines(unusablePage);
 
   // 압력을 받는 레일: 목록만 양보하고, 레일 자신은 스크롤하지 않으며, 요청 타입은
-  // 제자리에 있다. 목록의 max-height 는 174px 이므로(60px 행이 된 뒤의 값 —
-  // ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
+  // 제자리에 있다. 목록의 max-height 는 200px 이므로(행이 고정 높이를 잃은 뒤의
+  // 값 — ScopeRail.tsx 의 site-list 문서화 참고), 그보다 작아졌다는 것이
   // 곧 "양보한 쪽은 목록이다"라는 뜻이다.
   //
   // 36 은 48 에서 다시 잰 값이다(예전에는 132→48 이었다). 브리지 행이 레일에
@@ -1713,14 +1824,22 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   expect(underPressure.listScrolls).toBe(true);
   // Re-measured after the readout left the rail (2026-08-20). That freed 48px
   // at the top, and a single note stopped pressing at all — the list simply sat
-  // at its 174px cap, which makes "the list is the one that yields" a claim the
-  // fixture no longer demonstrated. Both remaining notes are planted now, and
-  // the list gives way to 26px. The bound is a range for the reason the old one
-  // was: note copy wraps to a different number of lines under CI's fallback
-  // fonts. What it owns is unchanged — the list is BELOW its cap, so it is the
-  // element that yielded, and above zero, so it yielded without being erased.
+  // at its cap, which makes "the list is the one that yields" a claim the
+  // fixture no longer demonstrated. Both remaining notes are planted now.
+  //
+  // Re-measured again on 2026-08-21, when the rows lost their fixed heights and
+  // the cap went 174 -> 200: the same two notes now leave 63px rather than 26,
+  // because there is more list to give away before the rail runs out.
+  //
+  // The bound is a range for the reason the old one was: note copy wraps to a
+  // different number of lines under CI's fallback fonts, a one-line spread of
+  // roughly 16px. 100 is half the cap — comfortably clear of 63 either way, and
+  // still low enough that passing it means the list really did give way rather
+  // than sit where it started. What this owns is unchanged: the list is BELOW
+  // its cap, so it is the element that yielded, and above zero, so it yielded
+  // without being erased.
   expect(underPressure.listHeight).toBeGreaterThan(0);
-  expect(underPressure.listHeight).toBeLessThanOrEqual(60);
+  expect(underPressure.listHeight).toBeLessThanOrEqual(100);
   expect(await boxes(unusablePage), '압력을 받아도 요청 타입은 제자리다').toEqual(before);
 
   // (readout 두 번째 줄의 말줄임 보증은 이 페이지를 떠났다. 원인 절이
@@ -1787,11 +1906,46 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   expect(new Set(lineHeights.map((l) => l.state))).toEqual(
     new Set(['granted', 'pending', 'unusable']),
   );
-  expect(new Set(lineHeights.map((l) => l.line)).size).toBe(1);
-  // 48 -> 52 -> 60: 행의 예약 둘째 줄이 h-5 -> h-6 (표준 shadcn xs Grant 의
-  // 24px), 다시 상하 패딩이 all-sites 바와 같은 8px 로. 줄은 자기가 담을 수
-  // 있는 가장 큰 것에 사이즈를 맞춘다.
-  expect(new Set(lineHeights.map((l) => l.row))).toEqual(new Set([60]));
+  // 2026-08-21 까지 이 자리의 주장은 "세 상태의 둘째 줄이 모두 같은 높이"
+  // 였다. 그 예약이 소유자 결정으로 사라졌다 — 레일에서 가장 귀한 자원은
+  // 사이트 목록의 세로 공간인데, granted 행이 갖고 있지도 않은 버튼을 위한
+  // 띠에 10px 을 쓰고 있었다. 이제 줄은 자기가 담은 것에 맞춰진다.
+  //
+  // "전부 같다" 를 지우고 상태별로 못 박는다. 지우기만 하는 것보다 강한
+  // 주장이다: 한 상태가 조용히 0 으로 무너지는 것과, 두 상태가 우연히 같은
+  // 높이가 되는 것을 둘 다 잡는다. 행 높이의 내력은 48 -> 52 -> 60 -> 상태별
+  // (예약된 h-5 -> h-6, shadcn xs Grant 의 24px -> all-sites 바와 같은 8px
+  // 상하 패딩 -> 고정 높이 제거).
+  const byState = new Map(lineHeights.map((l) => [l.state, `${l.line}/${l.row}`]));
+  expect(Object.fromEntries(byState), '상태마다 정해진 줄/행 높이가 있다').toEqual({
+    granted: '14/50',
+    pending: '24/60',
+    // 20/56 까지가 destructive Badge 였다. 2026-08-21 에 소유자가 빨간 평문으로
+    // 바꾸면서 칩 하나가 사라졌고, 그 행은 이웃과 같은 50px 이 되었다.
+    unusable: '14/50',
+  });
+
+  // 그리고 규칙 자체: 둘째 줄은 무엇을 담든 한 줄이다. 14 는 텍스트 한 줄,
+  // 24 는 Grant 버튼 — 그 둘 말고 다른 값이 나온다면 줄이 감겼다는 뜻이고,
+  // 감긴 줄은 그 행만 이웃보다 키운다. "Not in use while All sites is on" 이
+  // 정확히 그랬다: 155px 상자에 158.8px, 3.8px 초과로 그 행만 64px 이었다.
+  expect(
+    [...new Set(lineHeights.map((l) => l.line))].sort((a, b) => a - b),
+    '둘째 줄은 텍스트 한 줄(14) 아니면 Grant 버튼(24) 뿐이다',
+  ).toEqual([14, 24]);
+  // 감기지 못하게 만든 대가로 잘릴 수는 있다. 잘린 줄은 읽을 수 없는 줄이므로
+  // 문구는 상자 안에 들어가야 하고, 이것이 그것을 확인한다.
+  expect(
+    lineHeights.filter((l) => l.truncated),
+    '줄임표로 잘리는 문구가 있으면 그 문구가 너무 길다',
+  ).toEqual([]);
+  // 그리고 같은 상태의 행은 언제나 같은 높이다. 위의 Map 은 상태마다 마지막
+  // 값만 남기므로, 한 granted 행만 다르게 렌더돼도 그 비교는 통과한다 —
+  // 이것이 그 축을 따로 지킨다.
+  expect(
+    lineHeights.filter((l) => `${l.line}/${l.row}` !== byState.get(l.state)),
+    '같은 상태의 행끼리는 높이가 갈릴 수 없다',
+  ).toEqual([]);
 
   // Grant 버튼이 그 띠 안에 온전히 들어간다.
   const grantFits = await page.evaluate(() => {
@@ -1932,9 +2086,15 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 1b. 목록이 넘칠 때, 가장자리 행이 중간에서 잘린다.
   //
   //     그 잘린 행이 "더 있다"는 신호다. `site-list` 의 max-height 는 행
-  //     피치(60 + 6 = 66, 상하 8px 패딩의 행부터)의 정수배가 **아니게**
-  //     잡혀 있고(174 는 132 도 192 도 아니다), 이것이 그 선택을 직접 재는
+  //     피치의 정수배가 **아니게** 잡혀 있고, 이것이 그 선택을 직접 재는
   //     단언이다 — 정수배로 바꾸면 잘린 행이 사라져 빨개진다.
+  //
+  //     피치는 2026-08-21 부터 하나가 아니다. granted/unusable 행은 50px 라
+  //     피치 56, pending 행은 60px 라 피치 66 이다. 200 은 둘 다 정수배가
+  //     아니지만(56×3=168, 66×3=198), 남는 조각의 크기는 크게 다르다 — 32px
+  //     대 2px. 아래 단언이 재는 것은 "잘린 행이 하나 있다"이지 그것이 얼마나
+  //     보이느냐가 아니므로, pending 목록에서 신호가 약해진 것은 이 단언이
+  //     잡지 못한다. ScopeRail.tsx 의 site-list 문서화가 그 대가를 기록한다.
   //
   //     스크롤바가 보인다고 가정하지 않는다는 원래 주석의 취지가 여기 산다.
   //     macOS 의 기본 스크롤바는 오버레이라 자리도 차지하지 않고 곧 사라진다
@@ -2116,10 +2276,28 @@ test('the bridge row does not push the rail past its column', async ({
 
   // And the affordance that budget accounting has to keep buying on purpose:
   // the list stops mid-row rather than on one, which is what says it
-  // continues — 42px of the third row's 60 at the 174px cap (the shape moved
-  // from "two rows + slice" to "one row + slice" when the rows grew to 60px
-  // and 136px of rail could no longer hold both; the cap must never land on
-  // the 66px pitch or the cut row — and the signal — disappears).
+  // continues. **The slice depends on what the rows are**, which stopped being
+  // one number when the rows lost their fixed heights: 32px of the fourth row's
+  // 50 for an all-granted list (56px pitch), but only **2px** for an all-pending
+  // one (66px pitch) — and this fixture's four `*.example.com` hosts are all
+  // ungranted, so it is the pending case that is measured here. An earlier
+  // version of this comment quoted the granted arithmetic beside a fixture that
+  // cannot produce it; a code reviewer caught that.
+  //
+  // That is a real weakening: before the row-height change, 174px with uniform
+  // 60px rows sliced the third row 42px in whatever the states were. No single
+  // cap serves both pitches, so this is a cost the change accepted rather than
+  // a bug to fix here — ScopeRail's site-list docblock carries the reasoning.
+  //
+  // **200 rather than the 219 the rail could give.** The rows lost their fixed
+  // heights on 2026-08-21 and came down to 50px, which put the pitch at 56 and
+  // made 219 land one pixel past the fourth row's bottom edge: four whole rows,
+  // no slice, no signal that a fifth exists. This assertion is what caught
+  // that — the cap was set to the full 222 first — so the 19px it gives back
+  // is the affordance's price, paid deliberately. The cap must never land on
+  // the pitch; anything from 169 to 217 cuts the fourth row, and 200 cuts it
+  // through its second line where the cut is unmistakable rather than shaving
+  // padding off the bottom.
   const list = page.getByTestId('site-list');
-  expect(await list.evaluate((el) => el.clientHeight)).toEqual(174);
+  expect(await list.evaluate((el) => el.clientHeight)).toEqual(200);
 });

@@ -687,9 +687,13 @@ export function ScopeRail({
             Underneath it the rows would read as one more site among the
             others rather than as the switch that turns all of them off.
 
-            Shaped exactly like a site row — same height, same fill, same
-            reserved second line — because it is the same object: a scope, its
-            access state, and the remedy when that access is missing. It used
+            Shaped like a site row in the ways that carry meaning — same fill,
+            same glyph slot, same Grant button — because it is the same kind of
+            object: a scope, its access state, and the remedy when that access
+            is missing. **Not the same height any more, and no longer a second
+            line at all** (2026-08-21): this row is 40px against a site row's
+            50 or 60, because the owner traded its reserved second line for the
+            vertical space and Grant moved up beside the switch. It used
             to be a coloured bar that changed fill with its state, which meant
             "on and working" and "on and waiting for a grant" were an amber
             tint apart and the Grant button had nowhere to go but the same
@@ -702,90 +706,67 @@ export function ScopeRail({
             made the empty list mean two things in the first place. */}
 
         <div
-          className="mx-3 flex h-[60px] shrink-0 items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
+          className="mx-3 flex shrink-0 items-center gap-1.5 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
           data-testid="all-sites"
           data-granted={allSitesState === 'pending' ? 'no' : undefined}
         >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex h-4 items-center gap-1.5">
-              {/* The glyph's *slot* is unconditional; only its meaning is not.
-                  It used to render solely once the state was known, so "All
-                  sites" slid sideways the moment a probe answered — and back
-                  again when the mode went off. State changes appearance, not
-                  geometry (CLAUDE.md, Interface).
+          {/* The glyph's *slot* is unconditional; only its meaning is not. It
+              used to render solely once the state was known, so "All sites"
+              slid sideways the moment a probe answered — and back again when
+              the mode went off. State changes appearance, not geometry.
 
-                  With nothing to report it is a blank 14px carrying no `role`
-                  and no label: reserving the space must not put a phantom
-                  image into the accessibility tree. A globe rather than the
-                  site rows' circle, because this row is a mode and not a
-                  host — the one thing about it that is not the same fact. */}
-              {allSitesState === 'granted' || allSitesState === 'pending' ? (
-                <Globe
-                  className={`size-3.5 shrink-0 ${allSitesState === 'granted' ? 'text-live' : 'text-pending'}`}
-                  data-testid="all-sites-state"
-                  role="img"
-                  aria-label={
-                    allSitesState === 'granted' ? 'Access granted' : 'Awaiting permission'
-                  }
-                />
-              ) : (
-                <span className="size-3.5 shrink-0" data-testid="all-sites-state" data-unknown="" />
-              )}
-              <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-semibold text-foreground">
-                All sites
-              </span>
-            </div>
+              With nothing to report it is a blank 14px carrying no `role` and
+              no label: reserving the space must not put a phantom image into
+              the accessibility tree. A globe rather than the site rows' circle,
+              because this row is a mode and not a host — the one thing about it
+              that is not the same fact. */}
+          {allSitesState === 'granted' || allSitesState === 'pending' ? (
+            <Globe
+              className={`size-3.5 shrink-0 ${allSitesState === 'granted' ? 'text-live' : 'text-pending'}`}
+              data-testid="all-sites-state"
+              role="img"
+              aria-label={allSitesState === 'granted' ? 'Access granted' : 'Awaiting permission'}
+            />
+          ) : (
+            <span className="size-3.5 shrink-0" data-testid="all-sites-state" data-unknown="" />
+          )}
 
-            {/* The second line, reserved in every state and sized to the
-                tallest thing it can hold — the Grant button, which is the
-                shadcn `xs` height this line's `h-6` reserves — exactly as a
-                site row's is. The mode being on and the access being missing
-                is *said* here rather than left to a tint, in the same words a
-                pending site row uses, because it is the same state.
+          <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-semibold text-foreground">
+            All sites
+          </span>
 
-                The only control here that asks the browser for anything. The
-                switch sets the mode and stops (App.tsx): `<all_urls>` is the
-                largest grant this extension can request, so it is spent when a
-                button labelled Grant is pressed, never as a side effect of a
-                switch moving. Every way of reaching this state — turning the
-                mode on, declining once, or a store migrated from a build that
-                never asked — therefore arrives at the same button. */}
-            <span className="flex h-6 items-center pl-5">
-              {allSitesState === 'pending' ? (
-                <Button {...GRANT_BUTTON_PROPS} onClick={onGrantAllSites}>
-                  Grant
-                </Button>
-              ) : (
-                <span
-                  className={`text-[11px] leading-[14px] ${
-                    allSitesState === 'granted'
-                      ? 'font-semibold text-live'
-                      : 'font-medium text-muted-foreground'
-                  }`}
-                  // `granted` is the only state with words left, and the
-                  // glyph above already carries them, so this span never
-                  // reaches the accessibility tree. It is kept rather than
-                  // branched away because the slot around it must not move.
-                  aria-hidden={allSitesState === 'granted' || undefined}
-                >
-                  {/* The `off` state said "The list below applies" here until
-                      2026-08-20 (owner's call). It was a mode description on a
-                      row whose switch already says the mode, in the state the
-                      popup opens in — so it was the line most often on screen
-                      and the least often read.
+          {/* The remedy, on the same line as the label since 2026-08-21.
 
-                      The empty band it leaves is deliberate and costs nothing
-                      new: this slot is `h-6` because it must hold the Grant
-                      button in the `pending` state, and it already rendered
-                      empty while the `<all_urls>` probe was out. Shrinking the
-                      bar in `off` instead would move everything below it every
-                      time the switch is flipped, which is the reflow the
-                      Interface rule exists to stop. */}
-                  {allSitesState === 'granted' ? 'Access granted' : ''}
-                </span>
-              )}
-            </span>
-          </div>
+              It had a reserved second line of its own, which made this row
+              60px in every state — the same shape as a site row, deliberately,
+              because it is the same kind of object. The owner traded that for
+              the vertical space: the rail's scarcest resource is the site
+              list, and this row was spending 24px on a band that says nothing
+              in the state the popup opens in.
+
+              `granted` says nothing here at all. The globe above already
+              carries "Access granted" as its accessible name, so a word beside
+              it would be the same fact twice — and the row is narrow now.
+
+              **The WIDTH is still reserved, and that is not the same rule.**
+              Without it the switch slides 50px left the instant the mode goes
+              pending — under the pointer that just pressed it, which is worse
+              than the vertical movement this change accepted. It is paid out
+              of slack rather than out of the label: the label's text measures
+              46.8px against the 67px this leaves it.
+
+              The only control here that asks the browser for anything. The
+              switch sets the mode and stops (App.tsx): `<all_urls>` is the
+              largest grant this extension can request, so it is spent when a
+              button labelled Grant is pressed, never as a side effect of a
+              switch moving. */}
+          <span className="flex h-6 w-[52px] shrink-0 items-center justify-end">
+            {allSitesState === 'pending' ? (
+              <Button {...GRANT_BUTTON_PROPS} onClick={onGrantAllSites}>
+                Grant
+              </Button>
+            ) : null}
+          </span>
 
           <Switch
             aria-label="Apply to every site"
@@ -801,31 +782,33 @@ export function ScopeRail({
             turning it back off returns to. It is shown as what it is — still
             there, not in use — and each row says so on its own second line.
 
-            The height stops at 174px, which is deliberately NOT a multiple of
-            the row pitch. The rows are 60px (8px padding above and below,
-            matching the all-sites bar, since the standard `xs` Grant made the
-            second line 24px) and the gap is 6, so two whole rows occupy 132px
-            and the third begins there — the cap sits 42px into it, slicing
-            that row through its second line. The cut row is the affordance
-            saying the list continues regardless of exactly how much of it
-            shows; 132 or 192 would each show a whole number of rows and say
-            nothing.
+            The height stops at 200px. **The rows stopped having one pitch on
+            2026-08-21**, when they lost their fixed heights: a granted or
+            unusable row is 50px and a pending one is 60, so with the 6px gap
+            the pitch is 56 or 66 depending on what the list holds. Measured in
+            the built popup at that cap:
 
-            **The cap went 108 -> 174 on 2026-08-20, and the 66px came from
-            two things leaving the rail rather than from a preference.** The
-            readout moved to the panel head (see the card above) and the run
-            state gave up an `mt-3` that had only ever separated it from that
-            readout. Measured in the built popup at eight sites, before and
-            after: the leftover the request-types section was absorbing through
-            its `mt-auto` read 73px, and this cap took 66 of it. What is left
-            is 19px of real slack, which is deliberate — the last time this
-            rail was spent to zero it cost a redesign. The remaining 19 would
-            not buy a better shape anyway: 186 leaves 54px of the third row
-            showing, near enough to a whole one to stop reading as a slice,
-            and 192 is exactly three rows, which is the on-pitch case the
-            paragraph above rejects. Re-measure both numbers before spending
-            them; every figure in this docblock has been overtaken at least
-            once.
+              all granted  rows at 0-50, 56-106, 112-162, 168-218
+                           -> three whole, and 32px of the fourth
+              all pending  rows at 0-60, 66-126, 132-192, 198-258
+                           -> three whole, and **2px** of the fourth
+
+            **So the cut row — the affordance that says the list continues —
+            is much weaker for a pending list than for a granted one, and no
+            single cap can serve both pitches.** That is a real cost of the
+            row-height change and it is stated here rather than left in the
+            arithmetic: before the change, 174px with uniform 60px rows sliced
+            the third row 42px in, whatever the states were. A code reviewer
+            found this; the assertion in header-modification.spec.ts had been
+            written against the granted arithmetic while its own fixture
+            renders four pending rows.
+
+            The 19px between 200 and the 219 the rail could give is the price
+            of keeping any slice at all in the granted case — 219 lands one
+            pixel past the fourth row and shows four whole ones. Re-measure
+            before spending any figure here; every number in this docblock has
+            been overtaken at least once, and two of them were overtaken while
+            still being quoted by other files.
 
             **Superseded — this paragraph records the 127 -> 108 move, whose
             arithmetic the 108 -> 174 move above replaced.** Read it as
@@ -917,7 +900,7 @@ export function ScopeRail({
             `empty:hidden` so a rail with no sites yet does not carry a 6px gap
             for a list with nothing in it. */}
         <div
-          className="scroll-list flex max-h-[174px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
+          className="scroll-list flex max-h-[200px] flex-col gap-1.5 pr-1 pl-3 empty:hidden"
           data-testid="site-list"
         >
           {domains.map((stored) => {

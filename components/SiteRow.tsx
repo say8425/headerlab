@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Ban, CircleCheck, CircleMinus, Trash2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useArmed } from '@/lib/view/useArmed';
 import type { Diagnostic } from '@/lib/model/types';
@@ -57,8 +56,8 @@ export interface SiteRowProps {
 /**
  * How to fix an unusable entry, stated once.
  *
- * Two places say it — the invalid Badge's `title`, for a pointer that hovers,
- * and the row's accessible name below, for a reader that cannot see the Badge
+ * Two places say it — the second line's `title`, for a pointer that hovers,
+ * and the row's accessible name below, for a reader that cannot see the line
  * at all. It is the second sentence of `filterDiagnostics`'s own
  * `invalid-domain` message, and it is repeated here rather than read from the
  * diagnostic because the diagnostic never reaches this row: `invalid-domain`
@@ -73,11 +72,10 @@ const UNUSABLE_REMEDY = 'Use a bare hostname like example.com.';
  * What each row state is called when it cannot be seen.
  *
  * `unusable` carries the remedy as well as the name, and that is the whole
- * accessibility budget for this state. The word "invalid" on screen is
- * `aria-hidden` (it only repeats what this label already says) and its
- * `title` reaches a pointer and nothing else — so without the remedy here, a
- * reader who cannot see the row would be told that something is wrong and
- * never told what to do about it. The rail-wide note this replaced said it in
+ * accessibility budget for this state. The second line is `aria-hidden` (it
+ * only repeats what this label already says) and its `title` reaches a pointer
+ * and nothing else — so without the remedy here, a reader who cannot see the
+ * row would be told that something is wrong and never told what to do about it. The rail-wide note this replaced said it in
  * rendered text that any reader could reach; losing that when the note went
  * would be the silent half of a fix.
  */
@@ -95,16 +93,41 @@ type RowState = keyof typeof STATE_LABEL;
  *
  * The line exists in every state — see the markup for why — so the question is
  * only what fills it. A blank band inside a card reads as a rendering fault,
- * and these two states each have something true to put there.
+ * and every state but one has something true to put there.
  *
- * `pending` and `unusable` are absent on purpose: a pending row's line is the
- * button, and an unusable row's line is the invalid Badge below — the owner's
- * ruling that the error lives on the row that holds the bad value, not in a
- * band above the list.
+ * `pending` is the exception and is absent on purpose: that row's line is the
+ * Grant button. `unusable` used to be too, when its line was a destructive
+ * Badge reading "invalid"; the owner replaced that with plain red text on
+ * 2026-08-21, so it is a string like the others now — the error still lives on
+ * the row that holds the bad value rather than in a band above the list.
+ *
+ * **Every string here is measured against the space the TEXT gets**, which is
+ * 135px: `site-line` is 155 and spends 20 of it on `pl-5`. Measured in the
+ * built popup — "Access granted" 85, "Use a bare hostname" 115,
+ * "All sites is on" 70.7. The markup makes overflow impossible rather than
+ * unlikely, but a string that needed truncating would be a string nobody can
+ * read, so the headroom is the actual requirement.
  */
-const STATE_LINE: Record<Exclude<RowState, 'pending' | 'unusable'>, string> = {
+const STATE_LINE: Record<Exclude<RowState, 'pending'>, string> = {
   granted: 'Access granted',
-  idle: 'Not in use while All sites is on',
+  // **The budget is 135px, not 155.** `site-line` measures 155 but carries
+  // `pl-5`, so the text gets 135 — a distinction the first version of this
+  // comment missed, which made every headroom figure here 20px too generous
+  // and made "Not in use while All sites is on" (158.8px) look 3.8px over
+  // when it was 23.8.
+  //
+  // 70.7px here, so ~47% headroom. "Overridden by All sites" (121px) fitted
+  // too, but with 10% — and this suite's own notes record CI's Linux fallback
+  // fonts differing by enough to change a note's line count, against an
+  // exact-zero-tolerance truncation check. The icon's accessible name already
+  // says "Not in use"; what this line owes the reader is the *reason*, and the
+  // reason is short.
+  idle: 'All sites is on',
+  // The remedy rather than the complaint. Red text and the barred glyph
+  // already say the value is wrong; repeating "invalid" spends the line on
+  // what is visible and leaves the fix in a `title` a pointer has to find.
+  // 115px against the 135px budget — 15% headroom, the tightest of the three.
+  unusable: 'Use a bare hostname',
 };
 
 /** The glyph each row state wears, next to the hostname. */
@@ -126,9 +149,9 @@ const STATE_TONE = {
 /**
  * The second line's colour and weight, mirroring the mockup's `.te-l2--live`
  * — severity is said in the line itself, not only on the icon beside it.
- * `pending` and `unusable` are never *seen*: those lines hold the Grant
- * button and the invalid Badge. Both stay in the record so the template
- * below can index by any state without a branch that cannot render.
+ * `pending` is never *seen*: that line holds the Grant button. It stays in
+ * the record so the template below can index by any state without a branch
+ * that cannot render.
  */
 const STATE_LINE_TONE: Record<RowState, string> = {
   granted: 'font-semibold text-live',
@@ -149,9 +172,9 @@ const STATE_LINE_TONE: Record<RowState, string> = {
  * amber — this palette's "something needs you", the same tone the row's glyph
  * and the readout's clause already wear. A neutral button next to an amber
  * row asked the reader to do the colour maths; the remedy now wears the state
- * it answers. The `xs` size is 24px, which is why the second line reserves
- * `h-6` below: the line is sized to the tallest thing it can hold, and that
- * is this button.
+ * it answers. The `xs` size is 24px, which is why a pending row is 60px where
+ * every other state's is 50: since 2026-08-21 the line is the size of what is
+ * in it, and this button is the tallest thing it can be.
  */
 export const GRANT_BUTTON_PROPS = {
   variant: 'pending',
@@ -194,7 +217,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
    * contrast pair and three tests were describing it. An unusable site is
    * still explained in words, but not through this: its diagnostic carries a
    * `profileId` and no `host`, so it never reaches `byHost` at all. What the
-   * reader gets is on the row itself — the `invalid` Badge below and the
+   * reader gets is on the row itself — the red second line below and the
    * remedy in this row's accessible name — since the rail-wide scope note
    * that used to carry it is gone (2026-08-19).
    */
@@ -251,12 +274,12 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
     <div
       ref={rowRef}
       tabIndex={-1}
-      className="flex h-[60px] items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
+      className="flex items-center gap-1 rounded-lg bg-card pt-2 pr-1.5 pb-2 pl-2.5 shadow-sm"
       data-testid="site"
       data-state={state}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex h-4 items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           {/* Was `aria-hidden`, which left a granted row and an unusable row
               with identical accessible names — the colour was the only thing
               telling them apart. Lives on line 1, unconditionally: it is the
@@ -277,23 +300,30 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           </span>
         </div>
 
-        {/* The row's second line, present in **every** state and always the
-            same height.
+        {/* The row's second line, present in **every** state and sized to
+            whatever that state puts in it.
 
-            It used to render only when a permission was pending, which made
-            the Grant button's arrival add 30.5px to the row — pushing the
-            sites under it, the add field and the whole rail below down by
-            that much, at the moment the user was reading the row that had
-            just changed. A control appearing must not resize what holds it
-            (CLAUDE.md, Interface), so the line is sized to the tallest thing
-            it can hold, which is the button, and the other states occupy
-            that space rather than removing it.
+            It carried a fixed `h-6` until 2026-08-21 — the shadcn `xs` Grant
+            button's height, reserved in every state so the button's arrival
+            could not resize the row. The owner traded that away: the rail's
+            scarcest resource is vertical space in the site list, and a
+            granted row was spending 10px of every row on a band sized for a
+            button it does not have. Rows are now 50px granted and 60px
+            pending, and the list holds more of them.
 
-            It is not reserved by rendering a hidden button. An invisible
-            control is still in the accessibility tree and still lands in the
-            tab order, which would put an unpressable Grant between the
-            remove control of one row and the host of the next. The space is
-            reserved; the control is not.
+            **So Grant appearing does grow its own row by 10px, and the rows
+            below it move.** That is the cost, stated where it is paid rather
+            than left for someone to discover. What bounds it: the growth is
+            one row's worth and it happens on the row the user just clicked,
+            never on an unrelated one, and nothing above the list moves at
+            all. The e2e guard that promised otherwise was rewritten in the
+            same commit rather than left describing a rule this no longer
+            keeps — CLAUDE.md, Interface, "before removing a reservation".
+
+            It is still not reserved by rendering a hidden button. An
+            invisible control is still in the accessibility tree and still
+            lands in the tab order, which would put an unpressable Grant
+            between the remove control of one row and the host of the next.
 
             The words are `aria-hidden` because the icon on line 1 already
             carries the same fact as its accessible name — without that,
@@ -321,17 +351,24 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
           the whole explanation. */}
         {/* The invalid mark, owner's ruling (2026-08-19): the error lives on
             the row that holds the bad value, in the slot a pending row offers
-            its remedy — one word on the design system's destructive Badge,
-            with the fix in the `title` for a pointer that asks. The rail-wide
-            band this replaces listed every bad entry under one message; the
-            row already knows which entry it is. `aria-hidden` because the
-            icon on line 1 already carries the state as its accessible name —
-            without that, the row would announce "Unusable site" and "invalid"
-            back to back. That label carries the `title`'s remedy too, for the
-            same reason: a `title` on an `aria-hidden` span is announced to
-            nobody, so hiding the word without moving the sentence would have
-            left a reader who cannot see this Badge with no way to reach it. */}
-        <span className="flex h-6 items-center pl-5" data-testid="site-line">
+            its remedy. It was a destructive Badge reading "invalid" until
+            2026-08-21, when the owner asked for plain red text instead — a
+            chip inside a 14px line is a second box with its own height, and
+            the row was 56px against its neighbours' 50 because of it. The
+            words changed with the shape: the line says the remedy now rather
+            than the complaint, since the red and the barred glyph already
+            carry the complaint.
+
+            The rail-wide band this replaces listed every bad entry under one
+            message; the row already knows which entry it is. `aria-hidden`
+            because the icon on line 1 already carries the state as its
+            accessible name — without that, the row would announce "Unusable
+            site" and the remedy back to back. That label carries the `title`'s
+            remedy too, for the same reason: a `title` on an `aria-hidden` span
+            is announced to nobody, so hiding the words without moving the
+            sentence would have left a reader who cannot see this line with no
+            way to reach it. */}
+        <span className="flex items-center pl-5" data-testid="site-line">
           {awaitingGrant !== undefined && state !== 'unusable' && state !== 'idle' ? (
             <Button
               {...GRANT_BUTTON_PROPS}
@@ -357,18 +394,20 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
             >
               Grant
             </Button>
-          ) : state === 'unusable' ? (
-            <Badge
-              variant="destructive"
-              data-testid="site-invalid"
-              title={UNUSABLE_REMEDY}
-              aria-hidden="true"
-            >
-              invalid
-            </Badge>
           ) : (
             <span
-              className={`text-[11px] leading-[14px] ${STATE_LINE_TONE[state]}`}
+              // `truncate` is the rule, not the copy. Every string this line can
+              // hold is short enough to fit today — each one measured against the
+              // 155px box — but a string is prose and prose grows, and one that
+              // wrapped made its row 14px taller than the rows around it. This
+              // makes wrapping impossible rather than unlikely: the line is one
+              // line whatever it says, so the row's height cannot follow its text.
+              className={`truncate text-[11px] leading-[14px] ${STATE_LINE_TONE[state]}`}
+              data-testid={state === 'unusable' ? 'site-invalid' : undefined}
+              // The whole sentence, with its example, for a pointer that asks.
+              // The accessible name on line 1 carries it too, which is why this
+              // span can stay `aria-hidden` without stranding anyone.
+              title={state === 'unusable' ? UNUSABLE_REMEDY : undefined}
               aria-hidden="true"
             >
               {state === 'pending' ? '' : STATE_LINE[state]}

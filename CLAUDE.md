@@ -770,7 +770,7 @@ domain, and that call is transactional — it would reject every other rule in t
 Neither half is safe alone, which is why the old code chose the hammer.
 A skipped entry is still *said*: `invalid-domain` is raised for any unusable entry now,
 as a `warning` when its neighbours still apply and an `error` when nothing is left, and
-the row itself wears an `invalid` Badge.
+the row itself says the remedy in red on its own second line.
 
 **Applying everywhere is a mode, not an empty list.** `filter.domains: []` used to mean
 both "not scoped yet" and "deliberately everywhere", and the standing warning about it
@@ -787,7 +787,7 @@ the count is not, which is the half to defend: `blocked` exists in `ruleTally` s
 line cannot read "no problems" while zero rules go out. Measured before dropping it —
 the line has 171px, one blamed clause runs 142-176px, and it truncated the moment a
 second segment joined. Each cause is now said where it can be acted on: on the row
-(an `invalid` Badge on the row that holds the bad value), on the run-state switch, and in
+(red text saying the remedy, on the row that holds the bad value), on the run-state switch, and in
 the readout's own "N sites need access" clause. `suppressionReason` still returns `'no-scope'` and
 `lib/bridge/query.ts` still ships it to the CLI, because that is a **`SuppressionReason`**
 (`lib/compile/suppression.ts`) and always was; the identically-spelled `DiagnosticKind`
@@ -828,20 +828,98 @@ badge that widens a header — each moves everything downstream by a few pixels 
 moment the user is reading it, and in a popup this size that is most of the screen.
 Hide-and-show reflow is the single thing that most makes an interface feel unfinished.
 
-**The rule has one recorded carve-out, and it is not a licence to make more.** A
-reservation costs its space in every state, including the states where nothing is
-wrong — which is most of them. Twice that trade came out the other way when it was
-looked at on screen rather than reasoned about: the readout's second line reserved a
-blank 20px under the big number, and `AddSiteField` reserved a 15px line for a
-duplicate-site complaint. The first was fixed without giving anything up, by making
-the line always say something true (`no problems`) so its box never changes; that is
-the shape to reach for first. The second had no such answer — "no duplicate" is noise
-— so the reservation went and the movement came back, bounded by a guarantee that
-survives it: the note is exactly one line whatever the hostname's length, truncated
-with `title` carrying the full value. **Before removing a reservation, look for the
-first shape.** If there is none, say in the diff what the movement costs and what
-bounds it, and delete the guard that promised otherwise rather than leaving it
-describing nothing.
+**The rule has three recorded carve-outs, and they are not a licence to make more.**
+A reservation costs its space in every state, including the states where nothing is
+wrong — which is most of them, and in this rail that cost is charged to the site
+list. Each time the trade was looked at on screen rather than reasoned about, it came
+out the other way:
+
+1. The readout's second line reserved a blank 20px under the big number. Fixed
+   **without giving anything up**, by making the line always say something true
+   (`no problems`) so its box never changes. **That is the shape to reach for
+   first.**
+2. `AddSiteField` reserved a 15px line for a duplicate-site complaint. No such
+   answer — "no duplicate" is noise — so the reservation went and the movement came
+   back, bounded by a guarantee that survives it: the note is exactly one line
+   whatever the hostname's length, truncated with `title` carrying the full value.
+3. **The rail's rows themselves, 2026-08-21, and this one is the largest.** Both the
+   site rows and the all-sites row reserved a second line sized to the Grant button
+   they might never hold. `h-[60px]`, `h-4` and `h-6` are gone from both; the
+   all-sites row lost that line entirely, with Grant moving up beside the switch.
+   Measured, and re-measured after the follow-up fix below: the all-sites row
+   60px → **40px in all four of its states**, a site row 60px → 50 granted /
+   50 unusable / 60 pending, and the list's cap 174px → 200px, which is two
+   whole rows visible becoming three. What it costs: Grant arriving grows its
+   own row and the rows under it move. The first pass left the all-sites row
+   content-sized too — 34.39 off, 40 awaiting — which moved the whole list on
+   the one control whose own click causes it; the fix was a height on the 52px
+   slot that already reserved Grant's width, so the reservation covers both
+   axes of the one box that varies.
+
+**Before removing a reservation, look for the first shape.** If there is none, say in
+the diff what the movement costs and what bounds it, and rewrite the guard that
+promised otherwise rather than leaving it describing nothing — three were rewritten
+for (3), each into a sharper claim than the one it replaced. The reflow guard now
+*bounds* the middle instead of freezing it, and writing that bound is what found a
+second contributor nobody had counted: the add field moved 9.61px where the site row
+had gained 4, because the all-sites row was growing 34.39 → 40 on the same toggle.
+
+**A state-dependent line is ONE line, always — owner's rule, 2026-08-21.** This is
+what replaced the reservation in (3), and it is the rule to reach for whenever a box's
+height would otherwise follow its text. Three parts, and all three are load-bearing:
+
+1. **Make wrapping impossible, not unlikely.** `truncate` on the line
+   (`white-space: nowrap` and an ellipsis) means no string can ever add a second line,
+   so the row's height cannot follow its copy. Short copy alone is not the rule — copy
+   is prose and prose grows.
+2. **Measure every string against the space the TEXT gets, not against the box.**
+   `site-line` measures 155px and spends 20 of it on `pl-5`, so the budget is
+   **135px**. Getting this wrong is not hypothetical: the first version of this
+   rule said 155, which would have licensed a ~150px string that clips, and it
+   made the string that started all this look 3.8px over when it was 23.8.
+   Measured in the built popup: `Access granted` 85px (37% headroom),
+   `Use a bare hostname` 115px at 600 weight (15%), `All sites is on` 70.7px
+   (47%). The last of those replaced `Overridden by All sites` (121px) **because
+   10% headroom is not enough** — this suite's own notes record CI's Linux
+   fallback fonts changing a note's line count, and the truncation check is
+   exact-zero-tolerance. A truncated line is an unreadable line, so (1) is a
+   floor and this is the actual requirement.
+3. **Guard both halves.** One line *and* not clipped. `measureLines` in
+   `tests/e2e/header-modification.spec.ts` reports `truncated` for exactly this.
+
+**No chips in that line.** The unusable state wore a destructive Badge reading
+`invalid` until this rule arrived; a chip inside a 14px line is a second box with its
+own height, and it stood that row at 56px against its neighbours' 50. It is plain red
+text now, and it says the *remedy* (`Use a bare hostname`) rather than the complaint —
+the colour and the barred glyph already carry the complaint, and the full sentence with
+its example stays in the `title`.
+
+**The measurement that started it:** `Not in use while All sites is on` was 158.8px
+against the **135px** the text actually gets — **23.8px over**, so it wrapped, and that
+one row stood 14px taller than every other row in the list. Nothing failed; it just
+looked wrong.
+
+**That "23.8" was "3.8" here until a code review**, because this section had measured
+against `site-line`'s 155px outer box and forgotten its own `pl-5`. The error was not in
+the fix — the string really was too long and the row really was 14px taller — but in the
+budget the rule then handed the next person, which was 20px more generous than the box.
+A measurement quoted without the padding it sits inside is the same class of defect as a
+measurement quoted without its state, which the rail-leftover table below already
+records four instances of.
+
+**Covering that state needed its own test, and finding out why is the transferable
+part.** The overflow spec pins each row state's line height — and its fixture has
+all-sites *off*, so it renders no `idle` row and never saw this string at all. Putting
+the over-long copy back left it green. The `idle` case is asserted in the reflow guard
+instead, which toggles all-sites and therefore has such a row. **Before trusting a
+guard over a state, check the fixture actually reaches that state**; a mutation that
+does not turn a test red is the only thing that tells you.
+
+**Width is a different rule from height, and (3) kept it.** The all-sites row still
+reserves the Grant button's *width*, because without it the switch slides 50px left
+the instant the mode goes pending — under the pointer that just pressed it. That
+reservation is paid out of slack rather than out of the label: the label's text
+measures 46.8px against the 67px it leaves.
 
 This applies to any element whose presence is state-dependent, which in the rail is
 most of them: Grant, the pending and unusable notes, the tooltip, the mode switch's
@@ -892,9 +970,16 @@ height):
 
 | state of the rail                                  | site list | real leftover |
 | -------------------------------------------------- | --------- | ------------- |
-| no notes above the list                            | 108px     | **28px**      |
+| no notes above the list  (re-measured 2026-08-21)  | 200px     | **22px**      |
 | one error note (`sync-error` or `icon-error`)      | ~43–61px  | **0px**       |
-| both error notes                                   | 0px       | **0px**       |
+| both error notes                                   | ~63px     | **0px**       |
+
+**Only the first and last rows survive the 2026-08-21 row-height change**, and they
+were re-measured for it — 108→200 as the cap rose, and 26→63 under both notes because
+there is more list to give away before the rail runs out. The middle row is from
+before and has not been re-taken; read it as an order of magnitude, not a figure. The
+list under both notes is no longer 0: it yields, it is not erased, which is what
+`tests/e2e/header-modification.spec.ts` bounds rather than pins.
 
 Under the states that read 0, the shortfall was paid by *overprinting* — the section's
 `overflow` was `visible`, so the add field painted across the request-types heading
@@ -1144,9 +1229,11 @@ that no longer renders, passing while describing nothing.
   *reservation* problem stands. **A fourth offender was retired rather than fixed, and
   how is the reusable part**: the unusable-site note was an appearing note in this same
   rail, and it is gone (2026-08-19) because its message moved onto the object it was
-  about — the row holding the bad value now wears an `invalid` Badge in the slot a
-  pending row keeps for its Grant button, so the note's whole cost became zero without
-  a reservation being added anywhere. That is a third fix shape, alongside the two
+  about — the row holding the bad value says the remedy in red on its own second line,
+  in the slot a pending row gives its Grant button, so the note's whole cost became zero
+  without a reservation being added anywhere. (It was an `invalid` Badge until
+  2026-08-21, when the owner replaced the chip with plain text: a chip inside a 14px line
+  is a second box with its own height, and it stood that row 6px above its neighbours.) That is a third fix shape, alongside the two
   below: not "reserve the space" and not "fold into an existing row", but *re-home the
   message on the thing it names*. It only works when such a thing exists on screen —
   which is exactly what `sync-error` and `icon-error` lack (they are about the rule set

@@ -144,7 +144,12 @@ export function RulePanel({
                 <b className="font-semibold text-foreground">{tally.live}</b> of {tally.total} live
               </span>
               {detailLine !== '' && (
-                <span className="min-w-0 truncate" data-testid="subcount" title={detailLine}>
+                /* `pr-2` is the rule rows' own right padding (RuleCard's
+                   `pr-2`), so this line stops where their content stops rather
+                   than running to the panel's edge. It costs the truncation
+                   8px, which is the intended trade: the `title` carries the
+                   whole string either way. */
+                <span className="min-w-0 truncate pr-2" data-testid="subcount" title={detailLine}>
                   · {detailLine}
                 </span>
               )}

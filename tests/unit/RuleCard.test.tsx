@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RuleCard } from '@/components/RuleCard';
@@ -40,6 +40,52 @@ function renderCard(
 }
 
 const name = () => screen.getByRole('textbox', { name: 'Header name' });
+
+/**
+ * The IME guard, on the two call sites the AddSiteField test does not reach.
+ *
+ * `isEnterKey` and `isEscapeKey` are shared, so the predicate itself is covered
+ * by keys.test.ts — what these two cover is the *wiring*: reverting either
+ * handler here to a bare `e.key === …` turned nothing red until this existed,
+ * which a code review pointed out.
+ *
+ * `fireEvent` rather than `userEvent`: composition is not something userEvent's
+ * keyboard model produces, and the whole defect lives in a field of the native
+ * event.
+ */
+describe('an IME composition on the header name', () => {
+  it('does not commit on the keydown that ends the composition', async () => {
+    const onPatch = vi.fn();
+    renderCard({ name: '' }, { onPatch });
+    await userEvent.type(name(), 'X-Trace');
+
+    // Absence before presence: asserting only the commit at the end would pass
+    // a handler that never fired at all.
+    fireEvent.keyDown(name(), { key: 'Enter', isComposing: true });
+    expect(onPatch, 'the composition-ending Enter is not a commit').not.toHaveBeenCalled();
+
+    fireEvent.keyDown(name(), { key: 'Enter' });
+    expect(onPatch).toHaveBeenCalledWith({ name: 'X-Trace' });
+  });
+
+  it('does not discard the draft on the keydown that cancels the composition', async () => {
+    // Escape's version of the same defect, and the more expensive half: it
+    // throws away what somebody typed rather than sending it early.
+    const onPatch = vi.fn();
+    renderCard({ name: '' }, { onPatch });
+    await userEvent.type(name(), 'X-Trace');
+
+    // Plain vitest matchers only — `@testing-library/jest-dom` is not installed
+    // here (CLAUDE.md, Testing), so no `toHaveValue`.
+    const draft = () => (name() as HTMLInputElement).value;
+
+    fireEvent.keyDown(name(), { key: 'Escape', isComposing: true });
+    expect(draft(), 'a composing Escape cancels the syllable, not the draft').toBe('X-Trace');
+
+    fireEvent.keyDown(name(), { key: 'Escape' });
+    expect(draft()).toBe('');
+  });
+});
 const value = () => screen.getByRole('textbox', { name: 'Header value' });
 
 /**
