@@ -95,8 +95,8 @@ headerlab state get --json | jq .state | headerlab state set - --force
   그 제약을 우회하지 않고 지킵니다.
 - **CLI 는 브리지도 켤 수 없습니다.** `chrome.permissions.request()` 는 해결되려면 사용자
   제스처를 요구합니다. `headerlab bridge enable` 은 없고, 앞으로도 동작하는 형태로는 생기지
-  않습니다: 아무도 스위치를 켜지 않은 브리지 옆의 `bridge install` 은 연결되지 않을
-  파일을 쓸 뿐입니다.
+  않습니다: `bridge install` 은 매니페스트를 쓸 뿐이고, 사람이 스위치를 켜기
+  전까지는 아무것도 연결되지 않습니다.
 - **기기 밖으로 나가는 것은 없습니다.** CLI·호스트·확장은 권한이 제한된 사용자별 디렉터리의
   유닉스 도메인 소켓으로만 이야기하며, 네트워크 소켓은 쓰지 않습니다. **`$TMPDIR` 이
   아니고**, 그건 의도입니다: `socketDir()` 은 각 프로세스가 물려받은 `$TMPDIR` 을 읽는 대신

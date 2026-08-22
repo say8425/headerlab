@@ -101,8 +101,8 @@ documento.
   conceder un permiso, y ese límite se respeta en lugar de rodearse.
 - **La CLI tampoco puede encender el puente.** `chrome.permissions.request()` necesita un
   gesto del usuario para resolverse. No hay `headerlab bridge enable` y no habrá uno que
-  funcione: `bridge install` junto a un puente que nadie ha activado con el interruptor solo
-  escribe ficheros que nunca conectan.
+  funcione: `bridge install` solo escribe el manifiesto, y nada conecta hasta que una
+  persona activa el interruptor.
 - **Nada sale de la máquina.** CLI, host y extensión solo hablan por un socket de dominio
   Unix en un directorio por usuario con permisos restringidos — nunca por un socket de red.
   **No `$TMPDIR`**, y la diferencia es deliberada: `socketDir()` le pregunta al sistema

@@ -98,8 +98,8 @@ this document out.
   that limit is kept rather than worked around.
 - **The CLI cannot turn the bridge on either.** `chrome.permissions.request()` requires a
   user gesture to resolve. There is no `headerlab bridge enable` and there will not be one
-  that works: `bridge install` beside a bridge nobody has switched on just writes
-  files that never connect.
+  that works: `bridge install` writes the manifest and nothing else, and nothing
+  connects until a person turns the switch on.
 - **Nothing leaves the machine.** CLI, host and extension only ever talk over a unix domain
   socket in a permission-restricted, per-user directory — never a network socket. **Not
   `$TMPDIR`**, deliberately: `socketDir()` asks the OS (`getconf DARWIN_USER_TEMP_DIR`, by
