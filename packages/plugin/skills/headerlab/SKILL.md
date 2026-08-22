@@ -138,23 +138,30 @@ outstanding — do not imply the site is already active.
 
 ## Error codes
 
-Besides `ok:false` with a message, `error.code` is one of: `usage` (nothing
-or malformed global flags), `unknown-command`, `invalid-args` (a known
-command with a bad shape — and also a `state set` or `--value-file` source
-that could not be read, was too large, or was not valid JSON: the CLI
-refuses those itself, before anything reaches the socket, so they exit `2`
-like any other input it rejected), `bridge-off`, `multiple-bridges`,
-`timeout` (the bridge accepted the connection but never replied),
-`bridge-error`/`bridge-closed` for other transport failures, and eight
-more — but which commands can produce which is not uniform, because
+Besides `ok:false` with a message, `error.code` is one of the names below —
+though one narrow transport failure replies with no `code` at all, which is
+a further reason to branch on the exit code rather than on this field:
+`usage` (nothing or malformed global flags, and `state set` without
+`--force`, which off a terminal is refused rather than prompted for),
+`unknown-command`, `invalid-args` (a known command with a bad shape; a
+`state set` source that could not be read, was too large, or was not valid
+JSON; or a `--value-file` that could not be read — the CLI refuses all of
+those itself, before anything reaches the socket, so they exit `2` like any
+other input it rejected), `bridge-off`, `multiple-bridges`, `timeout` (the
+bridge accepted the connection but never replied),
+`bridge-error`/`bridge-closed` for other transport failures, and the rest —
+but which commands can produce which is not uniform, because
 `bridge install|uninstall|status` never reach the socket at all (see
 above), while every other command does:
 
-- Seven come from the extension itself, only ever in reply to a command
-  that actually reached it over the socket — `site`/`rule`/`pause`/
-  `resume`/`state set`. `bridge install|uninstall|status` cannot produce
-  any of them; do not go looking for them there. Every one of the seven
-  exits `1` — the extension refused the request — never `2`.
+- These come from the extension itself, only ever in reply to a command
+  that actually reached it over the socket — the writes
+  `site`/`rule`/`pause`/`resume`/`state set`, and the reads `site ls`/
+  `rule ls`/`state get`/`status` too, which answer from the same stored
+  bytes and fail the same way when those bytes do not validate.
+  `bridge install|uninstall|status` cannot produce any of them; do not go
+  looking for them there. Every one of them exits `1` — the extension
+  refused the request — never `2`.
   - `unknown-rule` — no rule carries the id you named (`rule rm`,
     `rule toggle`). Ask `rule ls` for the ids that exist rather than
     guessing a second time.
@@ -166,10 +173,16 @@ above), while every other command does:
     the payload rather than overwriting bytes it cannot make sense of.
     Fix the payload; the stored state is untouched and still readable
     with `state get`.
-  - `invalid-command` — the extension could not parse the command, or
-    has no handler for it. That means the CLI and the extension disagree
-    about the protocol — a version skew between the two halves, not
-    something to rephrase and send again.
+  - `invalid-command` — the extension could not parse the command, or has
+    no handler for it. Usually that means the CLI and the extension
+    disagree about the protocol — a version skew between the two halves,
+    not something to rephrase and send again. **One case is yours to fix,
+    though**, and it is the one an agent causes: an empty argument passes
+    the CLI's own check and the extension's schema rejects it, so
+    `site add ""` — an unset variable expanded into the command — arrives
+    here rather than as `invalid-args`. If an argument you passed was
+    empty or obviously malformed, correct it and send it once more;
+    otherwise read it as skew and stop.
   - `store-unreadable` — the extension's stored state does not match the
     format this version expects, so nothing was applied and nothing was
     overwritten. Tell the person to open the popup and check it themselves,
@@ -184,9 +197,12 @@ above), while every other command does:
     the popup and nothing validates the pattern). Do not look for a
     workaround; report it as a hard no.
 - `install-failed` — the mirror image: only `bridge install` can produce it,
-  never the socket-borne commands. The manifest was written but failed its
-  own verification and was rolled back, so nothing was left behind. Relay
-  the message as given; it already says what Chrome would have said.
+  never the socket-borne commands. Either it refused before writing
+  anything — the host entry is missing, or the launcher could not be
+  composed — or the manifest was written, failed its own verification and
+  was rolled back. Nothing is left behind in any of those. Relay the
+  message as given; it already says what Chrome would have said.
 
-None of these are worth retrying automatically — each names a specific,
-stable condition to report as-is.
+None of these is worth retrying automatically — each names a specific,
+stable condition to report as-is. The single exception is the empty-argument
+case under `invalid-command`, and that is a correction rather than a retry.
