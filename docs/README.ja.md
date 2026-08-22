@@ -195,8 +195,7 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 [#31](https://github.com/say8425/headerlab/issues/31) JSON インポート/エクスポート ·
 [#32](https://github.com/say8425/headerlab/issues/32) タブロック UI ·
 [#33](https://github.com/say8425/headerlab/issues/33) 正規表現スコープ ·
-[#34](https://github.com/say8425/headerlab/issues/34) 手動テーマ切り替え ·
-[#35](https://github.com/say8425/headerlab/issues/35) ブリッジの残りのコマンド。
+[#34](https://github.com/say8425/headerlab/issues/34) 手動テーマ切り替え。
 
 ## アーキテクチャ
 

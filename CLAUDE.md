@@ -1363,7 +1363,8 @@ that no longer renders, passing while describing nothing.
   snapshot-before-every-raw-write and the `state snapshots`/`state restore
   <id>` that would have read it back because the owner ruled against them on
   2026-08-22 (#35, closed as not planned). Design spec §2 and §3 promised
-  both and have been corrected. **The consequence is not softened by the
+  both and now record the decision beside the promise — that file keeps its
+  original text on purpose, so nothing there was deleted. **The consequence is not softened by the
   decision: `state set` passes zod validation and nothing else, so a raw
   write cannot be undone from the CLI.** What stands between a mistake and
   the stored bytes is that a payload failing validation is refused whole

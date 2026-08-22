@@ -122,7 +122,10 @@ headerlab pause | resume                    globalPause
 2026-08-16)가 `status`·`state get`·`rule ls` 를, 그리고 여기 적히지도 않은 `site ls` 까지
 한 번에 냈다. 넷은 프로토콜에서 하나의 질의다. 남은 둘은 만들지 않기로 한 것들이다 —
 `diagnostics` 는 `status` 와 같은 것을 답하므로, `state snapshots | restore` 는 위 §2 가
-적은 결정으로. `packages/cli/lib/args.mjs` 의 `parseRule` 은 `add`·`rm`·`toggle` 만 분기하고
+적은 결정으로. 바로 아래 `parseRule` 문장도 같은 날짜의 사실이고 지금은 두 군데가 틀렸다 —
+`parseRule` 은 `ls` 를 분기하고(`packages/headerlab/lib/args.mjs:118`, `parseSite` 도
+`:84`), 여기 적힌 `packages/cli/` 라는 경로 자체가 없다(`packages/` 는 `headerlab` 과
+`plugin` 뿐). `packages/cli/lib/args.mjs` 의 `parseRule` 은 `add`·`rm`·`toggle` 만 분기하고
 `ls` 는 없다. 이름이 `bridge status`
 와 겹치는 `headerlab status` 를 만들 때는 그 둘이 서로 다른 것을 답한다는 점 — 하나는 매니페스트
 설치 상태, 하나는 브리지·프로필·진단 요약 — 을 헷갈리지 않게 짚어야 한다.

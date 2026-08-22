@@ -189,8 +189,7 @@ BCD 가 `mirror` 로 기록하기 때문입니다 — Chrome 을 따라갑니다
 [#31](https://github.com/say8425/headerlab/issues/31) JSON import/export ·
 [#32](https://github.com/say8425/headerlab/issues/32) 탭 락 UI ·
 [#33](https://github.com/say8425/headerlab/issues/33) regex 범위 지정 ·
-[#34](https://github.com/say8425/headerlab/issues/34) 수동 테마 토글 ·
-[#35](https://github.com/say8425/headerlab/issues/35) 브리지의 남은 명령들.
+[#34](https://github.com/say8425/headerlab/issues/34) 수동 테마 토글.
 
 ## 구조
 

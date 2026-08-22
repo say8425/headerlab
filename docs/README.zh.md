@@ -172,8 +172,7 @@ Chrome：
 [#31](https://github.com/say8425/headerlab/issues/31) JSON 导入/导出 ·
 [#32](https://github.com/say8425/headerlab/issues/32) 标签页锁定 UI ·
 [#33](https://github.com/say8425/headerlab/issues/33) 正则范围限定 ·
-[#34](https://github.com/say8425/headerlab/issues/34) 手动主题切换 ·
-[#35](https://github.com/say8425/headerlab/issues/35) 桥接尚未实现的命令。
+[#34](https://github.com/say8425/headerlab/issues/34) 手动主题切换。
 
 ## 架构
 

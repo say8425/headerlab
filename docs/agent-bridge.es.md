@@ -163,6 +163,6 @@ documentado.
 
 De lo que nombraba el §2/§3 del propio diseño, dos cosas no se van a construir. `headerlab
 diagnostics`, porque `status` ya lleva la misma carga y un segundo nombre para una sola
-consulta no es una función. Y el snapshot-antes-de-cada-escritura-cruda que leerían
+consulta no es una función. Y el snapshot-antes-de-cada-escritura-cruda que habrían leído
 `state snapshots`/`state restore <id>`, descartado el 2026-08-22. `state set` valida contra el
 esquema y exige `--force`; no guarda ningún historial.

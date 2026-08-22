@@ -196,8 +196,7 @@ Two of those are worth spelling out:
 Features deliberately not built yet are tracked as issues:
 [#30](../../issues/30) one rule set · [#31](../../issues/31) JSON import/export ·
 [#32](../../issues/32) tab lock UI · [#33](../../issues/33) regex scoping ·
-[#34](../../issues/34) manual theme toggle · [#35](../../issues/35) the bridge's
-remaining commands.
+[#34](../../issues/34) manual theme toggle.
 
 ## Architecture
 
