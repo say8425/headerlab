@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/say8425/headerlab/compare/extension-v1.3.1...extension-v1.4.0) (2026-08-22)
+
+
+### Features
+
+* prepare the Chrome Web Store listing, in five languages ([#54](https://github.com/say8425/headerlab/issues/54)) ([926c6a1](https://github.com/say8425/headerlab/commit/926c6a116d2dfcd2756f319934f94d4d1c1dbfa0))
+* size the rail's rows to their content, and hold each line to one line ([#55](https://github.com/say8425/headerlab/issues/55)) ([d3d5ad3](https://github.com/say8425/headerlab/commit/d3d5ad3b849704b2dff12d70247167e3226723c4))
+
+
+### Bug Fixes
+
+* popup UX review — keep good sites working, move the count out of the rail ([#52](https://github.com/say8425/headerlab/issues/52)) ([7986f1b](https://github.com/say8425/headerlab/commit/7986f1ba1d450d7e77b5ab025b11a725fa6b717a))
+
 ## [1.3.1](https://github.com/say8425/headerlab/compare/extension-v1.3.0...extension-v1.3.1) (2026-08-17)
 
 
