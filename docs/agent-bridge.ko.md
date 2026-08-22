@@ -148,8 +148,8 @@ headerlab state get --json | jq .state | headerlab state set - --force
 매니페스트나 어긋난 id 와 똑같은 메시지로 보고합니다. 하나의 tarball 에서 둘 다 배포하면
 그 실패 양상이 문서가 아니라 구조로 불가능해집니다.
 
-설계 자신의 §2/§3 이 이름 붙인 것 중 둘은 여전히 없습니다: `headerlab diagnostics` 는
-앞으로도 만들지 않습니다 — `status` 가 같은 페이로드를 나르고, 질의 하나에 이름 둘은
-기능이 아닙니다 — 그리고 `state snapshots`/`state restore <id>` 가 읽어갈, 모든 raw
-쓰기 전의 스냅샷도 없습니다 ([#35](https://github.com/say8425/headerlab/issues/35)).
+설계 자신의 §2/§3 이 이름 붙인 것 중 둘은 만들지 않습니다. `headerlab diagnostics` 는
+`status` 가 같은 페이로드를 나르고 질의 하나에 이름 둘은 기능이 아니기 때문입니다.
+그리고 `state snapshots`/`state restore <id>` 가 읽어갔을, 모든 raw 쓰기 직전의
+스냅샷은 2026-08-22 에 만들지 않기로 했습니다.
 `state set` 은 스키마 검증을 하고 `--force` 를 요구하지만, 이력은 남기지 않습니다.

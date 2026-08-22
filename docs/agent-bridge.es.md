@@ -161,9 +161,8 @@ mismo mensaje que usa para un manifiesto rechazado o un id que no casa. Publicar
 el mismo tarball vuelve ese modo de fallo estructuralmente imposible en lugar de meramente
 documentado.
 
-De lo que nombraba el §2/§3 del propio diseño, dos cosas siguen sin existir: `headerlab
-diagnostics`, que no se va a construir porque `status` ya lleva la misma carga y un segundo
-nombre para una sola consulta no es una función, y el snapshot-antes-de-cada-escritura-cruda
-que leerían `state snapshots`/`state restore <id>`
-([#35](https://github.com/say8425/headerlab/issues/35)). `state set` valida contra el
+De lo que nombraba el §2/§3 del propio diseño, dos cosas no se van a construir. `headerlab
+diagnostics`, porque `status` ya lleva la misma carga y un segundo nombre para una sola
+consulta no es una función. Y el snapshot-antes-de-cada-escritura-cruda que leerían
+`state snapshots`/`state restore <id>`, descartado el 2026-08-22. `state set` valida contra el
 esquema y exige `--force`; no guarda ningún historial.

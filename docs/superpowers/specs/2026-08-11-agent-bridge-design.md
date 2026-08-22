@@ -74,11 +74,19 @@ loop" 가 유지된다.
 **통째 쓰기는 검증과 스냅샷을 통과한다.** `state set` 은 zod 를 통과하고 1 MB 이하일 때만
 저장되며, 쓰기 직전 상태가 스냅샷으로 남는다. 검증 실패는 저장하지 않고 거절한다.
 
-**구현 결과: 스냅샷 절반은 지어지지 않았다.** `lib/bridge/port.ts` 의 `state.set` 처리는
-`parseAppState` 검증만 거치고 저장한다 — 쓰기 직전 상태를 남기는 스냅샷도, 그것을 되돌리는
-경로도 코드 어디에도 없다(§3 의 `state snapshots | restore <id>` 도 마찬가지로 없다). README
-는 이 약속을 한 적이 없으므로 밖으로 나간 거짓은 없지만, 이 문서는 있었다. 원문을 지우지
-않고 사실만 옆에 적는다 — 이 저장소의 문서는 기록이다.
+**구현 결과: 스냅샷 절반은 지어지지 않았고, 2026-08-22 에 짓지 않기로 결정됐다.**
+`lib/bridge/port.ts` 의 `state.set` 처리는 `parseAppState` 검증만 거치고 저장한다 — 쓰기
+직전 상태를 남기는 스냅샷도, 그것을 되돌리는 경로도 코드 어디에도 없고(§3 의
+`state snapshots | restore <id>` 도 마찬가지), 앞으로도 생기지 않는다. 그것을 추적하던
+#35 는 `not planned` 로 닫혔다.
+
+그래서 이 절의 첫 문단이 약속한 두 관문 중 남는 것은 검증 하나다. **되돌릴 수 없다는 사실은
+결정으로 없어지지 않으므로 여기 적어 둔다**: 잘못된 `state set` 은 CLI 로 복구할 수 없고,
+사이에 서 있는 것은 검증에 걸린 페이로드를 통째로 거절한다는 것(`invalid-state`, 저장된
+바이트는 그대로)과 터미널이 아닌 곳에서 `--force` 를 요구한다는 것뿐이다.
+
+README 는 이 약속을 한 적이 없으므로 밖으로 나간 거짓은 없지만, 이 문서는 있었다. 원문을
+지우지 않고 사실만 옆에 적는다 — 이 저장소의 문서는 기록이다.
 
 **소켓은 사용자 전용 디렉터리에 0600.** §8.5.
 
@@ -110,7 +118,11 @@ headerlab pause | resume                    globalPause
 `state set` (소켓을 타는 아홉 개)과 `bridge install|uninstall|status` (소켓을 타지 않는
 셋, 매니페스트·런처만 다룬다) 뿐이다. **`headerlab status`, `headerlab diagnostics`,
 `headerlab state get`, `state snapshots | restore`, `headerlab rule ls` 는 하나도 만들어지지
-않았다.** `packages/cli/lib/args.mjs` 의 `parseRule` 은 `add`·`rm`·`toggle` 만 분기하고
+않았다.** — 이 문장은 2026-08-14 의 사실이고 지금은 아니다. `46514f9`(cli-v0.2.0,
+2026-08-16)가 `status`·`state get`·`rule ls` 를, 그리고 여기 적히지도 않은 `site ls` 까지
+한 번에 냈다. 넷은 프로토콜에서 하나의 질의다. 남은 둘은 만들지 않기로 한 것들이다 —
+`diagnostics` 는 `status` 와 같은 것을 답하므로, `state snapshots | restore` 는 위 §2 가
+적은 결정으로. `packages/cli/lib/args.mjs` 의 `parseRule` 은 `add`·`rm`·`toggle` 만 분기하고
 `ls` 는 없다. 이름이 `bridge status`
 와 겹치는 `headerlab status` 를 만들 때는 그 둘이 서로 다른 것을 답한다는 점 — 하나는 매니페스트
 설치 상태, 하나는 브리지·프로필·진단 요약 — 을 헷갈리지 않게 짚어야 한다.

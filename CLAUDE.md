@@ -1357,9 +1357,17 @@ that no longer renders, passing while describing nothing.
   upgrade, or an nvm switch that moves the global prefix. Nothing in Chrome or the
   extension will ever say so — `headerlab bridge status` is the only thing that reads
   the launcher back and reports `entryMissing`.
-- **`headerlab diagnostics` is not built and will not be.** `status` carries
-  the same payload; a second name for one query is not a feature. `state
-  snapshots`/`state restore <id>`, which design spec §2 and §3 promise, do
-  not exist either — `state set` passes zod validation and nothing else, and
-  now also requires `--force`. The README makes no such promise, so nothing
-  false has shipped publicly.
+- **`headerlab diagnostics` and the `state set` snapshot are both decided
+  against, not merely absent.** `diagnostics` because `status` carries the
+  same payload and a second name for one query is not a feature; the
+  snapshot-before-every-raw-write and the `state snapshots`/`state restore
+  <id>` that would have read it back because the owner ruled against them on
+  2026-08-22 (#35, closed as not planned). Design spec §2 and §3 promised
+  both and have been corrected. **The consequence is not softened by the
+  decision: `state set` passes zod validation and nothing else, so a raw
+  write cannot be undone from the CLI.** What stands between a mistake and
+  the stored bytes is that a payload failing validation is refused whole
+  (`invalid-state`, nothing written) and that `--force` is required off a
+  terminal. `headerlab state get --json | jq .state > backup.json` is the
+  only backup there is. The README promised none of this, so nothing false
+  has shipped publicly.
