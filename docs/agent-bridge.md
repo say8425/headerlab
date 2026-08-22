@@ -154,9 +154,8 @@ machine — and Chrome reports the resulting failure the same way it reports a r
 manifest or a mismatched id. Shipping both from the one tarball makes that failure mode
 structurally impossible.
 
-Two things the design's own §2/§3 named still do not exist: `headerlab diagnostics`, which
-will not be built because `status` carries the same payload and a second name for one query
-is not a feature, and the snapshot-before-every-raw-write that `state snapshots`/`state
-restore <id>` would read back
-([#35](https://github.com/say8425/headerlab/issues/35)). `state set` validates against the
+Two things the design's own §2/§3 named will not be built. `headerlab diagnostics`, because
+`status` carries the same payload and a second name for one query is not a feature. And the
+snapshot-before-every-raw-write that `state snapshots`/`state restore <id>` would have read
+back, decided against on 2026-08-22. `state set` validates against the
 schema and requires `--force`; it keeps no history.

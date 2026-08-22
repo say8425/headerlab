@@ -134,8 +134,8 @@ headerlab state get --json | jq .state | headerlab state set - --force
 Chrome 报告这种失败时用的消息，与清单被拒绝或 id 不匹配时完全相同。让两者从同一个 tarball
 发布，使这种失败方式从结构上不可能发生，而不只是被写进文档。
 
-设计自身的 §2/§3 点名过的东西里，仍有两样不存在：`headerlab diagnostics` 也不会去做 ——
-`status` 已经运载同样的载荷，给同一条查询取第二个名字不是功能 —— 以及
-`state snapshots`/`state restore <id>` 本该读回的、每次原始写入前的快照
-（[#35](https://github.com/say8425/headerlab/issues/35)）。`state set` 会做模式校验并要求
+设计自身的 §2/§3 点名过的东西里，有两样不会去做。`headerlab diagnostics`：`status`
+已经运载同样的载荷，给同一条查询取第二个名字不是功能。以及
+`state snapshots`/`state restore <id>` 本该读回的、每次原始写入前的快照——
+2026-08-22 决定不做。`state set` 会做模式校验并要求
 `--force`，但它不保留任何历史。

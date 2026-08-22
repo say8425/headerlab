@@ -207,8 +207,7 @@ Las funciones deliberadamente no construidas todavía se siguen como issues:
 [#31](https://github.com/say8425/headerlab/issues/31) importar/exportar JSON ·
 [#32](https://github.com/say8425/headerlab/issues/32) UI de bloqueo por pestaña ·
 [#33](https://github.com/say8425/headerlab/issues/33) ámbito por regex ·
-[#34](https://github.com/say8425/headerlab/issues/34) selector manual de tema ·
-[#35](https://github.com/say8425/headerlab/issues/35) los comandos que le faltan al puente.
+[#34](https://github.com/say8425/headerlab/issues/34) selector manual de tema.
 
 ## Arquitectura
 
