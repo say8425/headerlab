@@ -177,8 +177,8 @@ export const COMMANDS = [
     // 검사할 수 없는 주장이고, 이 저장소는 그것을 결함으로 친다.
     notes:
       'Writing the manifest is not turning the bridge on. A person must open the HeaderLab\n' +
-      'popup and press Enable on the bridge row — the CLI can write this file, but it cannot\n' +
-      'grant the nativeMessaging permission or flip that switch.',
+      'popup and turn on the switch on its Agent bridge row — the CLI can write this file,\n' +
+      'but it cannot grant the nativeMessaging permission or flip that switch.',
   },
   {
     path: ['bridge', 'uninstall'],

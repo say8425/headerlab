@@ -85,7 +85,7 @@ test('도움말이 가리키는 설명이 실제로 그 자리에 있다', () =>
   const entry = findCommand(WHY_BRIDGE_PATH.split(' '));
   assert.notEqual(entry, null);
   const text = commandHelp(entry);
-  assert.equal(text.includes('press Enable'), true);
+  assert.equal(text.includes('turn on the switch'), true);
   assert.equal(text.includes('cannot'), true);
 });
 

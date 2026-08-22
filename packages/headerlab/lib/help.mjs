@@ -108,7 +108,7 @@ export function topHelp() {
     'FLAGS',
     ...flags.map(([name, note]) => `  ${pad(name, flagWidth)}${note}`),
     '',
-    'The CLI cannot turn the bridge on — a person must press Enable in the popup.',
+    'The CLI cannot turn the bridge on — a person must use the switch in the popup.',
     `Run \`headerlab help ${WHY_BRIDGE_PATH}\` for why.`,
     '',
     `Report a problem: ${ISSUES_URL}`,
