@@ -22,29 +22,50 @@ const STORE = path.join(REPO_ROOT, 'docs', 'store');
 const LOCALES_DIR = path.join(REPO_ROOT, 'public', '_locales');
 
 /**
- * Kept verbatim in every language: an API name, a permission string, a licence
- * and a URL are not prose. `main_frame` in particular is a value the user types
- * nowhere but reads in the popup, so a translated one would name a checkbox that
- * does not exist.
+ * Kept verbatim in every language: an API name, a licence, a URL and a button
+ * label are not prose. `main_frame` and `Grant` are values the user types
+ * nowhere but reads in the popup, so a translated one would name a checkbox or
+ * a button that does not exist.
+ *
+ * Neither is localizable even in principle, which is what makes pinning them
+ * the whole guard rather than a nicety: every file under `public/_locales/`
+ * carries exactly one key, `extDescription`, so the popup UI ships in English
+ * in every locale — `Grant` is literal JSX in `components/SiteRow.tsx` and
+ * `components/ScopeRail.tsx`. `Grant` was added on 2026-08-22, when cutting the
+ * install-time permission paragraph left the button one of the few carriers of
+ * the trust posture still in the listing; a locale rendering it 허용 or 授权
+ * would name a nonexistent button and delete that claim, with nothing failing.
+ *
+ * **A permission string was in that sentence, and in this list, until
+ * 2026-08-22.** Both went when the owner cut the paragraph that carried
+ * `"storage"` and `"declarativeNetRequestWithHostAccess"` out of the listing.
+ * Naming the removal here rather than quietly shortening the sentence, because
+ * the sentence is what the next person reads to learn what this guard covers —
+ * and a guard believed to cover something it does not is worse than no guard.
  *
  * Patterns rather than strings, each with the name to print when it is missing,
  * because one of them cannot be expressed as a substring check — see below.
  */
 const VERBATIM: ReadonlyArray<readonly [string, RegExp]> = [
   ['HeaderLab', /HeaderLab/],
-  // Not the plain string. `declarativeNetRequest` is a substring of
-  // `declarativeNetRequestWithHostAccess`, which is the next entry, so a
-  // `includes` check on the bare name passed on the permission string alone —
-  // mutation-proven by deleting every bare mention from a description and
-  // watching all seven tests stay green. The lookahead is what makes this
-  // token able to fail on its own account.
+  // Not the plain string, and the lookahead outlived the reason it was written.
+  // `"storage"` and `"declarativeNetRequestWithHostAccess"` were entries here
+  // until 2026-08-22, when the owner cut the paragraph that carried them; the
+  // permission string was `declarativeNetRequest`'s neighbour in this list, and
+  // an `includes` check on the bare name passed on that neighbour alone —
+  // mutation-proven then by deleting every bare mention from a description and
+  // watching all seven tests stay green.
+  //
+  // Kept rather than simplified back to a plain string, because the paragraph
+  // is the kind of thing that comes back: with the lookahead, a listing that
+  // names only the permission does not satisfy the API name, which is the
+  // failure the lookahead was built for and would silently return without it.
   [
     'declarativeNetRequest (the API, not the permission)',
     /declarativeNetRequest(?!WithHostAccess)/,
   ],
-  ['"storage"', /"storage"/],
-  ['"declarativeNetRequestWithHostAccess"', /"declarativeNetRequestWithHostAccess"/],
   ['main_frame', /main_frame/],
+  ['Grant', /Grant/],
   ['Apache-2.0', /Apache-2\.0/],
   ['the repository URL', /https:\/\/github\.com\/say8425\/headerlab/],
 ];
@@ -128,19 +149,28 @@ describe('the store descriptions', () => {
   });
 
   it('has the same line-for-line shape in every language', () => {
-    // Measured before it was asserted: all five are 37 lines with 11 bullets in
+    // Measured before it was asserted: all five are 26 lines with 9 bullets in
     // identical positions. Translations of these paragraphs do not re-wrap —
     // each paragraph is one line — so exact parity is reachable rather than
     // aspirational, and anything less would let a merged paragraph through.
+    //
+    // The literal is a snapshot of a deliberate shape, not a constant. It read
+    // 37 lines and 11 bullets until 2026-08-22, when the agent bridge was
+    // promoted out of a trailing "optional" paragraph into a section of its
+    // own; the owner then cut the listing to this, dropping the opening
+    // use-case paragraph, the whole "nothing fails quietly" section, the
+    // install-time permission paragraph and the sentence introducing the
+    // repository URL. Edit it when the shape is meant to change — and change
+    // all five files in the same commit, which is what the loop below is for.
     const english = skeleton(description('en'));
-    expect(english).toBe('T_T_T_BBBBBB_T_T_T_T_T_BBBBB_TT_T_T_T');
+    expect(english).toBe('T_T_BBBBB_T_T_T_T_BBBB_T_T');
 
     for (const locale of packageLocales()) {
       expect(skeleton(description(locale)), `docs/store/description.${locale}.md`).toBe(english);
     }
   });
 
-  it('keeps every API name, permission string, licence and URL untranslated', () => {
+  it('keeps every API name, licence, URL and button label untranslated', () => {
     for (const locale of packageLocales()) {
       const text = description(locale);
       const missing = VERBATIM.filter(([, pattern]) => !pattern.test(text)).map(([what]) => what);
