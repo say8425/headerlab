@@ -70,8 +70,12 @@ export interface ScopeRailProps {
    * deliberate: the extension cannot see the host's socket clients, and making
    * the host tell it would turn a relay into a protocol participant — the
    * thing packages/headerlab/lib/bridge.mjs argues against by name. What `idle`
-   * actually points at is the state a user really lands in: Enable pressed,
-   * `headerlab bridge install` never run.
+   * actually points at is the state a reader of the old instructions landed
+   * in: the switch turned on, `headerlab bridge install` never run. The
+   * documents now teach the other order (install first, #61), so that is no
+   * longer the common path — but it is still the reachable one, and #60
+   * records that nothing the popup offers re-arms the connect budget once it
+   * has been spent this way.
    */
   bridge: 'unknown' | 'off' | 'idle' | 'live';
   /** ISO timestamp of the last command applied through the bridge, or null. */

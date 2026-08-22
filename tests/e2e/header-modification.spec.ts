@@ -1992,6 +1992,37 @@ test('목록이 넘쳐도 잘리지 않고, 주변은 움직이지 않는다', a
   // 여기서도 상태를 직접 기다린다.
   await expect(page.getByTestId('bridgestate')).toHaveAttribute('data-bridge', 'off');
 
+  // 그 상태가 **화면에** 있는가 — 접근성 트리에만 있는 것과 구별해서.
+  //
+  // `toBeVisible()` 은 이것을 가리지 못한다: 숨겨진 detail span 도 통과한다
+  // (측정: 175×90, `visibility: visible`, `opacity: 1`). 이 이슈가 거부한
+  // "속성만 보는 가드"가 옷만 갈아입은 형태다. 칠해진 글자와 잘린 글자를
+  // 실제로 가르는 것은 `clip-path` 하나 — 라벨과 상태 슬롯은 `none`, detail
+  // span 은 `inset(50%)`.
+  //
+  // 항목마다 다른 회귀에서 실패한다: `clipPath` 는 단어가 다시 접근성
+  // 트리로만 들어갈 때, `text` 는 사라질 때, `height` 와 `truncated` 는 한 줄
+  // 규칙의 두 반쪽이다. `truncated` 는 구조적으로 항상 false 인 항목이 아니다 —
+  // 47.48px 슬롯에 105.64px 문자열을 넣으면 true 로 측정된다.
+  //
+  // `measureLines` 는 재사용하지 않는다. `[data-testid="site"]` 에 고정되어
+  // 있어 여기서는 `[]` 를 돌려주고, 아무것도 검사하지 않은 채 초록이 된다.
+  expect(
+    await page.getByTestId('bridge-state').evaluate((el) => ({
+      text: el.textContent,
+      clipPath: getComputedStyle(el).clipPath,
+      visibility: getComputedStyle(el).visibility,
+      height: Math.round(el.getBoundingClientRect().height),
+      truncated: el.scrollWidth > el.clientWidth,
+    })),
+  ).toEqual({
+    text: 'off',
+    clipPath: 'none',
+    visibility: 'visible',
+    height: 16,
+    truncated: false,
+  });
+
   const clipped = await page.evaluate(() => {
     // 실패했을 때 무엇을 가리키는지 알 수 있는 이름 — 태그, 실제 글자, 그리고
     // 넘친 정도.

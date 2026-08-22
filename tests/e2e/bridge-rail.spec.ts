@@ -76,9 +76,12 @@ declare const chrome: {
   storage: { local: { set(items: Record<string, unknown>): Promise<void> } };
 };
 
-async function measure(
-  page: Page,
-): Promise<{ boxes: Record<string, number[]>; bridge: string; labelHeight: number }> {
+async function measure(page: Page): Promise<{
+  boxes: Record<string, number[]>;
+  bridge: string;
+  labelHeight: number;
+  state: { text: string | null; clipPath: string; truncated: boolean };
+}> {
   const boxes = await page.evaluate(
     (selectors) => {
       const out: Record<string, number[]> = {};
@@ -97,7 +100,16 @@ async function measure(
   );
   const bridge = (await page.getByTestId('bridgestate').getAttribute('data-bridge')) ?? '';
   const labelHeight = await page.getByTestId('bridge-label').evaluate((el) => el.clientHeight);
-  return { boxes, bridge, labelHeight };
+  // The visible state word, read the only way that separates painted text
+  // from clipped text. This file already reached `live` and the unreachable
+  // variant, which no other suite does — before this the comparison below
+  // could not fail on the thing the row is for.
+  const state = await page.getByTestId('bridge-state').evaluate((el) => ({
+    text: el.textContent,
+    clipPath: getComputedStyle(el).clipPath,
+    truncated: el.scrollWidth > el.clientWidth,
+  }));
+  return { boxes, bridge, labelHeight, state };
 }
 
 /**
@@ -152,7 +164,7 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
       `--load-extension=${liveExtensionPath}`,
     ],
   });
-  let liveMeasurement: { boxes: Record<string, number[]>; bridge: string; labelHeight: number };
+  let liveMeasurement: Awaited<ReturnType<typeof measure>>;
   try {
     let worker = liveContext.serviceWorkers()[0];
     if (!worker) worker = await liveContext.waitForEvent('serviceworker');
@@ -174,10 +186,12 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
     rmSync(liveProfile, { recursive: true, force: true });
   }
   expect(liveMeasurement.bridge).toEqual('live');
+  // The one state no other suite can reach, saying so where a person can see it.
+  expect(liveMeasurement.state).toEqual({ text: 'live', clipPath: 'none', truncated: false });
 
   // --- idle, with an error: bridge-e2e's permission held, nothing installed ---
   const { context: idleContext, page: idlePage, profile: idleProfile } = await openPopup();
-  let idleMeasurement: { boxes: Record<string, number[]>; bridge: string; labelHeight: number };
+  let idleMeasurement: Awaited<ReturnType<typeof measure>>;
   try {
     // A real, unfaked failure: Chrome finds no NativeMessagingHosts entry for
     // this profile and answers `connectNative` with its own string — not a
@@ -192,6 +206,11 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
     rmSync(idleProfile, { recursive: true, force: true });
   }
   expect(idleMeasurement.bridge).toEqual('idle');
+  // `data-bridge` cannot tell idle from unreachable — both are `idle`. The
+  // word can: this context has a real connect failure behind it, so the slot
+  // reads `down` rather than `idle`, and that is the distinction the dot's
+  // colour was carrying alone.
+  expect(idleMeasurement.state).toEqual({ text: 'down', clipPath: 'none', truncated: false });
 
   // The label's box must stay one line tall. A label that does not fit its
   // budget wraps inside the row's fixed `h-5` and overlaps the row above it
