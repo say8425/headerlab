@@ -80,6 +80,7 @@ async function measure(page: Page): Promise<{
   boxes: Record<string, number[]>;
   bridge: string;
   labelHeight: number;
+  labelTruncated: boolean;
   state: { text: string | null; clipPath: string; truncated: boolean };
 }> {
   const boxes = await page.evaluate(
@@ -104,12 +105,15 @@ async function measure(page: Page): Promise<{
   // from clipped text. This file already reached `live` and the unreachable
   // variant, which no other suite does — before this the comparison below
   // could not fail on the thing the row is for.
+  const labelTruncated = await page
+    .getByTestId('bridge-label')
+    .evaluate((el) => el.scrollWidth > el.clientWidth);
   const state = await page.getByTestId('bridge-state').evaluate((el) => ({
     text: el.textContent,
     clipPath: getComputedStyle(el).clipPath,
     truncated: el.scrollWidth > el.clientWidth,
   }));
-  return { boxes, bridge, labelHeight, state };
+  return { boxes, bridge, labelHeight, labelTruncated, state };
 }
 
 /**
@@ -222,10 +226,21 @@ test('an unreachable bridge leaves the rail exactly where a live one does', asyn
   // rendered different strings ("Bridge down" against "Bridge live") in the
   // same box; the label is now the constant `BRIDGE_NAME` in every state, so
   // comparing the two is comparing one string to itself and cannot fail. The
-  // literal can: a longer name, a larger leading, or a narrower rail all break
-  // it, which is the whole set of ways this can actually go wrong.
+  // literal can: a larger leading or a narrower rail still break it.
+  //
+  // **A longer name no longer does, and that is why the second assertion is
+  // here.** The label carries `truncate` since the state word moved in beside
+  // it, so `white-space: nowrap` makes the height a constant — this line can no
+  // longer fail from wrapping, which was two of the three failure modes the
+  // sentence above used to name. What replaced them is silent clipping:
+  // `Agent brid…`. The label is 76.52px and the widest state word 31.25px
+  // against the row's 124px, only 13% headroom, and CI's Linux fallback fonts
+  // have moved a line's metrics in this suite before. So the clipping half is
+  // asserted outright rather than inferred from the height.
   expect(idleMeasurement.labelHeight).toEqual(16);
   expect(liveMeasurement.labelHeight).toEqual(16);
+  expect(idleMeasurement.labelTruncated).toEqual(false);
+  expect(liveMeasurement.labelTruncated).toEqual(false);
 
   // Assertion 2, the one that catches the original defect: the site list
   // still reports its full cap rather than collapsing. Checked before the

@@ -40,7 +40,7 @@ import { describe, expect, it } from 'vitest';
  *
  * And nothing else in this repo covers the gap automatically. **The e2e suite is
  * not the backstop it looks like** — measured: it reads geometry and nothing else,
- * `getBoundingClientRect` on 26 lines — 28 occurrences, 25 lines in
+ * `getBoundingClientRect` on 27 lines — 29 occurrences, 26 lines in
  * `header-modification.spec.ts` and 1 in `bridge-rail.spec.ts` — and
  * `getComputedStyle(el).overflowY` in
  * two, with no colour read anywhere and no snapshot comparison configured (zero

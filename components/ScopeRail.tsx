@@ -71,11 +71,11 @@ export interface ScopeRailProps {
    * the host tell it would turn a relay into a protocol participant — the
    * thing packages/headerlab/lib/bridge.mjs argues against by name. What `idle`
    * actually points at is the state a reader of the old instructions landed
-   * in: the switch turned on, `headerlab bridge install` never run. The
-   * documents now teach the other order (install first, #61), so that is no
-   * longer the common path — but it is still the reachable one, and #60
-   * records that nothing the popup offers re-arms the connect budget once it
-   * has been spent this way.
+   * in: the switch turned on, `headerlab bridge install` never run. #61
+   * proposes teaching the other order (install first); until that lands this
+   * is still what the documents send people into, and #60 records that
+   * nothing the popup offers re-arms the connect budget once it has been
+   * spent this way.
    */
   bridge: 'unknown' | 'off' | 'idle' | 'live';
   /** ISO timestamp of the last command applied through the bridge, or null. */
@@ -187,7 +187,7 @@ const BRIDGE_NAME = 'Agent bridge';
  *
  * Why `down` for the unreachable state: the visible slot is 47.48px of text
  * (measured in the built popup, four saved sites, 748×600 light) and `cannot
- * be reached` is 105.64px in this font, so it cannot go there. The docblock
+ * be reached` is 107.70px in this font, so it cannot go there. The docblock
  * on the detail span below already argued `down` over `unreachable` for a
  * budget that no longer applies; the argument is live again here, against a
  * smaller box, and `down` measures 31.24px — 34% headroom, against the 15%
@@ -539,9 +539,12 @@ export function ScopeRail({
           </span>
           {/* The state, in space this row already had. It REPLACES the `flex-1`
               spacer rather than joining it, so the row gains no box and no
-              gap — this span IS the flex item, which is why its x and width
-              are the same in every state including `unknown`, where it renders
-              nothing.
+              gap — this span IS the flex item. Its x is the same in every
+              state, and its width in every state that renders the switch; in
+              `unknown` the switch is absent, so the flex item absorbs that
+              24px and a 7px gap and an empty span has no line box. What
+              matters is unchanged either way: the old spacer did exactly the
+              same thing, so nothing painted moves.
 
               `truncate` is the one-line rule: no string can add a second line
               inside an `h-5` row, and its `overflow: hidden` resolves the flex

@@ -839,7 +839,7 @@ describe('the bridge row', () => {
   it('says down when a connection was expected and could not be made', () => {
     render(<ScopeRail {...props({ bridge: 'idle', bridgeError: 'Native host has exited.' })} />);
     // The visible slot has 47.48px of text and `cannot be reached` is
-    // 105.64px, so the two lengths differ here and only here. The whole
+    // 107.70px, so the two lengths differ here and only here. The whole
     // sentence still reaches the description below.
     expect(screen.getByTestId('bridge-state').textContent).toEqual('down');
   });

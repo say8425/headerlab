@@ -1170,7 +1170,7 @@ picking a class the author did not expect is outside it by construction — the 
 says so at its top. It went green through a grey box that was plainly visible on screen.
 
 **The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
-on 26 lines (28 occurrences), `getComputedStyle(el).overflowY` in two — and no colour at
+on 27 lines (29 occurrences), `getComputedStyle(el).overflowY` in two — and no colour at
 all; there is
 no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
 the only output with pixels in it is `pnpm screenshots`, and **a human is what reads

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
@@ -23,15 +23,37 @@ import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
  * Direction matters: every token in the documents must be renderable, not the
  * reverse. The row says `down` in the unreachable state and no document
  * mentions it; that is a state nobody has had to write about, not a gap.
+ *
+ * **What this file cannot see, stated rather than left to be discovered.** It
+ * binds the *words*, not their visibility. jsdom applies no CSS, so putting
+ * `VISUALLY_HIDDEN` back on the state span — literally reinstating #57 —
+ * leaves every test here green. The visibility half is asserted in e2e, where
+ * `clip-path` is readable: `header-modification.spec.ts` for `off` and
+ * `bridge-rail.spec.ts` for `live` and `down`. Neither half is sufficient
+ * alone, and this docblock exists so nobody reads one as both.
  */
-const DOCS = [
-  'docs/agent-bridge.md',
-  'docs/agent-bridge.ko.md',
-  'docs/agent-bridge.ja.md',
-  'docs/agent-bridge.zh.md',
-  'docs/agent-bridge.es.md',
-  'packages/headerlab/README.md',
-];
+/**
+ * Every markdown file that quotes the row, found rather than listed.
+ *
+ * A hand-kept list is one a seventh document can be added beside without
+ * anybody noticing — which is the shape of the defect this file is about. The
+ * walk skips `docs/superpowers/`, whose specs and plans are dated records and
+ * are allowed to quote a row as it was.
+ */
+function docsQuotingTheRow(dir = '.'): string[] {
+  const skip = new Set(['node_modules', '.output', '.git', '.wxt', 'superpowers', 'coverage']);
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || skip.has(entry.name)) continue;
+    const full = `${dir}/${entry.name}`.replace(/^\.\//, '');
+    if (entry.isDirectory()) out.push(...docsQuotingTheRow(full));
+    else if (entry.name.endsWith('.md') && readFileSync(full, 'utf8').includes('**Agent bridge'))
+      out.push(full);
+  }
+  return out.sort();
+}
+
+const DOCS = docsQuotingTheRow();
 
 function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
   return {
@@ -70,10 +92,23 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
  */
 function visibleRowText(over: Partial<ScopeRailProps>): string {
   const { unmount } = render(<ScopeRail {...props(over)} />);
-  const name = screen.getByTestId('bridge-label').textContent ?? '';
-  const state = screen.getByTestId('bridge-state').textContent ?? '';
+  // Document order, not an order this function chooses. Assembling it as
+  // `[name, state]` would keep passing if the two spans swapped places, and
+  // the row would then read `off  Agent bridge` while every document claiming
+  // **Agent bridge off** stayed "verified" — the mismatch moved, not removed.
+  //
+  // The off-canvas span is excluded by its own marker rather than by testid,
+  // so a second clipped element added later is skipped for the same reason
+  // this one is. jsdom computes no styles, so the class is what there is to
+  // read; the e2e side reads the real `clip-path`.
+  const row = screen.getByTestId('bridgestate');
+  const text = [...row.querySelectorAll('span')]
+    .filter((el) => !el.className.includes('clip-path'))
+    .map((el) => el.textContent?.trim() ?? '')
+    .filter(Boolean)
+    .join(' ');
   unmount();
-  return [name, state].filter(Boolean).join(' ');
+  return text;
 }
 
 /** Every `**Agent bridge …**` a document quotes, with the file it came from. */
