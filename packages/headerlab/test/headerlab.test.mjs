@@ -27,6 +27,25 @@ import {
 // reading its stdout and exit code.
 const cliPath = fileURLToPath(new URL('../bin/headerlab.mjs', import.meta.url));
 
+/**
+ * `runCli` for the tests whose premise is "no bridge is running".
+ *
+ * Named rather than left to each call site, because the trap is the default.
+ * Plain `runCli` inherits the machine-wide socket directory, and
+ * `headerlab-host.test.mjs` — which `node --test` runs in a **parallel
+ * process** — spawns the real host into exactly that directory. A
+ * `bridge-off` assertion made through plain `runCli` is therefore a race, and
+ * CI lost it once already.
+ *
+ * `freshSocketEnv()` gives a directory nothing ever binds into, so this is
+ * correct by construction rather than by ordering. `cleanEnv` would also pass
+ * today, but only because the install tests that bind a live host into it
+ * happen to run after these — safety that evaporates on a reorder.
+ */
+function runCliWithoutBridge(args, opts = {}) {
+  return runCli(args, { ...opts, env: freshSocketEnv().env });
+}
+
 function runCli(args, { env = process.env, nodeArgs = [], onStderr = null, stdin = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [...nodeArgs, cliPath, ...args], {
@@ -96,7 +115,19 @@ test('--value-file 의 내용이 값이 된다', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'hl-'));
   const file = path.join(dir, 'secret.txt');
   writeFileSync(file, 'Bearer TOPSECRET\n');
-  const { code, stdout } = await runCli([
+  // 격리는 선택이 아니다. 이 단언의 전제는 "브릿지가 하나도 없다" 인데, 기본
+  // `runCli` 는 실제 머신 전역 소켓 디렉터리를 물려받는다.
+  //
+  // **오염원은 이 파일이 아니라 옆 파일이다.** `node --test` 는 테스트 *파일* 을
+  // 동시에 돌리고, `headerlab-host.test.mjs` 는 `socketDir()` 이 주는 바로 그
+  // 전역 디렉터리에 진짜 호스트를 띄운다. 그 소켓이 살아 있는 동안 여기서 CLI 를
+  // 부르면 CLI 는 그것을 찾아 연결하고 교환에 실패해 3 이 아니라 4 로 나간다.
+  // 이것이 이 실패가 CI 에서만, 부하에 따라 나타난 이유다.
+  //
+  // 가정이 아니라 관측이다: CI 가 2026-08-22 에 이 테스트를 `4 !== 3` 으로
+  // 떨어뜨렸고, 같은 커밋의 다른 실행은 통과했다. CLAUDE.md 가 경고하는 바로 그
+  // 모양 — 레이스를 flaky 라 부르는 것이 레이스를 살려 둔다.
+  const { code, stdout } = await runCliWithoutBridge([
     'rule',
     'add',
     '--target',
@@ -151,7 +182,8 @@ test('비대화형 state set 은 --force 를 요구한다', async () => {
 test('--force 를 주면 통과해 브릿지까지 간다', async () => {
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'hl-')), 'state.json');
   writeFileSync(file, JSON.stringify({ profiles: [] }));
-  const { code, stdout } = await runCli(['state', 'set', file, '--force']);
+  // 같은 이유로 빈 소켓 디렉터리에서 돈다 — 위 `--value-file` 테스트의 주석 참조.
+  const { code, stdout } = await runCliWithoutBridge(['state', 'set', file, '--force']);
   // 브릿지가 없으므로 bridge-off 까지 갔다는 것이 확인의 증거다.
   assert.equal(code, 3);
   assert.equal(JSON.parse(stdout).error.code, 'bridge-off');
