@@ -22,10 +22,16 @@ const STORE = path.join(REPO_ROOT, 'docs', 'store');
 const LOCALES_DIR = path.join(REPO_ROOT, 'public', '_locales');
 
 /**
- * Kept verbatim in every language: an API name, a permission string, a licence
- * and a URL are not prose. `main_frame` in particular is a value the user types
- * nowhere but reads in the popup, so a translated one would name a checkbox that
- * does not exist.
+ * Kept verbatim in every language: an API name, a licence and a URL are not
+ * prose. `main_frame` in particular is a value the user types nowhere but reads
+ * in the popup, so a translated one would name a checkbox that does not exist.
+ *
+ * **A permission string was in that sentence, and in this list, until
+ * 2026-08-22.** Both went when the owner cut the paragraph that carried
+ * `"storage"` and `"declarativeNetRequestWithHostAccess"` out of the listing.
+ * Naming the removal here rather than quietly shortening the sentence, because
+ * the sentence is what the next person reads to learn what this guard covers —
+ * and a guard believed to cover something it does not is worse than no guard.
  *
  * Patterns rather than strings, each with the name to print when it is missing,
  * because one of them cannot be expressed as a substring check — see below.
@@ -153,7 +159,7 @@ describe('the store descriptions', () => {
     }
   });
 
-  it('keeps every API name, permission string, licence and URL untranslated', () => {
+  it('keeps every API name, licence and URL untranslated', () => {
     for (const locale of packageLocales()) {
       const text = description(locale);
       const missing = VERBATIM.filter(([, pattern]) => !pattern.test(text)).map(([what]) => what);
