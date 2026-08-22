@@ -140,19 +140,36 @@ outstanding — do not imply the site is already active.
 
 Besides `ok:false` with a message, `error.code` is one of: `usage` (nothing
 or malformed global flags), `unknown-command`, `invalid-args` (a known
-command with a bad shape), `invalid-command` (a `state set` source that
-could not be read, was too large, or was not valid JSON), `bridge-off`,
-`multiple-bridges`, `timeout` (the bridge accepted the connection but never
-replied), `bridge-error`/`bridge-closed` for other transport failures, and
-four more — but which commands can produce which is not uniform, because
+command with a bad shape — and also a `state set` or `--value-file` source
+that could not be read, was too large, or was not valid JSON: the CLI
+refuses those itself, before anything reaches the socket, so they exit `2`
+like any other input it rejected), `bridge-off`, `multiple-bridges`,
+`timeout` (the bridge accepted the connection but never replied),
+`bridge-error`/`bridge-closed` for other transport failures, and eight
+more — but which commands can produce which is not uniform, because
 `bridge install|uninstall|status` never reach the socket at all (see
 above), while every other command does:
 
-- `store-unreadable`, `store-unwritable` and `unsupported` come from the
-  extension itself, only ever in reply to a command that actually reached
-  it over the socket — `site`/`rule`/`pause`/`resume`/`state set`.
-  `bridge install|uninstall|status` cannot produce any of them; do not go
-  looking for them there.
+- Seven come from the extension itself, only ever in reply to a command
+  that actually reached it over the socket — `site`/`rule`/`pause`/
+  `resume`/`state set`. `bridge install|uninstall|status` cannot produce
+  any of them; do not go looking for them there. Every one of the seven
+  exits `1` — the extension refused the request — never `2`.
+  - `unknown-rule` — no rule carries the id you named (`rule rm`,
+    `rule toggle`). Ask `rule ls` for the ids that exist rather than
+    guessing a second time.
+  - `unknown-domain` — `site rm` named a domain the site list does not
+    hold. The message names every one it could not find.
+  - `invalid-state` — a `state set` payload failed validation, and the
+    message is that validation error. **Nothing was written**: a store
+    that does not validate is never compiled, so the extension refuses
+    the payload rather than overwriting bytes it cannot make sense of.
+    Fix the payload; the stored state is untouched and still readable
+    with `state get`.
+  - `invalid-command` — the extension could not parse the command, or
+    has no handler for it. That means the CLI and the extension disagree
+    about the protocol — a version skew between the two halves, not
+    something to rephrase and send again.
   - `store-unreadable` — the extension's stored state does not match the
     format this version expects, so nothing was applied and nothing was
     overwritten. Tell the person to open the popup and check it themselves,
