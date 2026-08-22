@@ -288,8 +288,8 @@ export function renderError(error, { color, bridgePid = null }) {
         ['headerlab bridge status', 'see what is installed'],
         ['headerlab bridge install --extension-id <id>', 'if the manifest is missing'],
       ]),
-      'Then open the HeaderLab popup and turn on the switch on its Agent bridge',
-      'row — the CLI cannot do that step.',
+      'Then open the HeaderLab popup and turn on the switch on its',
+      'Agent bridge row — the CLI cannot do that step.',
     ].join('\n');
   }
   return paint(error.message, COLORS.red, color);
