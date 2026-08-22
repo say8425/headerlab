@@ -267,8 +267,8 @@ test('bridge-off 는 받은 메시지로 시작하고 다음에 칠 명령을 �
       'the socket directory is empty.',
       '  headerlab bridge status                        see what is installed',
       '  headerlab bridge install --extension-id <id>   if the manifest is missing',
-      'Then open the HeaderLab popup and press Enable on the bridge row — the CLI',
-      'cannot do that step.',
+      'Then open the HeaderLab popup and turn on the switch on its Agent bridge',
+      'row — the CLI cannot do that step.',
     ].join('\n'),
   );
 });
@@ -295,7 +295,7 @@ test('지목한 pid 가 없으면 그 문장을 그대로 내고, 설치가 아�
   );
   assert.equal(text.includes('no bridge is running'), false);
   assert.equal(text.includes('bridge install'), false);
-  assert.equal(text.includes('Enable'), false);
+  assert.equal(text.includes('switch'), false);
   assert.equal(
     text,
     [

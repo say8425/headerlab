@@ -21,15 +21,16 @@ That puts `headerlab` on your PATH. It has zero runtime dependencies.
 
 `chrome.permissions.request()` requires a user gesture to resolve — Chrome enforces
 this, HeaderLab does not choose it. There is no `headerlab bridge enable`, and there
-will not be one that works: a person has to press **Enable** on the popup's bridge row,
-behind Chrome's own consent dialog, before any command below can reach the extension.
+will not be one that works: a person has to turn on the switch on the popup's
+**Agent bridge** row, behind Chrome's own consent dialog, before any command below
+can reach the extension.
 
 **Turning it on** is three steps:
 
-1. Press **Enable** on the popup's bridge row.
+1. Turn on the switch on the popup's **Agent bridge** row.
 2. Run `headerlab bridge install --extension-id <id>`, taking the id from
    `chrome://extensions`.
-3. The popup now reads **Bridge live**.
+3. The popup now reads **Agent bridge live**.
 
 The installer echoes back the id it used. Nothing inside the CLI can check that against
 what Chrome actually loaded, and the manifest it writes accepts exactly one origin with no
