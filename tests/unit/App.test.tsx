@@ -907,7 +907,10 @@ describe('editing scope', () => {
     const site = await screen.findByTestId('site');
     expect(site.textContent).toContain('legacy.example.com');
     expect(site.textContent).not.toContain('deep/path');
-    expect(site.getAttribute('data-state')).toBe('granted');
+    // `data-state` is the probe's verdict, and `findByTestId('site')` resolves
+    // off the state load — a different async fact. Bare, this reads `pending`
+    // on the frame before the probe lands.
+    await waitFor(() => expect(site.getAttribute('data-state')).toBe('granted'));
   });
 
   it('refuses a spelling that needs more than one normalization pass', async () => {
@@ -1413,14 +1416,22 @@ describe('all-sites mode', () => {
       await screen.findByDisplayValue('X-A');
     };
 
-    // `waitFor`, not a bare read, at all four — the same reason the assertions
-    // further down this file give: the live count is the probe's verdict, and
-    // `open()` waits for the rule input rather than for the probe. Those are
-    // different async facts, so a bare read asserts whichever frame the machine
-    // landed on. CI caught it on 2026-08-23 at the second case:
-    // `0 of 2 live· 2 blocked · 1 site needs access` — the pre-probe reading —
-    // where `2 of 2 live` was asserted, while every run on `main` had won the
-    // race. This was the one test in the file still reading bare.
+    // `open()` waits for the rule input; the live count is the permission
+    // probe's verdict. Different async facts, so a bare read asserts whichever
+    // frame the machine landed on. CI caught it on 2026-08-23 at the SECOND
+    // case below — `0 of 2 live· 2 blocked · 1 site needs access`, the
+    // pre-probe reading, where `2 of 2 live` was asserted — while every run on
+    // `main` had won the same race.
+    //
+    // Only that case races. The other three are probe-invariant: two have no
+    // scoping host to probe, and with `allSites` on the count collapses before
+    // the probe is consulted. Their `waitFor` is insurance against that
+    // changing, not a wait that does anything today — measured, each succeeds
+    // on its first callback under a delayed probe.
+    //
+    // The racing case therefore waits on the probe's own observable and then
+    // reads the count bare, rather than waiting for the string it is about to
+    // assert.
 
     // off + none: inert, and said without alarm — by the readout's own
     // sentence now, not a note (the notes are gone, 2026-08-19).
@@ -1432,7 +1443,10 @@ describe('all-sites mode', () => {
 
     // off + some: ordinary scoped operation, nothing to report.
     await open({ allSites: false, domains: ['api.example.com'] });
-    await waitFor(() => expect(readout()).toBe('2 of 2 live'));
+    await waitFor(() =>
+      expect(screen.getByTestId('site').getAttribute('data-state')).toBe('granted'),
+    );
+    expect(readout()).toBe('2 of 2 live');
     expect(screen.getByTestId('site-count').textContent).toBe('1');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
