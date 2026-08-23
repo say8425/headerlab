@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/say8425/headerlab/compare/cli-v0.3.0...cli-v0.3.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* point the CLI at the switch the popup actually has ([#56](https://github.com/say8425/headerlab/issues/56)) ([b89ad04](https://github.com/say8425/headerlab/commit/b89ad04498886ffa979bc32ab3b0587277592f04))
+
 ## [0.3.0](https://github.com/say8425/headerlab/compare/cli-v0.2.0...cli-v0.3.0) (2026-08-17)
 
 
