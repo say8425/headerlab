@@ -138,9 +138,12 @@ outstanding — do not imply the site is already active.
 
 ## Error codes
 
-Besides `ok:false` with a message, `error.code` is one of the names below —
-though one narrow transport failure replies with no `code` at all, which is
-a further reason to branch on the exit code rather than on this field:
+Besides `ok:false` with a message, `error.code` is one of the names below.
+**Every failure carries one** — a reply reaching the CLI without a code is
+folded to `bridge-error` rather than passed on as a missing field — so
+there is always something there to read. Branch on the exit code anyway:
+this list of names grows, while the five exit codes are a stable partition
+of it. The names are
 `usage` (nothing or malformed global flags, and `state set` without
 `--force`, which off a terminal is refused rather than prompted for),
 `unknown-command`, `invalid-args` (a known command with a bad shape; a
