@@ -6,22 +6,37 @@ export default defineConfig({
   manifest: ({ mode }) => ({
     name: 'HeaderLab',
     // The Chrome Web Store reads the item's title and its summary out of this
-    // manifest — neither is a dashboard field — and the dashboard offers a
-    // listing translation only for a locale the package declares under
-    // `_locales/`. So a store listing in five languages is this line plus
-    // `public/_locales/`, not a documentation task.
+    // manifest — neither is a dashboard field. So both of these lines are
+    // shipped values: changing either is a release, not a form edit.
     //
-    // `name` deliberately stays a literal: it is the same nine characters in
-    // every locale, and a `__MSG_` name would buy nothing while adding a key
-    // whose absence from any one locale file fails the whole extension to
-    // load. `description` is the half that genuinely differs.
+    // **This package declares no locales, deliberately (owner's call,
+    // 2026-08-23).** It carried `_locales/{en,ko,ja,zh_CN,es}/` and a
+    // `__MSG_extDescription__` here, which made the dashboard report five
+    // supported languages — while those five files translated exactly one
+    // string between them and the popup called `i18n` nowhere. A person
+    // installing in Korean got an entirely English UI. The design documents
+    // said "UI language: English" from the first week; it was the directories
+    // that drifted away from the prose, and the dashboard reported the
+    // directories.
     //
-    // The message files live under `public/` because that directory is copied
-    // to the output root, so every mode — e2e and bridge-e2e included — ships
-    // them. A `__MSG_` reference with no `_locales` beside it is not a
-    // fallback: Chrome refuses to load the extension at all.
-    default_locale: 'en',
-    description: '__MSG_extDescription__',
+    // With one locale left the indirection has nothing to vary, so it is gone
+    // rather than narrowed: `_locales/en` resolving an English string to an
+    // English string is a mechanism whose only remaining property is its
+    // failure mode. The production-manifest unit suite pins the absence of all
+    // three pieces — `_locales`, `default_locale`, `__MSG_` — and they do not
+    // fail alike, measured 2026-08-23 by loading each variant in real Chromium:
+    // `default_locale` without `_locales` is REFUSED, `_locales` without
+    // `default_locale` is REFUSED, and a `__MSG_` reference with neither
+    // LOADS — shipping the literal `__MSG_extDescription__` as the store
+    // summary. So two of the three are loud and one is
+    // silent, which is the one the suite is really for.
+    //
+    // (Named in prose rather than by path: a quoted path under the test tree
+    // in a shipped source is what the build-freshness carve-out guard forbids,
+    // and it caught this comment.)
+    description:
+      'Set, append or remove HTTP request and response headers, per site. ' +
+      'No host access until you grant it. No network calls.',
     permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
     // Requested at runtime from the popup's Enable button, never at install.

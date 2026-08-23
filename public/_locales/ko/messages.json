@@ -1,6 +1,0 @@
-{
-  "extDescription": {
-    "message": "HTTP 요청·응답 헤더를 사이트별로 설정·추가·삭제합니다. 허용하기 전에는 사이트 접근 권한이 없고, 네트워크 통신도 하지 않습니다.",
-    "description": "The Chrome Web Store summary and the description on chrome://extensions. Chrome's limit is 132 characters; tests/unit/i18n.test.ts enforces it."
-  }
-}

@@ -19,6 +19,56 @@ function readManifest(): Record<string, unknown> {
 }
 
 describe('production manifest', () => {
+  it('carries a summary the store will accept, as a literal', () => {
+    // The store reads the item's summary out of `description` and refuses an
+    // upload over 132. Counted in UTF-16 units rather than code points on
+    // purpose: outside the BMP `.length` is the larger of the two readings, so
+    // it cannot under-report whichever way the store counts. That choice is
+    // what retired the old "stays inside the BMP" guard — the ambiguity is
+    // closed by the counting, not by a neighbouring assertion, so the two
+    // edits had to land together.
+    const description = readManifest().description;
+    expect(typeof description).toBe('string');
+    expect(description).not.toBe('');
+    expect((description as string).length).toBeLessThanOrEqual(132);
+  });
+
+  it('keeps the name a literal — the store title is this value, not a form field', () => {
+    // The item's title on the store is `manifest.name`, so changing it is a
+    // version release rather than an edit to a dashboard form. Pinned so that
+    // cost has to be re-argued rather than discovered.
+    expect(readManifest().name).toBe('HeaderLab');
+  });
+
+  it('declares no localisation at all — no _locales, no default_locale, no __MSG_', () => {
+    // The decision this guard exists for (owner's call, 2026-08-23): the
+    // package used to ship `_locales/{en,ko,ja,zh_CN,es}/`, which made the
+    // store dashboard report five supported languages while those five files
+    // translated one string between them and the popup called `i18n` nowhere.
+    //
+    // Three pieces, asserted separately because they fail differently — and
+    // not the way this comment first claimed. Measured 2026-08-23, loading
+    // each variant in real Chromium:
+    //
+    //   default_locale alone   REFUSED (no service worker)
+    //   _locales alone         REFUSED (no service worker)
+    //   __MSG_ alone           LOADED — description reads back as the literal
+    //                          string `__MSG_extDescription__`
+    //
+    // So the `__MSG_` assertion below is not a belt beside e2e's braces. It is
+    // the ONLY thing between a re-introduced `__MSG_` and a store listing whose
+    // summary reads `__MSG_extDescription__` to every shopper: nothing throws,
+    // the extension works, and e2e stays green. The other two are caught by any
+    // real load. All three returning together is quiet in a different way —
+    // the dashboard re-offers four listings nobody is writing.
+    const dir = assertBuildFresh('production');
+    expect(readdirSync(dir)).not.toContain('_locales');
+
+    const manifest = readManifest();
+    expect(Object.prototype.hasOwnProperty.call(manifest, 'default_locale')).toBe(false);
+    expect(JSON.stringify(manifest)).not.toContain('__MSG_');
+  });
+
   it('omits host_permissions — checked by key, not substring: "optional_host_permissions" contains that string', () => {
     const manifest = readManifest();
     expect(Object.prototype.hasOwnProperty.call(manifest, 'host_permissions')).toBe(false);

@@ -11,10 +11,9 @@
  *
  * What it writes, and why each size:
  *
- *   screenshot-N-<state>.<locale>.png   1280x800, five states x five locales.
+ *   screenshot-N-<state>.png           1280x800, five states.
  *                                       The store accepts 1280x800 or 640x400,
- *                                       at most five, and lets each locale have
- *                                       its own set.
+ *                                       at most five.
  *   store-icon-128.png                  128x128. NOT the toolbar icon: the store
  *                                       asks for 96x96 of artwork inside 16px of
  *                                       transparent padding on every side, while
@@ -25,8 +24,10 @@
  *   promo-marquee-1400x560.png          Optional, used only if the item is picked
  *                                       for the marquee.
  *
- * The two promo tiles carry no locale. That is the store's rule, not a shortcut:
- * "The small tile and Marquee promo tile cannot be localized."
+ * Nothing here is localised, because the package declares no locales — see
+ * `tests/unit/manifest.test.ts`. The store would not have allowed it for the
+ * tiles in any case, and that rule is worth keeping on record: "The small tile
+ * and Marquee promo tile cannot be localized."
  */
 import { chromium } from '@playwright/test';
 import {
@@ -34,7 +35,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -46,9 +46,6 @@ import { assertBuildFresh, capturePopupShots, headers, ROOT, state } from './lib
 
 const BUILD = path.join(ROOT, '.output', 'chrome-mv3');
 const OUT = path.join(ROOT, 'docs', 'store', 'assets');
-
-/** Chrome's own locale codes, matching public/_locales/ exactly. */
-const LOCALES = ['en', 'ko', 'ja', 'zh_CN', 'es'];
 
 /** `internal.example.com` is deliberately absent, so the pending shot is real. */
 const PRE_GRANTED = ['https://api.example.com/*', 'https://staging.example.com/*'];
@@ -129,50 +126,26 @@ const SHOTS = [
 ];
 
 /**
- * One line per shot, per locale, burnt into the image.
+ * One line per shot, burnt into the image.
  *
- * Terminology follows the five READMEs rather than being translated afresh, so
- * a reader who arrives from the repository meets the same words.
+ * Terminology follows the READMEs rather than being written afresh, so a reader
+ * who arrives from the repository meets the same words.
+ *
+ * Flat, keyed by shot. It was keyed by locale first and this map held five
+ * blocks; the package stopped declaring locales on 2026-08-23, and the four
+ * non-English blocks went with `LOCALES` rather than being left behind — the
+ * completeness check below iterated the locale list, so a leftover block was a
+ * thing nothing would ever look at again.
  */
 const CAPTIONS = {
-  en: {
-    scoped: 'Set, append or remove headers — on the sites you choose',
-    permission: 'No host access until you grant it, one site at a time',
-    blocked: 'Nothing fails quietly. A blocked rule says why, on its own row',
-    allsites: 'Apply everywhere is a mode — and the switch never asks for the permission',
-    dark: 'Follows your system theme, light or dark',
-  },
-  ko: {
-    scoped: '요청·응답 헤더를 설정·추가·삭제 — 원하는 사이트에만',
-    permission: '허용하기 전까지 사이트 접근 권한 없음, 사이트마다 따로',
-    blocked: '조용히 실패하지 않습니다. 막힌 규칙은 그 줄에서 이유를 말합니다',
-    allsites: '모든 사이트는 하나의 모드 — 스위치는 권한을 요구하지 않습니다',
-    dark: '시스템 테마를 따라 밝게 또는 어둡게',
-  },
-  ja: {
-    scoped: 'リクエスト・レスポンスヘッダーを設定・追加・削除 — 選んだサイトだけに',
-    permission: '許可するまでサイトへのアクセス権限なし。サイトごとに個別に',
-    blocked: '静かに失敗しません。ブロックされた規則はその行で理由を伝えます',
-    allsites: '「すべてのサイト」はモード — スイッチは権限を要求しません',
-    dark: 'システムのテーマに合わせてライトまたはダーク',
-  },
-  zh_CN: {
-    scoped: '设置、追加或删除请求与响应头 — 只在你选择的站点',
-    permission: '在你授权之前没有站点访问权限，逐个站点授权',
-    blocked: '不会悄悄失败。被阻止的规则会在自己那一行说明原因',
-    allsites: '「所有站点」是一种模式 — 开关不会索取该权限',
-    dark: '跟随系统主题，浅色或深色',
-  },
-  es: {
-    scoped: 'Establece, añade o elimina cabeceras — solo en los sitios que elijas',
-    permission: 'Sin acceso al sitio hasta que lo concedas, sitio por sitio',
-    blocked: 'Nada falla en silencio. Una regla bloqueada dice por qué, en su propia fila',
-    allsites: '«Todos los sitios» es un modo, y el interruptor nunca pide el permiso',
-    dark: 'Sigue el tema del sistema, claro u oscuro',
-  },
+  scoped: 'Set, append or remove headers — on the sites you choose',
+  permission: 'No host access until you grant it, one site at a time',
+  blocked: 'Nothing fails quietly. A blocked rule says why, on its own row',
+  allsites: 'Apply everywhere is a mode — and the switch never asks for the permission',
+  dark: 'Follows your system theme, light or dark',
 };
 
-/** The tiles carry no locale, so their one line is English by the store's rule. */
+/** One line, English, like everything else this script burns into an image. */
 const TILE_TAGLINE = 'HTTP headers, per site';
 
 // ---------------------------------------------------------------------------
@@ -182,42 +155,21 @@ const TILE_TAGLINE = 'HTTP headers, per site';
 /**
  * A missing caption would otherwise render as `undefined` in a 1280x800 image
  * nobody looks at closely until it is live on the store. Both directions are
- * checked: a locale short a shot, and a locale carrying a caption for a shot
- * that no longer exists — the second is how a set goes stale silently.
+ * checked: a shot with no caption, and a caption for a shot that no longer
+ * exists — the second is how a set goes stale silently.
  */
 function assertCaptionsComplete() {
   const wanted = SHOTS.map((shot) => shot.key).sort();
-  for (const locale of LOCALES) {
-    const captions = CAPTIONS[locale];
-    if (!captions) throw new Error(`CAPTIONS has no entry for the locale ${locale}.`);
-    const got = Object.keys(captions).sort();
-    if (got.join() !== wanted.join()) {
-      throw new Error(
-        `CAPTIONS.${locale} does not match the shot list — ` +
-          `has [${got}], the shots are [${wanted}].`,
-      );
-    }
-    for (const [key, line] of Object.entries(captions)) {
-      if (typeof line !== 'string' || line.trim() === '') {
-        throw new Error(`CAPTIONS.${locale}.${key} is empty.`);
-      }
-    }
-  }
-}
-
-/**
- * Every locale the listing is written in must be one the package declares, or
- * the store's language dropdown will never offer it and the images for it are
- * dead weight nobody can upload.
- */
-function assertLocalesMatchPackage() {
-  const declared = readdirSync(path.join(BUILD, '_locales')).sort();
-  const wanted = [...LOCALES].sort();
-  if (declared.join() !== wanted.join()) {
+  const got = Object.keys(CAPTIONS).sort();
+  if (got.join() !== wanted.join()) {
     throw new Error(
-      `the build declares locales [${declared}] but this script writes images for [${wanted}] — ` +
-        'the store offers a listing only for a locale in public/_locales/.',
+      `CAPTIONS does not match the shot list — has [${got}], the shots are [${wanted}].`,
     );
+  }
+  for (const [key, line] of Object.entries(CAPTIONS)) {
+    if (typeof line !== 'string' || line.trim() === '') {
+      throw new Error(`CAPTIONS.${key} is empty.`);
+    }
   }
 }
 
@@ -225,7 +177,7 @@ function assertLocalesMatchPackage() {
  * Read back rather than trusted, because the failure it catches is silent by
  * construction — a stylesheet that made the page one pixel wider produces a
  * perfectly good-looking image the store rejects on upload, and finding that out
- * on upload means finding it out twenty-five times.
+ * on upload means finding it out five times.
  *
  * The decode itself lives in `./lib/png.mjs`, shared with the unit test that
  * checks the *committed* images, so the two cannot disagree about what a valid
@@ -299,7 +251,7 @@ const PAGE_BASE = `
  * One screenshot: a fixed 176px caption band over a fixed 624px stage.
  *
  * Both heights are fixed rather than flexed so the popup lands at exactly the
- * same size and position in all twenty-five images. A flexed band would let a
+ * same size and position in all five images. A flexed band would let a
  * caption that wraps to two lines shrink its own screenshot, and the set would
  * jitter as the store paged through it — the same reasoning as the popup's own
  * rule that a control appearing must not resize what holds it.
@@ -404,7 +356,6 @@ assertBuildFresh({
   fix: 'run `pnpm store:assets`, which builds first',
 });
 assertCaptionsComplete();
-assertLocalesMatchPackage();
 
 const staging = mkdtempSync(path.join(tmpdir(), 'headerlab-store-'));
 const popups = mkdtempSync(path.join(tmpdir(), 'headerlab-popup-'));
@@ -434,9 +385,12 @@ try {
 
       // The caption band clamps to two lines and hides what does not fit, so a
       // caption too long for it is cut with no mark on the image. Measured
-      // today: all 25 render on **one** line, so there is a whole line of
-      // headroom — which is precisely the condition under which a future
-      // translation grows past it and nobody notices. The band's height is
+      // 2026-08-23: all 5 render on **one** line, so there is a whole line of
+      // headroom — which is precisely the condition under which an edited
+      // caption grows past it and nobody notices. (It read 25 and named a
+      // future *translation* until the package stopped declaring locales;
+      // the guard survives the translations because English copy grows too.)
+      // The band's height is
       // fixed on purpose (see `screenshotHtml`) and must stay that way, so the
       // check is that the text fits rather than that the box grew.
       const clipped = await page.evaluate(() => {
@@ -456,15 +410,13 @@ try {
       written.push(file);
     }
 
-    for (const locale of LOCALES) {
-      for (const [index, shot] of SHOTS.entries()) {
-        await draw(
-          `screenshot-${index + 1}-${shot.key}.${locale}.png`,
-          screenshotHtml(shots[shot.key], CAPTIONS[locale][shot.key]),
-          1280,
-          800,
-        );
-      }
+    for (const [index, shot] of SHOTS.entries()) {
+      await draw(
+        `screenshot-${index + 1}-${shot.key}.png`,
+        screenshotHtml(shots[shot.key], CAPTIONS[shot.key]),
+        1280,
+        800,
+      );
     }
 
     await draw('store-icon-128.png', STORE_ICON_HTML, 128, 128, true);

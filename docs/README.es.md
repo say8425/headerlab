@@ -261,7 +261,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix arregla
 pnpm format:check    # oxfmt --check             (pnpm format para escribir)
 pnpm build           # build de producción → .output/chrome-mv3
 pnpm screenshots     # regenera las imágenes de este README desde el popup real
-pnpm store:assets    # regenera las 28 imágenes de la Chrome Web Store → docs/store/assets/
+pnpm store:assets    # regenera las 8 imágenes de la Chrome Web Store → docs/store/assets/
 ```
 
 **pnpm, no npm.** `package.json` nombra la versión exacta bajo `packageManager`, así que
@@ -289,7 +289,7 @@ que parece un problema de código y no una dependencia que falta.
 
 **`pnpm screenshots` y `pnpm store:assets` sobrescriben los PNG versionados** — de
 `docs/screenshots/` y `docs/store/assets/` respectivamente, y el segundo vacía su
-directorio antes de reescribir las 28. Ese es su trabajo, pero significa que una ejecución
+directorio antes de reescribir las 8. Ese es su trabajo, pero significa que una ejecución
 deja cambios en `git status`; haz commit de ellos solo cuando la UI haya cambiado de verdad.
 
 **La build de e2e lleva un permiso de host que la build publicada no tiene, y dada la

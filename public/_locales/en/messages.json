@@ -1,6 +1,0 @@
-{
-  "extDescription": {
-    "message": "Set, append or remove HTTP request and response headers, per site. No host access until you grant it. No network calls.",
-    "description": "The Chrome Web Store summary and the description on chrome://extensions. Chrome's limit is 132 characters; tests/unit/i18n.test.ts enforces it."
-  }
-}
