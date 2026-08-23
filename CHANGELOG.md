@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/say8425/headerlab/compare/extension-v1.4.0...extension-v1.5.0) (2026-08-23)
+
+
+### Features
+
+* put the bridge state on screen, in the space the row already had ([#65](https://github.com/say8425/headerlab/issues/65)) ([f1c391b](https://github.com/say8425/headerlab/commit/f1c391b047754abbaeb8b03c61f5c2de3844f1e5))
+
 ## [1.4.0](https://github.com/say8425/headerlab/compare/extension-v1.3.1...extension-v1.4.0) (2026-08-22)
 
 
