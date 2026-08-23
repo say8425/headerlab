@@ -1413,24 +1413,33 @@ describe('all-sites mode', () => {
       await screen.findByDisplayValue('X-A');
     };
 
+    // `waitFor`, not a bare read, at all four — the same reason the assertions
+    // further down this file give: the live count is the probe's verdict, and
+    // `open()` waits for the rule input rather than for the probe. Those are
+    // different async facts, so a bare read asserts whichever frame the machine
+    // landed on. CI caught it on 2026-08-23 at the second case:
+    // `0 of 2 live· 2 blocked · 1 site needs access` — the pre-probe reading —
+    // where `2 of 2 live` was asserted, while every run on `main` had won the
+    // race. This was the one test in the file still reading bare.
+
     // off + none: inert, and said without alarm — by the readout's own
     // sentence now, not a note (the notes are gone, 2026-08-19).
     await open({ allSites: false, domains: [] });
-    expect(readout()).toBe('0 of 2 live· 2 blocked');
+    await waitFor(() => expect(readout()).toBe('0 of 2 live· 2 blocked'));
     expect(screen.getByTestId('site-count').textContent).toBe('0');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
 
     // off + some: ordinary scoped operation, nothing to report.
     await open({ allSites: false, domains: ['api.example.com'] });
-    expect(readout()).toBe('2 of 2 live');
+    await waitFor(() => expect(readout()).toBe('2 of 2 live'));
     expect(screen.getByTestId('site-count').textContent).toBe('1');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
 
     // on: everywhere, by choice, and equally quiet.
     await open({ allSites: true, domains: [] });
-    expect(readout()).toBe('2 of 2 live');
+    await waitFor(() => expect(readout()).toBe('2 of 2 live'));
     expect(screen.getByTestId('site-count').textContent).toBe('all');
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
     cleanup();
@@ -1438,7 +1447,7 @@ describe('all-sites mode', () => {
     // off + unusable: the one that is genuinely wrong — said by the readout
     // and by the row's own invalid Badge, never by a rail note.
     await open({ allSites: false, domains: ['a b.com'] });
-    expect(readout()).toBe('0 of 2 live· 2 blocked');
+    await waitFor(() => expect(readout()).toBe('0 of 2 live· 2 blocked'));
     expect(within(screen.getByTestId('site')).getByTestId('site-invalid')).toBeTruthy();
     expect(screen.queryAllByTestId('scope-note')).toEqual([]);
   });
