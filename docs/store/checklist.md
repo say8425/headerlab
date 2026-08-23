@@ -66,12 +66,27 @@ item ever becomes paid, or comes to be published in the course of a profession.
 
 - [ ] `pnpm check:all` — typecheck, lint, format, unit tests, package tests.
 - [ ] `pnpm test:e2e` — the suite that drives a real browser.
-- [ ] `pnpm zip` → `.output/headerlab-<version>-chrome.zip`.
+- [ ] `pnpm zip` → `.output/headerlab-<version>-chrome.zip`. **Clear the old ones
+      first** — `wxt zip` does not remove them, and the two checks below name the
+      archive rather than glob for it precisely because a leftover wins:
+
+      ```bash
+      rm -f .output/*.zip && pnpm zip
+      ZIP=".output/headerlab-$(node -p "require('./package.json').version")-chrome.zip"
+      ```
+
+      Both commands below use `$ZIP`. Do not replace it with
+      `.output/headerlab-*-chrome.zip`: with two archives present the shell
+      expands that in sorted order and `unzip` reads the *first* argument, so a
+      stale build answers and the answer looks right. Measured on 2026-08-23,
+      with `1.3.1` left over beside a fresh `1.5.0`, the glob printed the
+      manifest of `1.3.1`.
+
 - [ ] Confirm the zip carries all five locales, or the listing cannot be written
       in five languages:
 
       ```bash
-      unzip -l .output/headerlab-*-chrome.zip | grep messages.json
+      unzip -l "$ZIP" | grep messages.json
       ```
 
       Five lines: `en`, `es`, `ja`, `ko`, `zh_CN`.
@@ -80,7 +95,7 @@ item ever becomes paid, or comes to be published in the course of a profession.
       permissions and no `host_permissions`:
 
       ```bash
-      unzip -p .output/headerlab-*-chrome.zip manifest.json
+      unzip -p "$ZIP" manifest.json
       ```
 
       `permissions` must be `["storage", "declarativeNetRequestWithHostAccess"]`
