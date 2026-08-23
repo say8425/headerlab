@@ -1266,6 +1266,21 @@ that no longer renders, passing while describing nothing.
   fix, refactor,
   docs, test, chore, perf, ci.
 - The repo allows **squash merges only**.
+- **Touching the CLI means reviewing the skill in the same change.** Any work under
+  `packages/headerlab/` carries a question that no test asks: does
+  `packages/plugin/skills/headerlab/SKILL.md` still describe the CLI correctly? That file
+  is the only reference a model reads before driving this CLI, and it is the one surface
+  where being wrong is invisible — a human reads `--help`, an agent reads the skill.
+  Two guards in `packages/headerlab/test/docs.test.mjs` bind it mechanically: every command
+  in `commands.mjs` must appear in it, and every code in `ERROR_CODES` must appear inside
+  backticks. **Both bind names, not claims**, and the gap between those is where it has
+  actually drifted. Measured: the skill described `invalid-command` as a `state set` source
+  that could not be read — all three of those conditions are `invalid-args`/exit 2, while
+  the real code is the extension's and exits 1, so it named the wrong layer inside the one
+  paragraph teaching a model to branch on the layer — and it said "and four more" where the
+  contract had grown to sixteen, leaving `invalid-state`, `unknown-rule` and
+  `unknown-domain` with no name at all. Both were green under every guard. Re-read the
+  claims, not just the identifiers.
 - Design docs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`,
   measured spikes in `docs/research/`. A spike that contradicts a design is a success —
   fix the design.
