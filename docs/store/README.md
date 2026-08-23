@@ -37,9 +37,12 @@ What that cost, stated rather than buried: four translated store listings and
 their twenty screenshots are gone, and the summary under the item title is
 English for everyone. The four descriptions are recoverable from git history if
 the decision is ever reversed, but reversing it means bringing back
-`_locales/`, `default_locale` and the `__MSG_` reference together — any one of
-them alone refuses the install. The production-manifest unit suite pins all
-three absences.
+`_locales/`, `default_locale` and the `__MSG_` reference together. Two of the
+three refuse the install on their own; the third does not. Measured 2026-08-23:
+a `__MSG_` reference with no `_locales` and no `default_locale` **loads**, and
+ships the literal `__MSG_extDescription__` as the store summary. The
+production-manifest unit suite pins all three absences, and that third one is
+the reason it has to.
 
 **The store icon is not the toolbar icon.** The store wants 96×96 of artwork
 inside 16px of transparent padding; `public/icon/active-128.png` is full bleed,

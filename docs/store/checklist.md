@@ -86,17 +86,22 @@ item ever becomes paid, or comes to be published in the course of a profession.
       says the archive exists: `unzip -p` below prints **nothing at all** when it
       does not — exit 9, zero bytes on stderr, measured.
 
-- [ ] Confirm the zip carries **no** locales. The package declares none by
-      decision, and `_locales` reappearing means `default_locale` or a `__MSG_`
-      reference came back with it — which refuses the install outright:
+- [ ] Confirm the zip carries the manifest and **no** locales. The package
+      declares none by decision. Two of the three pieces refuse the install if
+      they return alone; a `__MSG_` reference does not — it loads and ships the
+      placeholder as the store summary (measured), which is why this is checked
+      here rather than left to a load:
 
       ```bash
       ZIP=".output/headerlab-$(node -p "require('./package.json').version")-chrome.zip"
-      unzip -l "$ZIP" | grep messages.json
+      unzip -l "$ZIP" | grep -c 'manifest.json'   # must be 1
+      unzip -l "$ZIP" | grep -c 'messages.json'   # must be 0
       ```
 
-      Zero lines. `grep` exits 1 on no match, which is the expected outcome
-      here rather than a failure.
+      **Both lines, not just the second.** An absence check on its own is a
+      check a missing archive passes: `unzip -l` on a file that is not there
+      prints nothing, `grep` finds nothing, and the step reads as confirmed.
+      The `manifest.json` count is what proves a real archive was opened.
 
 - [ ] Confirm the manifest inside the zip still declares exactly two install-time
       permissions and no `host_permissions`:

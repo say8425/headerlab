@@ -177,7 +177,7 @@ function assertCaptionsComplete() {
  * Read back rather than trusted, because the failure it catches is silent by
  * construction — a stylesheet that made the page one pixel wider produces a
  * perfectly good-looking image the store rejects on upload, and finding that out
- * on upload means finding it out twenty-five times.
+ * on upload means finding it out five times.
  *
  * The decode itself lives in `./lib/png.mjs`, shared with the unit test that
  * checks the *committed* images, so the two cannot disagree about what a valid
@@ -251,7 +251,7 @@ const PAGE_BASE = `
  * One screenshot: a fixed 176px caption band over a fixed 624px stage.
  *
  * Both heights are fixed rather than flexed so the popup lands at exactly the
- * same size and position in all twenty-five images. A flexed band would let a
+ * same size and position in all five images. A flexed band would let a
  * caption that wraps to two lines shrink its own screenshot, and the set would
  * jitter as the store paged through it — the same reasoning as the popup's own
  * rule that a control appearing must not resize what holds it.
@@ -385,9 +385,12 @@ try {
 
       // The caption band clamps to two lines and hides what does not fit, so a
       // caption too long for it is cut with no mark on the image. Measured
-      // today: all 25 render on **one** line, so there is a whole line of
-      // headroom — which is precisely the condition under which a future
-      // translation grows past it and nobody notices. The band's height is
+      // 2026-08-23: all 5 render on **one** line, so there is a whole line of
+      // headroom — which is precisely the condition under which an edited
+      // caption grows past it and nobody notices. (It read 25 and named a
+      // future *translation* until the package stopped declaring locales;
+      // the guard survives the translations because English copy grows too.)
+      // The band's height is
       // fixed on purpose (see `screenshotHtml`) and must stay that way, so the
       // check is that the text fits rather than that the box grew.
       const clipped = await page.evaluate(() => {

@@ -46,12 +46,21 @@ describe('production manifest', () => {
     // store dashboard report five supported languages while those five files
     // translated one string between them and the popup called `i18n` nowhere.
     //
-    // Three pieces, asserted separately because they fail differently. Any one
-    // of `_locales` / `default_locale` / `__MSG_` coming back alone stops
-    // Chrome loading the extension outright — loud, and caught by e2e. All
-    // three coming back together is the quiet one: nothing breaks, and the
-    // dashboard silently re-offers four listings nobody is writing. That is
-    // the case only this test sees.
+    // Three pieces, asserted separately because they fail differently — and
+    // not the way this comment first claimed. Measured 2026-08-23, loading
+    // each variant in real Chromium:
+    //
+    //   default_locale alone   REFUSED (no service worker)
+    //   _locales alone         REFUSED (no service worker)
+    //   __MSG_ alone           LOADED — description reads back as the literal
+    //                          string `__MSG_extDescription__`
+    //
+    // So the `__MSG_` assertion below is not a belt beside e2e's braces. It is
+    // the ONLY thing between a re-introduced `__MSG_` and a store listing whose
+    // summary reads `__MSG_extDescription__` to every shopper: nothing throws,
+    // the extension works, and e2e stays green. The other two are caught by any
+    // real load. All three returning together is quiet in a different way —
+    // the dashboard re-offers four listings nobody is writing.
     const dir = assertBuildFresh('production');
     expect(readdirSync(dir)).not.toContain('_locales');
 

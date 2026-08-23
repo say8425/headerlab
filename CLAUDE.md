@@ -697,8 +697,13 @@ English string to an English string, and its only remaining property is a failur
 which is exactly the "declared but paints nothing" shape this file records hunting down in
 the palette. `description` is a literal in `wxt.config.ts` now, and the production-manifest
 suite pins the absence of all three pieces (`_locales`, `default_locale`, `__MSG_`)
-separately, because any one returning alone refuses the install while all three returning
-together silently re-offers four listings nobody writes. `name` stays a literal for a
+separately, and they do not fail alike. Measured 2026-08-23 by loading each variant in real
+Chromium: `default_locale` without `_locales` is refused, `_locales` without
+`default_locale` is refused, and **a `__MSG_` reference with neither loads** — shipping the
+literal `__MSG_extDescription__` as the store summary, with nothing throwing and e2e green.
+So two of the three are caught by any real load and the third is caught only by that
+assertion. All three returning together is quiet in its own way: the dashboard re-offers
+four listings nobody writes. `name` stays a literal for a
 reason that survived the change: the store item's **title** is `manifest.name`, so editing
 it is a release rather than a form edit.
 

@@ -104,7 +104,6 @@ most people ever see. Upload in the numeric order the filenames carry:
 | 4 | `screenshot-4-allsites` | All-sites mode on, permission not held, saved sites reading "All sites is on" |
 | 5 | `screenshot-5-dark` | The same popup following a dark OS theme |
 
-
 ## What the screenshots do not claim
 
 Shots 1, 2, 3 and 5 each show at least one site reading "Access granted". Real

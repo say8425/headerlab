@@ -25,30 +25,31 @@ import { REPO_ROOT, readBuildFile } from '../support/build';
 const STORE = path.join(REPO_ROOT, 'docs', 'store');
 
 /**
- * Kept verbatim in every language: an API name, a licence, a URL and a button
+ * Kept verbatim: an API name, a licence, a URL and a button
  * label are not prose. `main_frame` and `Grant` are values the user types
  * nowhere but reads in the popup, so a translated one would name a checkbox or
  * a button that does not exist.
  *
- * Neither is localizable even in principle, which is what makes pinning them a
- * guard rather than a nicety: every file under `public/_locales/` carries
- * exactly one key, `extDescription`, so the popup UI ships in English in every
- * locale — `Grant` is a literal string in `components/SiteRow.tsx` and
- * `components/ScopeRail.tsx`, reachable by no translation. A locale rendering
- * it 허용 or 授权 would name a button that does not exist, and would take a
- * trust-posture claim with it.
+ * `Grant` is a literal string in `components/SiteRow.tsx` and
+ * `components/ScopeRail.tsx`. Copy that spells it any other way names a button
+ * nobody can find, and takes a trust-posture claim with it.
  *
  * **Which claim is worth stating exactly, because the obvious guess is wrong.**
- * `Grant` occurs once per locale and in all five it is the all-sites bullet, so
- * what it carries is that the mode costs access to every site and the switch
- * does not ask for it — a separate button does. That is the largest grant this
- * extension can request, which makes it the sharper of the two claims, not the
- * looser one. The per-site claim is the first line's lowercase "until you grant
- * it": prose, translated in every locale, and correctly not pinned here. In the
- * popup the button really is both, rendered on a site row and on the all-sites
- * bar — but this list is about what the listing says, and the listing names it
- * once. Since the install-time permission paragraph was cut, that bullet is one
- * of the few places the claim still appears at all.
+ * `Grant` occurs once, and it is the all-sites bullet — so what it carries is
+ * that the mode costs access to every site and the switch does not ask for it,
+ * a separate button does. That is the largest grant this extension can request,
+ * which makes it the sharper of the two claims rather than the looser one. The
+ * per-site claim is the first line's lowercase "until you grant it": prose, and
+ * correctly not pinned here. In the popup the button really is both, rendered
+ * on a site row and on the all-sites bar — but this list is about what the
+ * listing says, and the listing names it once. Since the install-time
+ * permission paragraph was cut, that bullet is one of the few places the claim
+ * still appears at all.
+ *
+ * (This paragraph used to argue from `public/_locales/` — that every locale
+ * file carried one key, so the UI shipped English everywhere. The package
+ * declares no locales since 2026-08-23, and the surviving claim needs no
+ * locales to stand: the listing has to spell these as the product does.)
  *
  * **A permission string was in that sentence, and in this list, until
  * 2026-08-22.** Both went when the owner cut the paragraph that carried
@@ -118,7 +119,30 @@ const MARKDOWN: ReadonlyArray<readonly [string, RegExp]> = [
   ['link syntax', /\[[^\]]*\]\([^)]*\)/],
 ];
 
+/**
+ * The description's line shape, as a string: `T` for a text line, `B` for a
+ * bullet, `_` for a blank.
+ *
+ * This helper carried two jobs and only one of them died with the
+ * translations. Cross-language parity is gone — there is one file. The English
+ * shape is not: the owner cut this description to a deliberate 26 lines and 9
+ * bullets on 2026-08-22, and nothing else here sees structure. `MARKDOWN`
+ * catches a stray marker and `VERBATIM` catches a vanished API name; a merged
+ * paragraph or a dropped bullet is invisible to both.
+ */
+const skeleton = (text: string): string =>
+  text
+    .split('\n')
+    .map((line) => (line.trim() === '' ? '_' : line.startsWith('•') ? 'B' : 'T'))
+    .join('');
+
 describe('the store description', () => {
+  it('keeps the shape the owner cut it to', () => {
+    // A snapshot of a deliberate shape, not a constant — edit it when the shape
+    // is meant to change. It read 37 lines and 11 bullets until 2026-08-22.
+    expect(skeleton(description('en'))).toBe('T_T_BBBBB_T_T_T_T_BBBB_T_T');
+  });
+
   it('is the only one — English, and nothing beside it', () => {
     // Both directions still matter with one locale. A leftover translation is
     // copy that can never be uploaded, because the dashboard's language

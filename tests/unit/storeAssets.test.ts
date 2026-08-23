@@ -51,7 +51,6 @@ const UNLOCALIZED: ReadonlyArray<readonly [string, number, number]> = [
   ['promo-marquee-1400x560.png', 1400, 560],
 ];
 
-/** Locales the package declares — the only ones the store will offer a listing for. */
 const screenshotNames = (): string[] =>
   SHOT_KEYS.map((key, index) => `screenshot-${index + 1}-${key}.png`);
 

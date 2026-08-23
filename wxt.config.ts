@@ -23,9 +23,13 @@ export default defineConfig({
     // rather than narrowed: `_locales/en` resolving an English string to an
     // English string is a mechanism whose only remaining property is its
     // failure mode. The production-manifest unit suite pins the absence of all
-    // three pieces — `_locales`, `default_locale`, `__MSG_` — because any one
-    // of them coming back alone stops Chrome loading the extension, and all
-    // three coming back quietly re-offers four listings nobody writes.
+    // three pieces — `_locales`, `default_locale`, `__MSG_` — and they do not
+    // fail alike, measured 2026-08-23 by loading each variant in real Chromium:
+    // `default_locale` without `_locales` is REFUSED, `_locales` without
+    // `default_locale` is REFUSED, and a `__MSG_` reference with neither
+    // LOADS — shipping the literal `__MSG_extDescription__` as the store
+    // summary. So two of the three are loud and one is
+    // silent, which is the one the suite is really for.
     //
     // (Named in prose rather than by path: a quoted path under the test tree
     // in a shipped source is what the build-freshness carve-out guard forbids,
