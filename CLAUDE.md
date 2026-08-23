@@ -58,7 +58,7 @@ components/ui/   shadcn primitives, vendored: badge button checkbox input
 entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry
                  point — two hand-written palettes, the @theme inline bridge
                  that exposes them as utilities, and the shadcn data-* variants
-public/          copied to the output root — theme.js, icon/, _locales/
+public/          copied to the output root — theme.js, icon/
 scripts/         make-icons.mjs, screenshots.mjs, store-assets.mjs — generators,
                  not shipped · lib/popup-shots.mjs is the freshness guard, the
                  stored-state fixtures and the capture loop the last two share
@@ -682,21 +682,36 @@ item that isn't included in the metadata of the manifest." So the title is
 shipping a version rather than editing a form. Chrome's limit on the summary is 132
 characters.
 
-**A listing in five languages is a property of the package.** The dashboard's language
-dropdown offers exactly the locales the uploaded zip carries under `_locales/`, so the
-translated listings exist because `public/_locales/{en,ko,ja,zh_CN,es}/messages.json` and
-`default_locale: 'en'` do. Drop a locale directory and four listings silently become
-unavailable, with nothing failing. `tests/unit/i18n.test.ts` is that guard: it pins
-`default_locale`, pins `description` to `__MSG_extDescription__` so a literal cannot creep
-back and un-localize four listings at once, requires every locale to declare the same key
-set — a key present only in `en` refuses the extension to load for everyone else, and
-never for the developer adding it — and holds every message inside 132 code points.
-`name` is deliberately **not** a `__MSG_`: nine identical characters in every locale buy
-nothing and would add a second key whose absence anywhere is a failed load.
+**The package declares no locales, and that is a decision (owner's call, 2026-08-23).**
+The dashboard's language dropdown offers exactly the locales the uploaded zip carries under
+`_locales/`, so this one offers only the default. It used to carry
+`public/_locales/{en,ko,ja,zh_CN,es}/` with `default_locale: 'en'`, which made the store
+report five supported languages — while those five files translated **one** string between
+them (`extDescription`) and the popup called `i18n` nowhere. A person installing in Korean
+got an entirely English UI. `docs/superpowers/specs/2026-07-31-headerlab-design.md` said
+"UI language: English" from the first week; the directories were what drifted away from the
+prose, and the dashboard reported the directories.
 
-Whether the store counts UTF-16 units or code points has **not** been measured. It does
-not currently matter, because every message is inside the BMP and the two readings agree
-— which is itself an assertion in that file rather than a hope.
+The indirection went rather than being narrowed to `en`. With one locale it resolves an
+English string to an English string, and its only remaining property is a failure mode —
+which is exactly the "declared but paints nothing" shape this file records hunting down in
+the palette. `description` is a literal in `wxt.config.ts` now, and the production-manifest
+suite pins the absence of all three pieces (`_locales`, `default_locale`, `__MSG_`)
+separately, because any one returning alone refuses the install while all three returning
+together silently re-offers four listings nobody writes. `name` stays a literal for a
+reason that survived the change: the store item's **title** is `manifest.name`, so editing
+it is a release rather than a form edit.
+
+The cost, stated because it is real: four translated listings and their twenty screenshots
+are gone, and the summary under the item title is English for everyone. The four
+descriptions are in git history; reversing the decision means bringing all three manifest
+pieces back together.
+
+Whether the store counts UTF-16 units or code points has **not** been measured, and no
+longer needs to be. The limit assertion counts UTF-16 units (`.length`), which outside the
+BMP is the larger of the two readings and therefore cannot under-report either way — the
+counting closes the ambiguity, which is why the old "stays inside the BMP" assertion could
+go with the locales rather than being kept as its guarantee.
 
 **Localisable and not, from the store's own wording:** the detailed description, the
 screenshots and the promo video are per-locale; "The small tile and Marquee promo tile
@@ -726,12 +741,12 @@ unmonetised Apache-2.0 extension forms no such contract. The status is a fact ab
 publisher rather than about the extension, so it can go stale without a line of code
 moving.
 
-**`pnpm store:assets` generates all 28 images** — 25 screenshots at 1280×800 (five states
-× five locales), the store icon, the small tile and the marquee. It reads each file's PNG
-IHDR after writing and refuses a set the store would reject, so a stylesheet that made the
-page one pixel wider fails here rather than on the twenty-fifth upload. Two failure modes
-it cannot see, both of which need eyes: a machine with no CJK fonts draws empty boxes while
-every check passes, and nothing in this repository reads a pixel's colour.
+**`pnpm store:assets` generates all 8 images** — 5 screenshots at 1280×800 (five states),
+the store icon, the small tile and the marquee. It reads each file's PNG IHDR after writing
+and refuses a set the store would reject, so a stylesheet that made the page one pixel
+wider fails here rather than at the upload. One failure mode it cannot see and which needs
+eyes: nothing in this repository reads a pixel's colour. (The missing-CJK-fonts hazard went
+with the translated captions — every line burnt into these images is English now.)
 
 **The store icon is not the toolbar icon.** The store wants 96×96 of artwork inside 16px
 of transparent padding; `public/icon/active-128.png` is full bleed because a toolbar slot

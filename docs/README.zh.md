@@ -221,7 +221,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 修复)
 pnpm format:check    # oxfmt --check             (pnpm format 写入)
 pnpm build           # 生产构建 → .output/chrome-mv3
 pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片
-pnpm store:assets    # 重新生成 Chrome 网上应用店的 28 张图片 → docs/store/assets/
+pnpm store:assets    # 重新生成 Chrome 网上应用店的 8 张图片 → docs/store/assets/
 ```
 
 **是 pnpm，不是 npm。** `package.json` 在 `packageManager` 中写明了确切版本，所以
@@ -244,7 +244,7 @@ pnpm exec playwright install --with-deps --no-shell chromium
 它们失败的样子看起来像代码问题，而不是缺少依赖。
 
 **`pnpm screenshots` 与 `pnpm store:assets` 会覆盖被追踪的 PNG**（分别是
-`docs/screenshots/` 与 `docs/store/assets/`，后者会先清空目录再重写全部 28 张）。这正是
+`docs/screenshots/` 与 `docs/store/assets/`，后者会先清空目录再重写全部 8 张）。这正是
 它们的职责，但跑一次就会在 `git status` 里留下改动 —— 只有在 UI 确实变了的时候才提交它们。
 
 **e2e 构建带有发布构建所没有的主机权限，考虑到本页开头的主张，这值得明说。**

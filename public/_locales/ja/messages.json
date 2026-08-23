@@ -1,6 +1,0 @@
-{
-  "extDescription": {
-    "message": "HTTP リクエスト・レスポンスヘッダーをサイトごとに設定・追加・削除します。許可するまでサイトへのアクセス権限はなく、ネットワーク通信も行いません。",
-    "description": "The Chrome Web Store summary and the description on chrome://extensions. Chrome's limit is 132 characters; tests/unit/i18n.test.ts enforces it."
-  }
-}

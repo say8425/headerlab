@@ -247,7 +247,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix で修�
 pnpm format:check    # oxfmt --check             (pnpm format で書き込み)
 pnpm build           # 本番ビルド → .output/chrome-mv3
 pnpm screenshots     # この README の画像を実際のポップアップから再生成
-pnpm store:assets    # Chrome ウェブストア用の画像 28 枚を再生成 → docs/store/assets/
+pnpm store:assets    # Chrome ウェブストア用の画像 8 枚を再生成 → docs/store/assets/
 ```
 
 **npm ではなく pnpm。** `package.json` の `packageManager` が正確なバージョンを指定して
@@ -274,7 +274,7 @@ pnpm exec playwright install --with-deps --no-shell chromium
 ではなくコードの問題に見える形で失敗します。
 
 **`pnpm screenshots` と `pnpm store:assets` は追跡中の PNG を上書きします**(それぞれ
-`docs/screenshots/` と `docs/store/assets/`。後者はディレクトリを空にしてから 28 枚を
+`docs/screenshots/` と `docs/store/assets/`。後者はディレクトリを空にしてから 8 枚を
 書き直します)。それがこれらのコマンドの仕事ですが、一度実行すると `git status` に変更が
 残ります — UI が実際に変わったときだけコミットしてください。
 

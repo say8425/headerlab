@@ -240,7 +240,7 @@ pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 로 수
 pnpm format:check    # oxfmt --check             (pnpm format 으로 쓰기)
 pnpm build           # 프로덕션 빌드 → .output/chrome-mv3
 pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 생성
-pnpm store:assets    # 크롬 웹 스토어용 이미지 28 장을 다시 생성 → docs/store/assets/
+pnpm store:assets    # 크롬 웹 스토어용 이미지 8 장을 다시 생성 → docs/store/assets/
 ```
 
 **npm 이 아니라 pnpm.** `package.json` 의 `packageManager` 가 정확한 버전을 지정하므로
@@ -265,7 +265,7 @@ pnpm exec playwright install --with-deps --no-shell chromium
 문제처럼 보이는 방식으로 실패합니다.
 
 **`pnpm screenshots` 와 `pnpm store:assets` 는 추적 중인 PNG 를 덮어씁니다** (각각
-`docs/screenshots/` 와 `docs/store/assets/`, 뒤엣것은 디렉터리를 비우고 28 장을 다시
+`docs/screenshots/` 와 `docs/store/assets/`, 뒤엣것은 디렉터리를 비우고 8 장을 다시
 씁니다). 그게 그 명령들의 일이지만, 한 번 돌리면 `git status` 에 변경이 남습니다 — UI 가
 실제로 바뀌었을 때만 커밋하세요.
 

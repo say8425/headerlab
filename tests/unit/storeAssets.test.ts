@@ -23,7 +23,6 @@ import { REPO_ROOT } from '../support/build';
  */
 
 const ASSETS = path.join(REPO_ROOT, 'docs', 'store', 'assets');
-const LOCALES_DIR = path.join(REPO_ROOT, 'public', '_locales');
 
 /**
  * The five states, in the order they are uploaded.
@@ -53,12 +52,8 @@ const UNLOCALIZED: ReadonlyArray<readonly [string, number, number]> = [
 ];
 
 /** Locales the package declares — the only ones the store will offer a listing for. */
-const packageLocales = (): string[] => readdirSync(LOCALES_DIR).sort();
-
 const screenshotNames = (): string[] =>
-  packageLocales().flatMap((locale) =>
-    SHOT_KEYS.map((key, index) => `screenshot-${index + 1}-${key}.${locale}.png`),
-  );
+  SHOT_KEYS.map((key, index) => `screenshot-${index + 1}-${key}.png`);
 
 describe('the committed store assets', () => {
   it('are exactly the files the listing instructions name', () => {
@@ -66,17 +61,6 @@ describe('the committed store assets', () => {
     // a stray one is a file somebody will upload without knowing what it is.
     const expected = [...screenshotNames(), ...UNLOCALIZED.map(([file]) => file)].sort();
     expect(readdirSync(ASSETS).sort()).toEqual(expected);
-  });
-
-  it('number five screenshots per locale, for every locale the package declares', () => {
-    // The count the docs quote, derived rather than pinned: five states across
-    // however many locales `public/_locales/` holds, plus the three that carry
-    // no locale. Adding a sixth locale without generating its images fails the
-    // assertion above; this one is what makes the arithmetic legible when it does.
-    expect(screenshotNames()).toHaveLength(SHOT_KEYS.length * packageLocales().length);
-    expect(readdirSync(ASSETS)).toHaveLength(
-      SHOT_KEYS.length * packageLocales().length + UNLOCALIZED.length,
-    );
   });
 
   it('are all 1280x800, which is the size the store accepts', () => {
