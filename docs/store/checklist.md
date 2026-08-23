@@ -66,12 +66,32 @@ item ever becomes paid, or comes to be published in the course of a profession.
 
 - [ ] `pnpm check:all` — typecheck, lint, format, unit tests, package tests.
 - [ ] `pnpm test:e2e` — the suite that drives a real browser.
-- [ ] `pnpm zip` → `.output/headerlab-<version>-chrome.zip`.
+- [ ] `pnpm zip` → `.output/headerlab-<version>-chrome.zip`. **Clear the old ones
+      first** — `wxt zip` does not remove them, and every check below names the
+      archive rather than globbing for it precisely because a leftover wins:
+
+      ```bash
+      ZIP=".output/headerlab-$(node -p "require('./package.json').version")-chrome.zip"
+      find .output -maxdepth 1 -name '*.zip' -delete 2>/dev/null; pnpm zip && ls -l "$ZIP"
+      ```
+
+      `find`, not `rm -f .output/*.zip`. Under zsh an unmatched glob is a hard
+      error that aborts the line before `rm` runs, so the `&&` never fires and
+      the zip is never built — and no zip is exactly the state the two steps
+      above leave you in. Measured on 2026-08-23:
+      `zsh -c 'rm -f .output/*.zip && echo ran'` prints `no matches found` and
+      exits 1, while bash runs it. zsh is macOS's default shell.
+
+      The `ls -l` is part of the check, not decoration. It is the only thing that
+      says the archive exists: `unzip -p` below prints **nothing at all** when it
+      does not — exit 9, zero bytes on stderr, measured.
+
 - [ ] Confirm the zip carries all five locales, or the listing cannot be written
       in five languages:
 
       ```bash
-      unzip -l .output/headerlab-*-chrome.zip | grep messages.json
+      ZIP=".output/headerlab-$(node -p "require('./package.json').version")-chrome.zip"
+      unzip -l "$ZIP" | grep messages.json
       ```
 
       Five lines: `en`, `es`, `ja`, `ko`, `zh_CN`.
@@ -80,13 +100,31 @@ item ever becomes paid, or comes to be published in the course of a profession.
       permissions and no `host_permissions`:
 
       ```bash
-      unzip -p .output/headerlab-*-chrome.zip manifest.json
+      ZIP=".output/headerlab-$(node -p "require('./package.json').version")-chrome.zip"
+      unzip -p "$ZIP" manifest.json | python3 -m json.tool
       ```
 
       `permissions` must be `["storage", "declarativeNetRequestWithHostAccess"]`
       and there must be no `host_permissions` key at all. `tests/unit/manifest.test.ts`
       asserts this, so a green `pnpm check` already proves it — the command is
-      here because this is the one claim the whole listing rests on.
+      here because this is the one claim the whole listing rests on. It is piped
+      through `json.tool` because `wxt` writes the manifest as one ~500-character
+      line, and "there must be no `host_permissions` key" is not a thing to
+      confirm by eye in one line.
+
+      **The `ZIP=` line is repeated in each block on purpose.** A checklist is
+      run with pauses — that is what the checkboxes are for — and a shell
+      variable does not survive a new terminal. Repeating it costs one line and
+      removes the state between blocks.
+
+      **Never put the glob back.** With two archives present the shell expands it
+      in string order, and `unzip` takes the first as the archive and every
+      *other* argument as a member-name pattern inside it. So the two checks fail
+      differently, which is why this note covers both: the manifest check prints
+      the wrong archive's manifest and looks right, while the locale check
+      matches nothing and prints zero lines. And the order is lexicographic, not
+      semver — `1.10.0` sorts before `1.9.0` — so "the stale one wins" is not the
+      rule either. An arbitrary archive answers, chosen by string sort.
 
 ---
 
