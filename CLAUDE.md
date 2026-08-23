@@ -1179,9 +1179,20 @@ broken. Two narrowings in that extractor were each found by measurement rather t
 reasoned to: it must restrict to `bash`-tagged fences, because the Spanish architecture
 block (untagged) contains the prose line `headerlab (la CLI más…`; and it must strip
 indentation, because the `bridge install` example sits inside a numbered list and is
-indented three spaces in all five. The same file asserts every path in `commands.mjs`
-appears in `SKILL.md`, so a command can no longer exist with nothing telling an agent
-about it.
+indented three spaces in all five.
+
+**The same file binds `SKILL.md` to the CLI in three guards, and what they cannot see is
+the point.** Every path in `commands.mjs` must appear in it, so a command cannot exist
+with nothing telling an agent about it. Every code in `ERROR_CODES` must appear inside
+**backticks** — the backticks because every code name is ordinary English words
+(`unknown-rule`, `invalid-state`) that prose matches by accident, at the deliberate cost
+that a code appearing only inside a fenced JSON example does not satisfy it. And the
+skill's nested list of extension-side codes must equal the codes `exitFor` sends to exit
+1, less `install-failed`, which binds the *layer* a code is filed under rather than merely
+its presence. **The first two bind names, not claims** — mutation-verified: list all
+sixteen codes in backticks and write every explanation false, and the suite stays green.
+The third exists because that gap is where the skill actually drifted; the Conventions
+rule that sends you here carries the incident.
 
 **A contrast pair is not a pixel, and nothing here reads one automatically.**
 `tests/unit/contrast.test.ts` reads the two palettes out of the stylesheet and asserts
@@ -1283,6 +1294,24 @@ that no longer renders, passing while describing nothing.
   of them: those zeroes are what make `popup-blocked.png`'s `1` mean something, because a
   build that errored on every row would otherwise pass the shot whose whole subject is one
   row failing.
+- **Touching the CLI means reviewing the skill in the same change.** Any work under
+  `packages/headerlab/` carries a question no test asks: does
+  `packages/plugin/skills/headerlab/SKILL.md` still describe the CLI correctly? That file
+  is the only reference a model reads before driving this CLI, and it is the one surface
+  where being wrong is invisible — a human reads `--help`, an agent reads the skill. Three
+  guards in `packages/headerlab/test/docs.test.mjs` hold it mechanically and Testing, above,
+  says what each of them covers; two of the three bind names rather than claims, and that
+  is the gap this rule fills. **Re-read the claims against the four files that decide
+  them**: `lib/commands.mjs` for what exists, `lib/exit.mjs` for the contract and its exit
+  codes, `bin/headerlab.mjs` for what the CLI refuses itself, and `lib/bridge/port.ts` with
+  `apply.ts` for what the extension refuses. Measured, on the skill as it stood: it filed
+  `invalid-command` under "a `state set` source that could not be read, was too large, or
+  was not valid JSON" — all three of those are the CLI's own refusal, `invalid-args`/exit 2
+  at `bin/headerlab.mjs`, while `invalid-command` is the extension's and exits 1, so the one
+  paragraph teaching a model to branch on the layer named the wrong layer. And it said "and
+  four more" when seven were left, so `invalid-state`, `unknown-rule` and `unknown-domain`
+  had no name anywhere. Every guard there was stayed green through both; the third guard
+  was written afterwards, and it goes red on both.
 
 ## Known gaps
 

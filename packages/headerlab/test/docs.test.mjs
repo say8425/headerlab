@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, pathKey } from '../lib/commands.mjs';
-import { ERROR_CODES } from '../lib/exit.mjs';
+import { ERROR_CODES, EXIT, exitFor } from '../lib/exit.mjs';
 import { ISSUES_URL } from '../lib/help.mjs';
 
 /**
@@ -214,6 +214,43 @@ test('에이전트 스킬이 계약의 모든 에러 코드를 이름으로 담�
   const skill = read('packages/plugin/skills/headerlab/SKILL.md');
   const missing = ERROR_CODES.filter((code) => !skill.includes(`\`${code}\``));
   assert.deepEqual(missing, []);
+});
+
+/**
+ * 바로 위의 가드는 열여섯 이름이 **어딘가** 백틱으로 적혀 있는지만 본다.
+ * 실제로 갈라진 것은 이름이 아니라 이름이 놓인 **층**이었다: 스킬은
+ * `invalid-command` 를 CLI 가 스스로 거부하는 `state set` 실패로 적어
+ * 두었는데, 그 세 조건은 전부 `invalid-args`/exit 2 이고 `invalid-command`
+ * 는 확장이 내는 exit 1 이다. 층으로 분기하라고 가르치는 바로 그 문단이
+ * 층을 틀리게 말하고 있었고, 위 가드는 그 동안 초록이었다.
+ *
+ * 그래서 여기서는 이름이 아니라 **자리**를 묶는다. 확장이 내는 코드 —
+ * `exitFor` 가 1 을 주는 것들에서 설치가 내는 거울상 `install-failed` 를
+ * 뺀 집합 — 이 스킬의 중첩 목록과 정확히 같아야 한다. 그때의 스킬에 이
+ * 가드를 걸면 빨갛다: 중첩 목록에는 셋뿐이었고 나머지 넷은 이름조차 없거나
+ * 위 문단 산문에 잘못된 층으로 적혀 있었다.
+ *
+ * 두 층을 가르는 것은 들여쓰기다. `install-failed` 는 맨 위 층 항목이고
+ * 나머지 일곱은 두 칸 들여쓴 자식이라, 코드 하나가 층을 옮기는 것만으로도
+ * 빨개진다. 목록이 비면 `deepEqual([], [])` 로 통과해 버리므로 계약 쪽이
+ * 비지 않았음을 먼저 단언한다.
+ */
+const EXTENSION_SIDE_CODES = ERROR_CODES.filter(
+  (code) => exitFor(code) === EXIT.FAILED && code !== 'install-failed',
+).sort();
+
+const nestedErrorCodes = (text) =>
+  text
+    .split('\n')
+    .map((line) => /^ {2}- `([a-z-]+)` — /.exec(line))
+    .filter((m) => m !== null)
+    .map((m) => m[1])
+    .sort();
+
+test('스킬의 확장측 에러 코드 목록이 계약과 정확히 같다', () => {
+  assert.notEqual(EXTENSION_SIDE_CODES.length, 0, '계약 쪽 목록이 비었다');
+  const skill = read('packages/plugin/skills/headerlab/SKILL.md');
+  assert.deepEqual(nestedErrorCodes(skill), EXTENSION_SIDE_CODES);
 });
 
 // 없어진 것을 먼저 본다. 읽기 명령이 생겼는데 "읽기 전용 명령은 없다" 는
