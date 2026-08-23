@@ -33,9 +33,19 @@ const LOCALES_DIR = path.join(REPO_ROOT, 'public', '_locales');
  * locale — `Grant` is a literal string in `components/SiteRow.tsx` and
  * `components/ScopeRail.tsx`, reachable by no translation. A locale rendering
  * it 허용 or 授权 would name a button that does not exist, and would take a
- * trust-posture claim with it: `Grant` is how the listing says access is asked
- * for per site, and since the install-time permission paragraph was cut it is
- * one of the few places that claim still appears.
+ * trust-posture claim with it.
+ *
+ * **Which claim is worth stating exactly, because the obvious guess is wrong.**
+ * `Grant` occurs once per locale and in all five it is the all-sites bullet, so
+ * what it carries is that the mode costs access to every site and the switch
+ * does not ask for it — a separate button does. That is the largest grant this
+ * extension can request, which makes it the sharper of the two claims, not the
+ * looser one. The per-site claim is the first line's lowercase "until you grant
+ * it": prose, translated in every locale, and correctly not pinned here. In the
+ * popup the button really is both, rendered on a site row and on the all-sites
+ * bar — but this list is about what the listing says, and the listing names it
+ * once. Since the install-time permission paragraph was cut, that bullet is one
+ * of the few places the claim still appears at all.
  *
  * **A permission string was in that sentence, and in this list, until
  * 2026-08-22.** Both went when the owner cut the paragraph that carried
