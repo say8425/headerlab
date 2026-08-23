@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/say8425/headerlab/compare/extension-v1.5.0...extension-v1.6.0) (2026-08-23)
+
+
+### Features
+
+* declare English only, and stop the store reporting five languages ([#72](https://github.com/say8425/headerlab/issues/72)) ([c319918](https://github.com/say8425/headerlab/commit/c319918e0fa45901434230699ec3a30869787fc5))
+
 ## [1.5.0](https://github.com/say8425/headerlab/compare/extension-v1.4.0...extension-v1.5.0) (2026-08-23)
 
 
