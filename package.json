@@ -26,7 +26,8 @@
     "test:e2e": "wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test",
     "test:packages": "pnpm -r test",
     "check:all": "pnpm check && pnpm -r test",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "crx": "wxt zip && node scripts/pack-crx.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

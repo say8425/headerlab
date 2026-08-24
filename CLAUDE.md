@@ -773,6 +773,54 @@ message files rather than trusting it. **It does not catch two bullets swapping 
 measured by doing exactly that across the two lists and watching all seven stay green; the
 skeleton is positional. That limit is written into the file beside the assertion.
 
+**Verified CRX uploads are prepared but not switched on, and the switch is the owner's.**
+The store signs every extension with a key it manages, and it does that automatically on
+upload — so until this is opted into, holding the dashboard account is the whole of what it
+takes to publish as this item. Opting in gives the store an RSA public key and makes it
+reject anything not signed by the matching private one. For an extension that exists
+because a trusted one shipped a hidden tracker, that is the product rather than a
+preference, which is why `docs/store/checklist.md` carries it as a step instead of an
+option. **Four things about it were measured rather than assumed:**
+
+- **Opting out is not self-service.** No dashboard toggle reverts it; CWS support does, on
+  no published timeline. Treat the opt-in as one-way.
+- **ZIP uploads stop being accepted** the moment it is on. `pnpm zip` still builds what
+  `release-please.yml` attaches to the GitHub release; `pnpm crx` builds what the store
+  will take.
+- **The published extension id does not change.** A verified upload is repackaged with the
+  store's existing key before publication, so the id the packer prints — the one this
+  signing key derives — is not the listing's and is not meant to be. `scripts/pack-crx.mjs`
+  says so in the line where it prints it, because the two ids sitting side by side is
+  exactly where somebody concludes something has gone wrong.
+- **Chrome's own documentation gives a command that does not exist.** It says
+  `openssl genpair -algorithm RSA -pkeyopt rsa_keygen_bits:2048`; there is no `genpair`
+  subcommand, and OpenSSL answers `Invalid command 'genpair'`. `openssl genpkey` with the
+  same arguments is what works (measured on OpenSSL 3.6.3). The `openssl rsa -in
+  privatekey.pem -pubout` half of the instructions is correct as written.
+
+**The key is in 1Password, not in CI, and that is the same argument as everything else
+here.** A repository whose claim is that a stranger who trusts none of it can verify the
+bundle should not hold a secret that publishes on its behalf. So signing is a local step a
+human runs: `pnpm crx` reads the key out of `op://Personal/HeaderLab CRX signing key`,
+writes it to a 0600 file inside a 0700 temp directory, and removes that directory in a
+`finally`. `HEADERLAB_CRX_KEY` names a PEM path for anyone without 1Password. `.gitignore`
+carries `*.pem` and `*.crx` so a key that reaches this tree at all cannot be what
+`git add -A` discovers.
+
+**The packer reads the bytes back rather than trusting Chrome's exit code**, and the reason
+is where the alternative fails: the store performs the same signature check itself, at
+upload time, which is *after* release-please has tagged and released. So
+`scripts/pack-crx.mjs` parses the CRX3 header it just produced, requires the declared
+public key to be this key's DER and the signed crx id to be the one that key derives — both,
+because a header naming one key while signing over another's id is precisely the mismatch
+the store rejects and is invisible if only one is read. It then unpacks the CRX's own ZIP
+payload and compares every file against the release archive by SHA-256. Chrome rebuilds the
+archive, so the two ZIPs are *not* byte-identical and comparing them as containers would
+fail on metadata while proving nothing about what ships. `scripts/lib/crx.mjs` holds the
+parsing, pure, and `tests/unit/crx.test.ts` tests it against synthetic headers — a real CRX
+needs the key, which CI does not have, so the live end-to-end evidence is the packer's own
+check and the reader's evidence is the unit suite.
+
 ## Platform traps that have already cost time
 
 Each of these was found the expensive way. Do not re-derive them.
@@ -1389,10 +1437,13 @@ that no longer renders, passing while describing nothing.
   the payload builder async (probeGrants through the socket handler) and re-deriving
   the CLI's own wording; until then the popup is the surface that tells the truth
   here.
-- **Three hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
-  `packages/headerlab/lib/socket.d.mts`, `packages/headerlab/lib/install.d.mts` — because `tests/`
-  and `tests/e2e/` import `.mjs` modules from TypeScript and `allowJs` is off. Nothing
-  checks that any of them still matches its implementation.
+- **Five hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
+  `socket.d.mts` and `install.d.mts` beside it, plus `scripts/lib/png.d.mts` and
+  `scripts/lib/crx.d.mts` — because `tests/` and `tests/e2e/` import `.mjs` modules from
+  TypeScript and `allowJs` is off. Nothing checks that any of them still matches its
+  implementation. **This entry said "three" and named only the `packages/` ones while
+  `png.d.mts` had already existed for the same reason**, so re-derive the list rather than
+  trusting it: `find . -name '*.d.mts' -not -path './node_modules/*'`.
 - **The bridge's `idle` state means "the permission is held and no port is open," not
   "a CLI is not attached."** The extension has no way to see the host's socket clients —
   it can only see its own `connectNative` port — and giving it that visibility would turn

@@ -28,3 +28,13 @@ playwright/.cache/
 # one of these is easy to commit without noticing. pnpm-lock.yaml is the lockfile.
 package-lock.json
 yarn.lock
+
+# The Chrome Web Store's verified-upload signing key, and anything packed with
+# it. `scripts/pack-crx.mjs` keeps the key in 1Password and writes it only to a
+# 0600 file inside a temp directory it removes, so neither pattern should ever
+# have anything to match — which is the point: a key that reaches this tree at
+# all is a mistake, and `git add -A` must not be what discovers it. These do
+# match at any depth, against the note at the top of this file; a confusing
+# staleness message is the cheaper failure of the two.
+*.pem
+*.crx
