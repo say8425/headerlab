@@ -1037,15 +1037,52 @@ test("the ghost row at the end of the list matches a minimum rule row's height",
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.locator('[data-testid="rule"]').first().waitFor();
 
-  const ruleHeight = await page
-    .getByTestId('rule')
-    .first()
-    .evaluate((el) => el.getBoundingClientRect().height);
-  const ghostHeight = await page
-    .getByRole('button', { name: 'New rule at end' })
-    .evaluate((el) => el.getBoundingClientRect().height);
+  const ghost = page.getByRole('button', { name: 'New rule at end' });
+  const firstRule = page.getByTestId('rule').first();
+  const fill = (el: Element) => getComputedStyle(el).backgroundColor;
+
+  const ruleHeight = await firstRule.evaluate((el) => el.getBoundingClientRect().height);
+  const ghostHeight = await ghost.evaluate((el) => el.getBoundingClientRect().height);
 
   expect(ghostHeight - ruleHeight).toBe(0);
+
+  // The second claim, in the same test because it is about the same pair of
+  // rows and this is already where both are located and measured: the row
+  // answers the pointer, and answering costs it no height.
+  //
+  // **A comment in RulePanel.tsx used to say this test covered the height half,
+  // and it did not — it measured both rows at rest and never hovered.** A
+  // review caught that by planting `hover:h-[60px]` on the button and watching
+  // all thirteen tests in this file stay green. That is the shape CLAUDE.md
+  // names twice: a guard asserted over a state its fixture never reaches, and
+  // a comment claiming the guard while it does so.
+  //
+  // The fill is compared against the sibling row's **own computed fill**, never
+  // an `rgb()` literal — the same reasoning as the height above. A palette
+  // change moves both together on purpose, and a literal here would turn that
+  // into a failure about a colour nobody meant to change.
+  //
+  // This is the repo's first colour read in e2e, and it closes for one element
+  // the gap `tests/unit/contrast.test.ts` spends its docblock describing: that
+  // suite reads the stylesheet's tokens and cannot see a className, so a fill
+  // produced by a utility is outside it by construction.
+  //
+  // Headless is not a hazard here even though it usually is: Tailwind wraps the
+  // utility in `@media (hover: hover)`, and headless Chromium reports
+  // `matchMedia('(hover: hover)').matches === true` — measured, not assumed,
+  // because a media query that silently does not match would make this test
+  // fail for a reason having nothing to do with the fill.
+  const restFill = await ghost.evaluate(fill);
+  const rowFill = await firstRule.evaluate(fill);
+  await ghost.hover();
+
+  // Absence before presence. Without this line the equality below would pass on
+  // a build where nothing happens on hover, as long as the row and the ghost
+  // happened to share a fill — which on `main`, where both were `--tray`, they
+  // did not, but which is exactly the accident a future palette could arrange.
+  expect(await ghost.evaluate(fill)).not.toBe(restFill);
+  expect(await ghost.evaluate(fill)).toBe(rowFill);
+  expect(await ghost.evaluate((el) => el.getBoundingClientRect().height)).toBe(ruleHeight);
 
   await page.close();
 });
