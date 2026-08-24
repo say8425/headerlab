@@ -797,18 +797,30 @@ their report of their screen, not something measured here. What follows from it 
 any inference is the operational half — `pnpm zip` is no longer a file this listing takes,
 `pnpm crx` is, and the checklist's CRX step is a requirement rather than an option.
 
-**That verified CRX uploads is switched on is an inference, and worth labelling as one.**
-It is the obvious reading, and Chrome's page does say every package update to a verified
-item "must be signed with your signing key, using the CRX file format" — but that page
-carries **no error strings at all**, so nothing establishes that this message has only
-that one cause. An earlier version of this paragraph asserted it was "the message only a
-verified item produces", which was exactly the unsourced-claim shape the rest of this
-section exists to correct. The same caveat carries to the interesting corollary: the item
-had never been published, so **if** the opt-in is what caused this, then a draft item can
-opt in — which the research done that same day listed as unestablished, since the store's
-wording about repackaging "with the existing private key" reads as assuming a key it
-already holds. Treat that as strongly suggested, not measured. What would settle both is
-the Package tab showing the opt-in as enabled; nobody has recorded looking.
+**The round trip then settled it, which a UI label would not have.** The refusal was
+followed by `pnpm crx`'s output being uploaded and **accepted**, and the item entering
+review (owner-reported, 2026-08-24). A store that holds no public key for an item has
+nothing to verify a signature against and no reason to demand a CRX in the first place, so
+the pair — ZIP refused, then a CRX signed with the 1Password key accepted — establishes
+both that verified uploads is on and that **the key on the item is the key in 1Password**.
+That second half is what a Package tab reading "enabled" would *not* have told anyone.
+
+Two things follow. **A never-published draft item can opt in** — listed as unestablished
+by the research done the same day, because the store's wording about repackaging "with the
+existing private key" reads as assuming a key it already holds. It does not. And
+`scripts/pack-crx.mjs`'s local checks have now been confirmed by an independent one: the
+packer asserts the header declares this key's DER and signs over the id that key derives,
+and the store's own verification agreed. `tests/unit/crx.test.ts`'s docblock says the live
+end-to-end evidence is the packer's own check, since CI has no browser; there is a second
+check now, and it is the one that actually gates publication.
+
+**What was written here before that upload is worth keeping as a method note.** This
+paragraph first asserted the refusal was "the message only a verified item produces" —
+unsourced, and exactly the shape the rest of this section exists to correct; Chrome's page
+carries no error strings at all. It was then rewritten to separate the observed half from
+the inferred half, and the inference happened to be right. Being right is not what made
+the rewrite correct: at the time, nothing distinguished it from the `genpair` claim two
+bullets down, which was also the obvious reading and was false.
 
 Below is the reasoning that led to switching it on, kept because it is what a later reader
 needs to judge whether the trade still holds.
