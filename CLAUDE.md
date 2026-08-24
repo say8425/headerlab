@@ -360,7 +360,10 @@ keys** by default — that is why `dependencies` now precedes `devDependencies`.
 
 **Writing about a utility ships it.** Tailwind v4 auto-detects sources by scanning the
 tree as raw text, so a class name quoted in a *comment* is indistinguishable from one
-used on an element and its CSS is emitted. Measured: the 143 B this repo's popup CSS grew
+used on an element and its CSS is emitted. (Testing's mutation-verify paragraph records
+the same collision from the other side: a class named in a comment is also what a
+first-occurrence string replace edits, so a mutation lands in the prose and the suite
+stays green.) Measured: the 143 B this repo's popup CSS grew
 during the documentation task came entirely from prose — docblocks and test comments
 naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
 remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
@@ -1189,8 +1192,14 @@ error diagnostic replacing a value never resizes the row or moves the rows below
 the bridge row does not push the rail past its own column.
 **That count said seventeen and eight until 2026-08-24**, and the enumeration was missing
 the add-site/ghost focus-ring guard — which is why it is worth re-deriving rather than
-reading: `npx playwright test <file> --list` per file, or `grep -cE '^test\(' tests/e2e/*.spec.ts`
-(13 + 4 + 1).
+reading. `pnpm exec playwright test --list` with no file argument ends in
+`Total: 18 tests in 3 files`, which is the figure this sentence states.
+`grep -cE '^test\(' tests/e2e/*.spec.ts` gives the same 13 + 4 + 1 and needs no browser,
+but **it agrees only because of three things that are absent today**: a `test.describe`
+wrapper indents every inner `test(` out of a line-initial match, `test.each` collapses N
+tests into one line, and `test.skip(` drops out entirely. There are none of any of those in
+`tests/e2e/` right now. Playwright resolves all three itself, so prefer `--list` and read
+the grep as a cross-check.
 
 The remaining five are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
@@ -1269,9 +1278,9 @@ token against token, so a colour produced by alpha compositing or by tailwind-me
 picking a class the author did not expect is outside it by construction — the file now
 says so at its top. It went green through a grey box that was plainly visible on screen.
 
-**The e2e suite barely covers that gap, and "barely" is one element.** It reads geometry —
-`getBoundingClientRect` on 28 lines (30 occurrences), `getComputedStyle(el).overflowY` in
-two — and, as of 2026-08-24, **exactly one colour**: the ghost row's hovered
+**The e2e suite barely covers that gap, and "barely" is one element.** It reads geometry
+throughout — `grep -rn getBoundingClientRect tests/e2e | wc -l` is 28 lines and `-rho …` 30
+occurrences — and, as of 2026-08-24, **exactly one colour**: the ghost row's hovered
 `backgroundColor`, compared against the sibling rule row's own computed fill rather than
 against an `rgb()` literal, in `tests/e2e/header-modification.spec.ts`. There is still no
 snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So the
@@ -1280,9 +1289,24 @@ it**; that is how the grey box was found. A colour defect born of alpha or merge
 still has no automated guard anywhere but that one line. **This paragraph said "no colour
 at all" for one commit after that line existed**, which is the ordinary way a claim about
 coverage goes stale: the branch that closes a documented gap is the branch least likely to
-re-read the paragraph documenting it. Re-derive with
-`grep -rhoE "getComputedStyle\([^)]*\)\.[a-zA-Z]+" tests/e2e | sed 's/.*\.//' | sort | uniq -c`,
-which today prints overflowY 2, clipPath 2, visibility 1, backgroundColor 1.
+re-read the paragraph documenting it.
+
+Re-derive the colour claim with a command that asks the colour question, not one that
+inventories properties:
+
+```bash
+grep -rnE '\.(backgroundColor|outlineColor|borderColor|[a-zA-Z]*[Cc]olor)\b' tests/e2e/
+```
+
+One line today, and no false positives — the fixtures' `color: 'green'` are object keys
+rather than property accesses. **The obvious command is the wrong one, and how it fails is
+this file's own named defect.** Histogramming
+`getComputedStyle(…).<prop>` sees only the immediate-access form: 6 of the suite's 13 call
+sites, because the other 7 bind first (`const cs = getComputedStyle(el)`) and that is the
+idiom every older test uses. Measured by planting `const cs = getComputedStyle(el); const
+ink = cs.color;` — the histogram went on printing `backgroundColor 1` while the sentence
+beside it was false, and the grep above caught it. An assertion that cannot fail, attached
+to the one sentence the paragraph exists for.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
