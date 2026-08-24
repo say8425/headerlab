@@ -20,8 +20,10 @@
  * The key comes out of 1Password by default and is never written anywhere but a
  * 0600 file inside a 0700 temp directory, removed on the way out however this
  * exits — see the cleanup registration below, and note that a `try/finally`
- * alone does not achieve that. Set `HEADERLAB_CRX_KEY` to a PEM path to sign
- * without 1Password.
+ * alone does not achieve that. It is written at step 3, after the archive is
+ * unpacked and its version checked, so the two things that can refuse a run
+ * happen while there is still nothing on disk to clean up. Set
+ * `HEADERLAB_CRX_KEY` to a PEM path to sign without 1Password.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -141,10 +143,45 @@ chmodSync(work, 0o700);
  */
 const clean = () => rmSync(work, { recursive: true, force: true });
 process.on('exit', clean);
-// SIGINT terminates without running 'exit' handlers unless something calls
-// exit for it. Ctrl-C at the Chrome step is not hypothetical: that step is the
-// slow one, and it is the first step that runs after the key is written.
-process.on('SIGINT', () => process.exit(130));
+/**
+ * **These three earn their place by being registered, not by running.** The
+ * bodies below are unreachable, and knowing why is the difference between
+ * trusting this and re-deriving it.
+ *
+ * A signal's default action ends the process immediately, with no 'exit' event
+ * — so without a handler the key survives. Measured on the real script with
+ * real Chrome, Ctrl-C during the pack: handlers removed, exit 130 and **four**
+ * temp directories left holding a `signing.pem`; handlers present, exit 1 and
+ * none. Registering a JS handler suppresses that default action, and that alone
+ * is what keeps the process alive long enough for the synchronous body to reach
+ * its own cleanup.
+ *
+ * The body never runs because **this script has no yield point at all** — every
+ * call is a `*Sync` variant and there is no `await`, promise, timer or
+ * `nextTick` anywhere in it, so the event loop does not turn once between this
+ * registration and the last line. What happens on Ctrl-C instead, measured:
+ * Chrome is in the same process group, dies on the signal, and `execFileSync`
+ * throws with `status: null, signal: 'SIGINT'`. The `catch` below turns that
+ * into a sentence and `die()` exits through the 'exit' handler.
+ *
+ * A signal delivered to this process *alone* does nothing at all: Chrome
+ * finishes, the pack succeeds, and the run exits 0 with the handler never
+ * having fired. Also measured. So the statuses below are what a future reader
+ * would see only after somebody introduces an `await` — which is exactly why
+ * they stay: the day the loop can turn, these become live, and 128 plus the
+ * signal number is the shell's own convention for "died on this signal".
+ *
+ * SIGKILL and a power cut are outside all of this by construction; the key then
+ * sits in `$TMPDIR` until the OS clears it, which is what `.gitignore`'s
+ * `*.pem` is a backstop for rather than a solution to.
+ */
+for (const [signal, status] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+  ['SIGHUP', 129],
+]) {
+  process.on(signal, () => process.exit(status));
+}
 
 try {
   // 1. The ZIP's contents become the directory Chrome packs.
@@ -177,22 +214,34 @@ try {
   writeFileSync(keyFile, readSigningKey(), { mode: 0o600 });
 
   // 4. Chrome writes `<staged>.crx` beside the directory it was given.
-  execFileSync(
-    CHROME,
-    [
-      `--pack-extension=${staged}`,
-      `--pack-extension-key=${keyFile}`,
-      // Chrome reports a packing failure in a modal. With stdio inherited and
-      // nobody at the keyboard, that is a script that never returns rather than
-      // one that fails.
-      '--no-message-box',
-      // A profile of its own, inside the directory that is already being
-      // cleaned up. Without it this attaches to whatever Chrome the developer
-      // has open, which makes the behaviour depend on something outside the run.
-      `--user-data-dir=${path.join(work, 'profile')}`,
-    ],
-    { stdio: 'inherit' },
-  );
+  try {
+    execFileSync(
+      CHROME,
+      [
+        `--pack-extension=${staged}`,
+        `--pack-extension-key=${keyFile}`,
+        // Chrome reports a packing failure in a modal. With stdio inherited and
+        // nobody at the keyboard, that is a script that never returns rather
+        // than one that fails.
+        '--no-message-box',
+        // A profile of its own, inside the directory that is already being
+        // cleaned up. Without it this attaches to whatever Chrome the developer
+        // has open, which makes the behaviour depend on something outside the
+        // run.
+        `--user-data-dir=${path.join(work, 'profile')}`,
+      ],
+      { stdio: 'inherit' },
+    );
+  } catch (error) {
+    // Ctrl-C lands here rather than in the handler above, because Chrome shares
+    // this process group and dies on the signal — so the throw carries
+    // `signal` and no status. Saying that is the whole point: an uncaught
+    // `execFileSync` error prints a stack naming a temp path that no longer
+    // exists, which reads like a defect in the packer rather than like the
+    // interruption it was.
+    if (error.signal) die(`Chrome was interrupted (${error.signal}). Nothing was written.`);
+    die(`Chrome could not pack the extension: ${error.message.split('\n')[0]}`);
+  }
   const packed = `${staged}.crx`;
   if (!existsSync(packed)) die(`Chrome reported success but wrote no ${path.basename(packed)}`);
 
