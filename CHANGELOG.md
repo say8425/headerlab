@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/say8425/headerlab/compare/extension-v1.6.0...extension-v1.7.0) (2026-08-24)
+
+
+### Features
+
+* let the "New rule" row answer the pointer ([#77](https://github.com/say8425/headerlab/issues/77)) ([f63ad51](https://github.com/say8425/headerlab/commit/f63ad5140afeb2c9d83dc0d9daaab73be2b3cc73))
+* sign the store package, so the dashboard account is not the only gate ([#75](https://github.com/say8425/headerlab/issues/75)) ([a61fab9](https://github.com/say8425/headerlab/commit/a61fab9ab002e768df24dc9bc9d7ddeaf9453b94))
+
+
+### Bug Fixes
+
+* close the two signals that still skipped the key's cleanup ([#78](https://github.com/say8425/headerlab/issues/78)) ([f4f8b5f](https://github.com/say8425/headerlab/commit/f4f8b5fffd1e42d4419a59d2b49497c8d8ddc180))
+
 ## [1.6.0](https://github.com/say8425/headerlab/compare/extension-v1.5.0...extension-v1.6.0) (2026-08-23)
 
 
