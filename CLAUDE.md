@@ -368,10 +368,21 @@ during the documentation task came entirely from prose — docblocks and test co
 naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
 remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
 and `scripts/` 30 B, 0.8% of 43,790 B, which is not worth two more `@source not` lines;
-that is a re-measurable ruling, not a permanent one. Two things not to waste time on:
-`.superpowers/` contributes exactly **0 B** because auto-detection skips dot-directories,
-and **`.md` files are not scanned at all** — probed by planting a unique utility in
-CLAUDE.md and rebuilding, which changed nothing. That is why `@source not "../../docs"`
+that is a re-measurable ruling, not a permanent one. One thing not to waste time on: **`.md` files are not scanned at all** — probed by
+planting a unique utility in CLAUDE.md and rebuilding, which changed nothing.
+
+**And one thing that cost time, because this file got the reason wrong.** It said
+`.superpowers/` contributes exactly 0 B "because auto-detection skips dot-directories".
+The 0 B is right and the reason is not: **detection skips gitignored paths**, and
+`.superpowers/` is on line 10 of `.gitignore`. A dot in the name buys nothing. Measured
+2026-08-24 on `.design/`, an untracked scratch directory of design mocks that had been
+sitting in this tree for four days: the popup CSS built **105,485 B** with it present and
+**45,818 B** with it gitignored — same directory on disk, one line added — and 45,818 is
+exactly what CI builds, so that directory was the entire difference between a local build
+and the released one. 658 selectors, ~59 kB, from files nobody thought were source.
+`.design/` and `.zcode/` are in `.gitignore` now for that reason rather than for tidiness.
+The rule to carry forward is that **untracked is not excluded**: anything Tailwind can read
+as text and git does not ignore is source. That is why `@source not "../../docs"`
 exists for the `.html` mocks in that tree rather than for its prose, and why class names
 may be quoted freely *here* but cost bytes in a `.ts` comment.
 
