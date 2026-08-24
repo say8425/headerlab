@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { unpackedExtensionId } from '../../packages/headerlab/lib/manifest.mjs';
 import {
   CRX_MAGIC,
   extensionIdFromDigest,
@@ -10,10 +11,13 @@ import {
 
 /**
  * `scripts/pack-crx.mjs` reads the bytes Chrome wrote rather than trusting its
- * exit code, and this is the reader. Everything here is synthetic: a real CRX
- * needs the signing key, which is in 1Password and not in CI — so the evidence
- * that the *whole* path works is the packer's own live check, and the evidence
- * that the reader is right is here.
+ * exit code, and this is the reader. Everything here is synthetic, and the
+ * reason is Chrome rather than the key: a throwaway `openssl genpkey` pair
+ * packs a real CRX3 perfectly well, so what a CI run would need is
+ * `--pack-extension`, which the unit job has no browser for. An earlier version
+ * of this paragraph said the signing key was what stood in the way, which is
+ * true and not the constraint — worth correcting rather than repeating, because
+ * it is the difference between "cannot be done" and "not done here".
  *
  * The distinction matters because of what a broken reader looks like. It does
  * not throw; it returns "no key found" or "no id", and the packer refuses a
@@ -94,25 +98,41 @@ describe('parseCrx', () => {
 
 describe('readCrxHeader', () => {
   it('returns the declared public key and the signed crx id', () => {
-    const { publicKeys, crxId } = readCrxHeader(HEADER);
+    const { rsaPublicKeys, crxId } = readCrxHeader(HEADER);
 
-    expect(publicKeys).toHaveLength(1);
-    expect(publicKeys[0]?.equals(KEY)).toBe(true);
+    expect(rsaPublicKeys).toHaveLength(1);
+    expect(rsaPublicKeys[0]?.equals(KEY)).toBe(true);
     expect(crxId?.equals(ID_BYTES)).toBe(true);
+  });
+
+  // Every other fixture here carries one proof, and with only those a reader
+  // that returned just the first would stay green — measured by making exactly
+  // that change and watching all of them pass. `pack-crx.mjs` asks whether the
+  // signing key is among the declared ones, so a reader that stops at the first
+  // would refuse a package the store accepts, and refuse it while saying the
+  // key is absent.
+  it('collects every proof in the header, not the first', () => {
+    const second = Buffer.from('a second key, from a second proof');
+    const twoProofs = Buffer.concat([field(2, field(1, KEY)), field(2, field(1, second))]);
+
+    const { rsaPublicKeys } = readCrxHeader(twoProofs);
+
+    expect(rsaPublicKeys).toHaveLength(2);
+    expect(rsaPublicKeys.map((key) => key.toString())).toEqual([KEY.toString(), second.toString()]);
   });
 
   // Absence before presence: a header with no `signed_header_data` must report
   // `null` rather than an id from somewhere else, because the packer's equality
   // check would otherwise compare against whatever it found.
   it('reports no crx id when the header signs over nothing', () => {
-    const { publicKeys, crxId } = readCrxHeader(field(2, field(1, KEY)));
+    const { rsaPublicKeys, crxId } = readCrxHeader(field(2, field(1, KEY)));
 
     expect(crxId).toBe(null);
-    expect(publicKeys).toHaveLength(1);
+    expect(rsaPublicKeys).toHaveLength(1);
   });
 
   it('finds nothing in a header that declares nothing', () => {
-    expect(readCrxHeader(Buffer.alloc(0))).toEqual({ publicKeys: [], crxId: null });
+    expect(readCrxHeader(Buffer.alloc(0))).toEqual({ rsaPublicKeys: [], crxId: null });
   });
 
   // This reads a format it does not own. A future Chrome adding a scalar field
@@ -125,12 +145,29 @@ describe('readCrxHeader', () => {
     const fixed64Field = Buffer.concat([Buffer.from([5 * 8 + 1]), Buffer.alloc(8, 0xcd)]);
     const padded = Buffer.concat([varintField, HEADER, fixed32Field, fixed64Field]);
 
-    const { publicKeys, crxId } = readCrxHeader(padded);
+    const { rsaPublicKeys, crxId } = readCrxHeader(padded);
 
-    expect(publicKeys).toHaveLength(1);
-    expect(publicKeys[0]?.equals(KEY)).toBe(true);
+    expect(rsaPublicKeys).toHaveLength(1);
+    expect(rsaPublicKeys[0]?.equals(KEY)).toBe(true);
     expect(crxId?.equals(ID_BYTES)).toBe(true);
   });
+
+  // A skip that steps past the end is the one truncation that used to be
+  // silent: the loop condition simply goes false and every field after it
+  // disappears with no error, so the caller reports "no key declared" and sends
+  // the reader to look at the signing key. Both widths, because a bound written
+  // for one of them is a bound the other does not have.
+  it.each([
+    ['fixed32', Buffer.from([4 * 8 + 5, 0x01, 0x02]), 'fixed32'],
+    ['fixed64', Buffer.from([5 * 8 + 1, 0x01, 0x02, 0x03]), 'fixed64'],
+  ])(
+    'refuses a %s field that runs past the end rather than losing what follows',
+    (_n, bytes, w) => {
+      expect(() => readCrxHeader(Buffer.concat([bytes]))).toThrow(
+        `protobuf ${w} field runs past the end of the header`,
+      );
+    },
+  );
 
   it('refuses a field whose length runs past the end of the header', () => {
     const overlong = Buffer.from([2 * 8 + 2, 0x40, 0x01, 0x02]); // claims 64 bytes, carries 2
@@ -139,6 +176,14 @@ describe('readCrxHeader', () => {
 
   it('refuses a varint that never terminates', () => {
     expect(() => readCrxHeader(Buffer.alloc(6, 0xff))).toThrow(/varint/);
+  });
+
+  // Nothing in a CRX header comes near 2^53, which is the reason to say so in
+  // an error rather than to let a Number quietly stop counting exactly: a length
+  // off by one reads the wrong bytes and reports nothing.
+  it('refuses a varint too large to count exactly', () => {
+    const huge = Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f]);
+    expect(() => readCrxHeader(huge)).toThrow('larger than this reads exactly');
   });
 });
 
@@ -158,6 +203,18 @@ describe('extensionIdFromDigest', () => {
     ['headerlab', 'ckcpgbjljgalnnlhfnngbklphombocka'],
   ])('encodes sha256(%o) as %s', (input, expected) => {
     expect(extensionIdFromDigest(createHash('sha256').update(input).digest())).toBe(expected);
+  });
+
+  // `packages/headerlab/lib/manifest.mjs` applies this same alphabet to a load
+  // path's bytes for an *unpacked* extension. The two cannot share code — that
+  // file ships in a separately versioned npm package and `scripts/` is not in
+  // its tarball — so this asserts they agree instead. One of them changing the
+  // alphabet turns this red without either importing the other.
+  it('agrees with the unpacked-extension id encoder on the same 32 hex digits', () => {
+    const path = '/Users/penguin/dev/headerlab/.output/chrome-mv3';
+    expect(extensionIdFromDigest(createHash('sha256').update(path).digest())).toBe(
+      unpackedExtensionId(path),
+    );
   });
 
   it('reads only the first 16 bytes, whatever the digest carries after them', () => {

@@ -82,10 +82,35 @@ function readVarint(buffer, at) {
     if (offset >= buffer.length) throw new Error('protobuf varint runs past the end of the header');
     const byte = buffer[offset++];
     value += (byte & 0x7f) * 2 ** shift;
+    // Past 2^53 a Number stops counting exactly, and a length that is off by
+    // one silently reads the wrong bytes. Nothing this file parses is anywhere
+    // near it, which is the reason to say so rather than to leave the reader
+    // deciding whether it matters.
+    if (!Number.isSafeInteger(value)) {
+      throw new Error('protobuf varint larger than this reads exactly');
+    }
     if ((byte & 0x80) === 0) return { value, offset };
     shift += 7;
   }
   throw new Error('protobuf varint longer than ten bytes');
+}
+
+/**
+ * Past a fixed-width field, refusing to step over the end.
+ *
+ * A bare `offset += 8` cannot fail: it lands past the end, the loop condition
+ * goes false, and **every field after the truncation disappears with no error
+ * at all**. The caller then reports "the header declares no key", which sends
+ * the reader to look at the signing key — the exact wrong place, and the exact
+ * failure this file's opening paragraph promises not to produce. Every other
+ * refusal here names what it saw; this one has to as well.
+ */
+function skipFixed(message, offset, width) {
+  const end = offset + width;
+  if (end > message.length) {
+    throw new Error(`protobuf fixed${width * 8} field runs past the end of the header`);
+  }
+  return end;
 }
 
 /**
@@ -115,9 +140,9 @@ function lengthDelimitedFields(message) {
     } else if (wireType === 0) {
       offset = readVarint(message, offset).offset;
     } else if (wireType === 5) {
-      offset += 4;
+      offset = skipFixed(message, offset, 4);
     } else if (wireType === 1) {
-      offset += 8;
+      offset = skipFixed(message, offset, 8);
     } else {
       throw new Error(`protobuf wire type ${wireType} is not one this reads`);
     }
@@ -137,15 +162,20 @@ function lengthDelimitedFields(message) {
  * id proves the signature was computed over that same key — a header naming one
  * key while declaring another's id is exactly the mismatch the store rejects,
  * and it is invisible if only one of the two is read.
+ *
+ * `rsaPublicKeys` rather than `publicKeys`, because field 3 — `sha256_with_ecdsa`
+ * — is not read. Chrome's `--pack-extension` emits RSA and nothing else, so the
+ * narrower name costs nothing and stops the next reader assuming a coverage this
+ * does not have.
  */
 export function readCrxHeader(header) {
   const fields = lengthDelimitedFields(header);
-  const publicKeys = (fields.get(2) ?? []).flatMap(
+  const rsaPublicKeys = (fields.get(2) ?? []).flatMap(
     (proof) => lengthDelimitedFields(proof).get(1) ?? [],
   );
   const [signedData] = fields.get(10000) ?? [];
   const [crxId] = signedData ? (lengthDelimitedFields(signedData).get(1) ?? []) : [];
-  return { publicKeys, crxId: crxId ?? null };
+  return { rsaPublicKeys, crxId: crxId ?? null };
 }
 
 /**

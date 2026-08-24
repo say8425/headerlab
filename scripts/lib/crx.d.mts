@@ -19,7 +19,7 @@ export declare function parseCrx(buffer: Buffer): {
 };
 
 export declare function readCrxHeader(header: Buffer): {
-  publicKeys: Buffer[];
+  rsaPublicKeys: Buffer[];
   crxId: Buffer | null;
 };
 

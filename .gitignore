@@ -31,9 +31,12 @@ yarn.lock
 
 # The Chrome Web Store's verified-upload signing key, and anything packed with
 # it. `scripts/pack-crx.mjs` keeps the key in 1Password and writes it only to a
-# 0600 file inside a temp directory it removes, so neither pattern should ever
-# have anything to match — which is the point: a key that reaches this tree at
-# all is a mistake, and `git add -A` must not be what discovers it. These do
+# 0600 file inside a temp directory it removes on every exit path, so neither
+# pattern should ever have anything to match — which is the point: a key that
+# reaches this tree at all is a mistake, and `git add -A` must not be what
+# discovers it. Do not read that as making these patterns redundant: the cleanup
+# was written as a `try/finally` first and did not run at all on the script's own
+# refusals, which is the kind of thing this list is the backstop for. These do
 # match at any depth, against the note at the top of this file; a confusing
 # staleness message is the cheaper failure of the two.
 *.pem

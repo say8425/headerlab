@@ -18,8 +18,10 @@
  * and uploads the CRX. See CLAUDE.md's "Chrome Web Store" section.
  *
  * The key comes out of 1Password by default and is never written anywhere but a
- * 0600 file inside a 0700 temp directory, removed in a `finally`. Set
- * `HEADERLAB_CRX_KEY` to a PEM path to sign without 1Password.
+ * 0600 file inside a 0700 temp directory, removed on the way out however this
+ * exits — see the cleanup registration below, and note that a `try/finally`
+ * alone does not achieve that. Set `HEADERLAB_CRX_KEY` to a PEM path to sign
+ * without 1Password.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -60,7 +62,14 @@ const die = (message) => {
 
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
-/** Every file under a directory, repo-relative, sorted — the comparison's spine. */
+/**
+ * Every file under a directory, repo-relative, sorted — the comparison's spine.
+ *
+ * Two edges it does not have: an empty directory is dropped, and a symlink is
+ * counted as a file whose target gets hashed. A WXT build has neither, so this
+ * is a note rather than a defect — but a comparison that quietly ignores a kind
+ * of entry is worth writing down before something starts producing one.
+ */
 function filesUnder(dir) {
   const walk = (at) =>
     readdirSync(at, { withFileTypes: true }).flatMap((entry) => {
@@ -72,9 +81,9 @@ function filesUnder(dir) {
     .sort();
 }
 
-const version = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+const declaredVersion = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 const zip = path.resolve(
-  process.argv[2] ?? path.join(ROOT, '.output', `headerlab-${version}-chrome.zip`),
+  process.argv[2] ?? path.join(ROOT, '.output', `headerlab-${declaredVersion}-chrome.zip`),
 );
 
 if (!existsSync(zip)) {
@@ -112,28 +121,86 @@ if (!existsSync(CHROME)) {
 const work = mkdtempSync(path.join(tmpdir(), 'headerlab-crx-'));
 chmodSync(work, 0o700);
 
+/**
+ * The key leaves no copy behind, on **every** way out of this script.
+ *
+ * A `try/finally` alone does not do that, and the gap is the one that matters:
+ * `process.exit()` does not throw, so it ends the process without running any
+ * `finally` on the stack. Measured — a probe that writes a file, calls
+ * `process.exit(1)` inside a `try`, and logs from the `finally` prints nothing
+ * and leaves the file. Every refusal below reaches `die()`, which is
+ * `process.exit(1)`, so a `finally` would have kept the key on disk on exactly
+ * the paths where somebody then goes looking through the directory to find out
+ * what went wrong.
+ *
+ * `process.on('exit')` runs on `process.exit()` too, and only synchronous work
+ * is allowed in it — which `rmSync` is. Registered here rather than at the end,
+ * so nothing between this line and the last one can be added in front of it.
+ * The same shape CLAUDE.md's Testing section records for an installer's
+ * teardown: register it so it cannot be skipped.
+ */
+const clean = () => rmSync(work, { recursive: true, force: true });
+process.on('exit', clean);
+// SIGINT terminates without running 'exit' handlers unless something calls
+// exit for it. Ctrl-C at the Chrome step is not hypothetical: that step is the
+// slow one, and it is the first step that runs after the key is written.
+process.on('SIGINT', () => process.exit(130));
+
 try {
   // 1. The ZIP's contents become the directory Chrome packs.
-  const staged = path.join(work, `headerlab-${version}`);
+  const staged = path.join(work, 'extension');
   mkdirSync(staged);
   execFileSync('unzip', ['-q', zip, '-d', staged]);
 
-  // 2. The key, on disk only for as long as Chrome needs a path to it.
+  /**
+   * 2. The version comes out of the archive, not out of `package.json`.
+   *
+   * The archive is an argument, and the checklist's own instruction hands it
+   * one — `gh release download extension-v<version>`. Taking the name from
+   * `package.json` while taking the bytes from argv is how a 1.2.0 package ends
+   * up called `headerlab-1.6.0-chrome.crx`: nothing fails, because both content
+   * checks below compare that ZIP against itself. Reading it here makes the
+   * filename part of what is verified, and the mismatch loud rather than a
+   * label.
+   */
+  const manifest = JSON.parse(readFileSync(path.join(staged, 'manifest.json'), 'utf8'));
+  const version = manifest.version;
+  if (version !== declaredVersion) {
+    die(
+      `${path.basename(zip)} holds version ${version}, and package.json says ${declaredVersion}.\n` +
+        '  Check out the tag that archive belongs to, or pass the archive for this version.',
+    );
+  }
+
+  // 3. The key, on disk only for as long as Chrome needs a path to it.
   const keyFile = path.join(work, 'signing.pem');
   writeFileSync(keyFile, readSigningKey(), { mode: 0o600 });
 
-  // 3. Chrome writes `<staged>.crx` beside the directory it was given.
-  execFileSync(CHROME, [`--pack-extension=${staged}`, `--pack-extension-key=${keyFile}`], {
-    stdio: 'inherit',
-  });
+  // 4. Chrome writes `<staged>.crx` beside the directory it was given.
+  execFileSync(
+    CHROME,
+    [
+      `--pack-extension=${staged}`,
+      `--pack-extension-key=${keyFile}`,
+      // Chrome reports a packing failure in a modal. With stdio inherited and
+      // nobody at the keyboard, that is a script that never returns rather than
+      // one that fails.
+      '--no-message-box',
+      // A profile of its own, inside the directory that is already being
+      // cleaned up. Without it this attaches to whatever Chrome the developer
+      // has open, which makes the behaviour depend on something outside the run.
+      `--user-data-dir=${path.join(work, 'profile')}`,
+    ],
+    { stdio: 'inherit' },
+  );
   const packed = `${staged}.crx`;
   if (!existsSync(packed)) die(`Chrome reported success but wrote no ${path.basename(packed)}`);
 
-  // 4. Read the bytes back rather than trusting the exit code. Three claims,
+  // 5. Read the bytes back rather than trusting the exit code. Three claims,
   //    each of which the store checks in its own way at upload time.
   const crx = readFileSync(packed);
   const { version: crxVersion, header, payload } = parseCrx(crx);
-  const { publicKeys, crxId } = readCrxHeader(header);
+  const { rsaPublicKeys, crxId } = readCrxHeader(header);
 
   const signingKey = readFileSync(keyFile);
   const expectedDer = execFileSync('openssl', ['rsa', '-pubout', '-outform', 'DER'], {
@@ -144,9 +211,9 @@ try {
   const expectedId = extensionIdFromPublicKey(expectedDer);
   const expectedIdBytes = createHash('sha256').update(expectedDer).digest().subarray(0, 16);
 
-  if (!publicKeys.some((key) => key.equals(expectedDer))) {
+  if (!rsaPublicKeys.some((key) => key.equals(expectedDer))) {
     die(
-      `the CRX header declares ${publicKeys.length} public key(s), none of them the signing key.\n` +
+      `the CRX header declares ${rsaPublicKeys.length} RSA public key(s), none of them the signing key.\n` +
         '  The store would reject this upload.',
     );
   }
@@ -155,7 +222,7 @@ try {
     die(`the CRX header signs over a different id than the signing key produces (${expectedId})`);
   }
 
-  // 5. Same files, same bytes. Chrome rebuilds the archive, so the container
+  // 6. Same files, same bytes. Chrome rebuilds the archive, so the container
   //    differs and the contents must not — comparing the ZIPs byte for byte
   //    would fail on metadata and prove nothing about what ships.
   const unpacked = path.join(work, 'verify');
@@ -180,7 +247,7 @@ try {
     die(`the CRX and the zip disagree on ${differing.length} file(s): ${differing.join(', ')}`);
   }
 
-  // 6. Only now does it become an artifact.
+  // 7. Only now does it become an artifact.
   const out = path.join(ROOT, '.output', `headerlab-${version}-chrome.crx`);
   copyFileSync(packed, out);
 
@@ -193,5 +260,5 @@ try {
   console.log('\nUpload this file. The store verifies the signature, then repackages it');
   console.log('with its own key, so the published item keeps the id it already has.');
 } finally {
-  rmSync(work, { recursive: true, force: true });
+  clean();
 }

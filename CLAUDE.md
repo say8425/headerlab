@@ -24,6 +24,7 @@ pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
 pnpm dev             # WXT dev server
 pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 pnpm store:assets    # wxt build && node scripts/store-assets.mjs → docs/store/assets/
+pnpm crx             # wxt zip, then signs → .output/headerlab-<version>-chrome.crx
 ```
 
 **pnpm, not npm, and the version is pinned.** `package.json`'s `packageManager` names
@@ -802,10 +803,20 @@ option. **Four things about it were measured rather than assumed:**
 here.** A repository whose claim is that a stranger who trusts none of it can verify the
 bundle should not hold a secret that publishes on its behalf. So signing is a local step a
 human runs: `pnpm crx` reads the key out of `op://Personal/HeaderLab CRX signing key`,
-writes it to a 0600 file inside a 0700 temp directory, and removes that directory in a
-`finally`. `HEADERLAB_CRX_KEY` names a PEM path for anyone without 1Password. `.gitignore`
-carries `*.pem` and `*.crx` so a key that reaches this tree at all cannot be what
-`git add -A` discovers.
+writes it to a 0600 file inside a 0700 temp directory, and removes that directory on the way
+out. **A `try/finally` is not what does that, and believing it was is a defect this branch
+shipped and a review caught.** `process.exit()` does not throw, so it ends the process
+without running any `finally` on the stack — measured with a probe that writes a file, calls
+`process.exit(1)` inside a `try` and logs from the `finally`: nothing printed, file still
+there. Every refusal in that script exits that way, so the key survived on exactly the six
+paths where somebody then opens the directory to find out what went wrong.
+`process.on('exit', …)` **does** run on `process.exit()`, synchronously, which is all
+`rmSync` needs; it is registered immediately after `mkdtempSync` so nothing can be added in
+front of it, and a `SIGINT` handler calls `process.exit` so Ctrl-C at the slow Chrome step
+goes through the same door. The same shape Testing records for an installer's teardown:
+register it so it cannot be skipped. `HEADERLAB_CRX_KEY` names a PEM path for anyone without
+1Password. `.gitignore` carries `*.pem` and `*.crx` so a key that reaches this tree at all
+cannot be what `git add -A` discovers.
 
 **The packer reads the bytes back rather than trusting Chrome's exit code**, and the reason
 is where the alternative fails: the store performs the same signature check itself, at
