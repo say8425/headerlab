@@ -1299,7 +1299,12 @@ grep -rnE '\.(backgroundColor|outlineColor|borderColor|[a-zA-Z]*[Cc]olor)\b' tes
 ```
 
 One line today, and no false positives — the fixtures' `color: 'green'` are object keys
-rather than property accesses. **The obvious command is the wrong one, and how it fails is
+rather than property accesses. It matches the property *access*, not the call, which is
+what makes it survive the bound idiom that defeated the obvious command; the cost is that
+it matches a colour read named in a **comment** too (measured: a planted
+`// someday: assert cs.color here` is a hit). That is the same prose-versus-behaviour
+collision as the two notes above, now for the third time in this file, and here it is the
+right way round: over-reporting sends somebody to look, under-reporting is what shipped. **The obvious command is the wrong one, and how it fails is
 this file's own named defect.** Histogramming
 `getComputedStyle(…).<prop>` sees only the immediate-access form: 6 of the suite's 13 call
 sites, because the other 7 bind first (`const cs = getComputedStyle(el)`) and that is the
