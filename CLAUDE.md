@@ -360,7 +360,10 @@ keys** by default — that is why `dependencies` now precedes `devDependencies`.
 
 **Writing about a utility ships it.** Tailwind v4 auto-detects sources by scanning the
 tree as raw text, so a class name quoted in a *comment* is indistinguishable from one
-used on an element and its CSS is emitted. Measured: the 143 B this repo's popup CSS grew
+used on an element and its CSS is emitted. (Testing's mutation-verify paragraph records
+the same collision from the other side: a class named in a comment is also what a
+first-occurrence string replace edits, so a mutation lands in the prose and the suite
+stays green.) Measured: the 143 B this repo's popup CSS grew
 during the documentation task came entirely from prose — docblocks and test comments
 naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
 remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
@@ -1174,17 +1177,29 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the seventeen e2e tests drive a real request through the
+against a loaded extension. Two of the eighteen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
-never reaches declarativeNetRequest while its sibling still does. Nine more cover
-the popup rendering from stored state and eight layout guards: nothing wider than what
+never reaches declarativeNetRequest while its sibling still does. Ten more cover
+the popup rendering from stored state and nine layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
 when toggled off (one test, not two), the ghost row at the end matches a minimum rule
-row's height, the badge and the chip each keep a focus ring that reaches the screen, an
+row's height *and* answers the pointer without changing it, the badge and the chip each
+keep a focus ring that reaches the screen, the add-site field and the ghost row each keep
+theirs inside what clips them, an
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
+**That count said seventeen and eight until 2026-08-24**, and the enumeration was missing
+the add-site/ghost focus-ring guard — which is why it is worth re-deriving rather than
+reading. `pnpm exec playwright test --list` with no file argument ends in
+`Total: 18 tests in 3 files`, which is the figure this sentence states.
+`grep -cE '^test\(' tests/e2e/*.spec.ts` gives the same 13 + 4 + 1 and needs no browser,
+but **it agrees only because of three things that are absent today**: a `test.describe`
+wrapper indents every inner `test(` out of a line-initial match, `test.each` collapses N
+tests into one line, and `test.skip(` drops out entirely. There are none of any of those in
+`tests/e2e/` right now. Playwright resolves all three itself, so prefer `--list` and read
+the grep as a cross-check.
 
 The remaining five are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
@@ -1263,14 +1278,35 @@ token against token, so a colour produced by alpha compositing or by tailwind-me
 picking a class the author did not expect is outside it by construction — the file now
 says so at its top. It went green through a grey box that was plainly visible on screen.
 
-**The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
-on 27 lines (29 occurrences), `getComputedStyle(el).overflowY` in two — and no colour at
-all; there is
-no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
-the only output with pixels in it is `pnpm screenshots`, and **a human is what reads
-it**; that is how the grey box was found. A colour defect born of alpha or merge order has
-no automated guard today. Building one means adding a colour read or a snapshot comparison
-to e2e — say so plainly rather than assuming a green run already covered it.
+**The e2e suite barely covers that gap, and "barely" is one element.** It reads geometry
+throughout — `grep -rn getBoundingClientRect tests/e2e | wc -l` is 28 lines and `-rho …` 30
+occurrences — and, as of 2026-08-24, **exactly one colour**: the ghost row's hovered
+`backgroundColor`, compared against the sibling rule row's own computed fill rather than
+against an `rgb()` literal, in `tests/e2e/header-modification.spec.ts`. There is still no
+snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So the
+only output with pixels *in quantity* is `pnpm screenshots`, and **a human is what reads
+it**; that is how the grey box was found. A colour defect born of alpha or merge order
+still has no automated guard anywhere but that one line. **This paragraph said "no colour
+at all" for one commit after that line existed**, which is the ordinary way a claim about
+coverage goes stale: the branch that closes a documented gap is the branch least likely to
+re-read the paragraph documenting it.
+
+Re-derive the colour claim with a command that asks the colour question, not one that
+inventories properties:
+
+```bash
+grep -rnE '\.(backgroundColor|outlineColor|borderColor|[a-zA-Z]*[Cc]olor)\b' tests/e2e/
+```
+
+One line today, and no false positives — the fixtures' `color: 'green'` are object keys
+rather than property accesses. **The obvious command is the wrong one, and how it fails is
+this file's own named defect.** Histogramming
+`getComputedStyle(…).<prop>` sees only the immediate-access form: 6 of the suite's 13 call
+sites, because the other 7 bind first (`const cs = getComputedStyle(el)`) and that is the
+idiom every older test uses. Measured by planting `const cs = getComputedStyle(el); const
+ink = cs.color;` — the histogram went on printing `backgroundColor 1` while the sentence
+beside it was false, and the grep above caught it. An assertion that cannot fail, attached
+to the one sentence the paragraph exists for.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
@@ -1287,6 +1323,22 @@ survives an "always rendered" mutation.
 **Mutation-verify.** Break the implementation, watch that specific test go red, restore.
 Do this on uncommitted work at your peril: a `git checkout --` revert has discarded real
 edits here. Commit first.
+
+**A mutation that does not land looks exactly like a guard that does not work, and this
+repo's own documentation style is what causes it.** Comments here name the utilities and
+identifiers they discuss, so a class such as `hover:bg-card` exists in a file twice — once
+as prose about the behaviour, once as the behaviour. A first-occurrence string replace
+edits the paragraph. Measured, on the branch that added that class: the mutation
+"applied", the build succeeded, the suite stayed green, and the conclusion on offer was
+that the newly written assertion was blind. It was not; the mutation was. That is a false
+negative in the one procedure whose entire job is to rule false negatives out, and it is
+the most convincing kind, because every step reports success.
+
+**So mutate by line number, and confirm the mutation landed by re-reading the line you
+changed** — never by trusting the edit's exit code. Same collision the Toolchain section
+records from the other direction, where Tailwind emits CSS for a class named only in a
+comment: what a file *says* and what a file *does* are different surfaces, and any check
+that cannot tell them apart will eventually be fooled by prose.
 
 **Mutation-testing an installer writes to real user directories.** The mutations that
 disable a test's own scratch-path isolation are, by definition, exactly the ones that
