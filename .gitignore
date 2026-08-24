@@ -7,7 +7,18 @@
 # match at any depth, so this reaches further than the artifacts-at-the-root shape
 # the list below happens to have today.
 
+# Local scratch that is not this project's source. These are ignored for a
+# second reason beyond keeping `git status` readable, and it is the load-bearing
+# one: **Tailwind v4's automatic source detection skips gitignored paths**, so an
+# untracked-but-unignored directory of HTML is scanned as source and its class
+# names ship. Measured on `.design/` (design mocks, one of them 2.3 MB): the
+# popup CSS built 105,485 B with it present and 45,818 B with it listed here —
+# the directory still on disk, only the ignore line added. 45,818 is what CI
+# builds, so the difference was the whole gap between a local build and the
+# released one.
 .superpowers/
+.design/
+.zcode/
 node_modules
 .output/
 .wxt/

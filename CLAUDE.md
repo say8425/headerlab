@@ -368,10 +368,23 @@ during the documentation task came entirely from prose — docblocks and test co
 naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
 remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
 and `scripts/` 30 B, 0.8% of 43,790 B, which is not worth two more `@source not` lines;
-that is a re-measurable ruling, not a permanent one. Two things not to waste time on:
-`.superpowers/` contributes exactly **0 B** because auto-detection skips dot-directories,
-and **`.md` files are not scanned at all** — probed by planting a unique utility in
-CLAUDE.md and rebuilding, which changed nothing. That is why `@source not "../../docs"`
+that is a re-measurable ruling, not a permanent one. One thing not to waste time on: **`.md` files are not scanned at all** — probed by
+planting a unique utility in CLAUDE.md and rebuilding, which changed nothing.
+
+**And one thing that cost time, because this file got the reason wrong.** It said
+`.superpowers/` contributes exactly 0 B "because auto-detection skips dot-directories".
+The 0 B is right and the reason is not: **detection skips gitignored paths**, and
+`.superpowers/` is in `.gitignore` (`git check-ignore -v .superpowers/` names the line —
+citing a line number here was itself wrong within one commit, because the comment added
+beside it moved the entry from 10 to 19). A dot in the name buys nothing. Measured
+2026-08-24 on `.design/`, an untracked scratch directory of design mocks that had been
+sitting in this tree for four days: the popup CSS built **105,485 B** with it present and
+**45,818 B** with it gitignored — same directory on disk, one line added — and 45,818 is
+exactly what CI builds, so that directory was the entire difference between a local build
+and the released one. 658 selectors, ~59 kB, from files nobody thought were source.
+`.design/` and `.zcode/` are in `.gitignore` now for that reason rather than for tidiness.
+The rule to carry forward is that **untracked is not excluded**: anything Tailwind can read
+as text and git does not ignore is source. That is why `@source not "../../docs"`
 exists for the `.html` mocks in that tree rather than for its prose, and why class names
 may be quoted freely *here* but cost bytes in a `.ts` comment.
 
@@ -777,7 +790,28 @@ message files rather than trusting it. **It does not catch two bullets swapping 
 measured by doing exactly that across the two lists and watching all seven stay green; the
 skeleton is positional. That limit is written into the file beside the assertion.
 
-**Verified CRX uploads are prepared but not switched on, and the switch is the owner's.**
+**This listing will not accept a ZIP, as of 2026-08-24.** What is *observed* is one thing:
+the owner uploaded `headerlab-1.7.0-chrome.zip` to the dashboard and it answered *"There
+was a problem uploading your file… You must update your item with a crx package"*. That is
+their report of their screen, not something measured here. What follows from it without
+any inference is the operational half — `pnpm zip` is no longer a file this listing takes,
+`pnpm crx` is, and the checklist's CRX step is a requirement rather than an option.
+
+**That verified CRX uploads is switched on is an inference, and worth labelling as one.**
+It is the obvious reading, and Chrome's page does say every package update to a verified
+item "must be signed with your signing key, using the CRX file format" — but that page
+carries **no error strings at all**, so nothing establishes that this message has only
+that one cause. An earlier version of this paragraph asserted it was "the message only a
+verified item produces", which was exactly the unsourced-claim shape the rest of this
+section exists to correct. The same caveat carries to the interesting corollary: the item
+had never been published, so **if** the opt-in is what caused this, then a draft item can
+opt in — which the research done that same day listed as unestablished, since the store's
+wording about repackaging "with the existing private key" reads as assuming a key it
+already holds. Treat that as strongly suggested, not measured. What would settle both is
+the Package tab showing the opt-in as enabled; nobody has recorded looking.
+
+Below is the reasoning that led to switching it on, kept because it is what a later reader
+needs to judge whether the trade still holds.
 The store signs every extension with a key it manages, and it does that automatically on
 upload — so until this is opted into, holding the dashboard account is the whole of what it
 takes to publish as this item. Opting in gives the store an RSA public key and makes it
@@ -790,17 +824,29 @@ option. **Four things about it were measured rather than assumed:**
   no published timeline. Treat the opt-in as one-way.
 - **ZIP uploads stop being accepted** the moment it is on. `pnpm zip` still builds what
   `release-please.yml` attaches to the GitHub release; `pnpm crx` builds what the store
-  will take.
+  will take. The same page says the API is still a route for a verified item — upload with
+  `X-Goog-Upload-Protocol: raw` and `X-Goog-Upload-File-Name: <name>.crx` — but that
+  sentence is written for the Update API **v1.1, which retires 2026-10-15**, and the v2
+  documentation does not mention CRX at all. So "a signed CRX can be uploaded by an
+  automated job" is documented for an API with weeks left and undocumented for its
+  replacement. Do not build a release path on it without measuring it first.
 - **The published extension id does not change.** A verified upload is repackaged with the
   store's existing key before publication, so the id the packer prints — the one this
   signing key derives — is not the listing's and is not meant to be. `scripts/pack-crx.mjs`
   says so in the line where it prints it, because the two ids sitting side by side is
   exactly where somebody concludes something has gone wrong.
-- **Chrome's own documentation gives a command that does not exist.** It says
-  `openssl genpair -algorithm RSA -pkeyopt rsa_keygen_bits:2048`; there is no `genpair`
-  subcommand, and OpenSSL answers `Invalid command 'genpair'`. `openssl genpkey` with the
-  same arguments is what works (measured on OpenSSL 3.6.3). The `openssl rsa -in
-  privatekey.pem -pubout` half of the instructions is correct as written.
+- **This list said Chrome's documentation gives a command that does not exist. It does
+  not, and the claim is retracted.** The page shows `openssl genpkey -algorithm RSA
+  -pkeyopt rsa_keygen_bits:2048 -out privatekey.pem`, quoted verbatim on 2026-08-24. What
+  was true and remains true is only the half that was measured here: `openssl genpair` is
+  not a subcommand, and OpenSSL 3.6.3 answers `Invalid command 'genpair'`. **Where the
+  false half came from is the part worth keeping.** The `genpair` spelling arrived from a
+  *summarised* fetch of that page rather than from its literal text, and was written down
+  as a quotation. Testing's rule about reading a grep's real output instead of a
+  description of it is the same rule — a claim about what another document literally says
+  has to come from the literal bytes, and a summarising reader is not those bytes. Whether
+  the page ever said `genpair` cannot now be established, which is itself the cost: the
+  claim was unfalsifiable from the moment it was recorded second-hand.
 
 **The key is in 1Password, not in CI, and that is the same argument as everything else
 here.** A repository whose claim is that a stranger who trusts none of it can verify the
