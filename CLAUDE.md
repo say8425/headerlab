@@ -816,7 +816,11 @@ because a header naming one key while signing over another's id is precisely the
 the store rejects and is invisible if only one is read. It then unpacks the CRX's own ZIP
 payload and compares every file against the release archive by SHA-256. Chrome rebuilds the
 archive, so the two ZIPs are *not* byte-identical and comparing them as containers would
-fail on metadata while proving nothing about what ships. `scripts/lib/crx.mjs` holds the
+fail on metadata while proving nothing about what ships. **`pnpm zip` is not
+byte-reproducible either, and its contents are** — measured, two runs off one tree: different
+archive hashes, and `diff -r` of the two extracted trees empty. That is why the packer
+compares contents rather than archives, and why `docs/store/checklist.md` says to pack from
+the downloaded release asset while calling it a preference rather than a requirement. `scripts/lib/crx.mjs` holds the
 parsing, pure, and `tests/unit/crx.test.ts` tests it against synthetic headers — a real CRX
 needs the key, which CI does not have, so the live end-to-end evidence is the packer's own
 check and the reader's evidence is the unit suite.
