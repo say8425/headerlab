@@ -374,7 +374,9 @@ planting a unique utility in CLAUDE.md and rebuilding, which changed nothing.
 **And one thing that cost time, because this file got the reason wrong.** It said
 `.superpowers/` contributes exactly 0 B "because auto-detection skips dot-directories".
 The 0 B is right and the reason is not: **detection skips gitignored paths**, and
-`.superpowers/` is on line 10 of `.gitignore`. A dot in the name buys nothing. Measured
+`.superpowers/` is in `.gitignore` (`git check-ignore -v .superpowers/` names the line —
+citing a line number here was itself wrong within one commit, because the comment added
+beside it moved the entry from 10 to 19). A dot in the name buys nothing. Measured
 2026-08-24 on `.design/`, an untracked scratch directory of design mocks that had been
 sitting in this tree for four days: the popup CSS built **105,485 B** with it present and
 **45,818 B** with it gitignored — same directory on disk, one line added — and 45,818 is
@@ -788,16 +790,28 @@ message files rather than trusting it. **It does not catch two bullets swapping 
 measured by doing exactly that across the two lists and watching all seven stay green; the
 skeleton is positional. That limit is written into the file beside the assertion.
 
-**Verified CRX uploads are ON, as of 2026-08-24.** The evidence is the dashboard's own
-refusal — uploading `headerlab-1.7.0-chrome.zip` answered *"There was a problem uploading
-your file… You must update your item with a crx package"*, which is the message only a
-verified item produces. So `pnpm zip` is no longer a file this listing accepts, and
-`pnpm crx` is; the checklist's step 2 is now a requirement rather than an option. **Note
-this happened on an item that had never been published**, which the research done the same
-day could not establish was possible — the store's wording about "repackaging with the
-existing private key" reads as though a published item is assumed. It is not. Below is the
-reasoning that led to switching it on, kept because it is what a later reader needs to
-judge whether the trade still holds.
+**This listing will not accept a ZIP, as of 2026-08-24.** What is *observed* is one thing:
+the owner uploaded `headerlab-1.7.0-chrome.zip` to the dashboard and it answered *"There
+was a problem uploading your file… You must update your item with a crx package"*. That is
+their report of their screen, not something measured here. What follows from it without
+any inference is the operational half — `pnpm zip` is no longer a file this listing takes,
+`pnpm crx` is, and the checklist's CRX step is a requirement rather than an option.
+
+**That verified CRX uploads is switched on is an inference, and worth labelling as one.**
+It is the obvious reading, and Chrome's page does say every package update to a verified
+item "must be signed with your signing key, using the CRX file format" — but that page
+carries **no error strings at all**, so nothing establishes that this message has only
+that one cause. An earlier version of this paragraph asserted it was "the message only a
+verified item produces", which was exactly the unsourced-claim shape the rest of this
+section exists to correct. The same caveat carries to the interesting corollary: the item
+had never been published, so **if** the opt-in is what caused this, then a draft item can
+opt in — which the research done that same day listed as unestablished, since the store's
+wording about repackaging "with the existing private key" reads as assuming a key it
+already holds. Treat that as strongly suggested, not measured. What would settle both is
+the Package tab showing the opt-in as enabled; nobody has recorded looking.
+
+Below is the reasoning that led to switching it on, kept because it is what a later reader
+needs to judge whether the trade still holds.
 The store signs every extension with a key it manages, and it does that automatically on
 upload — so until this is opted into, holding the dashboard account is the whole of what it
 takes to publish as this item. Opting in gives the store an RSA public key and makes it

@@ -162,9 +162,11 @@ second copy, and the recovery path is a support ticket that can take a week:
 | algorithm | RSA 2048, generated with `openssl genpkey` |
 
 - [x] Package tab → **Verified CRX uploads** → Opt in, pasting the `public key`
-      field verbatim, `-----BEGIN PUBLIC KEY-----` line and all. **Done 2026-08-24.**
-      From here a ZIP upload is refused with *"You must update your item with a crx
-      package"*, so the next step is not optional — it is the only way to upload.
+      field verbatim, `-----BEGIN PUBLIC KEY-----` line and all. **Believed done
+      2026-08-24** — a ZIP upload was refused with *"You must update your item with a crx
+      package"*, so the next step is not optional, it is the only way to upload. Tick this
+      properly by reading the Package tab: the refusal is what was observed, and the
+      opt-in being its cause is the obvious reading rather than a confirmed one.
 - [ ] `pnpm crx` → `.output/headerlab-<version>-chrome.crx`, and read what it
       prints.
 
