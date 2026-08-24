@@ -241,6 +241,15 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // `--tray`, not against the panel. The outline is load-bearing (it is the
   // only thing saying "control" about a row with no fill of its own), so it is
   // also in the boundary block at the bottom of this file.
+  //
+  // **On hover that row takes `--card`**, so its three pairs against `--card`
+  // are on screen too. All three are already pinned above and below — the
+  // label at "header value over the card behind it", the glyph at "rule delete
+  // control", the outline at `['--boundary', '--card']` — so this is a pointer
+  // rather than three more rows. Re-check it if any of those three go: a pair
+  // deleted for its original element takes this control's hover state with it,
+  // silently, which is the failure mode this file has already been caught in
+  // twice from the other direction.
   ['"New rule" ghost row label — the last row in the well', '--foreground-2', '--tray'],
   ["the ghost row's plus glyph — inside its dashed chip", '--muted-foreground', '--tray'],
   ['REQ direction badge — the Badge wearing an ArrowUp, data-dir=request', '--req', '--req-bg'],

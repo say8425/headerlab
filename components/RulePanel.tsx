@@ -233,9 +233,33 @@ export function RulePanel({
             inside `@layer utilities`; unlayered CSS beats layered CSS whatever
             the selectors say, so the plain utility lost and the measured
             offset stayed at 1px. Verified by measuring the computed style with
-            the class present, not by reading the class list. */}
+            the class present, not by reading the class list.
+
+            `hover:bg-card` — the fill a rule row wears. The row is `bg-tray`,
+            the same token as the well it sits in, so at rest it has no fill of
+            its own to change and nothing but the pointer said it was a
+            control. Taking `--card` on hover is not a colour picked for
+            visibility; it is the colour this slot is about to have, since
+            `RuleCard`'s row is `bg-card`.
+
+            **Not `hover:brightness-95`, which is what this repo already uses
+            for a `bg-tray` control** (RuleCard's gutter halves) — that device
+            does not survive the dark palette here. Measured, tray against its
+            own hovered self: light 1.1175, **dark 1.0081**, which is one step
+            per channel off `#0e1319` and invisible. The card step is 1.1842
+            light and 1.2090 dark, comparable in both. The gutter chips get
+            away with it because their argument is to stand *apart from* the
+            card; this row's is to become it, so the two controls want opposite
+            directions and the same utility cannot serve both.
+
+            Ink on the hovered fill, all three pairs above their floors and all
+            three already guarded in contrast.test.ts: label 8.76 light / 7.23
+            dark, plus glyph 6.04 / 5.25 (floor 4.5), dashed chip 4.13 / 4.17
+            (floor 3). Colour only — no geometry follows the pointer, which the
+            e2e guard on this row's height against a real rule row's would
+            catch if it did. */}
         <button
-          className="mb-px flex h-[52px] shrink-0 cursor-pointer items-center gap-2.5 bg-tray pr-2 pl-3 text-left focus-visible:[outline-offset:-2px]!"
+          className="mb-px flex h-[52px] shrink-0 cursor-pointer items-center gap-2.5 bg-tray pr-2 pl-3 text-left hover:bg-card focus-visible:[outline-offset:-2px]!"
           aria-label="New rule at end"
           onClick={onAddRule}
         >
