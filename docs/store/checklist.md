@@ -133,6 +133,65 @@ item ever becomes paid, or comes to be published in the course of a profession.
       semver — `1.10.0` sorts before `1.9.0` — so "the stale one wins" is not the
       rule either. An arbitrary archive answers, chosen by string sort.
 
+### Verified CRX uploads
+
+**Opt in, once, from the Package tab.** The store then rejects any upload not
+signed with this item's key, so someone holding the dashboard account still
+cannot publish on your behalf. Every extension is signed by Google with a key
+the store manages, and that signing happens automatically on upload — which
+means the account *is* the only gate until this is on. An extension that exists
+because a trusted one shipped a hidden tracker should not leave that gate
+single-width.
+
+Two things to know before clicking it:
+
+- **Opting out is not self-service.** There is no toggle back; CWS support has
+  to revert it, and no timeline is published. Read the opt-in as one-way.
+- **ZIP uploads stop working.** Every package update afterwards must be a CRX
+  signed with the key, so `pnpm zip` is no longer what you upload. `pnpm crx`
+  is.
+
+The key pair was generated on 2026-08-24 and lives in 1Password. There is no
+second copy, and the recovery path is a support ticket that can take a week:
+
+| | |
+| --- | --- |
+| item | **HeaderLab CRX signing key**, Personal vault |
+| private key | `op read "op://Personal/HeaderLab CRX signing key/private key"` |
+| public key | the `public key` field — this is what the dashboard asks for |
+| algorithm | RSA 2048, generated with `openssl genpkey` |
+
+- [ ] Package tab → **Verified CRX uploads** → Opt in, pasting the `public key`
+      field verbatim, `-----BEGIN PUBLIC KEY-----` line and all.
+- [ ] `pnpm crx` → `.output/headerlab-<version>-chrome.crx`, and read what it
+      prints.
+
+      It packs from the ZIP rather than from `.output/chrome-mv3`, so the file
+      you upload and the archive attached to the GitHub release hold the same
+      files — it hashes every one of them and refuses a mismatch. It also reads
+      the CRX header back and refuses a package signed by anything but this key,
+      because the store's own version of that check happens at upload time,
+      after the release is already tagged.
+
+      **Prefer the release asset over a local rebuild** once a release exists:
+
+      ```bash
+      gh release download extension-v<version> -p '*.zip' -D .output
+      node scripts/pack-crx.mjs ".output/headerlab-<version>-chrome.zip"
+      ```
+
+      It is a preference rather than a requirement, and the measurement says
+      which: two `pnpm zip` runs off the same tree produce **different** archive
+      hashes and **identical** contents (`diff -r` of the two extracted trees is
+      empty; the container carries timestamps). So a rebuild ships the same
+      bytes, and only the downloaded asset proves it did. For the same reason,
+      never compare the two archives by hash — compare what is inside them,
+      which is what the packer does.
+
+      The `signed by` id it prints is **not** the listing's id and is not
+      supposed to be. A verified upload is repackaged with the store's existing
+      key before publication, so the published item keeps the id it already has.
+
 ---
 
 ## 3. Prepare the assets
@@ -146,7 +205,10 @@ item ever becomes paid, or comes to be published in the course of a profession.
 
 ## 4. Upload
 
-- [ ] Dashboard → **Add new item** → upload the zip.
+- [ ] Dashboard → **Add new item** → upload the package. That is the zip until
+      verified CRX uploads is on, and `.output/headerlab-<version>-chrome.crx`
+      after — the store rejects a zip once it is on, which is the whole point of
+      it.
 - [ ] Let the manifest validation pass before filling anything in. A rejected
       package makes the rest of the form moot.
 
