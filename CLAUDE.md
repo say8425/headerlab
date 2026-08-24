@@ -1174,17 +1174,23 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the seventeen e2e tests drive a real request through the
+against a loaded extension. Two of the eighteen e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
-never reaches declarativeNetRequest while its sibling still does. Nine more cover
-the popup rendering from stored state and eight layout guards: nothing wider than what
+never reaches declarativeNetRequest while its sibling still does. Ten more cover
+the popup rendering from stored state and nine layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
 when toggled off (one test, not two), the ghost row at the end matches a minimum rule
-row's height, the badge and the chip each keep a focus ring that reaches the screen, an
+row's height *and* answers the pointer without changing it, the badge and the chip each
+keep a focus ring that reaches the screen, the add-site field and the ghost row each keep
+theirs inside what clips them, an
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
+**That count said seventeen and eight until 2026-08-24**, and the enumeration was missing
+the add-site/ghost focus-ring guard — which is why it is worth re-deriving rather than
+reading: `npx playwright test <file> --list` per file, or `grep -cE '^test\(' tests/e2e/*.spec.ts`
+(13 + 4 + 1).
 
 The remaining five are the bridge's own, in `tests/e2e/bridge.spec.ts` and
 `tests/e2e/bridge-rail.spec.ts`. One confirms the id `bridge install` computed from
@@ -1263,14 +1269,20 @@ token against token, so a colour produced by alpha compositing or by tailwind-me
 picking a class the author did not expect is outside it by construction — the file now
 says so at its top. It went green through a grey box that was plainly visible on screen.
 
-**The e2e suite does not cover that gap.** It reads geometry — `getBoundingClientRect`
-on 27 lines (29 occurrences), `getComputedStyle(el).overflowY` in two — and no colour at
-all; there is
-no snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So
-the only output with pixels in it is `pnpm screenshots`, and **a human is what reads
-it**; that is how the grey box was found. A colour defect born of alpha or merge order has
-no automated guard today. Building one means adding a colour read or a snapshot comparison
-to e2e — say so plainly rather than assuming a green run already covered it.
+**The e2e suite barely covers that gap, and "barely" is one element.** It reads geometry —
+`getBoundingClientRect` on 28 lines (30 occurrences), `getComputedStyle(el).overflowY` in
+two — and, as of 2026-08-24, **exactly one colour**: the ghost row's hovered
+`backgroundColor`, compared against the sibling rule row's own computed fill rather than
+against an `rgb()` literal, in `tests/e2e/header-modification.spec.ts`. There is still no
+snapshot comparison configured and zero `toHaveScreenshot`/`toMatchSnapshot` calls. So the
+only output with pixels *in quantity* is `pnpm screenshots`, and **a human is what reads
+it**; that is how the grey box was found. A colour defect born of alpha or merge order
+still has no automated guard anywhere but that one line. **This paragraph said "no colour
+at all" for one commit after that line existed**, which is the ordinary way a claim about
+coverage goes stale: the branch that closes a documented gap is the branch least likely to
+re-read the paragraph documenting it. Re-derive with
+`grep -rhoE "getComputedStyle\([^)]*\)\.[a-zA-Z]+" tests/e2e | sed 's/.*\.//' | sort | uniq -c`,
+which today prints overflowY 2, clipPath 2, visibility 1, backgroundColor 1.
 
 **The recurring failure mode is an assertion that cannot fail.** One phase shipped nine
 defects and every one was this: `toContain` where an exact value was available, a
@@ -1287,6 +1299,22 @@ survives an "always rendered" mutation.
 **Mutation-verify.** Break the implementation, watch that specific test go red, restore.
 Do this on uncommitted work at your peril: a `git checkout --` revert has discarded real
 edits here. Commit first.
+
+**A mutation that does not land looks exactly like a guard that does not work, and this
+repo's own documentation style is what causes it.** Comments here name the utilities and
+identifiers they discuss, so a class such as `hover:bg-card` exists in a file twice — once
+as prose about the behaviour, once as the behaviour. A first-occurrence string replace
+edits the paragraph. Measured, on the branch that added that class: the mutation
+"applied", the build succeeded, the suite stayed green, and the conclusion on offer was
+that the newly written assertion was blind. It was not; the mutation was. That is a false
+negative in the one procedure whose entire job is to rule false negatives out, and it is
+the most convincing kind, because every step reports success.
+
+**So mutate by line number, and confirm the mutation landed by re-reading the line you
+changed** — never by trusting the edit's exit code. Same collision the Toolchain section
+records from the other direction, where Tailwind emits CSS for a class named only in a
+comment: what a file *says* and what a file *does* are different surfaces, and any check
+that cannot tell them apart will eventually be fooled by prose.
 
 **Mutation-testing an installer writes to real user directories.** The mutations that
 disable a test's own scratch-path isolation are, by definition, exactly the ones that
