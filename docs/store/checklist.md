@@ -161,8 +161,10 @@ second copy, and the recovery path is a support ticket that can take a week:
 | public key | the `public key` field — this is what the dashboard asks for |
 | algorithm | RSA 2048, generated with `openssl genpkey` |
 
-- [ ] Package tab → **Verified CRX uploads** → Opt in, pasting the `public key`
-      field verbatim, `-----BEGIN PUBLIC KEY-----` line and all.
+- [x] Package tab → **Verified CRX uploads** → Opt in, pasting the `public key`
+      field verbatim, `-----BEGIN PUBLIC KEY-----` line and all. **Done 2026-08-24.**
+      From here a ZIP upload is refused with *"You must update your item with a crx
+      package"*, so the next step is not optional — it is the only way to upload.
 - [ ] `pnpm crx` → `.output/headerlab-<version>-chrome.crx`, and read what it
       prints.
 

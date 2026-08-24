@@ -788,7 +788,16 @@ message files rather than trusting it. **It does not catch two bullets swapping 
 measured by doing exactly that across the two lists and watching all seven stay green; the
 skeleton is positional. That limit is written into the file beside the assertion.
 
-**Verified CRX uploads are prepared but not switched on, and the switch is the owner's.**
+**Verified CRX uploads are ON, as of 2026-08-24.** The evidence is the dashboard's own
+refusal — uploading `headerlab-1.7.0-chrome.zip` answered *"There was a problem uploading
+your file… You must update your item with a crx package"*, which is the message only a
+verified item produces. So `pnpm zip` is no longer a file this listing accepts, and
+`pnpm crx` is; the checklist's step 2 is now a requirement rather than an option. **Note
+this happened on an item that had never been published**, which the research done the same
+day could not establish was possible — the store's wording about "repackaging with the
+existing private key" reads as though a published item is assumed. It is not. Below is the
+reasoning that led to switching it on, kept because it is what a later reader needs to
+judge whether the trade still holds.
 The store signs every extension with a key it manages, and it does that automatically on
 upload — so until this is opted into, holding the dashboard account is the whole of what it
 takes to publish as this item. Opting in gives the store an RSA public key and makes it
