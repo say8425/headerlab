@@ -801,17 +801,29 @@ option. **Four things about it were measured rather than assumed:**
   no published timeline. Treat the opt-in as one-way.
 - **ZIP uploads stop being accepted** the moment it is on. `pnpm zip` still builds what
   `release-please.yml` attaches to the GitHub release; `pnpm crx` builds what the store
-  will take.
+  will take. The same page says the API is still a route for a verified item — upload with
+  `X-Goog-Upload-Protocol: raw` and `X-Goog-Upload-File-Name: <name>.crx` — but that
+  sentence is written for the Update API **v1.1, which retires 2026-10-15**, and the v2
+  documentation does not mention CRX at all. So "a signed CRX can be uploaded by an
+  automated job" is documented for an API with weeks left and undocumented for its
+  replacement. Do not build a release path on it without measuring it first.
 - **The published extension id does not change.** A verified upload is repackaged with the
   store's existing key before publication, so the id the packer prints — the one this
   signing key derives — is not the listing's and is not meant to be. `scripts/pack-crx.mjs`
   says so in the line where it prints it, because the two ids sitting side by side is
   exactly where somebody concludes something has gone wrong.
-- **Chrome's own documentation gives a command that does not exist.** It says
-  `openssl genpair -algorithm RSA -pkeyopt rsa_keygen_bits:2048`; there is no `genpair`
-  subcommand, and OpenSSL answers `Invalid command 'genpair'`. `openssl genpkey` with the
-  same arguments is what works (measured on OpenSSL 3.6.3). The `openssl rsa -in
-  privatekey.pem -pubout` half of the instructions is correct as written.
+- **This list said Chrome's documentation gives a command that does not exist. It does
+  not, and the claim is retracted.** The page shows `openssl genpkey -algorithm RSA
+  -pkeyopt rsa_keygen_bits:2048 -out privatekey.pem`, quoted verbatim on 2026-08-24. What
+  was true and remains true is only the half that was measured here: `openssl genpair` is
+  not a subcommand, and OpenSSL 3.6.3 answers `Invalid command 'genpair'`. **Where the
+  false half came from is the part worth keeping.** The `genpair` spelling arrived from a
+  *summarised* fetch of that page rather than from its literal text, and was written down
+  as a quotation. Testing's rule about reading a grep's real output instead of a
+  description of it is the same rule — a claim about what another document literally says
+  has to come from the literal bytes, and a summarising reader is not those bytes. Whether
+  the page ever said `genpair` cannot now be established, which is itself the cost: the
+  claim was unfalsifiable from the moment it was recorded second-hand.
 
 **The key is in 1Password, not in CI, and that is the same argument as everything else
 here.** A repository whose claim is that a stranger who trusts none of it can verify the
