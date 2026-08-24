@@ -141,10 +141,32 @@ chmodSync(work, 0o700);
  */
 const clean = () => rmSync(work, { recursive: true, force: true });
 process.on('exit', clean);
-// SIGINT terminates without running 'exit' handlers unless something calls
-// exit for it. Ctrl-C at the Chrome step is not hypothetical: that step is the
-// slow one, and it is the first step that runs after the key is written.
-process.on('SIGINT', () => process.exit(130));
+// A signal's default action ends the process with no 'exit' event at all, so
+// each one that can realistically arrive has to call exit on its behalf —
+// `process.on('exit')` covers `process.exit()` and a normal return, and nothing
+// else. Ctrl-C is not hypothetical here; SIGTERM is a `kill` or an editor
+// stopping the task it started; SIGHUP is closing the terminal on it. 128 plus
+// the signal number is the shell's own convention for "died on this signal", so
+// the exit code still says which one arrived.
+//
+// **These do not cover the window they look like they cover, and the reason is
+// worth knowing before trusting them.** The key is on disk from the line above
+// until this script ends, and the long part of that is `execFileSync` waiting
+// on Chrome — during which the event loop is blocked and no JS handler runs at
+// all. What actually happens there was measured rather than assumed: the signal
+// reaches the process, `execFileSync` comes back early, the run falls through to
+// its own `existsSync(packed)` refusal, and `die()` exits through the 'exit'
+// handler. Clean, by a different route than this one. These three cover the
+// rest — unzip, the header checks, the hashing — where the loop is free.
+// Verified in isolation with the loop free: exit 130/143/129 and the directory
+// gone in all three.
+for (const [signal, status] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+  ['SIGHUP', 129],
+]) {
+  process.on(signal, () => process.exit(status));
+}
 
 try {
   // 1. The ZIP's contents become the directory Chrome packs.
