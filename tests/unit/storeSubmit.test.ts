@@ -148,20 +148,35 @@ describe('the release calls the store submission', () => {
     const job = releasePlease.slice(releasePlease.indexOf('  store-submit:'));
     expect(job).toContain('tag: ${{ needs.release-please.outputs.extension_tag }}');
     expect(job).toContain('version: ${{ needs.release-please.outputs.extension_version }}');
-    for (const input of ['tag:', 'version:']) {
-      expect(storeSubmit).toContain(input);
+
+    // Anchored to the key's own indentation, not a substring search. `tag:` is
+    // inside `release_tag:`, so a bare `toContain` would stay green through a
+    // rename on the callee's side — the exact drift this assertion exists for.
+    // Two of each: one per trigger.
+    for (const input of ['tag', 'version']) {
+      expect(storeSubmit.match(new RegExp(`^ {6}${input}:$`, 'gm'))).toHaveLength(2);
     }
   });
 
   /**
-   * The checkout takes the tag, not the default branch. `pack-crx.mjs` refuses
-   * an archive whose manifest version disagrees with `package.json`, so a
-   * dispatch-driven retry of an older tag against a moved `main` would die at
-   * the signature — which would give the one documented recovery path an
-   * expiry date.
+   * The checkout defaults to the tag, and can be overridden.
+   *
+   * Both halves are load-bearing and they guard opposite mistakes. Without the
+   * tag default, a dispatch-driven retry would check out `main` and die at the
+   * signature, because `pack-crx.mjs` refuses an archive whose manifest version
+   * disagrees with `package.json`. Without the override, a failure *in the
+   * scripts* could never be fixed: the checkout supplies only the scripts — the
+   * CRX's payload comes from the release's own zip — so a tag-pinned re-run
+   * replays the same broken script forever, and the likeliest such failure is
+   * `UPLOADABLE_STATES` refusing a state the store really does use.
+   *
+   * Pinning the whole expression rather than either operand is what makes
+   * dropping one of them fail here.
    */
-  it('signs the code that was released rather than whatever main holds', () => {
-    expect(storeSubmit).toContain('ref: ${{ inputs.tag }}');
+  it('signs the released code by default, and can be pointed elsewhere to fix a script', () => {
+    expect(storeSubmit).toContain('ref: ${{ inputs.ref || inputs.tag }}');
+    // Declared under both triggers, so the expression resolves either way.
+    expect(storeSubmit.match(/^ {6}ref:$/gm)).toHaveLength(2);
   });
 
   /** The third-party action stays pinned to a commit, not a tag. */

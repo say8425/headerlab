@@ -688,9 +688,20 @@ about it are load-bearing and none is obvious from the YAML:
   also keeps `GITHUB_REF` at `refs/heads/main` — the ref the `chrome-web-store`
   environment's branch rule names. A tag rule there would match nothing while reading as
   strict.
-- **`workflow_dispatch` is the recovery path and the only one.** The tag is cut before this
-  can run, so a failure always leaves a released version that is not on the store. Re-run
-  the workflow against that tag; never re-cut a version.
+- **`workflow_dispatch` is the recovery path, and which knob you turn depends on where it
+  broke.** The tag is cut before this can run, so a failure always leaves a released version
+  that is not on the store, and re-cutting a version is never the fix. A transient failure —
+  the network, the token, the store — is a plain re-run against the same tag. A failure *in
+  the scripts* is not: the checkout supplies only the scripts, since the CRX's payload always
+  comes from the release's own zip, so a tag-pinned re-run replays the same broken script
+  forever. That is what the optional `ref` input exists for, and the likeliest instance is
+  `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing an item state the store really does
+  use — deliberately fail-closed, and therefore deliberately something that may need widening
+  once. `ref: main` only works while `main` still carries the tag's version, because
+  `pack-crx.mjs` refuses an archive whose manifest disagrees with `package.json`; past that
+  the two constraints genuinely conflict and the answer is a local `pnpm crx` and the
+  dashboard. `docs/store/checklist.md` §10 carries the table.
+
 **The first run started from zero tags and zero releases**, so it read the whole history and
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the

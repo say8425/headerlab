@@ -277,7 +277,7 @@ export const interpretSubmission = (status, expectedVersion) => {
       reason: `the store reports version ${version}, expected ${expectedVersion}`,
     };
   }
-  if (state !== 'PENDING_REVIEW' && state !== 'IN_REVIEW') {
+  if (!REVIEW_STATES.has(state)) {
     return {
       submitted: false,
       state,

@@ -316,9 +316,28 @@ signs that zip into a CRX and submits it. Two things to hold on to:
 
 - **A green run means `PENDING_REVIEW`, not published.** Google publishes when
   the review passes, and the result arrives by email — there is no webhook.
-- **When the store step fails, re-run `store-submit.yml` against the same tag.**
-  The tag is cut before that step can run, so a failure always leaves a released
-  version that is not on the store. Never re-cut a version to fix it.
+- **Never re-cut a version to fix a store failure.** The tag is cut before that
+  step can run, so a failure always leaves a released version that is not on the
+  store. Which recovery you want depends on where the failure was, and the two
+  are not interchangeable:
+
+  | The failure was in | Do this |
+  | --- | --- |
+  | the network, the token, the store | Re-run `store-submit.yml` against the same tag, leaving `ref` empty. |
+  | the scripts themselves | Fix on `main`, then re-run with `ref: main`. |
+  | the scripts, but `main` has already moved to a later version | Neither. Sign locally with `pnpm crx` and upload through the dashboard. |
+
+  The middle row exists because the checkout supplies only the scripts — the
+  CRX's payload always comes from the release's own zip — so a tag-pinned re-run
+  replays the same broken script forever. The likeliest instance is
+  `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing an item state the store
+  really does use, which is deliberately fail-closed and therefore deliberately
+  something you may have to widen once.
+
+  The third row is the genuine conflict: `pack-crx.mjs` refuses an archive whose
+  manifest version disagrees with `package.json`, so `ref: main` at 1.9.0 cannot
+  sign the 1.8.0 zip. Nothing in the workflow can resolve that, which is why it
+  is written down here instead.
 
 One-time setup, outside the repository: a Google Cloud service account with the
 Chrome Web Store API enabled, its email added under **Account** in the dashboard

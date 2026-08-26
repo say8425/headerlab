@@ -22,6 +22,14 @@ on:
         description: The version the store must end up holding, e.g. 1.8.0
         required: true
         type: string
+      ref:
+        # Declared here as well as under workflow_dispatch, though a release never
+        # passes it: `inputs.ref` has to resolve under both triggers for the
+        # checkout's `inputs.ref || inputs.tag` to be one expression rather than
+        # two branches.
+        description: Unused by a release. See the workflow_dispatch input of the same name.
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -31,6 +39,13 @@ on:
       version:
         description: The version the store must end up holding, e.g. 1.8.0
         required: true
+        type: string
+      ref:
+        description: >-
+          Which revision supplies the SCRIPTS. Leave empty to use the tag. Set it
+          to main when the failure is in the scripts themselves — see the comment
+          on the checkout step below.
+        required: false
         type: string
 
 permissions:
@@ -58,15 +73,26 @@ jobs:
     environment: chrome-web-store
 
     steps:
-      # `ref` is the tag, not the default branch, and that is what keeps the
-      # recovery path from expiring. `pack-crx.mjs` refuses an archive whose
-      # manifest version disagrees with `package.json`, so a `workflow_dispatch`
-      # re-run of extension-v1.8.0 against a `main` that has moved to 1.9.0
-      # would die at the signature. Checking out the tag also means the CRX is
-      # signed by the code that was released rather than by whatever main holds.
+      # The checkout supplies the SCRIPTS only — the CRX's payload comes from the
+      # release's own zip two steps down — and there are two failure modes that
+      # want different revisions, so this is an input rather than a constant.
+      #
+      # Default, the tag: `pack-crx.mjs` refuses an archive whose manifest version
+      # disagrees with `package.json`, so a re-run of extension-v1.8.0 against a
+      # `main` that has moved to 1.9.0 would die at the signature. The tag also
+      # means the CRX is signed by the code that was released.
+      #
+      # Override, `ref: main`: when the failure is in the scripts — the likeliest
+      # one being `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing a state the
+      # store really does use — the fix lives on `main`, and a tag-pinned re-run
+      # would replay the same refusal forever. This only works while `main` still
+      # carries the tag's version, which is the immediate-retry case. Once `main`
+      # has moved on, the two constraints genuinely conflict and the path is a
+      # local `pnpm crx` plus a dashboard upload; `docs/store/checklist.md` §10
+      # says so rather than leaving it to be discovered.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.ref || inputs.tag }}
           persist-credentials: false
 
       # No `pnpm install`. Both scripts below use only Node builtins and files in
@@ -160,4 +186,7 @@ jobs:
       # invites the reading that one of them does not matter.
       - name: Remove the staged key
         if: always()
-        run: rm -f "$HEADERLAB_CRX_KEY"
+        # The default matters: `if: always()` means this also runs when the job
+        # failed before the key was staged, and `rm -f ""` is not portable across
+        # BSD and GNU coreutils.
+        run: rm -f "${HEADERLAB_CRX_KEY:-/dev/null}"
