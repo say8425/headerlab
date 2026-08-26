@@ -58,8 +58,15 @@ jobs:
     environment: chrome-web-store
 
     steps:
+      # `ref` is the tag, not the default branch, and that is what keeps the
+      # recovery path from expiring. `pack-crx.mjs` refuses an archive whose
+      # manifest version disagrees with `package.json`, so a `workflow_dispatch`
+      # re-run of extension-v1.8.0 against a `main` that has moved to 1.9.0
+      # would die at the signature. Checking out the tag also means the CRX is
+      # signed by the code that was released rather than by whatever main holds.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.tag }}
           persist-credentials: false
 
       # No `pnpm install`. Both scripts below use only Node builtins and files in
@@ -88,7 +95,12 @@ jobs:
             *"-----BEGIN "*"PRIVATE KEY-----"*) ;;
             *) echo "CRX_SIGNING_KEY is set but is not a PEM private key"; exit 1 ;;
           esac
-          echo "$ACCOUNT" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' \
+          # stderr is discarded on purpose. V8's JSON.parse error quotes the
+          # text around the failure, and GitHub masks only exact matches of a
+          # secret — never a fragment of one — so letting this speak would print
+          # part of the credential into a public log on the one path where the
+          # credential is malformed.
+          echo "$ACCOUNT" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null \
             || { echo "CWS_SERVICE_ACCOUNT_JSON is not JSON"; exit 1; }
 
       - name: Stage the signing key
@@ -130,10 +142,22 @@ jobs:
         run: node scripts/store-submit.mjs .output/*.crx
 
       # Only after the store accepted it. Attaching earlier would put bytes on a
-      # public release that no store had agreed to, and the README points readers
-      # at this file as the thing they can compare against what Chrome installs.
+      # public release that no store had agreed to.
+      #
+      # No document currently tells a reader this file is here, and that is
+      # deliberate rather than an oversight: no release carries one yet, so a
+      # README sentence about it would be false for every release on the page.
+      # Say it once the first release has one.
       - name: Attach the signed package to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" .output/*.crx --clobber
+
+      # The runner is ephemeral, so this is tidiness rather than defence — but
+      # the local path goes to some trouble to guarantee the same thing
+      # (`process.on('exit')` in pack-crx.mjs), and leaving the two asymmetric
+      # invites the reading that one of them does not matter.
+      - name: Remove the staged key
+        if: always()
+        run: rm -f "$HEADERLAB_CRX_KEY"

@@ -182,24 +182,81 @@ export const interpretUpload = (body) => {
   };
 };
 
+/** Item states that mean a submission is with Google and not yet decided. */
+const REVIEW_STATES = new Set(['PENDING_REVIEW', 'IN_REVIEW']);
+
 /**
- * Whether a new package may be uploaded at all.
+ * Item states in which uploading a new package is a normal thing to do.
  *
- * Nothing documents what a second upload does to an item already in review, so
- * this refuses instead of finding out during a release. `fetchStatus` is the
- * only way to ask.
+ * A whitelist rather than a blacklist, and that direction is the whole point.
+ * An earlier version refused exactly the two review states and allowed
+ * everything else — including an absent field and a shape this file's own
+ * docblock admits is inferred rather than documented. That is fail-open on the
+ * one gate protecting an undocumented action, sitting directly below an
+ * `interpretUpload` that is fail-closed for exactly the reason this should have
+ * been: the same API spells its states differently across pages and versions.
  */
-export const mayUpload = (status) => {
-  const state = status?.itemState ?? status?.state;
-  if (state === 'PENDING_REVIEW' || state === 'IN_REVIEW') {
+const UPLOADABLE_STATES = new Set([
+  'PUBLISHED',
+  'DRAFT',
+  'UNPUBLISHED',
+  'REJECTED',
+  'TAKEN_DOWN',
+  'DEPRECATED',
+]);
+
+const itemState = (status) => status?.itemState ?? status?.state ?? '(absent)';
+const itemVersion = (status) => status?.crxVersion ?? status?.version ?? '(absent)';
+
+/**
+ * Whether a new package may be uploaded at all, and whether it already was.
+ *
+ * Three answers, not two. `alreadySubmitted` exists because without it the
+ * retry path eats itself: the tag is cut before the store step runs, so the
+ * documented recovery is re-running the workflow against the same tag — and if
+ * the first attempt actually submitted before dying for some later reason, a
+ * plain refusal on `PENDING_REVIEW` would block every retry forever. Asking
+ * whether the item already holds *this* version separates "someone else's
+ * submission is in the way" from "this one is already done".
+ *
+ * Unknown states refuse. Nothing documents what a second upload does to an item
+ * in review, so a state this file cannot name is one it cannot rule that out
+ * for. The refusal prints what the store actually said; widen the set above
+ * from that rather than from a guess.
+ */
+export const mayUpload = (status, expectedVersion) => {
+  const state = itemState(status);
+  const version = itemVersion(status);
+  if (REVIEW_STATES.has(state)) {
+    if (expectedVersion !== undefined && version === expectedVersion) {
+      return {
+        allowed: false,
+        alreadySubmitted: true,
+        state,
+        version,
+        reason: `version ${version} is already ${state}: a previous run submitted it.`,
+      };
+    }
     return {
       allowed: false,
+      state,
+      version,
       reason:
-        `the item is ${state}: a previous submission has not finished review. ` +
-        'Uploading over it is undocumented, so this refuses. Wait for the review, or cancel it in the dashboard.',
+        `the item is ${state} holding version ${version}: a previous submission has not finished ` +
+        'review. Uploading over it is undocumented, so this refuses. Wait for the review, or ' +
+        'cancel it in the dashboard.',
     };
   }
-  return { allowed: true };
+  if (UPLOADABLE_STATES.has(state)) return { allowed: true, state, version };
+  return {
+    allowed: false,
+    state,
+    version,
+    reason:
+      `unrecognised item state ${JSON.stringify(state)} — refusing rather than uploading over ` +
+      'something this cannot name. Record what the store returned and widen UPLOADABLE_STATES ' +
+      'in scripts/lib/cws.mjs.',
+  };
 };
 
 /**
@@ -210,8 +267,8 @@ export const mayUpload = (status) => {
  * draft nobody submitted.
  */
 export const interpretSubmission = (status, expectedVersion) => {
-  const state = status?.itemState ?? status?.state ?? '(absent)';
-  const version = status?.crxVersion ?? status?.version ?? '(absent)';
+  const state = itemState(status);
+  const version = itemVersion(status);
   if (version !== expectedVersion) {
     return {
       submitted: false,

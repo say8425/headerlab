@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  base64url,
   claimSet,
   CWS_SCOPE,
   endpoints,
@@ -9,6 +10,7 @@ import {
   mayUpload,
   publishBody,
   readServiceAccount,
+  signingInput,
   TOKEN_ENDPOINT,
   uploadHeaders,
 } from '@/scripts/lib/cws.mjs';
@@ -126,17 +128,72 @@ describe('mayUpload', () => {
    * and this repository has cut two releases four minutes apart. Refusing is
    * the only answer that does not find out during one.
    */
-  it('refuses while a previous submission is still in review', () => {
+  it('refuses while someone else’s submission is still in review', () => {
     for (const itemState of ['PENDING_REVIEW', 'IN_REVIEW']) {
-      const gate = mayUpload({ itemState });
+      const gate = mayUpload({ itemState, crxVersion: '1.7.0' }, '1.8.0');
       expect(gate.allowed).toBe(false);
+      expect(gate.alreadySubmitted).toBeUndefined();
       expect(gate.reason).toContain(itemState);
     }
   });
 
-  it('allows an item that is not in review', () => {
-    expect(mayUpload({ itemState: 'PUBLISHED' })).toEqual({ allowed: true });
-    expect(mayUpload({})).toEqual({ allowed: true });
+  /**
+   * The retry path would otherwise eat itself. The tag is cut before the store
+   * step runs, so re-running the workflow against the same tag is the documented
+   * recovery — and if the first attempt submitted before dying for some later
+   * reason, a plain refusal on a review state would block every retry forever.
+   */
+  it('reports this exact version already being in review as done, not as a conflict', () => {
+    const gate = mayUpload({ itemState: 'PENDING_REVIEW', crxVersion: '1.8.0' }, '1.8.0');
+    expect(gate.allowed).toBe(false);
+    expect(gate.alreadySubmitted).toBe(true);
+  });
+
+  it('allows a recognised state in which uploading is ordinary', () => {
+    for (const itemState of ['PUBLISHED', 'DRAFT', 'REJECTED']) {
+      expect(mayUpload({ itemState }, '1.8.0').allowed).toBe(true);
+    }
+  });
+
+  /**
+   * Fail-closed, and the direction is the point. An earlier version refused
+   * exactly the two review states and allowed everything else — including `{}`
+   * and an absent field — which made the one gate protecting an undocumented
+   * action fail *open*, directly below an `interpretUpload` that is fail-closed
+   * for exactly the reason this should have been.
+   */
+  it('refuses a state it cannot name rather than uploading over it', () => {
+    for (const status of [{}, undefined, { itemState: 'SOMETHING_NEW' }, { status: ['x'] }]) {
+      const gate = mayUpload(status, '1.8.0');
+      expect(gate.allowed).toBe(false);
+      expect(gate.alreadySubmitted).toBeUndefined();
+    }
+  });
+});
+
+describe('signingInput and base64url', () => {
+  /**
+   * A JWS signature is taken over this exact string, so a `base64` slip here is
+   * a token endpoint rejection rather than anything local. Google fails it
+   * loudly, which is why these are cheap rather than critical — but they are
+   * three lines.
+   */
+  it('produces two base64url segments with no padding and no base64 alphabet', () => {
+    const segments = signingInput(claimSet({ clientEmail: 'a@b.c', now: 1_700_000_000 })).split(
+      '.',
+    );
+    expect(segments).toHaveLength(2);
+    for (const segment of segments) {
+      expect(segment).toMatch(/^[A-Za-z0-9_-]+$/);
+    }
+    expect(JSON.parse(Buffer.from(segments[0] ?? '', 'base64url').toString())).toEqual({
+      alg: 'RS256',
+      typ: 'JWT',
+    });
+  });
+
+  it('maps the two characters base64url exists to change, and drops padding', () => {
+    expect(base64url(Buffer.from([0xfb, 0xff, 0xbf, 0x00]))).toBe('-_-_AA');
   });
 });
 

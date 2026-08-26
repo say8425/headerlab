@@ -33,6 +33,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
+`.output/chrome-mv3` is then loaded the same way as an unpacked release.
+
 ## AI
 
 HeaderLab is drivable by an AI coding agent, in three pieces that stack: a CLI a person can

@@ -101,12 +101,67 @@ describe('everything that can fail runs before the tag exists', () => {
    * Unconditional as well as early. Gating them on `steps.release.outputs.*`
    * would be a contradiction — those outputs do not exist until the step they
    * are meant to run before has already run.
+   *
+   * Comments are stripped before looking, and the whole step is read rather than
+   * a fixed slice. An earlier version scanned 200 characters after the `run:`
+   * line, which in this file is mostly prose: an `if:` written in a comment
+   * would have failed it, and a re-gated `pnpm zip` would have passed.
    */
-  it('runs them on every push rather than guessing whether this one releases', () => {
-    const before = releasePlease.slice(0, cut);
-    const checkLine = before.indexOf('run: pnpm check');
-    const afterCheck = before.slice(checkLine, checkLine + 200);
-    expect(afterCheck).not.toContain('if:');
+  it.each(['pnpm check', 'pnpm zip'])('runs %s on every push, not only on a release', (command) => {
+    const steps = releasePlease
+      .slice(0, cut)
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line));
+    const start = steps.findIndex((line) => line.includes(`run: ${command}`));
+    expect(start, `${command} does not run before the tag is cut`).toBeGreaterThan(-1);
+    const rest = steps.slice(start + 1);
+    const end = rest.findIndex((line) => /^\s*- /.test(line));
+    const body = (end === -1 ? rest : rest.slice(0, end)).join('\n');
+    expect(body).not.toContain('if:');
+  });
+});
+
+/**
+ * The wiring between the two workflows, which nothing else can see.
+ *
+ * Without this, deleting the `store-submit` job from `release-please.yml`
+ * entirely — or breaking what it passes — leaves every other test in this
+ * repository green while releases quietly stop reaching the store. That is the
+ * exact shape of silent failure this whole change exists to remove, so it gets
+ * a guard rather than a comment.
+ */
+describe('the release calls the store submission', () => {
+  it('declares the three outputs the store job is given', () => {
+    for (const output of ['extension_released', 'extension_tag', 'extension_version']) {
+      expect(releasePlease).toContain(`${output}:`);
+    }
+  });
+
+  it('calls the reusable workflow, after the release job, only when the extension released', () => {
+    const job = releasePlease.slice(releasePlease.indexOf('  store-submit:'));
+    expect(job).toContain('needs: release-please');
+    expect(job).toContain('uses: ./.github/workflows/store-submit.yml');
+    expect(job).toContain('needs.release-please.outputs.extension_released');
+  });
+
+  it('passes the tag and the version the store job requires as inputs', () => {
+    const job = releasePlease.slice(releasePlease.indexOf('  store-submit:'));
+    expect(job).toContain('tag: ${{ needs.release-please.outputs.extension_tag }}');
+    expect(job).toContain('version: ${{ needs.release-please.outputs.extension_version }}');
+    for (const input of ['tag:', 'version:']) {
+      expect(storeSubmit).toContain(input);
+    }
+  });
+
+  /**
+   * The checkout takes the tag, not the default branch. `pack-crx.mjs` refuses
+   * an archive whose manifest version disagrees with `package.json`, so a
+   * dispatch-driven retry of an older tag against a moved `main` would die at
+   * the signature — which would give the one documented recovery path an
+   * expiry date.
+   */
+  it('signs the code that was released rather than whatever main holds', () => {
+    expect(storeSubmit).toContain('ref: ${{ inputs.tag }}');
   });
 
   /** The third-party action stays pinned to a commit, not a tag. */

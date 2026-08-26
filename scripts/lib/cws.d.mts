@@ -53,7 +53,16 @@ export declare function interpretUpload(body: unknown): {
   reason?: string;
 };
 
-export declare function mayUpload(status: unknown): { allowed: boolean; reason?: string };
+export declare function mayUpload(
+  status: unknown,
+  expectedVersion?: string,
+): {
+  allowed: boolean;
+  alreadySubmitted?: boolean;
+  state: string;
+  version: string;
+  reason?: string;
+};
 
 export declare function interpretSubmission(
   status: unknown,

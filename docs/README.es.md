@@ -35,6 +35,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
+Luego `.output/chrome-mv3` se carga igual que una release descomprimida.
+
 ## AI
 
 HeaderLab se puede manejar con un agente de programación de IA, en tres piezas que se

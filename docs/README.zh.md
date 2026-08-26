@@ -32,6 +32,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
+随后以与上面那份解压后的发布产物相同的方式加载 `.output/chrome-mv3` 即可。
+
 ## AI
 
 HeaderLab 可以由 AI 编码代理驱动，由三块可以叠加的部件构成：一个人也可以手动使用的 CLI、

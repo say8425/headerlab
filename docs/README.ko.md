@@ -35,6 +35,9 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
+그렇게 나온 `.output/chrome-mv3` 를 위의 압축해제된 확장 프로그램과 같은 방법으로
+로드하세요.
+
 ## AI
 
 HeaderLab 은 AI 코딩 에이전트로 조작할 수 있습니다. 서로 포개지는 세 조각입니다 — 사람이

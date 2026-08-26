@@ -36,6 +36,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
+あとは `.output/chrome-mv3` を、展開したリリースと同じ手順で読み込みます。
+
 ## AI
 
 HeaderLab は AI コーディングエージェントから操作できます。積み重なる 3 つの部品から成ります:

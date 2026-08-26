@@ -151,8 +151,13 @@ Two things to know before clicking it:
   signed with the key, so `pnpm zip` is no longer what you upload. `pnpm crx`
   is.
 
-The key pair was generated on 2026-08-24 and lives in 1Password. There is no
-second copy, and the recovery path is a support ticket that can take a week:
+The key pair was generated on 2026-08-24 and lives in 1Password. **A second copy
+exists as of 2026-08-26** — `CRX_SIGNING_KEY`, an environment secret on
+`chrome-web-store`, so that merging the release PR is the whole of a release.
+That is a real weakening of what verified uploads are for, and CLAUDE.md's
+"Chrome Web Store" section keeps the argument against it beside the decision
+rather than pretending it away. 1Password remains the copy of record: losing
+*both* is what makes the recovery path a support ticket that can take a week.
 
 | | |
 | --- | --- |
