@@ -5,6 +5,7 @@
 Añade, modifica y elimina cabeceras HTTP de petición y respuesta, en Chrome, sin ningún
 acceso a sitios hasta que tú lo concedas.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
@@ -14,9 +15,19 @@ acceso a sitios hasta que tú lo concedas.
 
 ## Instalación
 
-No hay ficha en la Chrome Web Store. Toma el zip adjunto a la última
-[release](https://github.com/say8425/headerlab/releases) y descomprímelo, o constrúyelo tú
-mismo:
+**[Instálalo desde la Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— revisada por Google, se actualiza automáticamente, y es la vía preferible. Solo Chrome;
+mira [Limitaciones](#limitaciones).
+
+O toma la build de una release. Cada una bajo una etiqueta `extension-v*` en la
+[página de releases](https://github.com/say8425/headerlab/releases) adjunta
+`headerlab-<version>-chrome.zip`, construido por la misma ejecución del workflow que creó la
+etiqueta. Descomprímelo, abre `chrome://extensions`, activa el **Modo de desarrollador**,
+elige **Cargar descomprimida** y selecciona ese directorio.
+
+O constrúyelo tú mismo, que es lo que hace que la postura de confianza de abajo sea
+comprobable en lugar de simplemente afirmada — nada en esta página te pide creer en una
+release que tú no construiste:
 
 ```bash
 corepack enable          # pnpm viene del campo packageManager de package.json
@@ -24,9 +35,13 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Después abre `chrome://extensions`, activa el **Modo de desarrollador**, elige **Cargar
-descomprimida** y selecciona ese directorio. Solo Chrome — mira
-[Limitaciones](#limitaciones).
+## AI
+
+HeaderLab se puede manejar con un agente de programación de IA, en tres piezas que se
+apilan: una CLI que una persona también puede usar a mano, una skill que enseña a un agente
+a usarla, y el puente que conecta a cualquiera de las dos con la extensión en ejecución.
+Nada de eso está activado por defecto, y nada de eso puede activarse a sí mismo — el último
+párrafo de esta sección explica por qué.
 
 ### La CLI
 
@@ -77,6 +92,25 @@ sin escribir nada. Las tres del medio escriben, y conviene esperar un detalle: a
 sitio delimita el alcance de la regla, pero no concede acceso a ese sitio. Queda pendiente
 hasta que pulses Grant en el popup, y la skill tiene indicado decirlo en lugar de dejar que
 leas la escritura como si el sitio ya estuviera activo.
+
+### Puente para agentes
+
+El puente es lo que lleva cualquiera de las dos cosas de arriba hasta la extensión en
+ejecución:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+El puente está apagado hasta que una persona activa su interruptor en el popup, y la CLI no
+puede conceder acceso a sitios ni encenderlo — Chrome acepta ambas cosas solo desde un
+gesto del usuario. Nada sale de la máquina: CLI, host y extensión se encuentran en un
+socket de dominio Unix en un directorio por usuario, nunca en un socket de red.
+
+[`docs/agent-bridge.es.md`](agent-bridge.es.md) es todo ello — el protocolo, los comandos,
+los códigos de salida, cómo encenderlo, y las cinco afirmaciones que conviene no
+malinterpretar.
 
 ## Qué hace
 
@@ -152,25 +186,6 @@ concedido sin un diálogo nativo de permisos.</sub>
 - **Ningún fallo silencioso.** Todo lo que impide que una regla salga se dice en pantalla —
   un permiso que falta, un nombre de host inservible, un nombre de cabecera que Chrome va a
   rechazar. Una regla que no se está aplicando siempre dice por qué.
-
-## Puente para agentes
-
-Un agente de IA puede manejar HeaderLab desde una terminal en lugar de que una persona
-vaya haciendo clic por el popup:
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-El puente está apagado hasta que una persona activa su interruptor en el popup, y la CLI no
-puede conceder acceso a sitios ni encenderlo — Chrome acepta ambas cosas solo desde un
-gesto del usuario. Nada sale de la máquina: CLI, host y extensión se encuentran en un
-socket de dominio Unix en un directorio por usuario, nunca en un socket de red.
-
-[`docs/agent-bridge.es.md`](agent-bridge.es.md) es todo ello — el protocolo, los comandos,
-los códigos de salida, cómo encenderlo, y las cinco afirmaciones que conviene no
-malinterpretar.
 
 ## Limitaciones
 

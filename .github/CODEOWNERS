@@ -1,0 +1,23 @@
+# Every path, one owner. This file is half of a mechanism; the other half is the
+# `main` ruleset's `pull_request` rule with `require_code_owner_review: true`.
+# Without this file that flag is inert — code-owner review only fires on paths a
+# CODEOWNERS entry designates, so a repository with the flag on and no CODEOWNERS
+# reads as gated and gates nothing.
+#
+# What the pair buys, precisely: a pull request opened by anyone other than the
+# owner cannot merge to `main` without the owner approving it. That includes the
+# release PR, which is what makes "only the owner releases" a rule rather than a
+# habit — release-please's PR is authored by github-actions[bot], so the owner is
+# free to approve it, and merging it is what tags, releases, publishes to npm and
+# submits to the Chrome Web Store.
+#
+# The owner is in the ruleset's bypass list as `bypass_mode: "pull_request"`, so
+# their own pull requests need no second approval — nobody could give one anyway
+# on a repository with one collaborator. That bypass does NOT extend to pushing
+# straight to `main`; the ruleset refuses that for everyone, owner included.
+#
+# A blanket rule rather than a list of release-critical paths, deliberately. A
+# list is a claim about which files can reach a release, and this repository's own
+# history says that claim goes stale: a commit touching sixteen files outside
+# `packages/headerlab` is what once made release-please propose the wrong major.
+* @say8425

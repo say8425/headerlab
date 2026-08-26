@@ -657,12 +657,40 @@ instead of a plan. The tarball count agreeing with the 21 recorded elsewhere in 
 is the incidental confirmation, not the point; re-measure it with `cd packages/headerlab
 && npm pack --dry-run` rather than trusting either number.
 
-Two things to know before wondering why something did not happen. **A release PR
-opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
-loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
-changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the
-workflow this was modelled on: there is no listing, so a `wxt submit` step would need four
-secrets that do not exist and would fail every release. Add it with the listing, not before.
+**This file said a release PR "does not trigger `ci.yml`" and that is wrong in the letter,
+measured 2026-08-26.** Runs *are* created for the release branches, on the `pull_request`
+event: `gh run list --workflow ci.yml --json databaseId,conclusion,event,headBranch` shows
+`32704922032` at `action_required` and `32707908398`, `32733647879` and (on the CLI branch)
+`32646285014` at `success` — three of them approved by hand. Why one sat at
+`action_required` was not measured; do not restate a mechanism here without a run id beside
+it, which is the mistake this paragraph is replacing.
+
+What follows from the correction is smaller than it looks. The release PR *can* be checked,
+so `pnpm check` inside the release job is not there to cover an unchecked commit. It is
+there because `ci.yml` and `release-please.yml` both fire on the push to `main` and neither
+waits for the other, so `ci.yml` passing is never a fact the release job can act on — and
+because everything below the release-please step runs with the tag already cut.
+
+**There is a Chrome Web Store step now** (2026-08-26), and it is `store-submit.yml` rather
+than `wxt submit`. It signs the release's own zip into a CRX and submits it. Three things
+about it are load-bearing and none is obvious from the YAML:
+
+- **It submits for review. It does not publish.** The store's `:publish` is a submission —
+  "The item will be submitted for review and published when the item passes" — so the
+  furthest a green run means is `PENDING_REVIEW`. `skipReview` is not available here: it
+  wants `declarativeNetRequest` as a *required* permission and changes confined to
+  `rule_resources`, and this manifest has `declarativeNetRequestWithHostAccess` and no
+  `rule_resources` at all. Any sentence anywhere claiming a merge publishes the extension
+  is wrong.
+- **It is called, not triggered.** `on: release` would never fire — release-please creates
+  the release with the default `GITHUB_TOKEN`, and `release` is not one of the exceptions
+  to the loop-prevention rule. So it is a `workflow_call` job in the release run, which
+  also keeps `GITHUB_REF` at `refs/heads/main` — the ref the `chrome-web-store`
+  environment's branch rule names. A tag rule there would match nothing while reading as
+  strict.
+- **`workflow_dispatch` is the recovery path and the only one.** The tag is cut before this
+  can run, so a failure always leaves a released version that is not on the store. Re-run
+  the workflow against that tag; never re-cut a version.
 **The first run started from zero tags and zero releases**, so it read the whole history and
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
@@ -688,9 +716,15 @@ on a push).
 
 ## Chrome Web Store
 
-**Nothing is listed yet.** `docs/store/` holds everything a submission needs —
-`checklist.md` is the runbook, and the README still says there is no listing, which
-becomes false the day one exists.
+**It is listed.** `kgapijlldieckifoenckgninnepafhnn`, published 2026-08-25 at version
+1.7.0, category Developer Tools. `docs/store/checklist.md` is still the runbook for what a
+submission needs; what changed is that the READMEs no longer say there is no listing, and
+`store-submit.yml` now does the upload that used to be a manual dashboard step.
+
+**The five READMEs carry a Chrome Web Store badge and a three-route Install section**
+(store · release asset · build it yourself), and the badge URL is one string repeated in
+all five. Nothing checks that they agree — `tests/unit/storeListing.test.ts` holds the five
+*descriptions* to one shape, not the READMEs.
 
 **The item's title and its summary are not listing fields. The store reads them out of
 the manifest**, and the dashboard says so itself: that tab is for "information about your
@@ -860,10 +894,34 @@ option. **Four things about it were measured rather than assumed:**
   the page ever said `genpair` cannot now be established, which is itself the cost: the
   claim was unfalsifiable from the moment it was recorded second-hand.
 
-**The key is in 1Password, not in CI, and that is the same argument as everything else
-here.** A repository whose claim is that a stranger who trusts none of it can verify the
-bundle should not hold a secret that publishes on its behalf. So signing is a local step a
-human runs: `pnpm crx` reads the key out of `op://Personal/HeaderLab CRX signing key`,
+**The key is now in CI as well as in 1Password (owner's call, 2026-08-26), and the argument
+against that is kept below rather than deleted, because it is still the cost.** A repository
+whose claim is that a stranger who trusts none of it can verify the bundle now holds a
+secret that publishes on its behalf. Chrome's own page argues the same way from the other
+side — "Don't store your private key in your Google Account. This means someone with access
+to the Developer Dashboard through your Google Account could publish on your behalf" — the
+point of Verified CRX being to survive a compromised publishing account, which a key sitting
+beside the publishing identity weakens.
+
+What was traded for it: merging the release PR is now the only human action in a release.
+The alternative on the table cost exactly the same number of actions — merge, then one local
+`pnpm crx` — so this bought convenience of *place*, not of count. Read that as the honest
+size of the trade rather than as a reason to widen it.
+
+What narrows it, and each of these is load-bearing rather than decorative:
+`CRX_SIGNING_KEY` is an **environment** secret on `chrome-web-store`, so it is readable only
+by the one job that names that environment and only when that job starts — not by the
+release job beside it, and not when the run is queued. The environment's deployment branch
+rule is `Branch → main`, so no other ref can reach it. `tests/unit/storeSubmit.test.ts` pins
+the environment name, because a typo does not fail: GitHub silently creates an unprotected
+environment of that name and the job runs ungated with an empty key. And `main` now requires
+a pull request with code-owner review (`.github/CODEOWNERS`, plus the `pull_request` rule on
+the `main` ruleset), so landing a workflow that reads the key is not something a future
+collaborator can do alone. The residual risk is a malicious change reaching `main` — not
+zero, and smaller than a repository secret would be.
+
+**The local path is unchanged and is still the fallback.** `pnpm crx` reads the key out of
+`op://Personal/HeaderLab CRX signing key`,
 writes it to a 0600 file inside a 0700 temp directory, and removes that directory on the way
 out. **A `try/finally` is not what does that, and believing it was is a defect this branch
 shipped and a review caught.** `process.exit()` does not throw, so it ends the process

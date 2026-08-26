@@ -289,26 +289,50 @@ reader.
 
 ## 9. After it is published
 
-None of this blocks the submission, but all of it is wrong until it is done.
+Done on 2026-08-26, and kept here because a second listing would need all of it
+again.
 
-- [ ] `README.md` says "There is no Chrome Web Store listing." Replace it with
-      the install link.
-- [ ] The same sentence exists in all four translations —
-      `docs/README.{ko,ja,zh,es}.md`.
-- [ ] Add a store badge if you want one.
-- [ ] `packages/headerlab/README.md` and `packages/plugin/`'s skill text mention
-      installing the extension; check whether they should now point at the store.
+- [x] The five READMEs no longer say there is no listing. Each opens Install with
+      the store link, then the release asset, then building it yourself.
+- [x] A Chrome Web Store badge sits above the CI and npm badges in all five.
+- [x] `packages/headerlab/README.md` and `packages/plugin/skills/headerlab/SKILL.md`
+      both link the extension at the store rather than at the repository. The CLI
+      README keeps a separate source link; the skill names the store link as the
+      remedy to offer when the extension is missing, since a CLI with no
+      extension has nothing to talk to.
+
+---
+
+## 10. Releasing to the store, from here on
+
+Merging the release PR is the whole of it. `release-please.yml` cuts the tag,
+attaches the zip and publishes the CLI, then calls `store-submit.yml`, which
+signs that zip into a CRX and submits it. Two things to hold on to:
+
+- **A green run means `PENDING_REVIEW`, not published.** Google publishes when
+  the review passes, and the result arrives by email — there is no webhook.
+- **When the store step fails, re-run `store-submit.yml` against the same tag.**
+  The tag is cut before that step can run, so a failure always leaves a released
+  version that is not on the store. Never re-cut a version to fix it.
+
+One-time setup, outside the repository: a Google Cloud service account with the
+Chrome Web Store API enabled, its email added under **Account** in the dashboard
+(one per publisher), then on the `chrome-web-store` environment — secrets
+`CRX_SIGNING_KEY` and `CWS_SERVICE_ACCOUNT_JSON`, variable `CWS_PUBLISHER_ID`,
+deployment branch rule `Branch → main`, and **"Allow administrators to bypass
+configured protection rules" deselected**. Do not use "Protected branches only":
+with no branch protection defined it lets every branch deploy.
 
 ---
 
 ## Things that will not happen, so do not wait for them
 
-- **There is no Chrome Web Store step in CI.** `release-please.yml` builds the
-  zip and attaches it to the GitHub release; it does not submit anything. Adding
-  a `wxt submit` step needs four secrets that do not exist. Add it with the
-  listing, not before.
-- **A release PR opened by the default `GITHUB_TOKEN` runs no checks.** That is
-  GitHub's loop-prevention rule, not a misconfiguration.
+- **A `wxt submit` step is not what does this.** Verified CRX Uploads is on, so
+  the store refuses a zip; `store-submit.yml` signs a CRX and posts it to the v2
+  API instead.
 - **The store will not tell you the item name is wrong.** The title and the
   summary come from the manifest, so fixing either means shipping a new package,
   not editing the listing.
+- **`skipReview` is not available to this item.** It wants
+  `declarativeNetRequest` as a required permission and changes confined to
+  `rule_resources`; this manifest has neither. Every release waits for review.

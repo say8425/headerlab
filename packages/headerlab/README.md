@@ -1,9 +1,12 @@
 # headerlab
 
-A CLI that drives the [HeaderLab Chrome extension](https://github.com/say8425/headerlab)
+A CLI that drives the
+[HeaderLab Chrome extension](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 over native messaging — scope a rule to sites, add/remove/toggle header rules, pause or
 resume the whole rule set, read the current state or replace it wholesale, all from a
-terminal.
+terminal. The extension is what does the work; this drives it, and installing one without
+the other leaves nothing to talk to. Source is at
+[say8425/headerlab](https://github.com/say8425/headerlab).
 
 On a terminal it prints for people; piped or with `--json` it prints one JSON
 object, success or failure. `--human` is the inverse of `--json`: it forces the

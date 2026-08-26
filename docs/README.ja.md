@@ -5,6 +5,7 @@
 HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更・削除します。あなたが許可する
 まで、サイトへのアクセス権限は一切持ちません。
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
@@ -14,9 +15,20 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 
 ## インストール
 
-Chrome ウェブストアには掲載していません。最新の
-[リリース](https://github.com/say8425/headerlab/releases)に添付された zip を展開するか、
-自分でビルドしてください:
+**[Chrome ウェブストアからインストール](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— Google の審査を通っており、自動で更新される、まず選ぶべき経路です。Chrome 専用です —
+[制約](#制約)を参照してください。
+
+あるいはリリースのビルドを取ってください。
+[リリースページ](https://github.com/say8425/headerlab/releases)の `extension-v*` タグには
+それぞれ `headerlab-<version>-chrome.zip` が添付されており、そのタグを切ったのと同じ
+ワークフローの実行がビルドしたものです。展開して `chrome://extensions` を開き、
+**デベロッパーモード**を有効にして、**パッケージ化されていない拡張機能を読み込む**から
+展開したディレクトリを選びます。
+
+あるいは自分でビルドしてください。下の信頼方針を、ただ述べられただけのものではなく確認
+できるものにしているのがこれです — このページのどこにも、あなたがビルドしていないリリース
+を信じろと求めるところはありません:
 
 ```bash
 corepack enable          # pnpm は package.json の packageManager フィールドから来ます
@@ -24,9 +36,12 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-そのあと `chrome://extensions` を開き、**デベロッパーモード**を有効にして
-**パッケージ化されていない拡張機能を読み込む**からそのディレクトリを選びます。Chrome 専用
-です — [制約](#制約)を参照してください。
+## AI
+
+HeaderLab は AI コーディングエージェントから操作できます。積み重なる 3 つの部品から成ります:
+人が手で使うこともできる CLI、エージェントにその使い方を教えるスキル、そしてそのどちらかを
+動いている拡張機能につなぐブリッジです。どれも既定では有効になっておらず、どれも自分自身を
+有効にすることはできません — その理由はこのセクションの最後の段落にあります。
 
 ### CLI
 
@@ -76,6 +91,23 @@ api.example.com では Referer ヘッダーを送らないで
 ルールの適用範囲を決めるだけで、そのサイトへのアクセス権を与えるわけではありません。
 ポップアップで Grant を押すまでそのサイトは保留のままで、スキルはすでに有効であるかのように
 流さず、その事実を伝えるよう指示されています。
+
+### エージェントブリッジ
+
+ブリッジは、上の 2 つのどちらかを動いている拡張機能へ運ぶものです:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+ブリッジは人がポップアップでスイッチを入れるまで無効で、CLI はサイト権限を付与すること
+もブリッジを有効にすることもできません — Chrome がどちらもユーザージェスチャーからしか
+受け取らないからです。マシンの外に出るものはありません: CLI・ホスト・拡張機能はユーザー
+ごとのディレクトリにある Unix ドメインソケットで出会い、ネットワークソケットは使いません。
+
+[`docs/agent-bridge.ja.md`](agent-bridge.ja.md) がそのすべてです — プロトコル、コマンド、
+終了コード、有効にする手順、そして取り違えてはいけない 5 つのこと。
 
 ## できること
 
@@ -143,24 +175,6 @@ api.example.com では Referer ヘッダーを送らないで
 - **外部リソースなし。** CDN も、ウェブフォントも、リモート画像もありません。
 - **黙った失敗なし。** ルールが出ていくのを妨げるものは画面に出ます — 足りない権限、
   使えないホスト名、Chrome が拒否するヘッダー名。適用されていないルールは必ず理由を語ります。
-
-## エージェントブリッジ
-
-AI エージェントが、人がポップアップをクリックする代わりにターミナルから HeaderLab を操作
-できます:
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-ブリッジは人がポップアップでスイッチを入れるまで無効で、CLI はサイト権限を付与すること
-もブリッジを有効にすることもできません — Chrome がどちらもユーザージェスチャーからしか
-受け取らないからです。マシンの外に出るものはありません: CLI・ホスト・拡張機能はユーザー
-ごとのディレクトリにある Unix ドメインソケットで出会い、ネットワークソケットは使いません。
-
-[`docs/agent-bridge.ja.md`](agent-bridge.ja.md) がそのすべてです — プロトコル、コマンド、
-終了コード、有効にする手順、そして取り違えてはいけない 5 つのこと。
 
 ## 制約
 

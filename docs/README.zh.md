@@ -4,6 +4,7 @@
 
 在 Chrome 中添加、修改和删除 HTTP 请求与响应头。在你授权之前，它不持有任何站点访问权限。
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
@@ -13,8 +14,17 @@
 
 ## 安装
 
-没有 Chrome 应用商店条目。下载最新
-[发布](https://github.com/say8425/headerlab/releases)附带的 zip 并解压，或者自己构建：
+**[从 Chrome Web Store 安装](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+—— 经过 Google 审核，自动更新，也是推荐的方式。仅支持 Chrome —— 参见[限制](#限制)。
+
+或者从某次发布中取走构建产物。在
+[发布页面](https://github.com/say8425/headerlab/releases)上，每一个 `extension-v*` 标签下的
+发布都附带 `headerlab-<version>-chrome.zip`，由切出该标签的同一次工作流运行构建。解压它，
+打开 `chrome://extensions`，开启**开发者模式**，选择**加载已解压的扩展程序**，并指向解压
+后的目录。
+
+或者自己构建 —— 这正是让下文的信任准则可被核查、而不只是被声明的原因：本页没有任何一处
+要求你去相信一个不是你自己构建的发布：
 
 ```bash
 corepack enable          # pnpm 来自 package.json 的 packageManager 字段
@@ -22,8 +32,11 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-然后打开 `chrome://extensions`，开启**开发者模式**，选择**加载已解压的扩展程序**，
-并指向该目录。仅支持 Chrome —— 参见[限制](#限制)。
+## AI
+
+HeaderLab 可以由 AI 编码代理驱动，由三块可以叠加的部件构成：一个人也可以手动使用的 CLI、
+一个教会代理去使用它的技能，以及把这两者中的任意一个连接到运行中的扩展的桥接。它们默认
+都不开启，而且都无法自行开启 —— 本节最后一段就是原因。
 
 ### CLI
 
@@ -69,6 +82,22 @@ HeaderLab 现在在做什么?
 作答。中间三条是写入，有一点值得预先知道: 添加站点只是确定规则的作用范围，并不授予对该站点
 的访问权限。在弹窗中按下 Grant 之前，该站点一直处于待授权状态；技能被要求说明这一点，而不是
 让你把这次写入读作站点已经生效。
+
+### 代理桥接
+
+桥接正是把上面两者中的任意一个送进运行中的扩展的东西：
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+在人打开弹窗里的开关之前，桥接是关闭的；CLI 既不能授予站点权限，也不能打开桥接
+—— 这两件事 Chrome 都只从用户手势那里接受。没有任何东西离开这台机器：CLI、主机与扩展在
+按用户目录中的一个 Unix 域套接字上相遇，从不使用网络套接字。
+
+[`docs/agent-bridge.zh.md`](agent-bridge.zh.md) 是它的全部 —— 协议、命令、退出码、如何
+打开，以及五条不该被误解的主张。
 
 ## 它做什么
 
@@ -125,22 +154,6 @@ Chrome 对一个它不会追加的请求头执行 `append` —— 该行说明�
 - **没有外部资源。** 没有 CDN，没有网络字体，没有远程图片。
 - **没有沉默的失败。** 任何阻止规则生效的原因都会呈现在屏幕上 —— 缺失的权限、无法使用的
   主机名、Chrome 会拒绝的头部名称。未生效的规则总会说明原因。
-
-## 代理桥接
-
-AI 代理可以从终端驱动 HeaderLab，而不必由人去点击弹窗：
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-在人打开弹窗里的开关之前，桥接是关闭的；CLI 既不能授予站点权限，也不能打开桥接
-—— 这两件事 Chrome 都只从用户手势那里接受。没有任何东西离开这台机器：CLI、主机与扩展在
-按用户目录中的一个 Unix 域套接字上相遇，从不使用网络套接字。
-
-[`docs/agent-bridge.zh.md`](agent-bridge.zh.md) 是它的全部 —— 协议、命令、退出码、如何
-打开，以及五条不该被误解的主张。
 
 ## 限制
 

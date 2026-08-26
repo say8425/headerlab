@@ -5,6 +5,7 @@
 HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사용자가 허용하기 전까지 어떤
 사이트 접근 권한도 갖지 않습니다.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
@@ -14,9 +15,19 @@ HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사
 
 ## 설치
 
-Chrome 웹 스토어 등록은 없습니다. 최신
-[릴리즈](https://github.com/say8425/headerlab/releases)에 첨부된 zip 을 받아 풀거나,
-직접 빌드하세요:
+**[Chrome 웹 스토어에서 설치하기](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— Google 의 검토를 거쳤고, 자동으로 업데이트되며, 우선할 경로입니다. Chrome 전용입니다 —
+[한계](#한계)를 보세요.
+
+또는 릴리즈의 빌드를 받으세요.
+[릴리즈 페이지](https://github.com/say8425/headerlab/releases)의 `extension-v*` 태그마다
+`headerlab-<version>-chrome.zip` 이 첨부되며, 그 태그를 자른 것과 같은 워크플로 실행이
+빌드한 것입니다. 압축을 풀고 `chrome://extensions` 를 연 뒤 **개발자 모드**를 켜고
+**압축해제된 확장 프로그램을 로드합니다**를 눌러 그 디렉터리를 고르세요.
+
+또는 직접 빌드하세요. 아래의 신뢰 원칙을 말로만 두지 않고 확인할 수 있게 만드는 것이 바로
+이것입니다 — 이 페이지의 어느 것도 당신이 직접 빌드하지 않은 릴리즈를 믿으라고 하지
+않습니다:
 
 ```bash
 corepack enable          # pnpm 은 package.json 의 packageManager 필드에서 옵니다
@@ -24,9 +35,12 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-그다음 `chrome://extensions` 를 열고 **개발자 모드**를 켠 뒤 **압축해제된 확장 프로그램을
-로드합니다**를 눌러 그 디렉터리를 고르면 됩니다. Chrome 전용입니다 —
-[한계](#한계)를 보세요.
+## AI
+
+HeaderLab 은 AI 코딩 에이전트로 조작할 수 있습니다. 서로 포개지는 세 조각입니다 — 사람이
+직접 손으로 쓸 수도 있는 CLI, 에이전트에게 그것을 쓰는 법을 가르치는 스킬, 그리고 그 둘 중
+어느 쪽이든 실행 중인 확장에 연결하는 브리지. 어느 것도 기본으로 켜져 있지 않고, 어느 것도
+스스로를 켤 수 없습니다 — 그 이유는 이 절의 마지막 문단에 있습니다.
 
 ### CLI
 
@@ -75,6 +89,23 @@ api.example.com 에서는 Referer 헤더 보내지 마
 추가하는 것은 규칙의 적용 범위를 정할 뿐 그 사이트에 대한 접근 권한을 주지는 않습니다.
 팝업에서 Grant 를 누르기 전까지 그 사이트는 대기 상태로 남으며, 스킬은 이미 적용된 것처럼
 넘어가지 말고 그 사실을 말하도록 지시받아 있습니다.
+
+### 에이전트 브리지
+
+위의 둘 중 어느 쪽이든 실행 중인 확장까지 실어 나르는 것이 브리지입니다:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+브리지는 사람이 팝업에서 스위치를 켜기 전까지 꺼져 있고, CLI 는 사이트 접근 권한을
+줄 수도 브리지를 켤 수도 없습니다 — Chrome 이 둘 다 사용자 제스처에서만 받기 때문입니다.
+기기 밖으로 나가는 것은 없습니다: CLI·호스트·확장은 사용자별 디렉터리의 유닉스 도메인
+소켓에서 만나며, 네트워크 소켓은 쓰지 않습니다.
+
+[`docs/agent-bridge.ko.md`](agent-bridge.ko.md) 가 그 전부입니다 — 프로토콜, 명령, 종료
+코드, 켜는 법, 그리고 오해하면 안 되는 다섯 가지.
 
 ## 무엇을 하는가
 
@@ -139,23 +170,6 @@ api.example.com 에서는 Referer 헤더 보내지 마
 - **외부 리소스 없음.** CDN 도, 웹폰트도, 원격 이미지도 없습니다.
 - **조용한 실패 없음.** 룰이 나가지 못하게 하는 것은 화면에 말합니다 — 없는 권한, 쓸 수 없는
   호스트명, Chrome 이 거절할 헤더 이름. 적용되지 않는 룰은 항상 이유를 말합니다.
-
-## 에이전트 브리지
-
-AI 에이전트가 사람이 팝업을 클릭하는 대신 터미널에서 HeaderLab 을 조작할 수 있습니다:
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-브리지는 사람이 팝업에서 스위치를 켜기 전까지 꺼져 있고, CLI 는 사이트 접근 권한을
-줄 수도 브리지를 켤 수도 없습니다 — Chrome 이 둘 다 사용자 제스처에서만 받기 때문입니다.
-기기 밖으로 나가는 것은 없습니다: CLI·호스트·확장은 사용자별 디렉터리의 유닉스 도메인
-소켓에서 만나며, 네트워크 소켓은 쓰지 않습니다.
-
-[`docs/agent-bridge.ko.md`](agent-bridge.ko.md) 가 그 전부입니다 — 프로토콜, 명령, 종료
-코드, 켜는 법, 그리고 오해하면 안 되는 다섯 가지.
 
 ## 한계
 

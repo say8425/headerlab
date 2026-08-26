@@ -5,6 +5,7 @@ English | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中
 Add, modify and remove HTTP request and response headers, in Chrome, with no host access
 until you grant it.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
@@ -14,8 +15,17 @@ until you grant it.
 
 ## Install
 
-There is no Chrome Web Store listing. Take the zip attached to the latest
-[release](../../releases) and unpack it, or build it yourself:
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— reviewed by Google, updated automatically, and the route to prefer. Chrome only; see
+[Limitations](#limitations).
+
+Or take the build from a release. Each one under an `extension-v*` tag on the
+[releases page](../../releases) attaches `headerlab-<version>-chrome.zip`, built by the same
+workflow run that cut the tag. Unpack it, open `chrome://extensions`, turn on
+**Developer mode**, choose **Load unpacked**, and select the unpacked directory.
+
+Or build it yourself, which is what makes the trust posture below checkable rather than
+merely stated — nothing on this page asks you to believe a release you did not build:
 
 ```bash
 corepack enable          # pnpm comes from package.json's packageManager field
@@ -23,8 +33,12 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked**, and
-select the unpacked directory. Chrome only — see [Limitations](#limitations).
+## AI
+
+HeaderLab is drivable by an AI coding agent, in three pieces that stack: a CLI a person can
+also use by hand, a skill that teaches an agent to use it, and the bridge that connects
+either of them to the running extension. None of it is on by default, and none of it can
+turn itself on — the last paragraph of this section is why.
 
 ### The CLI
 
@@ -74,6 +88,23 @@ without writing anything. The middle three write, and one detail is worth expect
 adding a site scopes a rule to it but does not grant access to it. That site stays pending
 until you press Grant in the popup, and the skill is told to say so rather than let you
 read the write as if the site were already live.
+
+### Agent bridge
+
+The bridge is what carries either of the two above into the running extension:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+The bridge is off until a human turns on its switch in the popup, and the CLI can neither
+grant site access nor turn it on — Chrome takes both only from a user gesture. Nothing
+leaves the machine: CLI, host and extension meet on a unix domain socket in a per-user
+directory, never a network socket.
+
+[`docs/agent-bridge.md`](docs/agent-bridge.md) is the whole of it — the protocol, the
+commands, the exit codes, how to turn it on, and the five claims not to get wrong.
 
 ## What it does
 
@@ -146,24 +177,6 @@ without a native permission dialog.</sub>
 - **No silent failures.** Anything that stops a rule going out is stated on screen — a
   missing permission, an unusable hostname, a header name Chrome will reject. A rule that
   is not applying always says why.
-
-## Agent bridge
-
-An AI agent can drive HeaderLab from a terminal instead of a person clicking through the
-popup:
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-The bridge is off until a human turns on its switch in the popup, and the CLI can neither
-grant site access nor turn it on — Chrome takes both only from a user gesture. Nothing
-leaves the machine: CLI, host and extension meet on a unix domain socket in a per-user
-directory, never a network socket.
-
-[`docs/agent-bridge.md`](docs/agent-bridge.md) is the whole of it — the protocol, the
-commands, the exit codes, how to turn it on, and the five claims not to get wrong.
 
 ## Limitations
 
