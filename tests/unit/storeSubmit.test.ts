@@ -15,6 +15,10 @@ import { describe, expect, it } from 'vitest';
 
 const releasePlease = readFileSync('.github/workflows/release-please.yml', 'utf8');
 const storeSubmit = readFileSync('.github/workflows/store-submit.yml', 'utf8');
+const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+// The composite action is local, but the actions it names are not — and it is
+// where four of this repository's six jobs actually pick their versions up.
+const setup = readFileSync('.github/actions/setup/action.yml', 'utf8');
 
 /**
  * The name is pinned rather than merely present, and this is the sharpest guard
@@ -179,8 +183,23 @@ describe('the release calls the store submission', () => {
     expect(storeSubmit.match(/^ {6}ref:$/gm)).toHaveLength(2);
   });
 
-  /** The third-party action stays pinned to a commit, not a tag. */
-  it('keeps the one third-party action on a SHA', () => {
-    expect(releasePlease).toMatch(/googleapis\/release-please-action@[0-9a-f]{40}/);
+  /**
+   * Every action is a floating major, third-party included (owner's call,
+   * 2026-08-27). Pinned so a well-meaning edit back to a SHA — or forward to an
+   * exact `@v5.0.0` — has to argue with CLAUDE.md's CI section rather than land
+   * quietly, since that section records the trade this repository accepted.
+   */
+  it('targets the latest major of every action, never a commit or an exact tag', () => {
+    // Every workflow, not just this change's: the rule is repo-wide, and a rule
+    // checked on one file is a rule the next file gets to ignore. Local actions
+    // and reusable workflows (`./…`) carry no version and are skipped.
+    const refs = [ci, releasePlease, storeSubmit, setup]
+      .flatMap((yaml) => [...yaml.matchAll(/^\s*-?\s*uses:\s*(\S+)\s*$/gm)])
+      .map((match) => match[1] ?? '')
+      .filter((ref) => !ref.startsWith('./'));
+    expect(refs.length).toBeGreaterThan(0);
+    for (const ref of refs) {
+      expect(ref, `${ref} is not a bare major`).toMatch(/@v\d+$/);
+    }
   });
 });

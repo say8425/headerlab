@@ -5,8 +5,8 @@
 在 Chrome 中添加、修改和删除 HTTP 请求与响应头。在你授权之前，它不持有任何站点访问权限。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | 浅色 | 深色 |
 |---|---|
@@ -14,17 +14,20 @@
 
 ## 安装
 
-**[从 Chrome Web Store 安装](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-—— 经过 Google 审核，自动更新，也是推荐的方式。仅支持 Chrome —— 参见[限制](#限制)。
+仅支持 Chrome —— 参见[限制](#限制)。
 
-或者从某次发布中取走构建产物。在
-[发布页面](https://github.com/say8425/headerlab/releases)上，每一个 `extension-v*` 标签下的
-发布都附带 `headerlab-<version>-chrome.zip`，由切出该标签的同一次工作流运行构建。解压它，
-打开 `chrome://extensions`，开启**开发者模式**，选择**加载已解压的扩展程序**，并指向解压
-后的目录。
+### Chrome 网上应用店
 
-或者自己构建 —— 这正是让下文的信任准则可被核查、而不只是被声明的原因：本页没有任何一处
-要求你去相信一个不是你自己构建的发布：
+**[安装](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+—— 经过审核，自动更新。首选这个。
+
+### 发布页面
+
+每个 `extension-v*` 发布都附带 `headerlab-<version>-chrome.zip`
+（[发布页面](https://github.com/say8425/headerlab/releases)）。解压它，然后
+`chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 解压后的目录。
+
+### 自行构建
 
 ```bash
 corepack enable          # pnpm 来自 package.json 的 packageManager 字段
@@ -32,7 +35,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-随后以与上面那份解压后的发布产物相同的方式加载 `.output/chrome-mv3` 即可。
+以同样的方式加载 `.output/chrome-mv3`。这正是让下文的信任准则可被核查、而不只是被声明的
+原因。
 
 ## AI
 

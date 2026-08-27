@@ -460,15 +460,26 @@ is that those actions are published by GitHub itself, `ci.yml` holds only
 `github.event.*`, so the blast radius of a hijacked action is this repository's own
 source — which is public.
 
-**The third-party action has arrived, and it is pinned to a SHA as promised.**
-`googleapis/release-please-action` is the only one, and it sits in the only job holding
-`contents: write` and `pull-requests: write`, so it clears none of the three conditions
-above. `release-please.yml` names it by commit with the tag in a comment beside it. Resolve
-a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`; commit
-`a1f8122` has the last version that did this for every action.
+**Every action, third-party included, is a floating major (owner's call, 2026-08-27).**
+`googleapis/release-please-action@v5`, not the commit it used to name. The rule is now one
+rule with no exception: target the latest major and let patches and minors arrive on their
+own.
 
-Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
-there is no dependabot here yet.
+**That is a loosening, and the paragraph above is why it is worth writing down rather than
+just doing.** The three things that made a floating major cheap for the GitHub-published
+actions — GitHub publishes them, the job holds only `contents: read`, it interpolates no
+`github.event.*` — are precisely the three `release-please-action` does *not* clear. It runs
+in the job holding `contents: write`, `pull-requests: write` and `id-token: write`, and that
+OIDC token is what publishes to npm. A moved upstream tag reaches all of it, and nothing in
+this repository forecloses that; a SHA was the only thing that did.
+
+Two things bound it rather than remove it. The CRX signing key is **not** in this job — it
+is an environment secret readable only by `store-submit.yml`'s own job, which uses no
+third-party action at all. And `main` now requires a pull request with code-owner review, so
+a *local* change to which action runs cannot land alone. Neither of those helps against the
+upstream tag moving, which is the actual residual risk.
+
+There is no dependabot here, so a major bump stays a manual bother — deliberately.
 
 **CI is six jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
 Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
@@ -719,7 +730,7 @@ fork of this setup would need.
 restated what this file already says at more length. The reasoning lives here; the YAML
 should be readable as YAML. What stayed is only what is surprising *at the point of use* —
 the two in the composite action, why `--with-deps` runs on a cache hit, why `pnpm zip`
-needs no build step before it, why one action is a hash, and why the release job checks out
+needs no build step before it, and why the release job checks out
 unconditionally when the action that runs next needs no worktree (the step after it is a
 *local* action, and a local action with no checkout is the "Can't find action.yml" failure;
 hanging that on a conditional step is how it would be discovered on a release rather than

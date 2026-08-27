@@ -6,8 +6,8 @@ Añade, modifica y elimina cabeceras HTTP de petición y respuesta, en Chrome, s
 acceso a sitios hasta que tú lo concedas.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | Claro | Oscuro |
 |---|---|
@@ -15,19 +15,21 @@ acceso a sitios hasta que tú lo concedas.
 
 ## Instalación
 
-**[Instálalo desde la Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-— revisada por Google, se actualiza automáticamente, y es la vía preferible. Solo Chrome;
-mira [Limitaciones](#limitaciones).
+Solo Chrome — mira [Limitaciones](#limitaciones).
 
-O toma la build de una release. Cada una bajo una etiqueta `extension-v*` en la
-[página de releases](https://github.com/say8425/headerlab/releases) adjunta
-`headerlab-<version>-chrome.zip`, construido por la misma ejecución del workflow que creó la
-etiqueta. Descomprímelo, abre `chrome://extensions`, activa el **Modo de desarrollador**,
-elige **Cargar descomprimida** y selecciona ese directorio.
+### Chrome Web Store
 
-O constrúyelo tú mismo, que es lo que hace que la postura de confianza de abajo sea
-comprobable en lugar de simplemente afirmada — nada en esta página te pide creer en una
-release que tú no construiste:
+**[Instalar](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— revisada, se actualiza sola. Prefiere esta vía.
+
+### Página de releases
+
+Cada release `extension-v*` adjunta `headerlab-<version>-chrome.zip`
+([releases](https://github.com/say8425/headerlab/releases)). Descomprímelo, luego
+`chrome://extensions` → **Modo de desarrollador** → **Cargar descomprimida** → el
+directorio descomprimido.
+
+### Constrúyelo tú mismo
 
 ```bash
 corepack enable          # pnpm viene del campo packageManager de package.json
@@ -35,7 +37,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Luego `.output/chrome-mv3` se carga igual que una release descomprimida.
+Carga `.output/chrome-mv3` igual. Esto es lo que hace que la postura de confianza de abajo
+sea comprobable en lugar de simplemente afirmada.
 
 ## AI
 

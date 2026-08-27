@@ -6,8 +6,8 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 まで、サイトへのアクセス権限は一切持ちません。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | ライト | ダーク |
 |---|---|
@@ -15,20 +15,21 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 
 ## インストール
 
-**[Chrome ウェブストアからインストール](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-— Google の審査を通っており、自動で更新される、まず選ぶべき経路です。Chrome 専用です —
-[制約](#制約)を参照してください。
+Chrome 専用です — [制約](#制約)を参照。
 
-あるいはリリースのビルドを取ってください。
-[リリースページ](https://github.com/say8425/headerlab/releases)の `extension-v*` タグには
-それぞれ `headerlab-<version>-chrome.zip` が添付されており、そのタグを切ったのと同じ
-ワークフローの実行がビルドしたものです。展開して `chrome://extensions` を開き、
-**デベロッパーモード**を有効にして、**パッケージ化されていない拡張機能を読み込む**から
-展開したディレクトリを選びます。
+### Chrome ウェブストア
 
-あるいは自分でビルドしてください。下の信頼方針を、ただ述べられただけのものではなく確認
-できるものにしているのがこれです — このページのどこにも、あなたがビルドしていないリリース
-を信じろと求めるところはありません:
+**[インストール](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— 審査済み、自動で更新されます。まずこれを。
+
+### リリースページ
+
+`extension-v*` リリースにはそれぞれ `headerlab-<version>-chrome.zip` が添付されています
+([リリース](https://github.com/say8425/headerlab/releases))。展開して `chrome://extensions` →
+**デベロッパーモード** → **パッケージ化されていない拡張機能を読み込む** → 展開した
+ディレクトリ。
+
+### 自分でビルドする
 
 ```bash
 corepack enable          # pnpm は package.json の packageManager フィールドから来ます
@@ -36,7 +37,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-あとは `.output/chrome-mv3` を、展開したリリースと同じ手順で読み込みます。
+`.output/chrome-mv3` を同じ手順で読み込みます。下の信頼方針を、ただ述べられただけのもの
+ではなく確認できるものにしているのがこれです。
 
 ## AI
 

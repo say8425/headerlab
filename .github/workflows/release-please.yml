@@ -55,9 +55,9 @@ jobs:
       # bumped by the time that PR's merge lands here.
       - run: pnpm zip
 
-      # SHA-pinned, unlike the GitHub-published actions elsewhere: this is the
-      # one third-party action here and the only job that holds write scopes.
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      # Floating major, like every other action here. Patches and minors arrive
+      # on their own; a major bump is a manual bother, deliberately.
+      - uses: googleapis/release-please-action@v5
         id: release
 
       - name: Attach the unpacked-loadable build to the release
@@ -78,7 +78,7 @@ jobs:
       # and publishes the CLI unchanged at whatever version its package.json
       # already holds — claiming that version on npm permanently, since the
       # unpublish window is 72 hours.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: ${{ steps.release.outputs['packages/headerlab--release_created'] }}
         with:
           # Still required under trusted publishing — npm's own documented

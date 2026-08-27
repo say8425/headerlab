@@ -6,8 +6,8 @@ HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사
 사이트 접근 권한도 갖지 않습니다.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | 라이트 | 다크 |
 |---|---|
@@ -15,19 +15,20 @@ HTTP 요청·응답 헤더를 Chrome 에서 추가·수정·삭제합니다. 사
 
 ## 설치
 
-**[Chrome 웹 스토어에서 설치하기](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-— Google 의 검토를 거쳤고, 자동으로 업데이트되며, 우선할 경로입니다. Chrome 전용입니다 —
-[한계](#한계)를 보세요.
+Chrome 전용입니다 — [한계](#한계)를 보세요.
 
-또는 릴리즈의 빌드를 받으세요.
-[릴리즈 페이지](https://github.com/say8425/headerlab/releases)의 `extension-v*` 태그마다
-`headerlab-<version>-chrome.zip` 이 첨부되며, 그 태그를 자른 것과 같은 워크플로 실행이
-빌드한 것입니다. 압축을 풀고 `chrome://extensions` 를 연 뒤 **개발자 모드**를 켜고
-**압축해제된 확장 프로그램을 로드합니다**를 눌러 그 디렉터리를 고르세요.
+### 크롬 스토어
 
-또는 직접 빌드하세요. 아래의 신뢰 원칙을 말로만 두지 않고 확인할 수 있게 만드는 것이 바로
-이것입니다 — 이 페이지의 어느 것도 당신이 직접 빌드하지 않은 릴리즈를 믿으라고 하지
-않습니다:
+**[설치하기](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— 검토를 거쳤고, 스스로 업데이트합니다. 이 경로를 권합니다.
+
+### 릴리즈 페이지
+
+`extension-v*` 릴리즈마다 `headerlab-<version>-chrome.zip` 이 첨부됩니다
+([릴리즈](https://github.com/say8425/headerlab/releases)). 압축을 풀고 `chrome://extensions` →
+**개발자 모드** → **압축해제된 확장 프로그램을 로드합니다** → 그 디렉터리.
+
+### 직접 빌드
 
 ```bash
 corepack enable          # pnpm 은 package.json 의 packageManager 필드에서 옵니다
@@ -35,8 +36,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-그렇게 나온 `.output/chrome-mv3` 를 위의 압축해제된 확장 프로그램과 같은 방법으로
-로드하세요.
+`.output/chrome-mv3` 를 같은 방법으로 로드하세요. 아래의 신뢰 원칙을 말로만 두지 않고
+확인할 수 있게 만드는 것이 이것입니다.
 
 ## AI
 

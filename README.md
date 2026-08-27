@@ -6,8 +6,8 @@ Add, modify and remove HTTP request and response headers, in Chrome, with no hos
 until you grant it.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | Light | Dark |
 |---|---|
@@ -15,17 +15,20 @@ until you grant it.
 
 ## Install
 
-**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-— reviewed by Google, updated automatically, and the route to prefer. Chrome only; see
-[Limitations](#limitations).
+Chrome only — see [Limitations](#limitations).
 
-Or take the build from a release. Each one under an `extension-v*` tag on the
-[releases page](../../releases) attaches `headerlab-<version>-chrome.zip`, built by the same
-workflow run that cut the tag. Unpack it, open `chrome://extensions`, turn on
-**Developer mode**, choose **Load unpacked**, and select the unpacked directory.
+### Chrome Web Store
 
-Or build it yourself, which is what makes the trust posture below checkable rather than
-merely stated — nothing on this page asks you to believe a release you did not build:
+**[Install](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
+— reviewed, updates itself. Prefer this.
+
+### Release page
+
+Every `extension-v*` release attaches `headerlab-<version>-chrome.zip`
+([releases](../../releases)). Unpack it, then `chrome://extensions` →
+**Developer mode** → **Load unpacked** → the unpacked directory.
+
+### Build it yourself
 
 ```bash
 corepack enable          # pnpm comes from package.json's packageManager field
@@ -33,7 +36,8 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-`.output/chrome-mv3` is then loaded the same way as an unpacked release.
+Load `.output/chrome-mv3` the same way. This is what makes the trust posture below
+checkable rather than merely stated.
 
 ## AI
 
