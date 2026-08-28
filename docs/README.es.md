@@ -11,7 +11,7 @@ a ningún sitio hasta que tú se lo concedes.
 
 | Claro | Oscuro |
 |---|---|
-| ![El popup de HeaderLab en tema claro: tres de las cuatro reglas activas, dos sitios concedidos y cuatro reglas de cabecera](screenshots/popup-light.png) | ![El mismo popup en tema oscuro. Sigue la configuración del sistema operativo](screenshots/popup-dark.png) |
+| ![El popup de HeaderLab en tema claro: el recuento junto al encabezado Rules lee 3 of 4 live, 1 off, con dos sitios concedidos en el panel lateral y cuatro reglas de cabecera](screenshots/popup-light.png) | ![El mismo popup en tema oscuro. Sigue la configuración del sistema operativo](screenshots/popup-dark.png) |
 
 ## Instalación
 
@@ -140,9 +140,12 @@ malinterpretar.
 
 El acceso se pide por sitio, en la fila que nombra ese sitio, y nunca como efecto colateral
 de escribir un nombre de host o de accionar un interruptor. Hasta que pulsas **Grant**, la
-fila está en ámbar y lo dice:
+fila está en ámbar y lo dice. El recuento junto al encabezado **Rules** tampoco adorna ese
+estado. Una regla que solo alcanza a hosts que no has concedido se cuenta como **blocked**,
+y nunca como live. Los hosts que siguen esperando aparecen nombrados a su lado. El recuento
+se mantiene honesto por ambos extremos ("3 of 4 live · 1 off · 1 site needs access"):
 
-![La fila del sitio internal.example.com en estado pendiente, en ámbar, con un botón Grant](screenshots/popup-permission.png)
+![La fila del sitio internal.example.com en estado pendiente, en ámbar, con un botón Grant, y el recuento junto al encabezado Rules leyendo 3 of 4 live, 1 off, 1 site needs access](screenshots/popup-permission.png)
 
 Todo lo que impida que una regla salga se dice en la fila de esa misma regla, y se cuenta
 junto al encabezado **Rules**. Aquí la segunda regla le pide a Chrome un `append` sobre una cabecera de

@@ -10,7 +10,7 @@
 
 | 浅色 | 深色 |
 |---|---|
-| ![浅色主题下的 HeaderLab 弹窗：四条规则中三条生效，两个已授权站点，四条头部规则](screenshots/popup-light.png) | ![同一个弹窗的深色主题，跟随操作系统设置](screenshots/popup-dark.png) |
+| ![浅色主题下的 HeaderLab 弹窗：Rules 标题旁的读数为 3 of 4 live, 1 off，侧栏里有两个已授权站点，四条头部规则](screenshots/popup-light.png) | ![同一个弹窗的深色主题，跟随操作系统设置](screenshots/popup-dark.png) |
 
 ## 安装
 
@@ -121,9 +121,12 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 - **跟随系统主题**，浅色或深色，在首次绘制之前完成。
 
 权限是按站点请求的，就在写着该站点名字的那一行上，绝不会因为你输入了一个主机名、拨了一下
-开关就顺带发生。在你按下 **Grant** 之前，那一行是琥珀色的，并且明说：
+开关就顺带发生。在你按下 **Grant** 之前，那一行是琥珀色的，并且明说。**Rules** 标题旁的
+读数也不会把这个状态说得比实际好看。只落在你没有授权的主机上的规则，计入 **blocked**，
+绝不计入 live。还在等待的主机就写在读数旁边。读数在两头都保持诚实
+("3 of 4 live · 1 off · 1 site needs access")：
 
-![internal.example.com 的站点行处于待授权的琥珀色状态，带有 Grant 按钮](screenshots/popup-permission.png)
+![internal.example.com 的站点行处于待授权的琥珀色状态，带有 Grant 按钮，Rules 标题旁的读数为 3 of 4 live, 1 off, 1 site needs access](screenshots/popup-permission.png)
 
 任何会挡住规则生效的原因，都写在这条规则自己那一行上，并计入 **Rules** 标题旁的读数。下图里第二条规则要求
 Chrome 对一个它不会追加的请求头执行 `append`。这一行说明了是哪一个、应该改用什么，读数是

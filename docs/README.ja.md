@@ -11,7 +11,7 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 
 | ライト | ダーク |
 |---|---|
-| ![ライトテーマの HeaderLab ポップアップ: 4 つのルールのうち 3 つが有効、許可済みサイト 2 件、ヘッダールール 4 件](screenshots/popup-light.png) | ![同じポップアップのダークテーマ。OS の設定に従います](screenshots/popup-dark.png) |
+| ![ライトテーマの HeaderLab ポップアップ: Rules 見出しの横のカウントが 3 of 4 live, 1 off を示し、レールに許可済みサイト 2 件、ヘッダールール 4 件](screenshots/popup-light.png) | ![同じポップアップのダークテーマ。OS の設定に従います](screenshots/popup-dark.png) |
 
 ## インストール
 
@@ -134,9 +134,12 @@ CLI・ホスト・拡張機能は、ユーザーごとのディレクトリに�
 
 権限はサイトごとに、そのサイト名が書かれた行で要求します。ホスト名を入力したりスイッチを
 切り替えたりした副作用として要求することはありません。**Grant** を押すまで、その行は
-アンバー色でその状態を告げます:
+アンバー色でその状態を告げます。**Rules** 見出しの横のカウントも、その状態を実際より
+良くは見せません。許可していないホストにだけ掛かったルールは **blocked** として数え、
+live として数えることは決してありません。まだ待っているホストはその横に名前で挙がります。
+カウントは両端で正直なままです("3 of 4 live · 1 off · 1 site needs access"):
 
-![internal.example.com のサイト行が保留状態のアンバー色で、Grant ボタンとともに表示されている様子](screenshots/popup-permission.png)
+![internal.example.com のサイト行が保留状態のアンバー色で、Grant ボタンとともに表示され、Rules 見出しの横のカウントが 3 of 4 live, 1 off, 1 site needs access を示している様子](screenshots/popup-permission.png)
 
 ルールが出ていくのを妨げるものは、何であれそのルール自身の行で語られ、**Rules** 見出しの
 横で数えられます。下は 2 番目のルールが、Chrome が追加しないリクエストヘッダーへの

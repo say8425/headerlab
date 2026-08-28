@@ -11,7 +11,7 @@ Chrome 에서 HTTP 요청·응답 헤더를 추가하고, 수정하고, 삭제�
 
 | 라이트 | 다크 |
 |---|---|
-| ![라이트 테마의 HeaderLab 팝업. 룰 네 개 중 셋이 동작 중이고, 허용된 사이트 둘과 헤더 룰 넷이 보인다](screenshots/popup-light.png) | ![같은 팝업의 다크 테마. 운영체제 설정을 따른다](screenshots/popup-dark.png) |
+| ![라이트 테마의 HeaderLab 팝업. Rules 제목 옆의 카운트가 3 of 4 live, 1 off 을 읽고, 레일에 허용된 사이트 둘과 헤더 룰 넷이 보인다](screenshots/popup-light.png) | ![같은 팝업의 다크 테마. 운영체제 설정을 따른다](screenshots/popup-dark.png) |
 
 ## 설치
 
@@ -132,15 +132,18 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 
 접근 권한은 사이트마다 그 사이트 이름이 적힌 행에서 요청합니다. 호스트명을 입력하거나
 스위치를 넘긴 부수효과로 요청하는 일은 없습니다. **Grant** 를 누르기 전까지 그 행은
-호박색이고, 그렇다고 말합니다:
+호박색이고, 그렇다고 말합니다. **Rules** 옆의 카운트도 그 상태를 좋게 포장하지 않습니다.
+허용하지 않은 호스트에만 걸린 룰은 **blocked** 로 세고, live 로는 절대 세지 않습니다. 아직
+기다리는 호스트는 그 옆에 이름으로 적힙니다. 카운트가 양쪽 모두에서 정직하게 유지됩니다
+("3 of 4 live · 1 off · 1 site needs access"):
 
-![internal.example.com 사이트 행이 대기 상태를 나타내는 호박색으로, Grant 버튼과 함께 표시된 모습](screenshots/popup-permission.png)
+![internal.example.com 사이트 행이 대기 상태를 나타내는 호박색으로 Grant 버튼과 함께 표시되고, Rules 제목 옆의 카운트가 3 of 4 live, 1 off, 1 site needs access 을 읽는 모습](screenshots/popup-permission.png)
 
 룰이 나가지 못하게 막는 것은 무엇이든 그 룰 자신의 행에서 말하고, **Rules** 제목 옆에서
-셉니다. 아래는 두
-번째 룰이 Chrome 이 추가해 주지 않는 요청 헤더에 `append` 를 요구한 경우입니다. 행은 어떤
-헤더인지와 대신 무엇을 해야 하는지를 말합니다. 판독부는 **2 of 4 live · 1 off ·
-1 blocked** 를 읽습니다. 그 메시지를 위해 자리를 옮기는 것은 아무것도 없습니다:
+셉니다. 아래는 두 번째 룰이 Chrome 이 추가해 주지 않는 요청 헤더에 `append` 를 요구한
+경우입니다. 행은 어떤 헤더인지와 대신 무엇을 해야 하는지를 말합니다.
+판독부는 **2 of 4 live · 1 off · 1 blocked** 를 읽습니다.
+그 메시지를 위해 자리를 옮기는 것은 아무것도 없습니다:
 
 ![룰 목록. 두 번째 행의 값 자리에 "Use Set. Chrome does not append request headers." 가 빨간색으로 표시되어 있고, Rules 제목 옆의 카운트가 2 of 4 live, 1 off, 1 blocked 을 읽는다](screenshots/popup-blocked.png)
 
