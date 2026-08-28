@@ -13,6 +13,7 @@ import {
   signingInput,
   TOKEN_ENDPOINT,
   uploadHeaders,
+  uploadStillRunning,
 } from '@/scripts/lib/cws.mjs';
 
 /**
@@ -77,18 +78,43 @@ describe('uploadHeaders', () => {
   });
 });
 
+/**
+ * The live `fetchStatus` body, captured from the published item on 2026-08-28 by
+ * `pnpm store:probe`, trimmed of the public key. Every status fixture below is
+ * built from this rather than invented, because inventing it is exactly what
+ * went wrong: the first version of this module read `itemState` and `crxVersion`
+ * at the top level, and the real response has neither.
+ */
+const LIVE_STATUS = {
+  name: 'publishers/2b78bc3e/items/kgapijlldieckifoenckgninnepafhnn',
+  itemId: 'kgapijlldieckifoenckgninnepafhnn',
+  publishedItemRevisionStatus: {
+    state: 'PUBLISHED',
+    distributionChannels: [{ deployPercentage: 100, crxVersion: '1.7.0' }],
+  },
+};
+
+/** The same body with a revision submitted and awaiting review. */
+const withSubmitted = (state: string, crxVersion: string) => ({
+  ...LIVE_STATUS,
+  submittedItemRevisionStatus: { state, distributionChannels: [{ crxVersion }] },
+});
+
 describe('interpretUpload', () => {
-  it('reads each documented success spelling as uploaded', () => {
-    for (const uploadState of ['SUCCESS', 'UPLOAD_SUCCESS', 'COMPLETED']) {
-      expect(interpretUpload({ uploadState }).verdict).toBe('uploaded');
-    }
+  /**
+   * `SUCCEEDED`, from the v2 `UploadState` enum. An earlier version of this file
+   * guessed `SUCCESS`, `UPLOAD_SUCCESS` and `COMPLETED` — none of which exist —
+   * so a successful upload would have been read as unrecognised and refused.
+   */
+  it('reads the documented success state as uploaded', () => {
+    expect(interpretUpload({ uploadState: 'SUCCEEDED' }).verdict).toBe('uploaded');
   });
 
   /**
-   * The docs spell in-progress two ways across pages — `IN_PROGRESS` on the v2
-   * UploadState type, `UPLOAD_IN_PROGRESS` in the prose telling you to poll —
-   * and neither has been observed against this item. Both are accepted rather
-   * than one being guessed at.
+   * The API's own pages disagree here: `media.upload`'s field docs say
+   * "If uploadState is `UPLOAD_IN_PROGRESS`" while the `UploadState` enum lists
+   * `IN_PROGRESS`. Neither has been seen in a real upload response, so both are
+   * accepted rather than a side being picked.
    */
   it('reads both spellings of in-progress as pending', () => {
     for (const uploadState of ['IN_PROGRESS', 'UPLOAD_IN_PROGRESS']) {
@@ -96,9 +122,9 @@ describe('interpretUpload', () => {
     }
   });
 
-  it('reads a failure state as failed and carries the store’s own reason', () => {
+  it('reads the documented failure state as failed, carrying the store’s own reason', () => {
     const verdict = interpretUpload({
-      uploadState: 'FAILURE',
+      uploadState: 'FAILED',
       itemError: [{ error_detail: 'The uploaded package is not signed by the expected key.' }],
     });
     expect(verdict.verdict).toBe('failed');
@@ -108,66 +134,109 @@ describe('interpretUpload', () => {
   /**
    * The one that matters most. An unrecognised state is the shape a silent
    * failure takes here: the store changes a string, the reader shrugs, and a
-   * release reports success having submitted nothing. Defaulting to failure
-   * costs a red job and a widened set; defaulting to success costs a version
-   * that never reached the store while everything went green.
+   * release reports success having submitted nothing. `NOT_FOUND` and
+   * `UPLOAD_STATE_UNSPECIFIED` are included because they are real enum members
+   * that belong to a *status* response — arriving on an upload response they
+   * mean something this cannot name.
    */
   it('refuses to read an unknown state as success', () => {
-    for (const uploadState of ['NOT_A_REAL_STATE', '', undefined]) {
-      const verdict = interpretUpload({ uploadState });
-      expect(verdict.verdict).toBe('failed');
+    for (const uploadState of [
+      'NOT_A_REAL_STATE',
+      '',
+      undefined,
+      'NOT_FOUND',
+      'UPLOAD_STATE_UNSPECIFIED',
+    ]) {
+      expect(interpretUpload({ uploadState }).verdict).toBe('failed');
     }
     expect(interpretUpload({}).verdict).toBe('failed');
     expect(interpretUpload(undefined).verdict).toBe('failed');
   });
 });
 
+describe('uploadStillRunning', () => {
+  /**
+   * A status response reports the upload under `lastAsyncUploadState`, not
+   * `uploadState`. Reading the wrong field is what made an earlier polling loop
+   * return on its first pass every time, so the wrong field is asserted as
+   * explicitly not working.
+   */
+  it('reads lastAsyncUploadState, and not uploadState', () => {
+    expect(uploadStillRunning({ lastAsyncUploadState: 'IN_PROGRESS' })).toBe(true);
+    expect(uploadStillRunning({ uploadState: 'IN_PROGRESS' })).toBe(false);
+  });
+
+  /** "Only set when there has been an async upload … in the past 24 hours." */
+  it('treats an absent field and a settled upload alike, as nothing in flight', () => {
+    expect(uploadStillRunning(LIVE_STATUS)).toBe(false);
+    expect(uploadStillRunning({ lastAsyncUploadState: 'SUCCEEDED' })).toBe(false);
+    expect(uploadStillRunning({ lastAsyncUploadState: 'NOT_FOUND' })).toBe(false);
+    expect(uploadStillRunning(undefined)).toBe(false);
+  });
+});
+
 describe('mayUpload', () => {
   /**
-   * Nothing documents what a second upload does to an item already in review,
-   * and this repository has cut two releases four minutes apart. Refusing is
-   * the only answer that does not find out during one.
+   * The ordinary state between releases: published, nothing submitted since. The
+   * live body is exactly this, so a release starting today would proceed — which
+   * is the single most important thing this suite can assert, because the first
+   * version of the module refused it.
    */
-  it('refuses while someone else’s submission is still in review', () => {
-    for (const itemState of ['PENDING_REVIEW', 'IN_REVIEW']) {
-      const gate = mayUpload({ itemState, crxVersion: '1.7.0' }, '1.8.0');
+  it('allows an upload when the item has no submitted revision', () => {
+    const gate = mayUpload(LIVE_STATUS, '1.8.0');
+    expect(gate.allowed).toBe(true);
+    expect(gate.state).toBe('PUBLISHED');
+  });
+
+  /**
+   * `STAGED` is "approved and ready to be published" — still a revision nobody
+   * should upload over, and a state the earlier guesswork did not know existed.
+   */
+  it('refuses while a submitted revision is awaiting review or publication', () => {
+    for (const state of ['PENDING_REVIEW', 'STAGED']) {
+      const gate = mayUpload(withSubmitted(state, '1.7.5'), '1.8.0');
       expect(gate.allowed).toBe(false);
       expect(gate.alreadySubmitted).toBeUndefined();
-      expect(gate.reason).toContain(itemState);
+      expect(gate.reason).toContain(state);
     }
   });
 
   /**
    * The retry path would otherwise eat itself. The tag is cut before the store
-   * step runs, so re-running the workflow against the same tag is the documented
-   * recovery — and if the first attempt submitted before dying for some later
-   * reason, a plain refusal on a review state would block every retry forever.
+   * step runs, so re-running against the same tag is the documented recovery —
+   * and if the first attempt submitted before dying for some later reason, a
+   * plain refusal would block every retry forever.
    */
-  it('reports this exact version already being in review as done, not as a conflict', () => {
-    const gate = mayUpload({ itemState: 'PENDING_REVIEW', crxVersion: '1.8.0' }, '1.8.0');
+  it('reports this exact version already being submitted as done, not as a conflict', () => {
+    const gate = mayUpload(withSubmitted('PENDING_REVIEW', '1.8.0'), '1.8.0');
     expect(gate.allowed).toBe(false);
     expect(gate.alreadySubmitted).toBe(true);
   });
 
-  it('allows a recognised state in which uploading is ordinary', () => {
-    for (const itemState of ['PUBLISHED', 'DRAFT', 'REJECTED']) {
-      expect(mayUpload({ itemState }, '1.8.0').allowed).toBe(true);
+  /** A settled submitted revision is not going anywhere; a new upload replaces it. */
+  it('allows an upload over a rejected or cancelled submission', () => {
+    for (const state of ['REJECTED', 'CANCELLED']) {
+      expect(mayUpload(withSubmitted(state, '1.7.5'), '1.8.0').allowed).toBe(true);
     }
   });
 
+  it('refuses a taken-down item outright', () => {
+    const gate = mayUpload({ ...LIVE_STATUS, takenDown: true }, '1.8.0');
+    expect(gate.allowed).toBe(false);
+    expect(gate.reason).toContain('taken down');
+  });
+
   /**
-   * Fail-closed, and the direction is the point. An earlier version refused
-   * exactly the two review states and allowed everything else — including `{}`
-   * and an absent field — which made the one gate protecting an undocumented
-   * action fail *open*, directly below an `interpretUpload` that is fail-closed
-   * for exactly the reason this should have been.
+   * Fail-closed on a submitted revision whose state this file cannot name — an
+   * unnameable state is one it cannot rule an open submission out for. Note the
+   * empty body is *allowed*: no submitted revision is the ordinary between-
+   * releases case, and refusing it would block every release.
    */
-  it('refuses a state it cannot name rather than uploading over it', () => {
-    for (const status of [{}, undefined, { itemState: 'SOMETHING_NEW' }, { status: ['x'] }]) {
-      const gate = mayUpload(status, '1.8.0');
-      expect(gate.allowed).toBe(false);
-      expect(gate.alreadySubmitted).toBeUndefined();
-    }
+  it('refuses a submitted-revision state it cannot name', () => {
+    const gate = mayUpload(withSubmitted('SOMETHING_NEW', '1.7.5'), '1.8.0');
+    expect(gate.allowed).toBe(false);
+    expect(gate.alreadySubmitted).toBeUndefined();
+    expect(gate.reason).toContain('SOMETHING_NEW');
   });
 });
 
@@ -201,31 +270,42 @@ describe('interpretSubmission', () => {
   /**
    * Both halves are load-bearing, and each is asserted failing on its own. The
    * state alone would pass while the store still held the previous version; the
-   * version alone would pass while the package sat in a draft nobody submitted.
+   * version alone would pass while the revision sat in a settled state.
    */
-  it('accepts only the right version in a review state', () => {
-    expect(
-      interpretSubmission({ itemState: 'PENDING_REVIEW', crxVersion: '1.8.0' }, '1.8.0'),
-    ).toEqual({
+  it('accepts only the right version awaiting review', () => {
+    expect(interpretSubmission(withSubmitted('PENDING_REVIEW', '1.8.0'), '1.8.0')).toEqual({
       submitted: true,
       state: 'PENDING_REVIEW',
       version: '1.8.0',
     });
   });
 
-  it('rejects the right state holding the wrong version', () => {
-    const result = interpretSubmission(
-      { itemState: 'PENDING_REVIEW', crxVersion: '1.7.0' },
-      '1.8.0',
-    );
-    expect(result.submitted).toBe(false);
-    expect(result.reason).toContain('1.7.0');
+  it('accepts a revision already approved and waiting to go out', () => {
+    expect(interpretSubmission(withSubmitted('STAGED', '1.8.0'), '1.8.0').submitted).toBe(true);
   });
 
-  it('rejects the right version sitting in a state that is not review', () => {
-    const result = interpretSubmission({ itemState: 'DRAFT', crxVersion: '1.8.0' }, '1.8.0');
+  it('rejects the right state holding the wrong version', () => {
+    const result = interpretSubmission(withSubmitted('PENDING_REVIEW', '1.7.5'), '1.8.0');
     expect(result.submitted).toBe(false);
-    expect(result.reason).toContain('DRAFT');
+    expect(result.reason).toContain('1.7.5');
+  });
+
+  it('rejects the right version in a settled state', () => {
+    const result = interpretSubmission(withSubmitted('REJECTED', '1.8.0'), '1.8.0');
+    expect(result.submitted).toBe(false);
+    expect(result.reason).toContain('REJECTED');
+  });
+
+  /**
+   * The published revision is never the answer. After `:publish` the new version
+   * becomes the *submitted* revision while the published one still holds the
+   * previous version — so reading the published side would wait for something
+   * that only happens days later, when review passes.
+   */
+  it('ignores the published revision entirely', () => {
+    const published = interpretSubmission(LIVE_STATUS, '1.7.0');
+    expect(published.submitted).toBe(false);
+    expect(published.reason).toContain('no submitted revision');
   });
 
   it('rejects a response that answers neither', () => {

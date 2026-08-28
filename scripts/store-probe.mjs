@@ -27,10 +27,11 @@ import {
   claimSet,
   endpoints,
   errorDetail,
-  interpretSubmission,
   JWT_BEARER_GRANT,
   mayUpload,
+  publishedRevision,
   readServiceAccount,
+  submittedRevision,
   signingInput,
   TOKEN_ENDPOINT,
 } from './lib/cws.mjs';
@@ -88,29 +89,35 @@ const main = async () => {
 
   // What the release path would conclude from exactly these bytes. This is the
   // whole point of the probe: not the response, but what `lib/cws.mjs` makes of it.
+  const published = publishedRevision(body);
+  const submitted = submittedRevision(body);
   const gate = mayUpload(body, '0.0.0-probe');
-  const submission = interpretSubmission(body, '0.0.0-probe');
-  console.log('\n--- what the release path would do with that ---');
-  console.log(`  keys present:   ${Object.keys(body).join(', ') || '(none)'}`);
-  console.log(`  state read as:  ${submission.state}`);
-  console.log(`  version read as:${submission.version}`);
-  console.log(`  mayUpload:      ${gate.allowed ? 'allowed' : `REFUSED — ${gate.reason}`}`);
+  console.log('\n--- what the release path reads ---');
+  console.log(`  keys present:  ${Object.keys(body).join(', ') || '(none)'}`);
+  console.log(
+    `  published:     ${published.present ? `${published.state} @ ${published.version}` : '(none)'}`,
+  );
+  console.log(
+    `  submitted:     ${submitted.present ? `${submitted.state} @ ${submitted.version}` : '(none)'}`,
+  );
+  console.log(`  last upload:   ${body.lastAsyncUploadState ?? '(none in the past 24h)'}`);
+  console.log(`  takenDown:     ${body.takenDown ?? false}   warned: ${body.warned ?? false}`);
+  console.log(`\n  mayUpload:     ${gate.allowed ? 'ALLOWED' : `REFUSED — ${gate.reason}`}`);
 
-  if (!gate.allowed && !gate.alreadySubmitted && submission.state === '(absent)') {
+  if (!published.present && !submitted.present) {
     console.log(
-      '\nstore-probe: the state field was not found under `itemState` or `state`.\n' +
-        '  That is the inference this probe exists to test, and it is wrong.\n' +
-        '  Read the JSON above, then fix the field names and UPLOADABLE_STATES in\n' +
-        '  scripts/lib/cws.mjs before releasing.',
+      '\nstore-probe: neither revision was found. Either this item has never been\n' +
+        '  published and never submitted, or the field names in scripts/lib/cws.mjs\n' +
+        '  no longer match the API. Read the JSON above before releasing.',
     );
-  } else if (!gate.allowed && !gate.alreadySubmitted) {
-    console.log(
-      `\nstore-probe: the state is read correctly but ${JSON.stringify(submission.state)} is not in\n` +
-        '  UPLOADABLE_STATES, so a release would refuse before uploading. Add it in\n' +
-        '  scripts/lib/cws.mjs if it is an ordinary, not-in-review state.',
-    );
+  } else if (gate.allowed) {
+    console.log('\nstore-probe: a release would proceed from here.');
   } else {
-    console.log('\nstore-probe: a release would proceed from this state.');
+    console.log(
+      '\nstore-probe: a release would refuse before uploading, for the reason above.\n' +
+        '  If that state is an ordinary one to upload over, widen the state sets in\n' +
+        '  scripts/lib/cws.mjs.',
+    );
   }
 };
 

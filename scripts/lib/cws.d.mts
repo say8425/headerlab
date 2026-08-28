@@ -53,6 +53,20 @@ export declare function interpretUpload(body: unknown): {
   reason?: string;
 };
 
+export declare function uploadStillRunning(status: unknown): boolean;
+
+export declare function submittedRevision(status: unknown): {
+  present: boolean;
+  state: string;
+  version: string;
+};
+
+export declare function publishedRevision(status: unknown): {
+  present: boolean;
+  state: string;
+  version: string;
+};
+
 export declare function mayUpload(
   status: unknown,
   expectedVersion?: string,

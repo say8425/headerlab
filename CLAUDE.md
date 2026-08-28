@@ -743,6 +743,45 @@ on a push).
 submission needs; what changed is that the READMEs no longer say there is no listing, and
 `store-submit.yml` now does the upload that used to be a manual dashboard step.
 
+**The v2 `fetchStatus` response was guessed wrong, and `pnpm store:probe` is what caught
+it (2026-08-28).** The guess was a top-level `itemState` and `crxVersion`. The real body
+has neither. Measured against the live listing:
+
+```json
+{ "name": …, "itemId": …, "publicKey": …,
+  "publishedItemRevisionStatus": { "state": "PUBLISHED",
+    "distributionChannels": [ { "deployPercentage": 100, "crxVersion": "1.7.0" } ] },
+  "submittedItemRevisionStatus": { … }, "lastAsyncUploadState": …,
+  "takenDown": false, "warned": false }
+```
+
+Four things follow, and every one of them was wrong before the probe ran. **The state lives
+on a revision, and there are two** — `publishedItemRevisionStatus` and
+`submittedItemRevisionStatus`, either unset. **The submitted one is what a release asks
+about**: after `:publish` the new version becomes the *submitted* revision while the
+published one still holds the old version, so reading the published side would wait for
+something that only happens when review passes, days later. **The version is nested another
+level down**, in `distributionChannels[].crxVersion`. And **the upload state on a status
+response is `lastAsyncUploadState`**, not `uploadState` — that name belongs to the upload
+response, and only that one.
+
+The enums were guesswork too, and mostly wrong: `UploadState` is
+`UPLOAD_STATE_UNSPECIFIED`/`SUCCEEDED`/`IN_PROGRESS`/`FAILED`/`NOT_FOUND` — not `SUCCESS`,
+which is what the code looked for, so a *successful* upload would have been read as
+unrecognised and refused. `ItemState` is `ITEM_STATE_UNSPECIFIED`/`PENDING_REVIEW`/`STAGED`/
+`PUBLISHED`/`PUBLISHED_TO_TESTERS`/`REJECTED`/`CANCELLED`; there is no `IN_REVIEW`, which the
+code had invented, and `STAGED` — approved and awaiting publication — it had never heard of.
+One documented contradiction survives and is handled rather than resolved: `media.upload`'s
+field docs say `UPLOAD_IN_PROGRESS` while the enum page says `IN_PROGRESS`, so both are
+accepted.
+
+**The transferable part is the method, not the schema.** Three functions read that body, and
+a single wrong guess broke all three at once in a way no unit test could see, because the
+tests were written from the same guess. What separated them was one read-only request against
+the real thing. `pnpm store:probe` is that request, kept: it prints the raw body and then what
+`scripts/lib/cws.mjs` makes of it, so the next schema drift is one command away from being
+visible instead of one release away.
+
 **The five READMEs carry a Chrome Web Store badge and a three-route Install section**
 (store · release asset · build it yourself), and the badge URL is one string repeated in
 all five. Nothing checks that they agree — `tests/unit/storeListing.test.ts` holds the five

@@ -46,6 +46,7 @@ import {
   signingInput,
   TOKEN_ENDPOINT,
   uploadHeaders,
+  uploadStillRunning,
 } from './lib/cws.mjs';
 
 /** The published item. Public — it is in the store URL and in the README. */
@@ -145,22 +146,16 @@ const fetchStatus = async (url, token) => {
 /**
  * Waits for the store to stop calling the *upload* in progress.
  *
- * `uploadState` may not appear on a `fetchStatus` body at all — the v2 page
- * documents neither response in a way that settles it — so an absent field ends
- * the wait rather than failing. That is deliberately the weak half: the
- * authoritative check is `awaitSubmission` below, which asks about the item
- * rather than about the upload, and a wrong guess here surfaces there loudly.
+ * A status response reports the upload under `lastAsyncUploadState`, not
+ * `uploadState` — that second name belongs to the upload response, and reading
+ * for it here is what made an earlier version of this loop return on its first
+ * pass every time. The field is "only set when there has been an async upload
+ * for the item in the past 24 hours", so absent means nothing is in flight and
+ * ends the wait rather than failing.
  */
 const awaitUpload = async (url, token, attempts = 10, delayMs = 6000) => {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const body = await fetchStatus(url, token);
-    if (body?.uploadState === undefined) {
-      console.log(
-        'store-submit: fetchStatus carries no uploadState; treating the upload as settled',
-      );
-      return;
-    }
-    if (interpretUpload(body).verdict !== 'pending') return;
+    if (!uploadStillRunning(await fetchStatus(url, token))) return;
     console.log(`store-submit: still processing (${attempt}/${attempts})`);
     await sleep(delayMs);
   }

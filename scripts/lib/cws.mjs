@@ -140,17 +140,39 @@ export const readServiceAccount = (json) => {
 };
 
 /**
- * Upload states, and the reason this is a set rather than a comparison.
+ * `UploadState`, from the v2 enum page, verbatim: `UPLOAD_STATE_UNSPECIFIED`,
+ * `SUCCEEDED`, `IN_PROGRESS`, `FAILED`, `NOT_FOUND`.
  *
- * The documentation spells the in-progress state two ways across pages
- * (`IN_PROGRESS` on the v2 UploadState type, `UPLOAD_IN_PROGRESS` in the prose
- * telling you to poll), and v1 used `SUCCESS`/`FAILURE` for the same field. None
- * of that has been observed against this item, so all the known spellings are
- * accepted and an unknown one is an error rather than a shrug.
+ * An earlier version of this file guessed `SUCCESS`, `UPLOAD_SUCCESS`,
+ * `COMPLETED`, `FAILURE` and `UPLOAD_FAILURE` — every one of them wrong, and
+ * `SUCCEEDED` absent — so a successful upload would have been read as an
+ * unrecognised state and refused. `pnpm store:probe` is what caught it.
+ *
+ * `UPLOAD_IN_PROGRESS` is kept beside `IN_PROGRESS` because the API's own pages
+ * disagree: `media.upload`'s field docs say "If uploadState is
+ * `UPLOAD_IN_PROGRESS`" while the `UploadState` enum lists `IN_PROGRESS`. One of
+ * them is wrong and neither has been seen in a real upload response, so both are
+ * accepted rather than a side being picked.
+ *
+ * `NOT_FOUND` and `UPLOAD_STATE_UNSPECIFIED` belong to `lastAsyncUploadState` on
+ * a status response rather than to an upload response, and are handled where
+ * that field is read.
  */
-const UPLOAD_OK = new Set(['SUCCESS', 'UPLOAD_SUCCESS', 'COMPLETED']);
+const UPLOAD_OK = new Set(['SUCCEEDED']);
 const UPLOAD_PENDING = new Set(['IN_PROGRESS', 'UPLOAD_IN_PROGRESS']);
-const UPLOAD_FAILED = new Set(['FAILURE', 'UPLOAD_FAILURE', 'FAILED']);
+const UPLOAD_FAILED = new Set(['FAILED']);
+
+/**
+ * Whether a status response says an upload is still being processed.
+ *
+ * Separate from `interpretUpload` because it reads a different field of a
+ * different response: `fetchStatus` reports the upload under
+ * `lastAsyncUploadState`, and "Only set when there has been an async upload for
+ * the item in the past 24 hours" — so absent is ordinary and means nothing is in
+ * flight. Conflating the two is what made an earlier `settle()` return on its
+ * first pass every time.
+ */
+export const uploadStillRunning = (status) => UPLOAD_PENDING.has(status?.lastAsyncUploadState);
 
 /**
  * Turns an upload response into one of three verdicts, and never into a fourth.
@@ -182,31 +204,55 @@ export const interpretUpload = (body) => {
   };
 };
 
-/** Item states that mean a submission is with Google and not yet decided. */
-const REVIEW_STATES = new Set(['PENDING_REVIEW', 'IN_REVIEW']);
+/**
+ * `ItemState`, from the v2 enum page, verbatim and complete:
+ * `ITEM_STATE_UNSPECIFIED`, `PENDING_REVIEW`, `STAGED`, `PUBLISHED`,
+ * `PUBLISHED_TO_TESTERS`, `REJECTED`, `CANCELLED`.
+ *
+ * Two of these decide whether a submission is still in Google's hands.
+ * `PENDING_REVIEW` is "pending review"; `STAGED` is "approved and ready to be
+ * published", which is still a revision nobody should upload over. There is no
+ * `IN_REVIEW` — an earlier version of this file invented it.
+ */
+const OPEN_SUBMISSION_STATES = new Set(['PENDING_REVIEW', 'STAGED']);
 
 /**
- * Item states in which uploading a new package is a normal thing to do.
+ * Where the state actually lives, which is not where this file first guessed.
  *
- * A whitelist rather than a blacklist, and that direction is the whole point.
- * An earlier version refused exactly the two review states and allowed
- * everything else — including an absent field and a shape this file's own
- * docblock admits is inferred rather than documented. That is fail-open on the
- * one gate protecting an undocumented action, sitting directly below an
- * `interpretUpload` that is fail-closed for exactly the reason this should have
- * been: the same API spells its states differently across pages and versions.
+ * A `fetchStatus` body carries two revisions, either of which may be unset:
+ * `publishedItemRevisionStatus` ("the current published revision … unset if the
+ * item is not published") and `submittedItemRevisionStatus` ("the item revision
+ * submitted to be published … unset if the item has not been submitted for
+ * publishing since the last successful publish"). Each is
+ * `{ state, distributionChannels: [{ deployPercentage, crxVersion }] }`.
+ *
+ * There is no top-level `itemState` and no top-level `crxVersion`. Reading for
+ * them returned nothing at all, which `mayUpload` correctly refused on and
+ * `interpretSubmission` would have failed every release with. Measured against
+ * the live listing with `pnpm store:probe`.
+ *
+ * **The submitted revision is the one that matters here.** After `:publish` the
+ * new version becomes the *submitted* revision while the published one still
+ * holds the previous version, so a release that asked the published revision
+ * whether its version had landed would wait for something that only happens days
+ * later, when review passes.
  */
-const UPLOADABLE_STATES = new Set([
-  'PUBLISHED',
-  'DRAFT',
-  'UNPUBLISHED',
-  'REJECTED',
-  'TAKEN_DOWN',
-  'DEPRECATED',
-]);
+const revision = (status, which) => {
+  const node = status?.[which];
+  const channels = Array.isArray(node?.distributionChannels) ? node.distributionChannels : [];
+  const withVersion = channels.find((channel) => channel?.crxVersion);
+  return {
+    present: Boolean(node),
+    state: node?.state ?? '(absent)',
+    version: withVersion?.crxVersion ?? '(absent)',
+  };
+};
 
-const itemState = (status) => status?.itemState ?? status?.state ?? '(absent)';
-const itemVersion = (status) => status?.crxVersion ?? status?.version ?? '(absent)';
+/** The revision awaiting publication, if there is one. */
+export const submittedRevision = (status) => revision(status, 'submittedItemRevisionStatus');
+
+/** The revision currently public, if the item is published. */
+export const publishedRevision = (status) => revision(status, 'publishedItemRevisionStatus');
 
 /**
  * Whether a new package may be uploaded at all, and whether it already was.
@@ -225,9 +271,24 @@ const itemVersion = (status) => status?.crxVersion ?? status?.version ?? '(absen
  * from that rather than from a guess.
  */
 export const mayUpload = (status, expectedVersion) => {
-  const state = itemState(status);
-  const version = itemVersion(status);
-  if (REVIEW_STATES.has(state)) {
+  if (status?.takenDown === true) {
+    return {
+      allowed: false,
+      state: 'TAKEN_DOWN',
+      version: '(absent)',
+      reason:
+        'the item has been taken down for a policy violation. Uploading will not fix that; ' +
+        'read the developer dashboard first.',
+    };
+  }
+  const submitted = submittedRevision(status);
+  if (!submitted.present) {
+    // Nothing has been submitted since the last successful publish, which is the
+    // ordinary state of an item between releases.
+    return { allowed: true, state: publishedRevision(status).state, version: '(absent)' };
+  }
+  const { state, version } = submitted;
+  if (OPEN_SUBMISSION_STATES.has(state)) {
     if (expectedVersion !== undefined && version === expectedVersion) {
       return {
         allowed: false,
@@ -242,20 +303,24 @@ export const mayUpload = (status, expectedVersion) => {
       state,
       version,
       reason:
-        `the item is ${state} holding version ${version}: a previous submission has not finished ` +
-        'review. Uploading over it is undocumented, so this refuses. Wait for the review, or ' +
-        'cancel it in the dashboard.',
+        `a submitted revision is ${state} holding version ${version}. Uploading over a revision ` +
+        'awaiting review or publication is undocumented, so this refuses. Wait for it, or cancel ' +
+        'it in the dashboard.',
     };
   }
-  if (UPLOADABLE_STATES.has(state)) return { allowed: true, state, version };
+  // REJECTED and CANCELLED are settled: the submitted revision is not going
+  // anywhere and a new upload replaces it. Anything else is a state this file
+  // cannot name, and an unnameable state is one it cannot rule an open
+  // submission out for.
+  if (state === 'REJECTED' || state === 'CANCELLED') return { allowed: true, state, version };
   return {
     allowed: false,
     state,
     version,
     reason:
-      `unrecognised item state ${JSON.stringify(state)} — refusing rather than uploading over ` +
-      'something this cannot name. Record what the store returned and widen UPLOADABLE_STATES ' +
-      'in scripts/lib/cws.mjs.',
+      `unrecognised submitted-revision state ${JSON.stringify(state)} — refusing rather than ` +
+      'uploading over something this cannot name. Record what the store returned and widen ' +
+      'the state sets in scripts/lib/cws.mjs.',
   };
 };
 
@@ -267,22 +332,29 @@ export const mayUpload = (status, expectedVersion) => {
  * draft nobody submitted.
  */
 export const interpretSubmission = (status, expectedVersion) => {
-  const state = itemState(status);
-  const version = itemVersion(status);
+  const { present, state, version } = submittedRevision(status);
+  if (!present) {
+    return {
+      submitted: false,
+      state,
+      version,
+      reason: 'the item has no submitted revision at all — nothing was accepted for review',
+    };
+  }
   if (version !== expectedVersion) {
     return {
       submitted: false,
       state,
       version,
-      reason: `the store reports version ${version}, expected ${expectedVersion}`,
+      reason: `the submitted revision is version ${version}, expected ${expectedVersion}`,
     };
   }
-  if (!REVIEW_STATES.has(state)) {
+  if (!OPEN_SUBMISSION_STATES.has(state)) {
     return {
       submitted: false,
       state,
       version,
-      reason: `version ${version} is on the item but its state is ${state}, not a review state`,
+      reason: `version ${version} was submitted but its state is ${state}, not one awaiting review`,
     };
   }
   return { submitted: true, state, version };
