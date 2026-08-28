@@ -23,6 +23,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "screenshots": "wxt build && node scripts/screenshots.mjs",
     "store:assets": "wxt build && node scripts/store-assets.mjs",
+    "store:probe": "node scripts/store-probe.mjs",
     "test:e2e": "wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test",
     "test:packages": "pnpm -r test",
     "check:all": "pnpm check && pnpm -r test",
