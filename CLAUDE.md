@@ -475,9 +475,9 @@ this repository forecloses that; a SHA was the only thing that did.
 
 Two things bound it rather than remove it. The CRX signing key is **not** in this job — it
 is an environment secret readable only by `store-submit.yml`'s own job, which uses no
-third-party action at all. And `main` now requires a pull request with code-owner review, so
-a *local* change to which action runs cannot land alone. Neither of those helps against the
-upstream tag moving, which is the actual residual risk.
+third-party action at all. And `main` refuses a direct push, so a *local* change to which
+action runs has to arrive as a pull request. Neither of those helps against the upstream tag
+moving, which is the actual residual risk.
 
 There is no dependabot here, so a major bump stays a manual bother — deliberately.
 
@@ -975,11 +975,22 @@ by the one job that names that environment and only when that job starts — not
 release job beside it, and not when the run is queued. The environment's deployment branch
 rule is `Branch → main`, so no other ref can reach it. `tests/unit/storeSubmit.test.ts` pins
 the environment name, because a typo does not fail: GitHub silently creates an unprotected
-environment of that name and the job runs ungated with an empty key. And `main` now requires
-a pull request with code-owner review (`.github/CODEOWNERS`, plus the `pull_request` rule on
-the `main` ruleset), so landing a workflow that reads the key is not something a future
-collaborator can do alone. The residual risk is a malicious change reaching `main` — not
-zero, and smaller than a repository secret would be.
+environment of that name and the job runs ungated with an empty key. And `main` refuses a
+direct push — the `pull_request` rule on its ruleset — so a workflow that reads the key has
+to arrive as a pull request rather than as a push.
+
+**What that rule does not do is require a review, and the reason is worth keeping.** It
+briefly did: `require_code_owner_review: true` with one required approval, backed by
+`.github/CODEOWNERS`. On a repository with a single collaborator that is unsatisfiable by
+construction — nobody can approve their own pull request — so GitHub offered every merge as
+"merge without waiting for requirements to be met", writing a bypass audit entry on each
+release. A rule that can only ever be bypassed teaches a reader that bypassing is normal,
+which is worse than not having it. It came off on 2026-08-28 and `.github/CODEOWNERS` records
+what to set to put it back the day a second maintainer exists. Until then the thing standing
+between a stranger and a release is the collaborator list, which has one entry.
+
+The residual risk is therefore a malicious change reaching `main` under the owner's own
+hand — not zero, and still smaller than a repository secret would be.
 
 **The local path is unchanged and is still the fallback.** `pnpm crx` reads the key out of
 `op://Personal/HeaderLab CRX signing key`,

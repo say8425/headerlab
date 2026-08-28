@@ -1,20 +1,29 @@
-# Every path, one owner. This file is half of a mechanism; the other half is the
-# `main` ruleset's `pull_request` rule with `require_code_owner_review: true`.
-# Without this file that flag is inert — code-owner review only fires on paths a
-# CODEOWNERS entry designates, so a repository with the flag on and no CODEOWNERS
-# reads as gated and gates nothing.
+# Ownership, and — as of 2026-08-28 — not enforcement.
 #
-# What the pair buys, precisely: a pull request opened by anyone other than the
-# owner cannot merge to `main` without the owner approving it. That includes the
-# release PR, which is what makes "only the owner releases" a rule rather than a
-# habit — release-please's PR is authored by github-actions[bot], so the owner is
-# free to approve it, and merging it is what tags, releases, publishes to npm and
-# submits to the Chrome Web Store.
+# The `main` ruleset requires a pull request and refuses a direct push, but it
+# requires **zero** approvals and does not require code-owner review. This file
+# therefore does not gate anything today; what it still does is make GitHub
+# request the owner as a reviewer automatically, and say in one place who is
+# answerable for this tree.
 #
-# The owner is in the ruleset's bypass list as `bypass_mode: "pull_request"`, so
-# their own pull requests need no second approval — nobody could give one anyway
-# on a repository with one collaborator. That bypass does NOT extend to pushing
-# straight to `main`; the ruleset refuses that for everyone, owner included.
+# **Why the gate came off.** It was on briefly, with
+# `require_code_owner_review: true` and one required approval. On a repository
+# with a single collaborator that is unsatisfiable by construction — nobody can
+# approve their own pull request — so every merge was offered as "merge without
+# waiting for requirements to be met", which creates a bypass audit entry and
+# reads as if a rule were being broken on each release. A rule that can only ever
+# be bypassed is not a rule.
+#
+# What still holds without it: nobody can push to `main` at all, everything goes
+# through a pull request, and only squash merges are allowed. The protection
+# against "anyone can release" is the collaborator list — exactly one account has
+# write access — rather than anything in this file.
+#
+# **Turn the gate back on the day a second maintainer exists.** Set
+# `require_code_owner_review: true` and `required_approving_review_count: 1` on
+# the `main` ruleset, and drop the owner's `bypass_actors` entry. Then this file
+# starts meaning what its blanket rule implies: no pull request merges without
+# the owner's approval, the release pull request included.
 #
 # A blanket rule rather than a list of release-critical paths, deliberately. A
 # list is a claim about which files can reach a release, and this repository's own
