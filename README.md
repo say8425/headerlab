@@ -15,18 +15,19 @@ until you grant it.
 
 ## Install
 
-Chrome only — see [Limitations](#limitations).
+Chrome only for now. Firefox and Safari are planned.
 
 ### Chrome Web Store
 
-**[Install](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)**
-— reviewed, updates itself. Prefer this.
+Installing from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+is the recommended route.
 
 ### Release page
 
-Every `extension-v*` release attaches `headerlab-<version>-chrome.zip`
-([releases](../../releases)). Unpack it, then `chrome://extensions` →
-**Developer mode** → **Load unpacked** → the unpacked directory.
+Every `extension-v*` release attaches `headerlab-<version>-chrome.zip`. Take the asset for
+the version you want from the [releases page](../../releases), unpack it, then
+`chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked directory.
 
 ### Build it yourself
 
@@ -36,8 +37,7 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Load `.output/chrome-mv3` the same way. This is what makes the trust posture below
-checkable rather than merely stated.
+Load `.output/chrome-mv3` the same way.
 
 ## AI
 
@@ -186,14 +186,7 @@ without a native permission dialog.</sub>
 
 ## Limitations
 
-**This is a Chrome MV3 build and nothing else.** `wxt.config.ts` declares no other target,
-and no build has been run on another browser. Edge is the same engine and should work, but
-nobody has run the suite against it.
-
-The table below is the *platform ceiling a port would meet*, not a support matrix — it is
-[MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for the APIs this
-extension is built on, read at the versions each browser first shipped them. Edge's column
-is `✓` rather than a number because BCD records it as `mirror` — it tracks Chrome's:
+See [MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for detail.
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -202,20 +195,6 @@ is `✓` rather than a number because BCD records it as `mirror` — it tracks C
 | Per-site runtime grant (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Tab-scoped rules (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **none** |
 | Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (containing app) |
-
-Two of those are worth spelling out:
-
-- **Safari cannot modify response headers at all.** That is half of what this extension
-  does, so a Safari port would be a different, smaller product rather than the same one
-  recompiled.
-- **Safari's native messaging goes to a containing macOS app**, per Apple's documented
-  model, rather than to a host manifest on disk. `headerlab bridge install` writes exactly
-  such a manifest, so the agent bridge has nothing to install into there.
-
-Features deliberately not built yet are tracked as issues:
-[#30](../../issues/30) one rule set · [#31](../../issues/31) JSON import/export ·
-[#32](../../issues/32) tab lock UI · [#33](../../issues/33) regex scoping ·
-[#34](../../issues/34) manual theme toggle.
 
 ## Architecture
 
