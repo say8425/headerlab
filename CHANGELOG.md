@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/say8425/headerlab/compare/extension-v1.7.0...extension-v1.7.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* stop the local build scanning scratch dirs, and retract three false claims ([#81](https://github.com/say8425/headerlab/issues/81)) ([b0e7345](https://github.com/say8425/headerlab/commit/b0e7345a7a1d2f2760f7e2cddbe77c15f25bd53f))
+
 ## [1.7.0](https://github.com/say8425/headerlab/compare/extension-v1.6.0...extension-v1.7.0) (2026-08-24)
 
 
