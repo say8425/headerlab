@@ -20,8 +20,10 @@ yourself; installing it is their call, not something to do unprompted.
 ## What this is
 
 `headerlab` is a CLI that talks to a running instance of the [HeaderLab
-Chrome extension](https://github.com/say8425/headerlab) over a native-messaging
-bridge. The extension modifies HTTP request and response headers per site,
+Chrome extension](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn),
+installed from the Chrome Web Store, over a native-messaging bridge. If the
+person does not have it, that link is the remedy to name — the CLI alone has
+nothing to talk to. The extension modifies HTTP request and response headers per site,
 under a Grant-based permission model — nothing it does is invisible to the
 person running Chrome, and this CLI does not change that.
 

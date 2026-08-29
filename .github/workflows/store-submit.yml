@@ -1,0 +1,192 @@
+name: Store submit
+
+# Two triggers, and the second is the recovery path.
+#
+# `workflow_call` is how a release reaches here: release-please cuts the tag in
+# its own step, so everything downstream of it — this included — runs with the
+# release already irreversible. When this fails, the fix is never to re-cut a
+# version. It is `workflow_dispatch` with the same tag, which reads the release's
+# own zip and starts again from the signature.
+#
+# There is deliberately no `on: release`. release-please creates the release with
+# the default GITHUB_TOKEN, and by GitHub's loop-prevention rule that event
+# starts no workflow run at all.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The extension release tag, e.g. extension-v1.8.0
+        required: true
+        type: string
+      version:
+        description: The version the store must end up holding, e.g. 1.8.0
+        required: true
+        type: string
+      ref:
+        # Declared here as well as under workflow_dispatch, though a release never
+        # passes it: `inputs.ref` has to resolve under both triggers for the
+        # checkout's `inputs.ref || inputs.tag` to be one expression rather than
+        # two branches.
+        description: Unused by a release. See the workflow_dispatch input of the same name.
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The extension release tag to re-submit, e.g. extension-v1.8.0
+        required: true
+        type: string
+      version:
+        description: The version the store must end up holding, e.g. 1.8.0
+        required: true
+        type: string
+      ref:
+        description: >-
+          Which revision supplies the SCRIPTS. Leave empty to use the tag. Set it
+          to main when the failure is in the scripts themselves — see the comment
+          on the checkout step below.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The environment is the whole authorization story for the signing key.
+    #
+    # Environment secrets are readable ONLY by a job that names the environment,
+    # and are read when that job starts rather than when the run is queued — so
+    # the key is not sitting in this run's context beside the release job. The
+    # environment's deployment branch rule must be an explicit
+    # `Selected branches and tags → Ref type: Branch → main`. Not "Protected
+    # branches only", which lets every branch deploy when no branch protection
+    # exists; and not a tag pattern, which would match nothing here because both
+    # triggers above run with GITHUB_REF at `refs/heads/main`.
+    #
+    # The name below is pinned by tests/unit/storeSubmit.test.ts. A typo does not
+    # fail — GitHub silently creates an environment with that name, with no
+    # protection rules and no secrets, and the job runs ungated with an empty key.
+    environment: chrome-web-store
+
+    steps:
+      # The checkout supplies the SCRIPTS only — the CRX's payload comes from the
+      # release's own zip two steps down — and there are two failure modes that
+      # want different revisions, so this is an input rather than a constant.
+      #
+      # Default, the tag: `pack-crx.mjs` refuses an archive whose manifest version
+      # disagrees with `package.json`, so a re-run of extension-v1.8.0 against a
+      # `main` that has moved to 1.9.0 would die at the signature. The tag also
+      # means the CRX is signed by the code that was released.
+      #
+      # Override, `ref: main`: when the failure is in the scripts — the likeliest
+      # one being `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing a state the
+      # store really does use — the fix lives on `main`, and a tag-pinned re-run
+      # would replay the same refusal forever. This only works while `main` still
+      # carries the tag's version, which is the immediate-retry case. Once `main`
+      # has moved on, the two constraints genuinely conflict and the path is a
+      # local `pnpm crx` plus a dashboard upload; `docs/store/checklist.md` §10
+      # says so rather than leaving it to be discovered.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || inputs.tag }}
+          persist-credentials: false
+
+      # No `pnpm install`. Both scripts below use only Node builtins and files in
+      # this repository, so the dependency tree is not a prerequisite for signing
+      # and submitting — which keeps the job that touches the key as small as it
+      # can be.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # An absent GitHub secret dereferences to an empty string rather than
+      # failing. Without this step a missing key reaches Chrome as `--pack-
+      # extension-key=` and the first news of it is a rejection from the store,
+      # after the tag exists.
+      - name: Refuse to run without a real signing key
+        env:
+          KEY: ${{ secrets.CRX_SIGNING_KEY }}
+          ACCOUNT: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+          PUBLISHER: ${{ vars.CWS_PUBLISHER_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$KEY"       || { echo "CRX_SIGNING_KEY is empty"; exit 1; }
+          test -n "$ACCOUNT"   || { echo "CWS_SERVICE_ACCOUNT_JSON is empty"; exit 1; }
+          test -n "$PUBLISHER" || { echo "CWS_PUBLISHER_ID is empty"; exit 1; }
+          case "$KEY" in
+            *"-----BEGIN "*"PRIVATE KEY-----"*) ;;
+            *) echo "CRX_SIGNING_KEY is set but is not a PEM private key"; exit 1 ;;
+          esac
+          # stderr is discarded on purpose. V8's JSON.parse error quotes the
+          # text around the failure, and GitHub masks only exact matches of a
+          # secret — never a fragment of one — so letting this speak would print
+          # part of the credential into a public log on the one path where the
+          # credential is malformed.
+          echo "$ACCOUNT" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null \
+            || { echo "CWS_SERVICE_ACCOUNT_JSON is not JSON"; exit 1; }
+
+      - name: Stage the signing key
+        env:
+          KEY: ${{ secrets.CRX_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d "$RUNNER_TEMP/crx.XXXXXX")"
+          chmod 700 "$dir"
+          umask 077
+          printf '%s\n' "$KEY" > "$dir/key.pem"
+          echo "HEADERLAB_CRX_KEY=$dir/key.pem" >> "$GITHUB_ENV"
+
+      # Packing from the release's own zip rather than from a fresh build is what
+      # makes the CRX and the downloadable archive provably the same files —
+      # pack-crx.mjs hash-compares every one of them. A fresh build here would
+      # leave that as an assumption.
+      - name: Take the archive from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download "$TAG" --pattern '*.zip' --dir .output
+
+      - name: Sign it
+        env:
+          # Ubuntu runners ship Google Chrome; pack-crx.mjs defaults to the macOS
+          # path because that is where it is normally run by hand.
+          CHROME: /usr/bin/google-chrome
+        run: node scripts/pack-crx.mjs .output/*.zip
+
+      # Submits for review. It cannot publish — the store's own wording is that
+      # `:publish` submits and Google publishes on passing — so success here means
+      # PENDING_REVIEW and nothing more.
+      - name: Submit to the Chrome Web Store
+        env:
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXPECTED_VERSION: ${{ inputs.version }}
+        run: node scripts/store-submit.mjs .output/*.crx
+
+      # Only after the store accepted it. Attaching earlier would put bytes on a
+      # public release that no store had agreed to.
+      #
+      # No document currently tells a reader this file is here, and that is
+      # deliberate rather than an oversight: no release carries one yet, so a
+      # README sentence about it would be false for every release on the page.
+      # Say it once the first release has one.
+      - name: Attach the signed package to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" .output/*.crx --clobber
+
+      # The runner is ephemeral, so this is tidiness rather than defence — but
+      # the local path goes to some trouble to guarantee the same thing
+      # (`process.on('exit')` in pack-crx.mjs), and leaving the two asymmetric
+      # invites the reading that one of them does not matter.
+      - name: Remove the staged key
+        if: always()
+        # The default matters: `if: always()` means this also runs when the job
+        # failed before the key was staged, and `rm -f ""` is not portable across
+        # BSD and GNU coreutils.
+        run: rm -f "${HEADERLAB_CRX_KEY:-/dev/null}"

@@ -460,15 +460,26 @@ is that those actions are published by GitHub itself, `ci.yml` holds only
 `github.event.*`, so the blast radius of a hijacked action is this repository's own
 source — which is public.
 
-**The third-party action has arrived, and it is pinned to a SHA as promised.**
-`googleapis/release-please-action` is the only one, and it sits in the only job holding
-`contents: write` and `pull-requests: write`, so it clears none of the three conditions
-above. `release-please.yml` names it by commit with the tag in a comment beside it. Resolve
-a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`; commit
-`a1f8122` has the last version that did this for every action.
+**Every action, third-party included, is a floating major (owner's call, 2026-08-27).**
+`googleapis/release-please-action@v5`, not the commit it used to name. The rule is now one
+rule with no exception: target the latest major and let patches and minors arrive on their
+own.
 
-Patches and minors arrive on their own; a major bump is a manual bother, deliberately —
-there is no dependabot here yet.
+**That is a loosening, and the paragraph above is why it is worth writing down rather than
+just doing.** The three things that made a floating major cheap for the GitHub-published
+actions — GitHub publishes them, the job holds only `contents: read`, it interpolates no
+`github.event.*` — are precisely the three `release-please-action` does *not* clear. It runs
+in the job holding `contents: write`, `pull-requests: write` and `id-token: write`, and that
+OIDC token is what publishes to npm. A moved upstream tag reaches all of it, and nothing in
+this repository forecloses that; a SHA was the only thing that did.
+
+Two things bound it rather than remove it. The CRX signing key is **not** in this job — it
+is an environment secret readable only by `store-submit.yml`'s own job, which uses no
+third-party action at all. And `main` refuses a direct push, so a *local* change to which
+action runs has to arrive as a pull request. Neither of those helps against the upstream tag
+moving, which is the actual residual risk.
+
+There is no dependabot here, so a major bump stays a manual bother — deliberately.
 
 **CI is six jobs, one per check, and the split is what replaced `if: ${{ !cancelled() }}`.**
 Typecheck, lint, format, unit and e2e used to be steps in one job, with that condition on
@@ -657,12 +668,51 @@ instead of a plan. The tarball count agreeing with the 21 recorded elsewhere in 
 is the incidental confirmation, not the point; re-measure it with `cd packages/headerlab
 && npm pack --dry-run` rather than trusting either number.
 
-Two things to know before wondering why something did not happen. **A release PR
-opened with the default `GITHUB_TOKEN` does not trigger `ci.yml`**, which is GitHub's own
-loop-prevention rule, so that PR shows no checks; a `workflow_dispatch` or a PAT is what
-changes that, and neither is set up. And **there is no Chrome Web Store step**, unlike the
-workflow this was modelled on: there is no listing, so a `wxt submit` step would need four
-secrets that do not exist and would fail every release. Add it with the listing, not before.
+**This file said a release PR "does not trigger `ci.yml`" and that is wrong in the letter,
+measured 2026-08-26.** Runs *are* created for the release branches, on the `pull_request`
+event: `gh run list --workflow ci.yml --json databaseId,conclusion,event,headBranch` shows
+`32704922032` at `action_required` and `32707908398`, `32733647879` and (on the CLI branch)
+`32646285014` at `success` — three of them approved by hand. Why one sat at
+`action_required` was not measured; do not restate a mechanism here without a run id beside
+it, which is the mistake this paragraph is replacing.
+
+What follows from the correction is smaller than it looks. The release PR *can* be checked,
+so `pnpm check` inside the release job is not there to cover an unchecked commit. It is
+there because `ci.yml` and `release-please.yml` both fire on the push to `main` and neither
+waits for the other, so `ci.yml` passing is never a fact the release job can act on — and
+because everything below the release-please step runs with the tag already cut.
+
+**There is a Chrome Web Store step now** (2026-08-26), and it is `store-submit.yml` rather
+than `wxt submit`. It signs the release's own zip into a CRX and submits it. Three things
+about it are load-bearing and none is obvious from the YAML:
+
+- **It submits for review. It does not publish.** The store's `:publish` is a submission —
+  "The item will be submitted for review and published when the item passes" — so the
+  furthest a green run means is `PENDING_REVIEW`. `skipReview` is not available here: it
+  wants `declarativeNetRequest` as a *required* permission and changes confined to
+  `rule_resources`, and this manifest has `declarativeNetRequestWithHostAccess` and no
+  `rule_resources` at all. Any sentence anywhere claiming a merge publishes the extension
+  is wrong.
+- **It is called, not triggered.** `on: release` would never fire — release-please creates
+  the release with the default `GITHUB_TOKEN`, and `release` is not one of the exceptions
+  to the loop-prevention rule. So it is a `workflow_call` job in the release run, which
+  also keeps `GITHUB_REF` at `refs/heads/main` — the ref the `chrome-web-store`
+  environment's branch rule names. A tag rule there would match nothing while reading as
+  strict.
+- **`workflow_dispatch` is the recovery path, and which knob you turn depends on where it
+  broke.** The tag is cut before this can run, so a failure always leaves a released version
+  that is not on the store, and re-cutting a version is never the fix. A transient failure —
+  the network, the token, the store — is a plain re-run against the same tag. A failure *in
+  the scripts* is not: the checkout supplies only the scripts, since the CRX's payload always
+  comes from the release's own zip, so a tag-pinned re-run replays the same broken script
+  forever. That is what the optional `ref` input exists for, and the likeliest instance is
+  `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing an item state the store really does
+  use — deliberately fail-closed, and therefore deliberately something that may need widening
+  once. `ref: main` only works while `main` still carries the tag's version, because
+  `pack-crx.mjs` refuses an archive whose manifest disagrees with `package.json`; past that
+  the two constraints genuinely conflict and the answer is a local `pnpm crx` and the
+  dashboard. `docs/store/checklist.md` §10 carries the table.
+
 **The first run started from zero tags and zero releases**, so it read the whole history and
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
@@ -680,7 +730,7 @@ fork of this setup would need.
 restated what this file already says at more length. The reasoning lives here; the YAML
 should be readable as YAML. What stayed is only what is surprising *at the point of use* —
 the two in the composite action, why `--with-deps` runs on a cache hit, why `pnpm zip`
-needs no build step before it, why one action is a hash, and why the release job checks out
+needs no build step before it, and why the release job checks out
 unconditionally when the action that runs next needs no worktree (the step after it is a
 *local* action, and a local action with no checkout is the "Can't find action.yml" failure;
 hanging that on a conditional step is how it would be discovered on a release rather than
@@ -688,9 +738,54 @@ on a push).
 
 ## Chrome Web Store
 
-**Nothing is listed yet.** `docs/store/` holds everything a submission needs —
-`checklist.md` is the runbook, and the README still says there is no listing, which
-becomes false the day one exists.
+**It is listed.** `kgapijlldieckifoenckgninnepafhnn`, published 2026-08-25 at version
+1.7.0, category Developer Tools. `docs/store/checklist.md` is still the runbook for what a
+submission needs; what changed is that the READMEs no longer say there is no listing, and
+`store-submit.yml` now does the upload that used to be a manual dashboard step.
+
+**The v2 `fetchStatus` response was guessed wrong, and `pnpm store:probe` is what caught
+it (2026-08-28).** The guess was a top-level `itemState` and `crxVersion`. The real body
+has neither. Measured against the live listing:
+
+```json
+{ "name": …, "itemId": …, "publicKey": …,
+  "publishedItemRevisionStatus": { "state": "PUBLISHED",
+    "distributionChannels": [ { "deployPercentage": 100, "crxVersion": "1.7.0" } ] },
+  "submittedItemRevisionStatus": { … }, "lastAsyncUploadState": …,
+  "takenDown": false, "warned": false }
+```
+
+Four things follow, and every one of them was wrong before the probe ran. **The state lives
+on a revision, and there are two** — `publishedItemRevisionStatus` and
+`submittedItemRevisionStatus`, either unset. **The submitted one is what a release asks
+about**: after `:publish` the new version becomes the *submitted* revision while the
+published one still holds the old version, so reading the published side would wait for
+something that only happens when review passes, days later. **The version is nested another
+level down**, in `distributionChannels[].crxVersion`. And **the upload state on a status
+response is `lastAsyncUploadState`**, not `uploadState` — that name belongs to the upload
+response, and only that one.
+
+The enums were guesswork too, and mostly wrong: `UploadState` is
+`UPLOAD_STATE_UNSPECIFIED`/`SUCCEEDED`/`IN_PROGRESS`/`FAILED`/`NOT_FOUND` — not `SUCCESS`,
+which is what the code looked for, so a *successful* upload would have been read as
+unrecognised and refused. `ItemState` is `ITEM_STATE_UNSPECIFIED`/`PENDING_REVIEW`/`STAGED`/
+`PUBLISHED`/`PUBLISHED_TO_TESTERS`/`REJECTED`/`CANCELLED`; there is no `IN_REVIEW`, which the
+code had invented, and `STAGED` — approved and awaiting publication — it had never heard of.
+One documented contradiction survives and is handled rather than resolved: `media.upload`'s
+field docs say `UPLOAD_IN_PROGRESS` while the enum page says `IN_PROGRESS`, so both are
+accepted.
+
+**The transferable part is the method, not the schema.** Three functions read that body, and
+a single wrong guess broke all three at once in a way no unit test could see, because the
+tests were written from the same guess. What separated them was one read-only request against
+the real thing. `pnpm store:probe` is that request, kept: it prints the raw body and then what
+`scripts/lib/cws.mjs` makes of it, so the next schema drift is one command away from being
+visible instead of one release away.
+
+**The five READMEs carry a Chrome Web Store badge and a three-route Install section**
+(store · release asset · build it yourself), and the badge URL is one string repeated in
+all five. Nothing checks that they agree — `tests/unit/storeListing.test.ts` holds the five
+*descriptions* to one shape, not the READMEs.
 
 **The item's title and its summary are not listing fields. The store reads them out of
 the manifest**, and the dashboard says so itself: that tab is for "information about your
@@ -860,10 +955,45 @@ option. **Four things about it were measured rather than assumed:**
   the page ever said `genpair` cannot now be established, which is itself the cost: the
   claim was unfalsifiable from the moment it was recorded second-hand.
 
-**The key is in 1Password, not in CI, and that is the same argument as everything else
-here.** A repository whose claim is that a stranger who trusts none of it can verify the
-bundle should not hold a secret that publishes on its behalf. So signing is a local step a
-human runs: `pnpm crx` reads the key out of `op://Personal/HeaderLab CRX signing key`,
+**The key is now in CI as well as in 1Password (owner's call, 2026-08-26), and the argument
+against that is kept below rather than deleted, because it is still the cost.** A repository
+whose claim is that a stranger who trusts none of it can verify the bundle now holds a
+secret that publishes on its behalf. Chrome's own page argues the same way from the other
+side — "Don't store your private key in your Google Account. This means someone with access
+to the Developer Dashboard through your Google Account could publish on your behalf" — the
+point of Verified CRX being to survive a compromised publishing account, which a key sitting
+beside the publishing identity weakens.
+
+What was traded for it: merging the release PR is now the only human action in a release.
+The alternative on the table cost exactly the same number of actions — merge, then one local
+`pnpm crx` — so this bought convenience of *place*, not of count. Read that as the honest
+size of the trade rather than as a reason to widen it.
+
+What narrows it, and each of these is load-bearing rather than decorative:
+`CRX_SIGNING_KEY` is an **environment** secret on `chrome-web-store`, so it is readable only
+by the one job that names that environment and only when that job starts — not by the
+release job beside it, and not when the run is queued. The environment's deployment branch
+rule is `Branch → main`, so no other ref can reach it. `tests/unit/storeSubmit.test.ts` pins
+the environment name, because a typo does not fail: GitHub silently creates an unprotected
+environment of that name and the job runs ungated with an empty key. And `main` refuses a
+direct push — the `pull_request` rule on its ruleset — so a workflow that reads the key has
+to arrive as a pull request rather than as a push.
+
+**What that rule does not do is require a review, and the reason is worth keeping.** It
+briefly did: `require_code_owner_review: true` with one required approval, backed by
+`.github/CODEOWNERS`. On a repository with a single collaborator that is unsatisfiable by
+construction — nobody can approve their own pull request — so GitHub offered every merge as
+"merge without waiting for requirements to be met", writing a bypass audit entry on each
+release. A rule that can only ever be bypassed teaches a reader that bypassing is normal,
+which is worse than not having it. It came off on 2026-08-28 and `.github/CODEOWNERS` records
+what to set to put it back the day a second maintainer exists. Until then the thing standing
+between a stranger and a release is the collaborator list, which has one entry.
+
+The residual risk is therefore a malicious change reaching `main` under the owner's own
+hand — not zero, and still smaller than a repository secret would be.
+
+**The local path is unchanged and is still the fallback.** `pnpm crx` reads the key out of
+`op://Personal/HeaderLab CRX signing key`,
 writes it to a 0600 file inside a 0700 temp directory, and removes that directory on the way
 out. **A `try/finally` is not what does that, and believing it was is a defect this branch
 shipped and a review caught.** `process.exit()` does not throw, so it ends the process

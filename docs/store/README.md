@@ -1,10 +1,14 @@
 # Chrome Web Store listing
 
-Everything needed to publish HeaderLab to the Chrome Web Store, prepared ahead
-of the submission. Nothing here ships in the extension.
+Everything the [published listing](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+is made of. Written before the first submission, kept because every field here
+is still what the dashboard holds and a second listing would need all of it
+again. Nothing here ships in the extension.
 
 **Start with [`checklist.md`](checklist.md).** It runs top to bottom and points
-at the other files as it goes.
+at the other files as it goes. Its last two sections are the ones that stay
+useful now that the item exists: what releasing to the store does on its own,
+and what it deliberately does not.
 
 | File | What it is |
 | --- | --- |

@@ -11,11 +11,14 @@
  * same *files* — step 4 below compares every one of them by hash. Packing from
  * the directory would leave that as an assumption.
  *
- * **Why this is a local step and not a CI one.** Signing needs the private key,
- * and putting it in CI means a repository whose entire claim is "verifiable by a
- * stranger who trusts none of this" would hold a secret that publishes on its
- * behalf. `release-please.yml` still builds and attaches the ZIP; a human packs
- * and uploads the CRX. See CLAUDE.md's "Chrome Web Store" section.
+ * **This runs in CI as well as by hand, as of 2026-08-26.** It used to be local
+ * only, on the argument that a repository whose entire claim is "verifiable by a
+ * stranger who trusts none of this" should not hold a secret that publishes on
+ * its behalf. That cost is real and the owner took it anyway, so that merging the
+ * release PR is the whole of a release; CLAUDE.md's "Chrome Web Store" section
+ * keeps the argument beside the decision and lists what narrows it. Nothing in
+ * this file changed for it — `.github/workflows/store-submit.yml` sets
+ * `HEADERLAB_CRX_KEY` and `CHROME` and calls it exactly as a person would.
  *
  * The key comes out of 1Password by default and is never written anywhere but a
  * 0600 file inside a 0700 temp directory, removed on the way out however this

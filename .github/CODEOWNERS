@@ -1,0 +1,32 @@
+# Ownership, and — as of 2026-08-28 — not enforcement.
+#
+# The `main` ruleset requires a pull request and refuses a direct push, but it
+# requires **zero** approvals and does not require code-owner review. This file
+# therefore does not gate anything today; what it still does is make GitHub
+# request the owner as a reviewer automatically, and say in one place who is
+# answerable for this tree.
+#
+# **Why the gate came off.** It was on briefly, with
+# `require_code_owner_review: true` and one required approval. On a repository
+# with a single collaborator that is unsatisfiable by construction — nobody can
+# approve their own pull request — so every merge was offered as "merge without
+# waiting for requirements to be met", which creates a bypass audit entry and
+# reads as if a rule were being broken on each release. A rule that can only ever
+# be bypassed is not a rule.
+#
+# What still holds without it: nobody can push to `main` at all, everything goes
+# through a pull request, and only squash merges are allowed. The protection
+# against "anyone can release" is the collaborator list — exactly one account has
+# write access — rather than anything in this file.
+#
+# **Turn the gate back on the day a second maintainer exists.** Set
+# `require_code_owner_review: true` and `required_approving_review_count: 1` on
+# the `main` ruleset, and drop the owner's `bypass_actors` entry. Then this file
+# starts meaning what its blanket rule implies: no pull request merges without
+# the owner's approval, the release pull request included.
+#
+# A blanket rule rather than a list of release-critical paths, deliberately. A
+# list is a claim about which files can reach a release, and this repository's own
+# history says that claim goes stale: a commit touching sixteen files outside
+# `packages/headerlab` is what once made release-please propose the wrong major.
+* @say8425

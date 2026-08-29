@@ -5,8 +5,9 @@ English | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中
 Add, modify and remove HTTP request and response headers, in Chrome, with no host access
 until you grant it.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534)](https://www.npmjs.com/package/headerlab)
 
 | Light | Dark |
 |---|---|
@@ -14,8 +15,21 @@ until you grant it.
 
 ## Install
 
-There is no Chrome Web Store listing. Take the zip attached to the latest
-[release](../../releases) and unpack it, or build it yourself:
+Chrome only for now. Firefox and Safari are planned.
+
+### Chrome Web Store
+
+Installing from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+is the recommended route.
+
+### Release page
+
+Every `extension-v*` release attaches `headerlab-<version>-chrome.zip`. Take the asset for
+the version you want from the [releases page](../../releases), unpack it, then
+`chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked directory.
+
+### Build it yourself
 
 ```bash
 corepack enable          # pnpm comes from package.json's packageManager field
@@ -23,8 +37,14 @@ pnpm install
 pnpm build               # → .output/chrome-mv3
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked**, and
-select the unpacked directory. Chrome only — see [Limitations](#limitations).
+Load `.output/chrome-mv3` the same way.
+
+## AI
+
+HeaderLab is drivable by an AI coding agent, in three pieces that stack: a CLI a person can
+also use by hand, a skill that teaches an agent to use it, and the bridge that connects
+either of them to the running extension. None of it is on by default, and none of it can
+turn itself on — the last paragraph of this section is why.
 
 ### The CLI
 
@@ -74,6 +94,23 @@ without writing anything. The middle three write, and one detail is worth expect
 adding a site scopes a rule to it but does not grant access to it. That site stays pending
 until you press Grant in the popup, and the skill is told to say so rather than let you
 read the write as if the site were already live.
+
+### Agent bridge
+
+The bridge is what carries either of the two above into the running extension:
+
+```bash
+headerlab site add staging.example.com
+headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
+```
+
+The bridge is off until a human turns on its switch in the popup, and the CLI can neither
+grant site access nor turn it on — Chrome takes both only from a user gesture. Nothing
+leaves the machine: CLI, host and extension meet on a unix domain socket in a per-user
+directory, never a network socket.
+
+[`docs/agent-bridge.md`](docs/agent-bridge.md) is the whole of it — the protocol, the
+commands, the exit codes, how to turn it on, and the five claims not to get wrong.
 
 ## What it does
 
@@ -147,34 +184,9 @@ without a native permission dialog.</sub>
   missing permission, an unusable hostname, a header name Chrome will reject. A rule that
   is not applying always says why.
 
-## Agent bridge
-
-An AI agent can drive HeaderLab from a terminal instead of a person clicking through the
-popup:
-
-```bash
-headerlab site add staging.example.com
-headerlab rule add --target request --op set --name Authorization --value "Bearer $TOKEN"
-```
-
-The bridge is off until a human turns on its switch in the popup, and the CLI can neither
-grant site access nor turn it on — Chrome takes both only from a user gesture. Nothing
-leaves the machine: CLI, host and extension meet on a unix domain socket in a per-user
-directory, never a network socket.
-
-[`docs/agent-bridge.md`](docs/agent-bridge.md) is the whole of it — the protocol, the
-commands, the exit codes, how to turn it on, and the five claims not to get wrong.
-
 ## Limitations
 
-**This is a Chrome MV3 build and nothing else.** `wxt.config.ts` declares no other target,
-and no build has been run on another browser. Edge is the same engine and should work, but
-nobody has run the suite against it.
-
-The table below is the *platform ceiling a port would meet*, not a support matrix — it is
-[MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for the APIs this
-extension is built on, read at the versions each browser first shipped them. Edge's column
-is `✓` rather than a number because BCD records it as `mirror` — it tracks Chrome's:
+See [MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for detail.
 
 | | Chrome | Edge | Firefox | Safari |
 |---|---|---|---|---|
@@ -183,20 +195,6 @@ is `✓` rather than a number because BCD records it as `mirror` — it tracks C
 | Per-site runtime grant (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Tab-scoped rules (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **none** |
 | Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (containing app) |
-
-Two of those are worth spelling out:
-
-- **Safari cannot modify response headers at all.** That is half of what this extension
-  does, so a Safari port would be a different, smaller product rather than the same one
-  recompiled.
-- **Safari's native messaging goes to a containing macOS app**, per Apple's documented
-  model, rather than to a host manifest on disk. `headerlab bridge install` writes exactly
-  such a manifest, so the agent bridge has nothing to install into there.
-
-Features deliberately not built yet are tracked as issues:
-[#30](../../issues/30) one rule set · [#31](../../issues/31) JSON import/export ·
-[#32](../../issues/32) tab lock UI · [#33](../../issues/33) regex scoping ·
-[#34](../../issues/34) manual theme toggle.
 
 ## Architecture
 
