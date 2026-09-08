@@ -19,6 +19,7 @@
 .superpowers/
 .design/
 .zcode/
+.DS_Store
 node_modules
 .output/
 .wxt/
