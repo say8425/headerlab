@@ -6,6 +6,12 @@
 # entry`, which is harder to diagnose, not quieter. Patterns with no leading slash
 # match at any depth, so this reaches further than the artifacts-at-the-root shape
 # the list below happens to have today.
+#
+# `.DS_Store` below is exactly that pattern, added anyway: unlike an arbitrary
+# developer artifact, it is one well-known macOS Finder file with no meaningful
+# content, so a degraded staleness message naming the directory instead of the
+# file is a cost worth paying to stop it from piling up untracked wherever
+# Finder opens.
 
 # Local scratch that is not this project's source. These are ignored for a
 # second reason beyond keeping `git status` readable, and it is the load-bearing
@@ -19,6 +25,7 @@
 .superpowers/
 .design/
 .zcode/
+.DS_Store
 node_modules
 .output/
 .wxt/
