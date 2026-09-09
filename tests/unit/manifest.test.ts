@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { assertBuildFresh, readBuildFile } from '../support/build';
+import { GECKO_ID } from '../support/firefox';
 
 // The product's central claim is zero host permissions at install, plus a
 // minimal, exactly-pinned permission surface. The "test" script in
@@ -16,6 +17,10 @@ import { assertBuildFresh, readBuildFile } from '../support/build';
 // build as well as a missing one (tests/support/build.ts).
 function readManifest(): Record<string, unknown> {
   return JSON.parse(readBuildFile('production', 'manifest.json'));
+}
+
+function readFirefoxManifest(): Record<string, unknown> {
+  return JSON.parse(readBuildFile('firefox', 'manifest.json'));
 }
 
 describe('production manifest', () => {
@@ -215,5 +220,58 @@ describe('the zip name the store checklist derives', () => {
     // Source-level on purpose: resolving WXT's config here would import the
     // build toolchain into a unit suite to learn one fact about a file.
     expect(config).not.toMatch(/^\s*zip\s*:/m);
+  });
+});
+
+describe('the Firefox manifest', () => {
+  it('carries the gecko block AMO requires, exactly', () => {
+    // MV3 needs an id to be signed at all; 128 is where optional_host_permissions
+    // arrived (below it the all-sites switch asks for a grant it can never get);
+    // data_collection_permissions is mandatory for new AMO submissions since
+    // 2025-11-03 and `none` is this product's premise.
+    expect(readFirefoxManifest().browser_specific_settings).toEqual({
+      gecko: {
+        id: GECKO_ID,
+        strict_min_version: '128.0',
+        data_collection_permissions: { required: ['none'] },
+      },
+    });
+  });
+
+  it('runs an event page, not a service worker — Firefox MV3 has none', () => {
+    const background = readFirefoxManifest().background as Record<string, unknown>;
+    expect(background.scripts).toEqual(['background.js']);
+    expect(Object.prototype.hasOwnProperty.call(background, 'service_worker')).toBe(false);
+  });
+
+  it('keeps the install-time posture byte-identical to Chrome', () => {
+    const manifest = readFirefoxManifest();
+    expect(manifest.permissions).toEqual(['storage', 'declarativeNetRequestWithHostAccess']);
+    expect(manifest.optional_host_permissions).toEqual(['<all_urls>']);
+    expect(Object.prototype.hasOwnProperty.call(manifest, 'host_permissions')).toBe(false);
+  });
+
+  it('declares no optional permission at all — there is no bridge to ask for', () => {
+    // Spec §9: event pages close native ports on idle, so the bridge cannot
+    // run on Firefox and the popup renders no row for it. A permission nothing
+    // can request is a line to explain away in review; adding it later, when
+    // the Firefox bridge lands, costs no re-consent.
+    expect(
+      Object.prototype.hasOwnProperty.call(readFirefoxManifest(), 'optional_permissions'),
+    ).toBe(false);
+  });
+
+  it('shares name, description, icons and action with Chrome', () => {
+    const chrome = readManifest();
+    const firefox = readFirefoxManifest();
+    for (const key of ['name', 'description', 'icons', 'action'] as const) {
+      expect(firefox[key]).toEqual(chrome[key]);
+    }
+  });
+
+  it('is the only build with a gecko block', () => {
+    expect(Object.prototype.hasOwnProperty.call(readManifest(), 'browser_specific_settings')).toBe(
+      false,
+    );
   });
 });

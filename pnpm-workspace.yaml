@@ -1,8 +1,10 @@
 # pnpm 10 and later refuse to run a dependency's install-time build script until
 # it is named here, and `pnpm install` *fails* rather than warns while one is
 # unanswered. One package in this tree asks: `spawn-sync`, reached only through
-# `wxt → web-ext-run → fx-runner`, which is WXT's Firefox runner. This extension
-# is Chrome-only and never invokes it.
+# `wxt → web-ext-run → fx-runner`, which is WXT's Firefox runner. WXT's browser
+# runner needs the optional peer `web-ext`, which is not installed here, so no
+# `pnpm dev*` command reaches `web-ext-run`, `fx-runner`, or this build script —
+# see CLAUDE.md's `spawn-sync` paragraph for the measurement.
 #
 # Denied rather than approved, and the two are not equally safe defaults:
 # `spawn-sync` polyfills `child_process.spawnSync` for Node before 0.12 and

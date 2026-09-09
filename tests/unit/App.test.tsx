@@ -773,10 +773,13 @@ describe('editing scope', () => {
     // goes red. Derived from the real diagnostic for the *same* domain the
     // fixture typed, so it cannot pass by agreeing with a stale expectation.
     const base = createProfile('probe', 0);
-    const real = validateFilter({
-      ...base,
-      filter: { ...base.filter, allSites: false, domains: ['a b.com'] },
-    }).find((d) => d.kind === 'invalid-domain');
+    const real = validateFilter(
+      {
+        ...base,
+        filter: { ...base.filter, allSites: false, domains: ['a b.com'] },
+      },
+      'chrome',
+    ).find((d) => d.kind === 'invalid-domain');
     const title = within(site).getByTestId('site-invalid').getAttribute('title')!;
     expect(title).toBe('Use a bare hostname like example.com.');
     expect(real?.message.endsWith(title)).toBe(true);

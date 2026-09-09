@@ -2,7 +2,7 @@
 
 English | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-Add, modify and remove HTTP request and response headers, in Chrome, with no host access
+Add, modify and remove HTTP request and response headers, in Chrome and Firefox, with no host access
 until you grant it.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
@@ -15,7 +15,7 @@ until you grant it.
 
 ## Install
 
-Chrome only for now. Firefox and Safari are planned.
+Chrome from the store, Firefox by loading a build — a signed Firefox release is next. Safari is planned.
 
 ### Chrome Web Store
 
@@ -34,10 +34,17 @@ the version you want from the [releases page](../../releases), unpack it, then
 ```bash
 corepack enable          # pnpm comes from package.json's packageManager field
 pnpm install
-pnpm build               # → .output/chrome-mv3
+pnpm build               # → .output/chrome-mv3 and .output/firefox-mv3
 ```
 
 Load `.output/chrome-mv3` the same way.
+
+### Firefox
+
+There is no signed Firefox build yet, so release Firefox will not install this
+permanently. Load it temporarily: `about:debugging` → **This Firefox** → **Load
+Temporary Add-on** → `.output/firefox-mv3/manifest.json` after `pnpm build`. It stays
+until Firefox restarts. The agent bridge is not offered on Firefox — see Limitations.
 
 ## AI
 
@@ -195,6 +202,7 @@ See [MDN's browser-compat data](https://github.com/mdn/browser-compat-data) for 
 | Per-site runtime grant (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Tab-scoped rules (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **none** |
 | Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (containing app) |
+| Agent bridge (HeaderLab's own) | ✓ | ✓ | **none** — event pages close native ports on idle | **none** |
 
 ## Architecture
 

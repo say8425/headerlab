@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
+import { hasBridge } from '@/lib/compile/capabilities';
 import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
@@ -20,6 +21,7 @@ import { getSyncStatus } from '@/lib/storage/session';
 import { bridgeStatusItem, DEFAULT_BRIDGE_STATUS, getBridgeStatus } from '@/lib/storage/session';
 import type { BridgeStatus } from '@/lib/storage/session';
 import { bootstrapProfile, newRule } from '@/lib/model/defaults';
+import { TARGET } from '@/lib/target';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
 
@@ -118,7 +120,7 @@ export default function App() {
   // compile() is pure, so the popup runs the same function on the same state
   // the background does. Caching diagnostics in storage would mean keeping the
   // two in step; recomputing means they cannot disagree.
-  const compiled = useMemo(() => (state ? compile(state) : null), [state]);
+  const compiled = useMemo(() => (state ? compile(state, TARGET) : null), [state]);
 
   const resolved = state ? resolveSingleProfile(state.profiles) : null;
 
@@ -179,7 +181,7 @@ export default function App() {
   useEffect(() => {
     if (!state) return;
     let cancelled = false;
-    const hosts = domainsToAudit(state.profiles);
+    const hosts = domainsToAudit(state.profiles, TARGET);
 
     // **Answer from what has been established, and read silence as "no".**
     // `grantDiagnostics` starts empty and only fills once the probe resolves,
@@ -280,6 +282,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Nothing to probe for on a build with no bridge: the Firefox manifest
+    // declares no nativeMessaging permission and the rail renders no row.
+    if (!hasBridge(TARGET)) return;
     let cancelled = false;
     probeNativeMessaging()
       .then((allowed) => {
@@ -361,19 +366,29 @@ export default function App() {
   // consulting it is what produces the row.
   const grantDiagnostics = auditDiagnostics(
     state.profiles,
-    domainsToAudit(state.profiles).map((domain) => ({
+    domainsToAudit(state.profiles, TARGET).map((domain) => ({
       domain,
       granted: knownGrants.get(domain) ?? false,
     })),
+    TARGET,
   );
   const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
+
+  // The one profile-level diagnostic that has a control to sit beside. Picked
+  // by kind because it is being *placed*, not classified — the severity is
+  // still what colours it (TypeChecklist).
+  const typeDiagnostic = routed.scope.find((d) => d.kind === 'unsupported-resource-type');
+  const typeNote =
+    typeDiagnostic !== undefined && typeDiagnostic.severity !== 'incomplete'
+      ? { severity: typeDiagnostic.severity, message: typeDiagnostic.message }
+      : null;
 
   // The three judgements that stop compile() emitting anything for this rule
   // set (compile.ts:28, :40, :51), none of which is rule-level and so none
   // of which reaches `byRow`. `isSuppressed` is called, never restated
   // (lib/compile/suppression.ts).
-  const live = active.enabled && !state.globalPause && !isSuppressed(active);
+  const live = active.enabled && !state.globalPause && !isSuppressed(active, TARGET);
 
   // The fourth judgement, handed to the tally in the same caller-answers
   // shape: whether the hosts that scope this rule set are granted. Counted
@@ -416,8 +431,9 @@ export default function App() {
   // order because a held permission with no port is the state that actually
   // needs a remedy on screen, and reading the port first would hide it behind
   // a bridge nobody enabled.
-  const bridgeMode =
-    bridgeAllowed === null
+  const bridgeMode: ScopeRailProps['bridge'] = !hasBridge(TARGET)
+    ? 'unavailable'
+    : bridgeAllowed === null
       ? 'unknown'
       : !bridgeAllowed
         ? 'off'
@@ -488,6 +504,7 @@ export default function App() {
           // of under-reporting this product exists to rule out.
           if (mountedRef.current) setBridgeAllowed(removed ? false : await probeNativeMessaging());
         }}
+        typeNote={typeNote}
         allSites={active.filter.allSites}
         allSitesGranted={allSitesGranted}
         onToggleAllSites={(next) => {
@@ -590,7 +607,7 @@ export default function App() {
           // stay consistent with each other.
           const current = stateRef.current;
           if (!current) return granted;
-          const grants = await probeGrants(domainsToAudit(current.profiles));
+          const grants = await probeGrants(domainsToAudit(current.profiles, TARGET));
           if (mountedRef.current) {
             // Into the same record the render above reads, so the host just
             // granted is known rather than defaulting to ungranted.

@@ -44,6 +44,15 @@ export const OFFERED_TYPES: readonly ResourceType[] = OFFERED.map(([type]) => ty
 export interface TypeChecklistProps {
   selected: readonly ResourceType[];
   onToggle: (type: ResourceType) => void;
+  /**
+   * The `unsupported-resource-type` diagnostic for the shown rule set, or
+   * null. Rendered here rather than as a rail note because this is the
+   * control that can act on it: a type this browser does not know is
+   * cleared by ticking one it does. One line, always — `truncate` and the
+   * full text in `title`, the rule CLAUDE.md's Interface section states for
+   * every state-dependent line.
+   */
+  note: { severity: 'error' | 'warning'; message: string } | null;
 }
 
 /**
@@ -53,26 +62,45 @@ export interface TypeChecklistProps {
  * touched can simply be small and present rather than hidden behind a chevron
  * that makes the user guess what is behind it.
  */
-export function TypeChecklist({ selected, onToggle }: TypeChecklistProps) {
+export function TypeChecklist({ selected, onToggle, note }: TypeChecklistProps) {
   return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1" data-testid="type-grid">
-      {OFFERED.map(([type, label]) => (
-        <label
-          key={type}
-          className="flex h-[22px] cursor-pointer items-center gap-[7px] text-[11px] leading-[14px]
-                     font-semibold text-foreground-2 select-none
-                     has-data-[state=unchecked]:font-medium has-data-[state=unchecked]:text-muted-foreground"
+    <>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1" data-testid="type-grid">
+        {OFFERED.map(([type, label]) => (
+          <label
+            key={type}
+            className="flex h-[22px] cursor-pointer items-center gap-[7px] text-[11px] leading-[14px]
+                       font-semibold text-foreground-2 select-none
+                       has-data-[state=unchecked]:font-medium has-data-[state=unchecked]:text-muted-foreground"
+          >
+            <Checkbox
+              data-testid="type-check"
+              aria-label={nameOf(type, label)}
+              checked={selected.includes(type)}
+              onCheckedChange={() => onToggle(type)}
+              className="size-4 rounded-[4px] border-boundary"
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      {note === null ? null : (
+        // Severity carried by colour, the same two the site rows use: the
+        // pending palette for a rule that still goes out narrower than
+        // written, destructive for one that goes nowhere. Appears rather than
+        // reserved (Interface carve-out 2): bounded to one line, and in this
+        // build reachable only through a hand-edited store.
+        <p
+          data-testid="type-note"
+          data-severity={note.severity}
+          title={note.message}
+          className={`mt-1 truncate text-[11px] leading-[14px] font-semibold ${
+            note.severity === 'error' ? 'text-destructive' : 'text-pending'
+          }`}
         >
-          <Checkbox
-            data-testid="type-check"
-            aria-label={nameOf(type, label)}
-            checked={selected.includes(type)}
-            onCheckedChange={() => onToggle(type)}
-            className="size-4 rounded-[4px] border-boundary"
-          />
-          {label}
-        </label>
-      ))}
-    </div>
+          {note.message}
+        </p>
+      )}
+    </>
   );
 }

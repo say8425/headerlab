@@ -56,6 +56,10 @@ const FORBIDDEN = [
   /from\s+['"]wxt\/browser['"]/,
   /from\s+['"]#imports['"]/,
   /from\s+['"]wxt\/utils\/storage['"]/,
+  // The build-target constant is an adapter concern. A pure function that
+  // read it would answer differently per bundle and be testable only by
+  // building for Firefox; the target arrives as a parameter instead.
+  /from\s+['"]@\/lib\/target['"]/,
 ];
 
 /**
@@ -76,6 +80,7 @@ describe('the pure layer stays pure', () => {
     // stops being discovered, whatever the total happens to be.
     expect(AUTO_DISCOVERED).toEqual(
       expect.arrayContaining([
+        'lib/compile/capabilities.ts',
         'lib/compile/compile.ts',
         'lib/compile/conditions.ts',
         'lib/compile/conflicts.ts',
@@ -136,5 +141,10 @@ describe('the guard itself', () => {
   it('does not mistake a url inside a string for a line comment', () => {
     const source = stripComments(`export const u = 'https://example.com/a';`);
     expect(source).toContain('https://example.com/a');
+  });
+
+  it('catches an import of the build-target constant', () => {
+    const source = stripComments(`import { TARGET } from '@/lib/target';`);
+    expect(source).toMatch(/from\s+['"]@\/lib\/target['"]/);
   });
 });

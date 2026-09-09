@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
@@ -51,6 +51,7 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     bridgeRequestError: null,
     onEnableBridge: vi.fn(),
     onDisableBridge: vi.fn(),
+    typeNote: null,
     ...over,
   };
 }
@@ -1163,5 +1164,48 @@ describe('the bridge row', () => {
     expect(box({ bridge: 'off', bridgeRequestError: { reason: 'declined' } })).toEqual(
       box({ bridge: 'off' }),
     );
+  });
+});
+
+describe('a target with no bridge', () => {
+  it('renders no bridge row at all — not a disabled one', () => {
+    // Absence first: the row is the only element with this test id, and a
+    // popup that drew a switch nobody can flip would be showing a control
+    // the user cannot reach.
+    renderRail({ bridge: 'unavailable' });
+    expect(screen.queryByTestId('bridgestate')).toBeNull();
+    expect(screen.queryByTestId('bridge-label')).toBeNull();
+    // The rest of the rail is untouched by the absence.
+    expect(screen.getByTestId('runstate')).toBeTruthy();
+    expect(screen.getByTestId('rail-section-types')).toBeTruthy();
+  });
+});
+
+describe('the request-type note', () => {
+  it('is absent when there is nothing to say', () => {
+    renderRail();
+    expect(screen.queryByTestId('type-note')).toBeNull();
+  });
+
+  it('shows the message on one line, coloured by severity, with the full text in the title', () => {
+    renderRail({
+      typeNote: { severity: 'warning', message: 'Not supported in Firefox: webbundle.' },
+    });
+    const note = screen.getByTestId('type-note');
+    expect(note.textContent).toBe('Not supported in Firefox: webbundle.');
+    expect(note.getAttribute('title')).toBe('Not supported in Firefox: webbundle.');
+    expect(note.getAttribute('data-severity')).toBe('warning');
+    expect(note.className).toContain('truncate');
+    expect(note.className).toContain('text-pending');
+
+    cleanup();
+    renderRail({
+      typeNote: {
+        severity: 'error',
+        message: 'Not supported in Firefox: webbundle, webtransport.',
+      },
+    });
+    expect(screen.getByTestId('type-note').getAttribute('data-severity')).toBe('error');
+    expect(screen.getByTestId('type-note').className).toContain('text-destructive');
   });
 });

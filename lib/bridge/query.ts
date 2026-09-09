@@ -4,7 +4,7 @@ import { originsForFilter, scopingHosts } from '@/lib/permissions/origins';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import type { SuppressionReason } from '@/lib/compile/suppression';
-import type { AppState, Diagnostic, Profile } from '@/lib/model/types';
+import type { AppState, Diagnostic, Profile, Target } from '@/lib/model/types';
 import type { RuleTally } from '@/lib/view/rules';
 
 /**
@@ -48,9 +48,9 @@ export interface StatusPayload {
   globalPause: boolean;
 }
 
-export function status(state: AppState): StatusPayload {
+export function status(state: AppState, target: Target): StatusPayload {
   const { profile, dropped } = resolveSingleProfile(state.profiles);
-  const compiled = compile(state);
+  const compiled = compile(state, target);
   // 보고하는 프로필의 진단만 태운다 — 팝업이 하는 것과 같다 (App.tsx 의
   // `allDiagnostics.filter((d) => d.profileId === active.id)`). 전부를 태우면
   // `byHost`·`scope` 에 이 payload 의 `profile` 이 아무 말도 하지 않는 규칙
@@ -87,14 +87,14 @@ export function status(state: AppState): StatusPayload {
     // 의 Known gaps 가 이 갭을 기록한다.
     tally: profile
       ? ruleTally(profile.headers, profile.id, routed.byRow, {
-          live: profile.enabled && !state.globalPause && !isSuppressed(profile),
+          live: profile.enabled && !state.globalPause && !isSuppressed(profile, target),
         })
       : null,
     // `filter.domains` 가 아니라 `scopingHosts` 다. all-sites 는 저장된
     // 목록을 지우지 않고 컴파일만 안 하므로, 목록을 직접 읽으면 all-sites
     // 프로필을 좁은 것으로 오판한다.
     scopingHosts: profile ? scopingHosts(profile.filter) : [],
-    suppression: profile ? suppressionReason(profile) : null,
+    suppression: profile ? suppressionReason(profile, target) : null,
     // 보고하는 프로필이 필요로 하는 것. `compiled.requiredOrigins` 는 모든
     // 프로필의 합집합이라, 화면에 없는 규칙 세트의 호스트까지 "이 프로필에
     // 필요하다" 고 말하게 된다. compile() 이 부르는 바로 그 함수를 부른다.

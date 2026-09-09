@@ -74,7 +74,7 @@ jobs:
       - run: pnpm test:packages
 
   e2e:
-    name: e2e (real Chrome, headers on the wire)
+    name: e2e (real Chrome and Firefox, headers on the wire)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -92,6 +92,11 @@ jobs:
       # `--with-deps` also on a cache hit: the system libs live outside the cache.
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps --no-shell chromium
+
+      # tests/e2e/firefox.spec.ts drives the runner's own Firefox — apt, from
+      # the Mozilla team PPA, not a snap — over Marionette. Printed so a failing
+      # log says which Firefox it was; the harness needs 138 or later.
+      - run: firefox --version
 
       - name: E2E tests
         run: xvfb-run -a pnpm test:e2e

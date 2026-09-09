@@ -2,7 +2,7 @@
 
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 中文 | [Español](README.es.md)
 
-在 Chrome 里增删改 HTTP 请求头和响应头。在你授权之前，它没有任何站点访问权限。
+在 Chrome 和 Firefox 里增删改 HTTP 请求头和响应头。在你授权之前，它没有任何站点访问权限。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 [![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
@@ -14,7 +14,7 @@
 
 ## 安装
 
-目前只支持 Chrome。Firefox 和 Safari 在计划中。
+Chrome 从商店安装，Firefox 直接加载构建 — 签名的 Firefox 发布是下一步。Safari 在计划中。
 
 ### Chrome 网上应用店
 
@@ -33,10 +33,17 @@
 ```bash
 corepack enable          # pnpm 来自 package.json 的 packageManager 字段
 pnpm install
-pnpm build               # → .output/chrome-mv3
+pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 ```
 
 用同样的方式加载 `.output/chrome-mv3`。
+
+### Firefox
+
+目前还没有签名的 Firefox 构建，正式版 Firefox 不会永久安装它。临时加载：`about:debugging`
+→ **This Firefox** → **Load Temporary Add-on** → `pnpm build` 之后的
+`.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在 Firefox 上提供 —
+见限制表。
 
 ## AI
 
@@ -176,6 +183,7 @@ Chrome 对一个它不会追加的请求头执行 `append`。这一行说明了�
 | 按站点的运行时授权 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | 标签页范围的规则 (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **不支持** |
 | 原生消息 (`runtime.connectNative`) | 29 | ✓ | 50 | 14（包裹应用） |
+| 代理桥接（HeaderLab 自有） | ✓ | ✓ | **无** — 事件页空闲时会关闭原生端口 | **无** |
 
 ## 架构
 

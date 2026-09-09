@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { status } from '@/lib/bridge/query';
 import { parseQuery, querySchema } from '@/lib/bridge/protocol';
 import { bootstrapProfile } from '@/lib/model/defaults';
-import type { AppState } from '@/lib/model/types';
+import type { AppState, HeaderRule, Profile } from '@/lib/model/types';
 
 const emptyState = (): AppState => ({
   version: 2,
@@ -11,6 +11,45 @@ const emptyState = (): AppState => ({
   profiles: [],
   theme: 'system',
 });
+
+// Copied from compile.test.ts, for the per-target test below only — that
+// file's own `state()`/`profile()` are not exported, and this file's
+// existing tests all build state inline from `bootstrapProfile()`.
+function header(over: Partial<HeaderRule> = {}): HeaderRule {
+  return {
+    id: 'h1',
+    enabled: true,
+    target: 'request',
+    operation: 'set',
+    name: 'X-Debug-Mode',
+    value: 'true',
+    ...over,
+  };
+}
+
+function profile(over: Partial<Profile> = {}): Profile {
+  return {
+    id: 'p1',
+    name: 'Local',
+    color: 'green',
+    enabled: true,
+    order: 0,
+    filter: {
+      mode: 'structured',
+      allSites: false,
+      domains: ['api.example.com'],
+      excludedDomains: [],
+      resourceTypes: ['xmlhttprequest'],
+    },
+    tabLock: { enabled: false, tabId: null, tabTitle: null },
+    headers: [header()],
+    ...over,
+  };
+}
+
+function state(over: Partial<AppState> = {}): AppState {
+  return { version: 1, profiles: [profile()], globalPause: false, theme: 'system', ...over };
+}
 
 describe('querySchema', () => {
   it('accepts the one query it declares', () => {
@@ -29,7 +68,7 @@ describe('querySchema', () => {
 
 describe('status', () => {
   it('reports an empty store without inventing a profile', () => {
-    const payload = status(emptyState());
+    const payload = status(emptyState(), 'chrome');
     expect(payload.profile).toBeNull();
     expect(payload.tally).toBeNull();
     expect(payload.scopingHosts).toEqual([]);
@@ -47,7 +86,7 @@ describe('status', () => {
     // all-sites 는 저장된 목록을 지우지 않고 컴파일만 안 한다. scopingHosts
     // 가 그 구분을 아는 유일한 술어이고, filter.domains 를 직접 읽으면
     // all-sites 프로필을 좁은 것으로 오판한다.
-    expect(status(state).scopingHosts).toEqual([]);
+    expect(status(state, 'chrome').scopingHosts).toEqual([]);
   });
 
   it('counts rules the way the popup counts them', () => {
@@ -75,7 +114,7 @@ describe('status', () => {
         },
       ],
     };
-    const { tally } = status(state);
+    const { tally } = status(state, 'chrome');
     expect(tally).not.toBeNull();
     expect(tally!.total).toBe(3);
     expect(tally!.off).toBe(1);
@@ -106,7 +145,7 @@ describe('status', () => {
         },
       ],
     };
-    const { tally } = status(state);
+    const { tally } = status(state, 'chrome');
     expect(tally).not.toBeNull();
     expect(tally!.total).toBe(1);
     expect(tally!.live).toBe(0);
@@ -145,7 +184,7 @@ describe('status', () => {
         },
       ],
     };
-    const payload = status(state);
+    const payload = status(state, 'chrome');
     // The suppression is reported, so the count contradicting it is visible
     // as a contradiction rather than merely wrong.
     expect(payload.suppression).toBe('no-scope');
@@ -169,7 +208,7 @@ describe('status', () => {
         },
       ],
     };
-    const payload = status(state);
+    const payload = status(state, 'chrome');
     // Nothing else in the payload says the set is off — `suppression` is
     // null, because a switched-off set is not suppressed — so a wrong count
     // here is a bare false claim about whether headers are being modified.
@@ -185,19 +224,24 @@ describe('status', () => {
   it('names the rule sets it is not reporting', () => {
     const first = bootstrapProfile();
     const second = { ...bootstrapProfile(), id: 'left-behind' };
-    const payload = status({
-      version: 2,
-      globalPause: false,
-      theme: 'system',
-      profiles: [first, second],
-    });
+    const payload = status(
+      {
+        version: 2,
+        globalPause: false,
+        theme: 'system',
+        profiles: [first, second],
+      },
+      'chrome',
+    );
     expect(payload.profile?.id).toBe(first.id);
     expect(payload.dropped).toEqual(['left-behind']);
   });
 
   it('reports no dropped rule sets when there is nothing to drop', () => {
-    expect(status(emptyState()).dropped).toEqual([]);
-    expect(status({ ...emptyState(), profiles: [bootstrapProfile()] }).dropped).toEqual([]);
+    expect(status(emptyState(), 'chrome').dropped).toEqual([]);
+    expect(status({ ...emptyState(), profiles: [bootstrapProfile()] }, 'chrome').dropped).toEqual(
+      [],
+    );
   });
 
   /**
@@ -227,12 +271,15 @@ describe('status', () => {
         },
       ],
     };
-    const payload = status({
-      version: 2,
-      globalPause: false,
-      theme: 'system',
-      profiles: [shown, hidden],
-    });
+    const payload = status(
+      {
+        version: 2,
+        globalPause: false,
+        theme: 'system',
+        profiles: [shown, hidden],
+      },
+      'chrome',
+    );
 
     const owners = (p: ReturnType<typeof status>) =>
       [
@@ -248,7 +295,10 @@ describe('status', () => {
     // passing on an empty set. Measured: they land in `byRow` (the unnamed
     // header) and `scope` (the unusable domain) — `scope` being exactly the
     // bucket `render.mjs` had no profile id to key by.
-    const alone = status({ version: 2, globalPause: false, theme: 'system', profiles: [hidden] });
+    const alone = status(
+      { version: 2, globalPause: false, theme: 'system', profiles: [hidden] },
+      'chrome',
+    );
     expect(owners(alone)).toEqual(['hidden', 'hidden']);
     expect(alone.diagnostics.scope).toHaveLength(1);
   });
@@ -267,19 +317,22 @@ describe('status', () => {
       id: 'hidden',
       filter: { ...bootstrapProfile().filter, domains: ['b.com'] },
     };
-    const payload = status({
-      version: 2,
-      globalPause: false,
-      theme: 'system',
-      profiles: [shown, hidden],
-    });
+    const payload = status(
+      {
+        version: 2,
+        globalPause: false,
+        theme: 'system',
+        profiles: [shown, hidden],
+      },
+      'chrome',
+    );
     expect(payload.requiredOrigins.some((o) => o.includes('b.com'))).toBe(false);
     expect(payload.requiredOrigins.every((o) => o.includes('a.com'))).toBe(true);
     expect(payload.requiredOrigins.length).toBeGreaterThan(0);
   });
 
   it('serialises the diagnostic maps as pairs so they survive JSON', () => {
-    const payload = status(emptyState());
+    const payload = status(emptyState(), 'chrome');
     expect(Array.isArray(payload.diagnostics.byRow)).toBe(true);
     expect(Array.isArray(payload.diagnostics.byHost)).toBe(true);
     // JSON.stringify(new Map()) 은 '{}' 다 — 지도를 그대로 실으면 소켓
@@ -288,6 +341,17 @@ describe('status', () => {
   });
 
   it('reports globalPause', () => {
-    expect(status({ ...emptyState(), globalPause: true }).globalPause).toBe(true);
+    expect(status({ ...emptyState(), globalPause: true }, 'chrome').globalPause).toBe(true);
+  });
+});
+
+describe('status — per target', () => {
+  it('reports no-resource-type on Firefox and nothing on Chrome for the same store', () => {
+    const s = state({
+      profiles: [profile({ filter: { ...profile().filter, resourceTypes: ['webbundle'] } })],
+    });
+    expect(status(s, 'firefox').suppression).toBe('no-resource-type');
+    expect(status(s, 'chrome').suppression).toBeNull();
+    expect(status(s, 'firefox').tally?.live).toBe(0);
   });
 });

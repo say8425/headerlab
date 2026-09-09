@@ -1,5 +1,6 @@
 import { browser, type Browser } from 'wxt/browser';
 import { compile } from '@/lib/compile/compile';
+import { TARGET } from '@/lib/target';
 import { getState } from '@/lib/storage/state';
 import { setSyncStatus, type SyncStatus } from '@/lib/storage/session';
 import { setToolbarIcon } from '@/lib/sync/icon';
@@ -68,7 +69,7 @@ export async function reconcile(): Promise<void> {
       do {
         rerunQueued = false;
         const state = await getState();
-        const result = compile(state);
+        const result = compile(state, TARGET);
         try {
           await syncRules(result);
         } catch (error) {

@@ -1,5 +1,6 @@
+import { supportedResourceTypes } from '@/lib/compile/capabilities';
 import { isValidDomain } from '@/lib/permissions/origins';
-import type { Profile } from '@/lib/model/types';
+import type { Profile, Target } from '@/lib/model/types';
 
 /**
  * A profile the compiler will not emit a rule for.
@@ -44,7 +45,14 @@ export type SuppressionReason =
   /** Nothing says where to apply: no site listed, and all-sites is off. */
   | 'no-scope'
   /** A listed site cannot be used, so the whole profile fails closed. */
-  | 'unusable-site';
+  | 'unusable-site'
+  /**
+   * No listed request type is one this browser's DNR knows, so there is no
+   * type condition to send: an empty list is rejected and an omitted key
+   * widens to every type but main_frame. Outranks all-sites, which empties
+   * the domain condition and says nothing about types.
+   */
+  | 'no-resource-type';
 
 /**
  * *Why* the compiler will not emit a rule, or `null` when it will.
@@ -64,7 +72,43 @@ export type SuppressionReason =
  * killed; it went when that could no longer happen (2026-08-20), and this
  * paragraph is here so the claim is not restored from a stale reading.
  */
-export function suppressionReason(profile: Profile): SuppressionReason | null {
+/**
+ * The target-dependent half of {@link suppressionReason}: whether this
+ * browser's DNR schema supports none of the profile's listed request types.
+ *
+ * Split out so a diagnostic that is only about the *domain* half — an
+ * `invalid-domain` message promising "skipped, neighbours still apply" —
+ * can ask that half on its own, without re-deriving it from `analyses` (a
+ * restatement `suppression.ts`'s own docblock forbids) and without silently
+ * picking up whichever reason `suppressionReason` returns first for reasons
+ * unrelated to domains. `suppressionReason` composes this with
+ * {@link scopeSuppression} and keeps the priority between them; this
+ * function alone says nothing about that priority.
+ */
+export function resourceTypeSuppression(
+  profile: Profile,
+  target: Target,
+): 'no-resource-type' | null {
+  const supported = supportedResourceTypes(target, profile.filter.resourceTypes);
+  // Decided here rather than trusting schema.ts's min(1): this is the last
+  // predicate before DNR, and conditions.ts drops types the same way it
+  // drops bad domains.
+  return supported.length === 0 ? 'no-resource-type' : null;
+}
+
+/**
+ * The target-free half of {@link suppressionReason}: whether the *domain*
+ * side of the profile leaves anything to scope a rule with. Unlike
+ * {@link resourceTypeSuppression}, this never depends on which browser is
+ * asking — a domain is either usable or it is not, on every target.
+ *
+ * Exists separately so `filterDiagnostics.ts` can ask specifically "is the
+ * domain list the reason this is dead" for its `invalid-domain` message,
+ * which must say "skipped, neighbours still apply" only when the domains are
+ * genuinely what killed the profile — not whenever `suppressionReason`
+ * returns non-null for an unrelated reason such as `'no-resource-type'`.
+ */
+export function scopeSuppression(profile: Profile): 'no-scope' | 'unusable-site' | null {
   const { allSites, domains, mode } = profile.filter;
 
   // All-sites carries no domain condition **on purpose**, which is the one
@@ -105,6 +149,17 @@ export function suppressionReason(profile: Profile): SuppressionReason | null {
   return null;
 }
 
-export function isSuppressed(profile: Profile): boolean {
-  return suppressionReason(profile) !== null;
+/**
+ * The composed answer, in priority order: a target's resource-type failure
+ * outranks anything the domain side has to say, because that mode empties
+ * the *type* condition, not the domain one — see `resourceTypeSuppression`'s
+ * own docblock. `compile.ts` and `audit.ts` ask this composed form; only
+ * `filterDiagnostics.ts` needs the two halves separately.
+ */
+export function suppressionReason(profile: Profile, target: Target): SuppressionReason | null {
+  return resourceTypeSuppression(profile, target) ?? scopeSuppression(profile);
+}
+
+export function isSuppressed(profile: Profile, target: Target): boolean {
+  return suppressionReason(profile, target) !== null;
 }

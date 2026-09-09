@@ -40,7 +40,7 @@ function state(over: Partial<AppState> = {}): AppState {
 
 describe('compile', () => {
   it('emits exactly one rule per enabled profile', () => {
-    const out = compile(state());
+    const out = compile(state(), 'chrome');
     expect(out.dynamic).toHaveLength(1);
     expect(out.session).toHaveLength(0);
   });
@@ -53,14 +53,14 @@ describe('compile', () => {
         header({ id: 'c', target: 'response', name: 'Cache-Control', value: 'no-store' }),
       ],
     });
-    const out = compile(state({ profiles: [p] }));
+    const out = compile(state({ profiles: [p] }), 'chrome');
     expect(out.dynamic).toHaveLength(1);
     expect(out.dynamic[0]!.action.requestHeaders).toHaveLength(2);
     expect(out.dynamic[0]!.action.responseHeaders).toHaveLength(1);
   });
 
   it('produces a complete, well-formed rule', () => {
-    expect(compile(state()).dynamic[0]!).toEqual({
+    expect(compile(state(), 'chrome').dynamic[0]!).toEqual({
       id: 1,
       priority: 1,
       condition: {
@@ -76,7 +76,7 @@ describe('compile', () => {
 
   it('routes a tab-locked profile into session with tabIds', () => {
     const p = profile({ tabLock: { enabled: true, tabId: 42, tabTitle: 'Checkout' } });
-    const out = compile(state({ profiles: [p] }));
+    const out = compile(state({ profiles: [p] }), 'chrome');
     expect(out.dynamic).toHaveLength(0);
     expect(out.session).toHaveLength(1);
     expect(out.session[0]!.condition.tabIds).toEqual([42]);
@@ -85,11 +85,13 @@ describe('compile', () => {
 
   it('skips a profile whose enabled headers compile to nothing', () => {
     const p = profile({ headers: [header({ enabled: false })] });
-    expect(compile(state({ profiles: [p] })).dynamic).toHaveLength(0);
+    expect(compile(state({ profiles: [p] }), 'chrome').dynamic).toHaveLength(0);
   });
 
   it('skips disabled profiles', () => {
-    expect(compile(state({ profiles: [profile({ enabled: false })] })).dynamic).toHaveLength(0);
+    expect(
+      compile(state({ profiles: [profile({ enabled: false })] }), 'chrome').dynamic,
+    ).toHaveLength(0);
   });
 
   it('suppresses a profile whose only domain is non-ASCII, rather than matching every site', () => {
@@ -102,7 +104,7 @@ describe('compile', () => {
         resourceTypes: ['xmlhttprequest'],
       },
     });
-    const out = compile(state({ profiles: [p] }));
+    const out = compile(state({ profiles: [p] }), 'chrome');
     expect(out.dynamic).toHaveLength(0);
     expect(out.session).toHaveLength(0);
   });
@@ -117,7 +119,7 @@ describe('compile', () => {
         resourceTypes: ['xmlhttprequest'],
       },
     });
-    const out = compile(state({ profiles: [p] }));
+    const out = compile(state({ profiles: [p] }), 'chrome');
     // Was `toHaveLength(0)`: one bad entry used to fail the profile closed.
     // It now scopes to what is usable — and the condition is asserted, not
     // just the count, because a rule that compiled with the bad domain still
@@ -141,7 +143,7 @@ describe('compile', () => {
       },
     });
     const good = profile({ id: 'good', order: 1 });
-    const out = compile(state({ profiles: [bad, good] }));
+    const out = compile(state({ profiles: [bad, good] }), 'chrome');
     expect(out.dynamic).toHaveLength(1);
     expect(out.dynamic[0]!.condition.requestDomains).toEqual(['api.example.com']);
   });
@@ -156,6 +158,7 @@ describe('compile', () => {
       state({
         profiles: [profile({ filter: { ...base.filter, allSites: true, domains: [] } })],
       }),
+      'chrome',
     );
     expect(result.dynamic).toHaveLength(1);
     expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
@@ -177,6 +180,7 @@ describe('compile', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.dynamic[0]!.condition.requestDomains).toBeUndefined();
     expect(result.requiredOrigins).toEqual(['<all_urls>']);
@@ -192,6 +196,7 @@ describe('compile', () => {
       state({
         profiles: [profile({ filter: { ...base.filter, allSites: false, domains: [] } })],
       }),
+      'chrome',
     );
     expect(result.dynamic).toEqual([]);
     // Said out loud, and calmly — by the readout, not by a diagnostic: the
@@ -204,13 +209,13 @@ describe('compile', () => {
   });
 
   it('emits no rules at all when globalPause is on', () => {
-    const out = compile(state({ globalPause: true }));
+    const out = compile(state({ globalPause: true }), 'chrome');
     expect(out.dynamic).toHaveLength(0);
     expect(out.session).toHaveLength(0);
   });
 
   it('still reports requiredOrigins while paused, so the UI stays informative', () => {
-    expect(compile(state({ globalPause: true })).requiredOrigins).toEqual([
+    expect(compile(state({ globalPause: true }), 'chrome').requiredOrigins).toEqual([
       '*://*.api.example.com/*',
     ]);
   });
@@ -220,6 +225,7 @@ describe('compile', () => {
       state({
         profiles: [profile({ id: 'a', order: 0 }), profile({ id: 'b', order: 1 })],
       }),
+      'chrome',
     );
     expect(out.requiredOrigins).toEqual(['*://*.api.example.com/*']);
   });
@@ -229,23 +235,24 @@ describe('compile', () => {
       state({
         profiles: [profile({ id: 'a', order: 0 }), profile({ id: 'b', order: 1 })],
       }),
+      'chrome',
     );
     expect(out.dynamic[0]!.priority).toBeGreaterThan(out.dynamic[1]!.priority);
   });
 
   it('returns no diagnostics for a clean default profile', () => {
-    expect(compile(state()).diagnostics).toEqual([]);
+    expect(compile(state(), 'chrome').diagnostics).toEqual([]);
   });
 
   it('is pure — the same input yields a deeply equal result', () => {
     const s = state();
-    expect(compile(s)).toEqual(compile(s));
+    expect(compile(s, 'chrome')).toEqual(compile(s, 'chrome'));
   });
 
   it('does not mutate its input', () => {
     const s = state();
     const snapshot = structuredClone(s);
-    compile(s);
+    compile(s, 'chrome');
     expect(s).toEqual(snapshot);
   });
 });
@@ -260,6 +267,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     // Exact length, not just toContain: a duplicate push of the same kind
     // (e.g. validateHeaders called twice for this profile) would slip past a
@@ -279,6 +287,7 @@ describe('compile emits diagnostics', () => {
       state({
         profiles: [profile({ filter: { ...base.filter, domains: ['a b.com'] } })],
       }),
+      'chrome',
     );
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0]?.kind).toBe('invalid-domain');
@@ -304,6 +313,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     // Exact length pins detectConflicts being called once, outside the
     // per-profile loop — calling it once per profile would duplicate this
@@ -329,6 +339,7 @@ describe('compile emits diagnostics', () => {
         globalPause: true,
         profiles: [profile({ headers: [header({ name: '' })] })],
       }),
+      'chrome',
     );
     expect(result.dynamic).toHaveLength(0);
     expect(result.diagnostics).toHaveLength(1);
@@ -348,6 +359,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     // The rule now goes out, scoped to the usable host — that is the fix.
     // What must NOT change is that the dropped entry is still said out loud:
@@ -380,6 +392,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.requiredOrigins).toEqual(['*://*.api.example.com/*']);
   });
@@ -397,6 +410,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.requiredOrigins).toEqual(['*://*.www.musinsa.com/*']);
     expect(result.dynamic).toHaveLength(1);
@@ -415,6 +429,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.requiredOrigins).toEqual([]);
   });
@@ -446,6 +461,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.diagnostics).toEqual([
       {
@@ -474,6 +490,7 @@ describe('compile emits diagnostics', () => {
           }),
         ],
       }),
+      'chrome',
     );
     expect(result.dynamic).toHaveLength(0);
     expect(result.diagnostics).toEqual([
@@ -500,7 +517,7 @@ describe('compile emits diagnostics', () => {
         header({ id: 'good', name: 'X-Ok', operation: 'set' }),
       ],
     });
-    const result = compile(state({ profiles: [p] }));
+    const result = compile(state({ profiles: [p] }), 'chrome');
     expect(result.diagnostics.map((d) => d.kind)).toEqual(['append-not-allowed']);
     expect(result.dynamic).toHaveLength(1);
     expect(result.dynamic[0]!.action.requestHeaders).toEqual([
@@ -515,7 +532,7 @@ describe('compile emits diagnostics', () => {
         header({ id: 'second', name: 'X-Dup', operation: 'set', value: 'b' }),
       ],
     });
-    const result = compile(state({ profiles: [p] }));
+    const result = compile(state({ profiles: [p] }), 'chrome');
     expect(result.diagnostics.map((d) => d.kind)).toEqual(['duplicate-header']);
     expect(result.dynamic[0]!.action.requestHeaders).toEqual([
       { header: 'X-Dup', operation: 'set', value: 'a' },
@@ -531,7 +548,7 @@ describe('compile emits diagnostics', () => {
         header({ id: 'good', name: 'X-Ok', operation: 'set' }),
       ],
     });
-    const result = compile(state({ profiles: [p] }));
+    const result = compile(state({ profiles: [p] }), 'chrome');
     expect(result.dynamic).toHaveLength(1);
   });
 
@@ -542,7 +559,7 @@ describe('compile emits diagnostics', () => {
       headers: [header({ id: 'bad', name: 'X-Custom', operation: 'append' })],
     });
     const good = profile({ id: 'good', order: 1 });
-    const result = compile(state({ profiles: [bad, good] }));
+    const result = compile(state({ profiles: [bad, good] }), 'chrome');
     // The bad profile's own row compiles to nothing, so it never emits a
     // rule at all — only the good profile's does.
     expect(result.dynamic).toHaveLength(1);
@@ -566,7 +583,7 @@ describe('compile emits diagnostics', () => {
       headers: [header({ name: 'X-Custom', operation: 'append' })], // id: 'h1'
     });
     const good = profile({ id: 'pA', order: 1, headers: [header()] }); // also id: 'h1'
-    const result = compile(state({ profiles: [bad, good] }));
+    const result = compile(state({ profiles: [bad, good] }), 'chrome');
 
     // The diagnostic is real and belongs to the bad profile...
     expect(result.diagnostics).toHaveLength(1);
@@ -594,7 +611,36 @@ describe('compile emits diagnostics', () => {
             }),
           ],
         }),
+        'chrome',
       ).diagnostics,
     ).toEqual([]);
+  });
+});
+
+describe('compile — per target', () => {
+  it('emits no rule on Firefox for a profile whose only types it cannot take, and says so', () => {
+    const s = state({
+      profiles: [profile({ filter: { ...profile().filter, resourceTypes: ['webbundle'] } })],
+    });
+    const result = compile(s, 'firefox');
+    expect(result.dynamic).toEqual([]);
+    expect(result.diagnostics.map((d) => [d.kind, d.severity])).toEqual([
+      ['unsupported-resource-type', 'error'],
+    ]);
+    // The identical state compiles on Chrome: the difference is the target, nothing else.
+    expect(compile(s, 'chrome').dynamic).toHaveLength(1);
+  });
+
+  it('sends Firefox a narrowed rule, with a warning, when some types survive', () => {
+    const s = state({
+      profiles: [
+        profile({
+          filter: { ...profile().filter, resourceTypes: ['webbundle', 'xmlhttprequest'] },
+        }),
+      ],
+    });
+    const result = compile(s, 'firefox');
+    expect(result.dynamic.map((r) => r.condition.resourceTypes)).toEqual([['xmlhttprequest']]);
+    expect(result.diagnostics.map((d) => d.severity)).toEqual(['warning']);
   });
 });

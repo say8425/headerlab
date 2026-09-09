@@ -76,8 +76,12 @@ export interface ScopeRailProps {
    * is still what the documents send people into, and #60 records that
    * nothing the popup offers re-arms the connect budget once it has been
    * spent this way.
+   *
+   * `unavailable` is a build with no bridge at all (Firefox: `hasBridge(TARGET)`
+   * is false). Not a state of the bridge — the row is not rendered, because a
+   * switch nobody can flip is a control the user cannot reach.
    */
-  bridge: 'unknown' | 'off' | 'idle' | 'live';
+  bridge: 'unknown' | 'off' | 'idle' | 'live' | 'unavailable';
   /** ISO timestamp of the last command applied through the bridge, or null. */
   bridgeLastCommandAt: string | null;
   /** Chrome's own message from the last failed connect, or null. */
@@ -95,6 +99,8 @@ export interface ScopeRailProps {
   bridgeRequestError: { reason: 'declined' } | { reason: 'error'; message: string } | null;
   onEnableBridge: () => void;
   onDisableBridge: () => void;
+  /** The `unsupported-resource-type` diagnostic for this rule set, or null — see TypeChecklist. */
+  typeNote: { severity: 'error' | 'warning'; message: string } | null;
 }
 
 /** A rail section's heading: "Sites 2", "Request types 3 of 8". */
@@ -231,7 +237,7 @@ function bridgeTitle(
   // extension, and an interpreter it cannot start (measured), so translating
   // it into one of the three would be a guess presented as a diagnosis.
   if (unreachable) return `Run headerlab bridge install. ${bridgeError}`;
-  if (bridge === 'unknown') return null;
+  if (bridge === 'unknown' || bridge === 'unavailable') return null;
   if (bridge === 'off') {
     return 'The agent bridge is off. Turn the switch on to grant Chrome’s nativeMessaging permission, which lets a CLI reach this extension.';
   }
@@ -294,6 +300,7 @@ export function ScopeRail({
   bridgeRequestError,
   onEnableBridge,
   onDisableBridge,
+  typeNote,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
 
@@ -345,7 +352,7 @@ export function ScopeRail({
   const bridgeState =
     bridge === 'live'
       ? BRIDGE_STATE.live
-      : bridge === 'unknown'
+      : bridge === 'unknown' || bridge === 'unavailable'
         ? null
         : bridge === 'off'
           ? BRIDGE_STATE.off
@@ -463,13 +470,16 @@ export function ScopeRail({
         {/* `relative` for the `bridge-detail` span below it — its
             `inset-x-0` has to resolve against this row, the parent the e2e
             width guard compares it with, not against the viewport. */}
-        <div
-          className="relative mt-1 flex h-5 items-center gap-[7px]"
-          data-testid="bridgestate"
-          data-bridge={bridge}
-          {...(bridgeRequestError === null ? {} : { 'data-request': bridgeRequestError.reason })}
-        >
-          {/* Colour only when a port is actually open, plus the pending
+        {/* No row on a build with no bridge (Firefox, spec §9): the 21px it
+            held returns to the rail and is deliberately left unspent. */}
+        {bridge === 'unavailable' ? null : (
+          <div
+            className="relative mt-1 flex h-5 items-center gap-[7px]"
+            data-testid="bridgestate"
+            data-bridge={bridge}
+            {...(bridgeRequestError === null ? {} : { 'data-request': bridgeRequestError.reason })}
+          >
+            {/* Colour only when a port is actually open, plus the pending
               (amber) borrow below for `bridgeUnreachable` — incomplete
               rather than wrong, the same reading that keeps a pending site
               row out of the error palette. `unknown` gets the slot with no
@@ -483,20 +493,20 @@ export function ScopeRail({
               second filled tone because `box-sizing: border-box` is global,
               so the 6px box wears a 1px ring and a transparent middle at no
               cost to the geometry. */}
-          <span
-            className={`size-1.5 shrink-0 rounded-full ${
-              bridge === 'live'
-                ? 'bg-live'
-                : bridge === 'unknown'
-                  ? 'bg-transparent'
-                  : // `bridgeUnreachable` implies `idle`, so it is not repeated here.
-                    bridge === 'idle' || bridgeRequestError !== null
-                    ? 'border border-pending bg-transparent'
-                    : 'border border-muted-foreground bg-transparent'
-            }`}
-            aria-hidden="true"
-          />
-          {/* `title` is where the detail goes, not a second box: Chrome
+            <span
+              className={`size-1.5 shrink-0 rounded-full ${
+                bridge === 'live'
+                  ? 'bg-live'
+                  : bridge === 'unknown'
+                    ? 'bg-transparent'
+                    : // `bridgeUnreachable` implies `idle`, so it is not repeated here.
+                      bridge === 'idle' || bridgeRequestError !== null
+                      ? 'border border-pending bg-transparent'
+                      : 'border border-muted-foreground bg-transparent'
+              }`}
+              aria-hidden="true"
+            />
+            {/* `title` is where the detail goes, not a second box: Chrome
               reports the identical string for a missing host manifest, a
               manifest naming a different extension, and an interpreter it
               cannot start (measured) — the string is the least actionable
@@ -511,15 +521,15 @@ export function ScopeRail({
               of it and the state slot beside it takes 47.48px. The choice of
               word for the unreachable state moved with the budget and is
               argued at {@link BRIDGE_STATE}, against the smaller number. */}
-          <span
-            className="truncate text-[12px] leading-4 font-semibold text-foreground"
-            id="bridge-label"
-            data-testid="bridge-label"
-            {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
-          >
-            {BRIDGE_NAME}
-          </span>
-          {/* The whole report, in the one place every user can reach. It
+            <span
+              className="truncate text-[12px] leading-4 font-semibold text-foreground"
+              id="bridge-label"
+              data-testid="bridge-label"
+              {...(bridgeRowTitle === null ? {} : { title: bridgeRowTitle })}
+            >
+              {BRIDGE_NAME}
+            </span>
+            {/* The whole report, in the one place every user can reach. It
               used to live only in the label's `title` above, which a pointer
               reaches by hovering and nothing else reaches at all — and the
               `aria-describedby` below pointed at that label, which computes
@@ -534,10 +544,10 @@ export function ScopeRail({
               state word, so the dot's colour is never the only voice for
               it. The row's `relative` (below) is what the span's `inset-x-0`
               resolves against. */}
-          <span id="bridge-detail" data-testid="bridge-detail" className={VISUALLY_HIDDEN}>
-            {bridgeDetail}
-          </span>
-          {/* The state, in space this row already had. It REPLACES the `flex-1`
+            <span id="bridge-detail" data-testid="bridge-detail" className={VISUALLY_HIDDEN}>
+              {bridgeDetail}
+            </span>
+            {/* The state, in space this row already had. It REPLACES the `flex-1`
               spacer rather than joining it, so the row gains no box and no
               gap — this span IS the flex item. Its x is the same in every
               state, and its width in every state that renders the switch; in
@@ -554,40 +564,41 @@ export function ScopeRail({
               `aria-hidden` because `bridge-detail` already says this word to
               the switch's description, at the length that has room for the
               whole sentence. Announcing both would say the state twice. */}
-          <span
-            id="bridge-state"
-            data-testid="bridge-state"
-            aria-hidden="true"
-            className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-muted-foreground"
-          >
-            {bridgeState === null ? '' : bridgeState.shown}
-          </span>
-          {bridge === 'unknown' ? null : (
-            <Switch
-              size="sm"
-              // Named by the element that paints the name, so the two cannot
-              // drift: the accessible name is byte-identical to the visible
-              // text. It was `aria-label={... 'Enable the agent bridge' :
-              // 'Disable the agent bridge'}`, which was wrong twice over — it
-              // named an action where `role="switch"` already conveys one and
-              // `aria-checked` already carries the state, so a screen reader
-              // read "Disable the agent bridge, switch, on": two words in one
-              // utterance pointing opposite ways. It was also the last
-              // "Enable" in a project whose popup has no such control.
-              aria-labelledby="bridge-label"
-              // The report, and only the report. `bridge-label` came out of
-              // this list when it became the name above: keeping it would
-              // open every description with the name it had just been given.
-              // `bridge-detail` resolves to an element really in this
-              // document — see the detail span above for why pointing at a
-              // `title`-bearing element alone announces nothing.
-              aria-describedby="bridge-detail"
-              checked={bridge !== 'off'}
-              onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
-              className={SWITCH_CLASS}
-            />
-          )}
-        </div>
+            <span
+              id="bridge-state"
+              data-testid="bridge-state"
+              aria-hidden="true"
+              className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-muted-foreground"
+            >
+              {bridgeState === null ? '' : bridgeState.shown}
+            </span>
+            {bridge === 'unknown' ? null : (
+              <Switch
+                size="sm"
+                // Named by the element that paints the name, so the two cannot
+                // drift: the accessible name is byte-identical to the visible
+                // text. It was `aria-label={... 'Enable the agent bridge' :
+                // 'Disable the agent bridge'}`, which was wrong twice over — it
+                // named an action where `role="switch"` already conveys one and
+                // `aria-checked` already carries the state, so a screen reader
+                // read "Disable the agent bridge, switch, on": two words in one
+                // utterance pointing opposite ways. It was also the last
+                // "Enable" in a project whose popup has no such control.
+                aria-labelledby="bridge-label"
+                // The report, and only the report. `bridge-label` came out of
+                // this list when it became the name above: keeping it would
+                // open every description with the name it had just been given.
+                // `bridge-detail` resolves to an element really in this
+                // document — see the detail span above for why pointing at a
+                // `title`-bearing element alone announces nothing.
+                aria-describedby="bridge-detail"
+                checked={bridge !== 'off'}
+                onCheckedChange={(on) => (on ? onEnableBridge() : onDisableBridge())}
+                className={SWITCH_CLASS}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* A failed reconcile means nothing is applying, which contradicts the
@@ -1012,7 +1023,7 @@ export function ScopeRail({
           </span>
         </div>
         <div className="mt-1.5 px-3">
-          <TypeChecklist selected={resourceTypes} onToggle={onToggleType} />
+          <TypeChecklist selected={resourceTypes} onToggle={onToggleType} note={typeNote} />
         </div>
       </div>
     </aside>

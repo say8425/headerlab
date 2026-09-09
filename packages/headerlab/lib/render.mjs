@@ -183,6 +183,7 @@ function renderSiteList(payload) {
 const SUPPRESSION_WORDS = {
   'no-scope': 'no site is set, and all-sites is off',
   'unusable-site': 'a listed site cannot be used, so the whole rule set fails closed',
+  'no-resource-type': 'no request type this browser supports is selected',
 };
 
 function renderStatus(payload, color) {

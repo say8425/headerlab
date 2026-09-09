@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
+import { hasBridge } from '@/lib/compile/capabilities';
 import { refreshBridge } from '@/lib/bridge/port';
+import { TARGET } from '@/lib/target';
 import { stateItem } from '@/lib/storage/state';
 import { reconcile } from '@/lib/sync/ruleSync';
 
@@ -28,14 +30,19 @@ export default defineBackground(() => {
 
   // Every trigger funnels into the same idempotent reconcile.
   run();
-  syncBridge();
   browser.runtime.onStartup.addListener(run);
-  browser.runtime.onStartup.addListener(syncBridge);
   browser.runtime.onInstalled.addListener(run);
-  browser.runtime.onInstalled.addListener(syncBridge);
   browser.permissions.onAdded.addListener(run);
-  browser.permissions.onAdded.addListener(syncBridge);
   browser.permissions.onRemoved.addListener(run);
-  browser.permissions.onRemoved.addListener(syncBridge);
   stateItem.watch(run);
+
+  // A target with no bridge has no permission to probe and no port to open;
+  // running the adapter there would write a `bridgeStatus` record about a
+  // bridge that cannot exist.
+  if (!hasBridge(TARGET)) return;
+  syncBridge();
+  browser.runtime.onStartup.addListener(syncBridge);
+  browser.runtime.onInstalled.addListener(syncBridge);
+  browser.permissions.onAdded.addListener(syncBridge);
+  browser.permissions.onRemoved.addListener(syncBridge);
 });

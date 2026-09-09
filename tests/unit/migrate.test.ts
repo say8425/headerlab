@@ -72,7 +72,7 @@ const V1_SCOPED_RULE: DnrRule = {
 
 /** Migrate, validate as this build would on read, then compile. */
 function rulesAfterUpgrade(stored: unknown): DnrRule[] {
-  return compile(parseAppState(migrateToV2(stored))).dynamic;
+  return compile(parseAppState(migrateToV2(stored)), 'chrome').dynamic;
 }
 
 describe('upgrading a v1 store', () => {

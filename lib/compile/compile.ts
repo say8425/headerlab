@@ -6,7 +6,7 @@ import { allocate } from '@/lib/compile/priority';
 import { isSuppressed } from '@/lib/compile/suppression';
 import { hasRowError, rowKey, validateHeaders } from '@/lib/compile/validate';
 import { originsForFilter } from '@/lib/permissions/origins';
-import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/types';
+import type { AppState, CompileResult, Diagnostic, DnrRule, Target } from '@/lib/model/types';
 
 /**
  * Turns application state into declarativeNetRequest rules.
@@ -16,7 +16,7 @@ import type { AppState, CompileResult, Diagnostic, DnrRule } from '@/lib/model/t
  * and action.responseHeaders are arrays, so a profile's whole header set shares
  * a single rule and the 5,000 unsafe-dynamic-rule ceiling never binds.
  */
-export function compile(state: AppState): CompileResult {
+export function compile(state: AppState, target: Target): CompileResult {
   const dynamic: DnrRule[] = [];
   const session: DnrRule[] = [];
   const diagnostics: Diagnostic[] = [];
@@ -31,9 +31,9 @@ export function compile(state: AppState): CompileResult {
     // Diagnosed regardless of globalPause — see below — but never for a
     // disabled profile: the user turning a profile off means they are not
     // thinking about it right now, so a complaint about it would be noise.
-    diagnostics.push(...validateHeaders(profile), ...validateFilter(profile));
+    diagnostics.push(...validateHeaders(profile, target), ...validateFilter(profile, target));
   }
-  diagnostics.push(...detectConflicts(state.profiles));
+  diagnostics.push(...detectConflicts(state.profiles, target));
 
   // Grouped once by profile *and* row id — see `rowKey`'s own docblock —
   // and reused for every profile/allocation below. This is the one place
@@ -75,13 +75,14 @@ export function compile(state: AppState): CompileResult {
       // condition at all, which DNR matches against every site. The pairing,
       // and the three other modules that must agree with it, are in
       // lib/compile/suppression.ts.
-      if (isSuppressed(profile)) continue;
+      if (isSuppressed(profile, target)) continue;
 
       const rule: DnrRule = {
         id: alloc.ruleId,
         priority: alloc.priority,
         condition: filterToCondition(
           profile.filter,
+          target,
           alloc.scope === 'session' ? profile.tabLock.tabId : undefined,
         ),
         action: { type: 'modifyHeaders', ...action },

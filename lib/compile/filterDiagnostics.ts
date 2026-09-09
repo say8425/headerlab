@@ -1,6 +1,7 @@
-import { suppressionReason } from '@/lib/compile/suppression';
+import { BROWSER_NAME, unsupportedResourceTypes } from '@/lib/compile/capabilities';
+import { scopeSuppression, suppressionReason } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
-import type { Diagnostic, Profile } from '@/lib/model/types';
+import type { Diagnostic, Profile, Target } from '@/lib/model/types';
 
 // Differs from origins.ts's ASCII_ONLY (`+`, rejects empty): `*` here because
 // filter.pathPattern can be defined but empty, and an empty pathPattern must
@@ -32,7 +33,7 @@ const REGEX_MAX_SOURCE = 2048;
  * applied" over an extension applying to every site would be the screen
  * contradicting itself.
  */
-export function validateFilter(profile: Profile): Diagnostic[] {
+export function validateFilter(profile: Profile, target: Target): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const { filter } = profile;
 
@@ -61,7 +62,24 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // severity as one applying to everything. The two now split by reason:
   //   'unusable-site' -> here, an error, in either mode
   //   'no-scope'      -> nothing at all any more; the readout says it (below)
-  const reason = suppressionReason(profile);
+  const reason = suppressionReason(profile, target);
+
+  // Said before the domain diagnostics, because it outranks them in
+  // `suppressionReason`. Raised in every mode: all-sites drops the domain
+  // list, not the type list. `error` exactly when the composed suppression
+  // reason is this one — asked of the composed answer, not the domain half
+  // alone, because this diagnostic is about the type list and `reason`
+  // already carries the priority between the two halves correctly.
+  const dropped = unsupportedResourceTypes(target, filter.resourceTypes);
+  if (dropped.length > 0) {
+    diagnostics.push({
+      kind: 'unsupported-resource-type',
+      severity: reason === 'no-resource-type' ? 'error' : 'warning',
+      profileId: profile.id,
+      message: `Not supported in ${BROWSER_NAME[target]}: ${dropped.join(', ')}.`,
+    });
+  }
+
   const bad = analyses.filter((a) => !a.valid).map((a) => `"${a.raw}"`);
   // Raised for **any** unusable entry now, not only for one that kills the
   // profile. Since 2026-08-20 a bad entry is dropped from the scope and its
@@ -78,7 +96,15 @@ export function validateFilter(profile: Profile): Diagnostic[] {
   // entry is still marked broken on its own row, which is where a value the
   // user can edit belongs.
   if (bad.length > 0 && !filter.allSites) {
-    const fatal = reason === 'unusable-site';
+    // Asked of `scopeSuppression`, the domain-only half — never of the
+    // composed `reason` above. This diagnostic is about the domain list, so
+    // its "fatal or not" must answer for the domain list alone: composed
+    // `reason` can be `'no-resource-type'` while the domain list still has a
+    // usable entry, and reading that as fatal here would say "skipped,
+    // neighbours still apply" is false when in fact nothing is applying
+    // (because of the *type* list) — or the reverse, calling this fatal when
+    // the type list, not the domain list, is what killed the profile.
+    const fatal = scopeSuppression(profile) === 'unusable-site';
     diagnostics.push({
       kind: 'invalid-domain',
       severity: fatal ? 'error' : 'warning',
@@ -122,14 +148,14 @@ export function validateFilter(profile: Profile): Diagnostic[] {
         kind: 'regex-unsupported',
         severity: 'error',
         profileId: profile.id,
-        message: 'Chrome only accepts ASCII characters in a regex filter.',
+        message: 'Only ASCII characters are accepted in a regex filter.',
       });
     } else if (regex.length > REGEX_MAX_SOURCE) {
       diagnostics.push({
         kind: 'regex-unsupported',
         severity: 'error',
         profileId: profile.id,
-        message: 'This regex is too large. Chrome caps a compiled pattern at 2KB.',
+        message: 'This regex is too large. A compiled pattern is capped at 2KB.',
       });
     }
     // A regex filter is its own condition — an empty domain list is expected.
@@ -141,7 +167,7 @@ export function validateFilter(profile: Profile): Diagnostic[] {
       kind: 'regex-unsupported',
       severity: 'error',
       profileId: profile.id,
-      message: 'Chrome only accepts ASCII characters in a path pattern.',
+      message: 'Only ASCII characters are accepted in a path pattern.',
     });
   }
 

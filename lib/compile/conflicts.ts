@@ -1,6 +1,6 @@
 import { isSuppressed } from '@/lib/compile/suppression';
 import { scopingHosts } from '@/lib/permissions/origins';
-import type { Diagnostic, HeaderRule, Operation, Profile } from '@/lib/model/types';
+import type { Diagnostic, HeaderRule, Operation, Profile, Target } from '@/lib/model/types';
 
 /**
  * What Chromium still allows once an operation has been applied to a header
@@ -48,7 +48,7 @@ function mayOverlap(a: Profile, b: Profile): boolean {
 }
 
 /** Conflicts across enabled profiles, in the order the profiles compile. */
-export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
+export function detectConflicts(profiles: readonly Profile[], target: Target): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   // Sorted by `order`, exactly as lib/compile/priority.ts's `allocate` sorts —
@@ -68,7 +68,7 @@ export function detectConflicts(profiles: readonly Profile[]): Diagnostic[] {
   // not applied is a contradiction, and design §5.4 treats one false positive
   // on a badge as enough for users to stop trusting every badge.
   const active = [...profiles]
-    .filter((p) => p.enabled && !isSuppressed(p))
+    .filter((p) => p.enabled && !isSuppressed(p, target))
     .sort((a, b) => a.order - b.order);
 
   for (let i = 0; i < active.length; i += 1) {

@@ -30,23 +30,29 @@ function p(
 
 describe('detectConflicts', () => {
   it('is quiet for one profile', () => {
-    expect(detectConflicts([p('a', 'A', ['x.com'], [{}])])).toEqual([]);
+    expect(detectConflicts([p('a', 'A', ['x.com'], [{}])], 'chrome')).toEqual([]);
   });
 
   it('is quiet when domains do not overlap', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
   it('flags the same header on overlapping domains, naming the winner', () => {
-    const d = detectConflicts([
-      p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0),
-      p('b', 'Staging', ['x.com'], [{ name: 'Authorization' }], 1),
-    ]);
+    const d = detectConflicts(
+      [
+        p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0),
+        p('b', 'Staging', ['x.com'], [{ name: 'Authorization' }], 1),
+      ],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('profile-conflict');
     expect(d[0]?.severity).toBe('warning');
@@ -57,27 +63,36 @@ describe('detectConflicts', () => {
 
   it('treats append-after-append as compatible — Chrome allows it', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'append' }], 0),
-        p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'append' }], 0),
+          p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
   it('treats append after set as compatible within one extension', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'set' }], 0),
-        p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'set' }], 0),
+          p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
   it('flags anything after remove — remove allows nothing', () => {
-    const d = detectConflicts([
-      p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'remove' }], 0),
-      p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
-    ]);
+    const d = detectConflicts(
+      [
+        p('a', 'A', ['x.com'], [{ name: 'Accept', operation: 'remove' }], 0),
+        p('b', 'B', ['x.com'], [{ name: 'Accept', operation: 'append' }], 1),
+      ],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.profileId).toBe('b');
   });
@@ -86,7 +101,7 @@ describe('detectConflicts', () => {
     const a = p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0);
     const b = p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1);
     const bRegex: Profile = { ...b, filter: { ...b.filter, mode: 'regex', regex: '^https://' } };
-    expect(detectConflicts([a, bRegex])).toHaveLength(1);
+    expect(detectConflicts([a, bRegex], 'chrome')).toHaveLength(1);
   });
 
   it('treats an all-sites profile as overlapping everything', () => {
@@ -95,10 +110,13 @@ describe('detectConflicts', () => {
     // empty list with all-sites off is suppressed and never gets here at all.
     const a = p('a', 'A', [], [{ name: 'Authorization' }], 0);
     expect(
-      detectConflicts([
-        { ...a, filter: { ...a.filter, allSites: true } },
-        p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          { ...a, filter: { ...a.filter, allSites: true } },
+          p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toHaveLength(1);
   });
 
@@ -110,16 +128,19 @@ describe('detectConflicts', () => {
     // header. Mutation-checked by pointing `scopingHosts` back at the list.
     const a = p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0);
     expect(
-      detectConflicts([
-        { ...a, filter: { ...a.filter, allSites: true } },
-        p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          { ...a, filter: { ...a.filter, allSites: true } },
+          p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toHaveLength(1);
     // The same pair with all-sites off is genuinely disjoint, so this cannot
     // pass by warning about everything.
-    expect(detectConflicts([a, p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1)])).toEqual(
-      [],
-    );
+    expect(
+      detectConflicts([a, p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1)], 'chrome'),
+    ).toEqual([]);
   });
 
   it('says nothing about a profile that has no scope at all', () => {
@@ -128,27 +149,33 @@ describe('detectConflicts', () => {
     // as a conflict would contradict the readout, which already reports that
     // this profile is not applied — it counts the rules as blocked.
     expect(
-      detectConflicts([
-        p('a', 'A', [], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', [], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
   it('ignores disabled profiles and disabled rows', () => {
     const a = p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0);
     const b = p('b', 'B', ['x.com'], [{ name: 'Authorization', enabled: false }], 1);
-    expect(detectConflicts([a, { ...b, enabled: true }])).toEqual([]);
-    expect(detectConflicts([a, { ...b, enabled: false }])).toEqual([]);
-    expect(detectConflicts([{ ...a, enabled: false }, b])).toEqual([]);
+    expect(detectConflicts([a, { ...b, enabled: true }], 'chrome')).toEqual([]);
+    expect(detectConflicts([a, { ...b, enabled: false }], 'chrome')).toEqual([]);
+    expect(detectConflicts([{ ...a, enabled: false }, b], 'chrome')).toEqual([]);
   });
 
   it('does not cross request and response headers', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['x.com'], [{ name: 'X-Same', target: 'request' }], 0),
-        p('b', 'B', ['x.com'], [{ name: 'X-Same', target: 'response' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['x.com'], [{ name: 'X-Same', target: 'request' }], 0),
+          p('b', 'B', ['x.com'], [{ name: 'X-Same', target: 'response' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
@@ -159,7 +186,7 @@ describe('detectConflicts', () => {
     const first = p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0);
     const second = p('b', 'Staging', ['x.com'], [{ name: 'Authorization' }], 1);
 
-    const d = detectConflicts([second, first]); // array order disagrees with `order`
+    const d = detectConflicts([second, first], 'chrome'); // array order disagrees with `order`
     expect(d).toHaveLength(1);
     expect(d[0]?.profileId).toBe('b'); // Staging still loses
     expect(d[0]?.message).toContain('Local'); // Local is still named the winner
@@ -171,7 +198,7 @@ describe('detectConflicts', () => {
       p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
     ];
     const before = list.map((x) => x.id);
-    detectConflicts(list);
+    detectConflicts(list, 'chrome');
     expect(list.map((x) => x.id)).toEqual(before);
   });
 
@@ -184,26 +211,32 @@ describe('detectConflicts', () => {
     const p0 = p('p0', 'P0', ['x.com'], [{ name: 'X-Test', operation: 'append' }], 0);
     const p1 = p('p1', 'P1', ['x.com'], [{ name: 'X-Test', operation: 'remove' }], 1);
     const p2 = p('p2', 'P2', ['x.com'], [{ name: 'X-Test', operation: 'append' }], 2);
-    const d = detectConflicts([p0, p1, p2]);
+    const d = detectConflicts([p0, p1, p2], 'chrome');
     expect(d).toHaveLength(1);
     expect(d[0]?.profileId).toBe('p1');
   });
 
   it('treats a parent domain and its subdomain as overlapping (parent first)', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['example.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['api.example.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['example.com'], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['api.example.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toHaveLength(1);
   });
 
   it('treats a parent domain and its subdomain as overlapping (subdomain first)', () => {
     expect(
-      detectConflicts([
-        p('a', 'A', ['api.example.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['example.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['api.example.com'], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['example.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toHaveLength(1);
   });
 
@@ -211,10 +244,13 @@ describe('detectConflicts', () => {
     // A naive suffix check without the leading dot would wrongly match
     // `notexample.com` against `example.com`.
     expect(
-      detectConflicts([
-        p('a', 'A', ['notexample.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['example.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['notexample.com'], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['example.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
@@ -226,10 +262,13 @@ describe('detectConflicts', () => {
     // neighbour for losing to that rule is a false positive, and it directly
     // contradicts the `empty-filter` this same compile() puts on the profile.
     expect(
-      detectConflicts([
-        p('a', 'A', ['a b.com'], [{ name: 'Authorization' }], 0),
-        p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
-      ]),
+      detectConflicts(
+        [
+          p('a', 'A', ['a b.com'], [{ name: 'Authorization' }], 0),
+          p('b', 'B', ['y.com'], [{ name: 'Authorization' }], 1),
+        ],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
@@ -240,10 +279,13 @@ describe('detectConflicts', () => {
     // flagging it would be the conflict detector reading the stored list
     // instead of `scopingHosts` — the exact defect CLAUDE.md records under
     // "One predicate, one definition".
-    const d = detectConflicts([
-      p('a', 'A', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 0),
-      p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
-    ]);
+    const d = detectConflicts(
+      [
+        p('a', 'A', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 0),
+        p('b', 'B', ['x.com'], [{ name: 'Authorization' }], 1),
+      ],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('profile-conflict');
     expect(d[0]?.profileId).toBe('b');
@@ -253,10 +295,13 @@ describe('detectConflicts', () => {
     // The mirror of the case above, and it has to move with it: the losing
     // side is decided by `scopingHosts` too, so a profile whose list carries
     // one bad entry is still a profile whose row can be discarded.
-    const d = detectConflicts([
-      p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
-      p('b', 'B', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 1),
-    ]);
+    const d = detectConflicts(
+      [
+        p('a', 'A', ['x.com'], [{ name: 'Authorization' }], 0),
+        p('b', 'B', ['x.com', 'a b.com'], [{ name: 'Authorization' }], 1),
+      ],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.profileId).toBe('b');
   });
@@ -264,11 +309,14 @@ describe('detectConflicts', () => {
   it('does not let a suppressed profile hide a conflict between its neighbours', () => {
     // Removing the middle profile from consideration must not shift who the
     // winner is for the profiles that do compile.
-    const d = detectConflicts([
-      p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0),
-      p('bad', 'Broken', ['a b.com'], [{ name: 'Authorization' }], 1),
-      p('c', 'Staging', ['x.com'], [{ name: 'Authorization' }], 2),
-    ]);
+    const d = detectConflicts(
+      [
+        p('a', 'Local', ['x.com'], [{ name: 'Authorization' }], 0),
+        p('bad', 'Broken', ['a b.com'], [{ name: 'Authorization' }], 1),
+        p('c', 'Staging', ['x.com'], [{ name: 'Authorization' }], 2),
+      ],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.profileId).toBe('c');
     expect(d[0]?.message).toContain('Local');
