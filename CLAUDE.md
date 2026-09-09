@@ -22,7 +22,7 @@ pnpm format:check    # oxfmt --check            (pnpm format to write)
 pnpm build           # production builds → .output/chrome-mv3 and .output/firefox-mv3
 pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
 pnpm dev             # WXT dev server
-pnpm dev:firefox     # WXT dev server against Firefox (web-ext-run finds the binary)
+pnpm dev:firefox     # WXT dev server → .output/firefox-mv3-dev; launches nothing here, see the spawn-sync note
 pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 pnpm store:assets    # wxt build && node scripts/store-assets.mjs → docs/store/assets/
 pnpm crx             # wxt zip, then signs → .output/headerlab-<version>-chrome.crx
@@ -187,10 +187,17 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   until 2026-08-15 and is now gone; the paragraph above is its record, not a live setting.
   **A dependency's own build script is a separate mechanism, and an unanswered one fails
   the install rather than warning.** Exactly one package here asks: `spawn-sync`, reached
-  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner, which `pnpm dev:firefox` now
-  invokes — and it runs without that build script, because the script builds a polyfill for
-  a Node without `child_process.spawnSync`, which this repository's Node 24 has had for a
-  decade (measured 2026-09-08 by running `pnpm dev:firefox` with the build still denied).
+  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner. **`pnpm dev:firefox` does
+  not reach it either, measured 2026-09-09.** WXT 0.21 puts its browser runner behind the
+  optional peer dependency `web-ext`: `resolveRunner` (`core/resolve-config.mjs`) imports
+  `./runners/web-ext.mjs`, whose first line imports `web-ext`, and when that throws
+  `ERR_MODULE_NOT_FOUND` WXT logs it at debug level and falls back to the manual runner.
+  `web-ext` is not installed here — only wxt's own dependency `web-ext-run`, which is what
+  carries `fx-runner` and `spawn-sync` — so both `pnpm dev` and `pnpm dev:firefox` print
+  `Load ".output/<browser>-mv3-dev" as an unpacked extension manually` and launch nothing.
+  The build script this denies has therefore still never run, and nothing this repository
+  can invoke reaches it. Installing `web-ext` to change that would be a new dependency,
+  which is the rule above.
   `pnpm-workspace.yaml` denies it by name and says why. Answer the
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
