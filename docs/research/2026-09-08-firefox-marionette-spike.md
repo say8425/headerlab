@@ -95,11 +95,64 @@ Firefox 에서는 한 번도 타지 않지만 있어서 나쁠 것이 없다.
 - 팝업은 헤드리스 탭(1366×683)에서 748×600 으로 그려졌다. 레일·룰 패널·리드아웃
   `1 of 2 live · 1 off` 모두 정상. **브릿지 행이 "Agent bridge off" 로 보였다** — 스펙이
   Firefox 에서 그 행을 없애는 이유의 그림.
-- 실제 툴바 팝업 패널 안에서의 모습은 **재지 않았다.** Firefox 의 팝업 상한은 800×600.
+- **실제 툴바 팝업 패널 안에서 재었다 (2026-09-09,** macOS 15.5, Firefox Developer Edition
+  156.0b3, 프로덕션 빌드 `.output/firefox-mv3`, 화면 1992×1290 @2x, 창 1280×1040 **).**
+  `.webextension-popup-browser` 의 `getBoundingClientRect()` 가 **748×600** — 잘리지 않는다.
+  패널 자체는 750×602 (테두리 1px 씩), `panelId` 는 `customizationui-widget-panel`,
+  `state: "open"`. Firefox 의 상한 800×600 안에 그대로 들어가므로 이 디자인은 Chrome 과
+  Firefox 에서 같은 크기로 선다. 브릿지 행은 없다 — 팝업 DOM 의 `[data-testid="bridgestate"]`
+  가 0 이고, 패널 캡처로도 확인했다.
+- **툴바 버튼을 스크립트로 누르는 법은 세 번 틀린 뒤에 나왔다.** 위젯 노드
+  (`headerlab_say8425_github_io-browser-action`) 는 `toolbaritem` **래퍼**라 거기에 건
+  `click()` 도 `doCommand()` 도 아무 일도 하지 않는다 — 조용히, 오류 없이. 열리는 것은 안쪽
+  `toolbarbutton.unified-extensions-item-action-button` 을 눌렀을 때다. 곁들여: chrome
+  컨텍스트의 `window.windowUtils` 에 `sendMouseEvent` 가 **없고**,
+  `resource:///modules/CustomizableUI.sys.mjs` 는 156 에서 사라졌다 (`CustomizableUI` 는 창
+  전역으로 잡힌다). 위젯을 nav-bar 에 고정하는 것은 `CustomizableUI.addWidgetToArea` 로 된다.
+- **Grant 는 진짜 doorhanger 를 띄우고, 허용하면 행이 바뀐다 (2026-09-09, 같은 빌드).**
+  `originControls.grantByDefault: false` + `webextOptionalPermissionPrompts: true` 로 두고
+  Grant 를 **신뢰된 클릭**(`WebDriver:ElementClick`) 으로 눌렀다 — 스크립트가 만든 클릭은
+  사용자 활성화가 아니라서 `permissions.request()` 가 아무 것도 띄우지 않는다. 전:
+  `permissions.getAll().origins` 가 `[]`, 두 행 모두 `Grant`, 리드아웃
+  `0 of 3 live · 1 off · 2 blocked · 2 sites need access`. doorhanger 는
+  `addon-webext-permissions-notification`, 기본 버튼 `허용`, 문안은 "api.example.com 도메인
+  사이트에 대한 사용자 데이터에 접근" 한 줄. 후: `origins: ["*://*.api.example.com/*"]`,
+  그 행만 `Access granted`, `localhost` 는 `Grant` 그대로, 리드아웃
+  `2 of 3 live · 1 off · 1 site needs access`. 한 사이트만 바뀌는 것이 요점이다 — 권한은
+  오리진별이고 화면이 그렇게 읽힌다.
+- **드롭된 타입 노트는 두 문장 다 잘린다 (2026-09-09, 같은 헤디드 팝업, 팝업 탭에서).**
+  `[data-testid="type-note"]` 는 `truncate` 라 `scrollWidth > clientWidth` 가 잘림의 판정이고,
+  텍스트가 실제로 받는 폭은 **199px** 이다 (레일 224 − `px-3` 24; 부모 223.x). 스펙 §6 의
+  예산 200px 과 같은 값으로 읽으면 된다.
+
+  | 문장 | scrollWidth | 판정 |
+  | --- | --- | --- |
+  | error `Not supported in Firefox: webbundle, webtransport.` | 284 | 잘림 (+85) |
+  | warning `Not supported in Firefox: webbundle.` | 203 | 잘림 (+4) |
+  | 후보 `Skipped in Firefox: webbundle, webtransport.` | 248.9 | **여전히 잘림 (+50)** |
+  | 후보 `Skipped in Firefox: webbundle.` | 168.4 | 들어감 |
+
+  표의 후보 두 줄은 실제로 렌더된 노트가 아니라, 같은 팝업·같은 폰트(11px/600)에서 숨긴
+  `<span>` 으로 잰 값이다. 그 방법이 맞는지는 처음 두 줄로 검증했다 — 같은 프로브가
+  283.42 와 202.87 을 냈고 실제 노트의 `scrollWidth` 는 284 와 203 이었다.
+  **따라서 스펙 §6 이 제안한 축약은 warning 을 고치고 error 는 고치지 못한다.** 199px 에
+  이름 둘은 들어가지 않는다. 그것은 카피가 아니라 설계의 문제이고 소유자의 결정이므로,
+  카피는 건드리지 않았다. 지금 잃는 것은 없다 — `title` 이 전체 문장을 싣는다. 드롭될 수
+  있는 타입은 Firefox 에서 `webbundle` 과 `webtransport` 둘뿐이므로 위 error 행이 최악이다.
 
 ## 하네스의 씨앗
 
 버린 스크립트에서 다시 쓸 부분만. 의존성은 `node:net`, `node:child_process`, `node:fs` 뿐.
+
+**아래 프레이밍에는 버그가 있다. 고쳐서 쓰거나 `tests/support/marionette.ts` 를 쓰라
+(2026-09-09 에 이것으로 한 번 깨졌다).** 프레임 길이는 **바이트**인데 아래 코드는
+`setEncoding('utf8')` 뒤 문자열을 이어 붙이고 `buf.length`·`slice` 로 **문자**를 센다.
+ASCII payload 에서는 둘이 같아서 스파이크 내내 멀쩡했고, 리드아웃 텍스트의 `·`(U+00B7,
+UTF-8 로 2바이트) 가 처음 지나가는 순간 스트림이 어긋나 `JSON.parse` 가
+`Unexpected non-whitespace character after JSON` 으로 죽는다. 다음 프레임의 길이 접두사를
+payload 안으로 끌고 들어가기 때문이다. `tests/support/marionette.ts` 의 `parseFrames` 는
+Buffer 위에서 `subarray` 로 자르므로 이 문제가 없다 — 이 파일이 남긴 씨앗이 아니라 그쪽이
+지금의 정본이다.
 
 ```js
 // Marionette: TCP 위 "<len>:<json>". 서버가 먼저 hello 를 보낸다.
@@ -200,7 +253,11 @@ await mar.send('WebDriver:Navigate', { url: `${echoOrigin}/probe` }); // 에코 
   고 하고, 네이티브 메시징의 예외 여부는 문서로 확정되지 않는다. 브릿지 스펙(D)의 첫 과제.
   재려면 `~/Library/Application Support/Mozilla/NativeMessagingHosts/` 에 파일을 써야 한다 —
   Firefox 는 프로필별 경로를 두지 않는다.
-- 헤디드 툴바 팝업 안의 실제 크기.
+  **2026-09-09 의 헤디드 확인도 이것을 재지 않았고, 재려 하지도 않았다.** 그 확인은 프로덕션
+  빌드로 했고 프로덕션 Firefox 매니페스트에는 `nativeMessaging` 이 없다 — 그러니 헤디드로
+  봤다는 사실이 이 항목을 조금도 좁히지 못한다. 여전히 브릿지 스펙의 첫 과제다.
+- ~~헤디드 툴바 팝업 안의 실제 크기.~~ **재었다 (2026-09-09) — `## 매니페스트와 팝업` 참조.**
+  748×600 이 잘리지 않는다.
 - Firefox 의 정규식 한계 (`regexFilter` 는 브라우저마다 다르다 — WECG #344).
 - Playwright 가 설치하는 Firefox 빌드(juggler 패치)에서 Marionette 가 같은가. CI 는 러너의
   apt Firefox 를 쓰므로 필요 없었다.
