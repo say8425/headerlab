@@ -71,7 +71,10 @@ describe('the popup built for Firefox', () => {
     );
     expect(screen.getByTestId('type-note').getAttribute('data-severity')).toBe('warning');
     // The rule still goes out — one live, none blocked.
-    expect(screen.getByTestId('readout').textContent).toBe('1 of 1 live');
+    // The readout settles only after the mount-time permission probe answers;
+    // reading it the moment the note appears raced that probe on CI (run
+    // 34311034396 saw `0 of 1 live· 1 blocked · 1 site needs access`).
+    await waitFor(() => expect(screen.getByTestId('readout').textContent).toBe('1 of 1 live'));
   });
 
   it('counts the rule as blocked, not live, when no listed type survives', async () => {
@@ -86,6 +89,10 @@ describe('the popup built for Firefox', () => {
     );
     // No space before `·` in the flattened textContent: the gap between the
     // two spans is a CSS flex gap, not a text character (RulePanel.tsx).
-    expect(screen.getByTestId('readout').textContent).toBe('0 of 1 live· 1 blocked');
+    // Same race as above: before the probe answers, the readout carries a
+    // "needs access" clause this assertion does not expect.
+    await waitFor(() =>
+      expect(screen.getByTestId('readout').textContent).toBe('0 of 1 live· 1 blocked'),
+    );
   });
 });
