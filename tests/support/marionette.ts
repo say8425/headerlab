@@ -46,7 +46,10 @@ export function parseFrames(buffer: Buffer): { messages: unknown[]; rest: Buffer
   for (;;) {
     const colon = rest.indexOf(0x3a); // ':'
     if (colon === -1) break;
-    const head = rest.subarray(0, colon).toString('ascii');
+    // 'latin1', not 'ascii': ascii masks the top bit, so a desynchronised
+    // stream's high-bit bytes could decode to digits and pass the /^\d+$/
+    // check instead of being caught as malformed.
+    const head = rest.subarray(0, colon).toString('latin1');
     if (!/^\d+$/.test(head)) {
       throw new Error(`malformed Marionette frame: ${rest.subarray(0, 40).toString('utf8')}`);
     }
@@ -79,7 +82,14 @@ export async function connectMarionette(
   const socket = await new Promise<Socket>((resolve, reject) => {
     let remaining = attempts;
     const attempt = () => {
-      const s = connect({ host: '127.0.0.1', port }, () => resolve(s));
+      const s = connect({ host: '127.0.0.1', port }, () => {
+        // The retry handler below is only for a refused/reset connect. Once
+        // connected it must come off, or a later socket error (Firefox
+        // dying mid-session) would be swallowed here as "try again" instead
+        // of surfacing to the permanent handler attached after this resolves.
+        s.removeAllListeners('error');
+        resolve(s);
+      });
       s.once('error', (error) => {
         remaining -= 1;
         if (remaining <= 0) {
@@ -96,6 +106,14 @@ export async function connectMarionette(
   let hello: unknown = null;
   const pending = new Map<number, Pending>();
   let nextId = 1;
+
+  const failAll = (reason: string) => {
+    for (const [id, waiting] of pending) {
+      pending.delete(id);
+      clearTimeout(waiting.timer);
+      waiting.reject(new Error(`${waiting.name}: ${reason}`));
+    }
+  };
 
   socket.on('data', (chunk: Buffer) => {
     const parsed = parseFrames(Buffer.concat([buffered, chunk]));
@@ -115,16 +133,19 @@ export async function connectMarionette(
       else waiting.resolve(result);
     }
   });
-  socket.on('close', () => {
-    for (const [id, waiting] of pending) {
-      pending.delete(id);
-      clearTimeout(waiting.timer);
-      waiting.reject(new Error(`${waiting.name}: Marionette socket closed`));
-    }
-  });
+  socket.on('close', () => failAll('Marionette socket closed'));
+  // Without a permanent handler here, a post-connect error (Firefox exiting
+  // mid-session) has no listener at all: node:net turns an unhandled
+  // 'error' event on a socket into an uncaught exception that kills the
+  // worker rather than rejecting the pending command.
+  socket.on('error', (error) => failAll(`Marionette socket error: ${error.message}`));
 
   const send = <T>(name: string, params: Record<string, unknown> = {}, timeoutMs = 20_000) =>
     new Promise<T>((resolve, reject) => {
+      if (socket.destroyed) {
+        reject(new Error(`${name}: Marionette socket is closed`));
+        return;
+      }
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);

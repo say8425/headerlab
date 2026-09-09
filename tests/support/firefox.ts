@@ -39,9 +39,17 @@ export function findFirefox(): string {
   ].filter((c): c is string => typeof c === 'string' && c.length > 0);
   const found = candidates.find((c) => existsSync(c));
   if (!found) {
+    // Name only the fixed candidates here, never a slice of `candidates` —
+    // once FIREFOX_BIN is unset, a positional slice pulls in the first PATH
+    // directory and duplicates "and every directory on PATH" right after it.
+    const named = [
+      process.env.FIREFOX_BIN,
+      '/Applications/Firefox Developer Edition.app/Contents/MacOS/firefox',
+      '/Applications/Firefox.app/Contents/MacOS/firefox',
+    ].filter((c): c is string => typeof c === 'string' && c.length > 0);
     throw new Error(
       'no Firefox found — set FIREFOX_BIN, or install Firefox Developer Edition; looked at: ' +
-        candidates.slice(0, 3).join(', ') +
+        named.join(', ') +
         ' and every directory on PATH',
     );
   }
@@ -156,48 +164,61 @@ export async function launchFirefox(extensionDir: string): Promise<FirefoxSessio
       /* already gone */
     }
   };
+  // Registered immediately after spawn, before anything below can throw:
+  // `detached: true` means Node exiting does not take this process group
+  // with it, so without this a rejection anywhere in the setup below — or a
+  // Ctrl-C — leaks a headless Firefox that outlives the test run. Same shape
+  // as scripts/pack-crx.mjs registering its own teardown right after
+  // mkdtempSync, for the same reason: teardown that can be skipped will be.
+  process.on('exit', killGroup);
 
-  let client: MarionetteClient;
-  try {
-    client = await connectMarionette(marionettePort);
-  } catch (error) {
+  const fail = async (error: unknown): Promise<never> => {
     killGroup();
+    process.off('exit', killGroup);
     rmSync(profile, { recursive: true, force: true });
     throw new Error(
       `${error instanceof Error ? error.message : String(error)}\nfirefox said:\n${stderr}`,
     );
-  }
+  };
 
-  await client.send('WebDriver:NewSession', { capabilities: { alwaysMatch: {} } });
-  const installed = await client.send<{ value: string }>('Addon:Install', {
-    path: extensionDir,
-    temporary: true,
-  });
-  if (installed.value !== GECKO_ID) {
-    killGroup();
-    throw new Error(`Firefox installed the build as ${installed.value}, expected ${GECKO_ID}`);
-  }
-
-  const popupUrl = `moz-extension://${EXTENSION_UUID}/popup.html`;
-
-  const evaluate = async <T>(expression: string): Promise<T> => {
-    const r = await client.send<{ value: unknown }>('WebDriver:ExecuteAsyncScript', {
-      script:
-        `const done = arguments[0];\n` +
-        `Promise.resolve().then(() => (${expression})).then(` +
-        `(v) => done({ ok: true, value: v }), (e) => done({ ok: false, message: String(e && e.message || e) }));`,
-      args: [],
+  let client: MarionetteClient;
+  let popupUrl: string;
+  let evaluate: <T>(expression: string) => Promise<T>;
+  let navigate: (url: string) => Promise<void>;
+  try {
+    client = await connectMarionette(marionettePort);
+    await client.send('WebDriver:NewSession', { capabilities: { alwaysMatch: {} } });
+    const installed = await client.send<{ value: string }>('Addon:Install', {
+      path: extensionDir,
+      temporary: true,
     });
-    const outcome = r.value as { ok: true; value: T } | { ok: false; message: string };
-    if (!outcome.ok) throw new Error(`evaluate failed: ${outcome.message}\n  in: ${expression}`);
-    return outcome.value;
-  };
+    if (installed.value !== GECKO_ID) {
+      throw new Error(`Firefox installed the build as ${installed.value}, expected ${GECKO_ID}`);
+    }
 
-  const navigate = async (url: string) => {
-    await client.send('WebDriver:Navigate', { url });
-  };
+    popupUrl = `moz-extension://${EXTENSION_UUID}/popup.html`;
 
-  await navigate(popupUrl);
+    evaluate = async <T>(expression: string): Promise<T> => {
+      const r = await client.send<{ value: unknown }>('WebDriver:ExecuteAsyncScript', {
+        script:
+          `const done = arguments[0];\n` +
+          `Promise.resolve().then(() => (${expression})).then(` +
+          `(v) => done({ ok: true, value: v }), (e) => done({ ok: false, message: String(e && e.message || e) }));`,
+        args: [],
+      });
+      const outcome = r.value as { ok: true; value: T } | { ok: false; message: string };
+      if (!outcome.ok) throw new Error(`evaluate failed: ${outcome.message}\n  in: ${expression}`);
+      return outcome.value;
+    };
+
+    navigate = async (url: string) => {
+      await client.send('WebDriver:Navigate', { url });
+    };
+
+    await navigate(popupUrl);
+  } catch (error) {
+    return fail(error);
+  }
 
   return {
     popupUrl,
@@ -226,6 +247,7 @@ export async function launchFirefox(extensionDir: string): Promise<FirefoxSessio
       }
       client.close();
       killGroup();
+      process.off('exit', killGroup);
       rmSync(profile, { recursive: true, force: true });
     },
   };

@@ -40,4 +40,13 @@ describe('parseFrames', () => {
   it('refuses a stream that does not start with a length', () => {
     expect(() => parseFrames(Buffer.from('nonsense:{}'))).toThrow(/malformed Marionette frame/);
   });
+
+  it('refuses a header byte with the top bit set rather than reading it as ascii', () => {
+    // 'ascii' decoding masks the top bit, so 0xb2 0xb3 could otherwise read
+    // as the digits "23" and slip past the /^\d+$/ check on a desynchronised
+    // stream. 'latin1' keeps the high bit, so this is rejected instead.
+    expect(() => parseFrames(Buffer.from([0xb2, 0xb3, 0x3a, 0x7b, 0x7d]))).toThrow(
+      /malformed Marionette frame/,
+    );
+  });
 });
