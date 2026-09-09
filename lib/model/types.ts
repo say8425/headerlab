@@ -3,6 +3,16 @@
 export type Operation = 'set' | 'append' | 'remove';
 export type HeaderTarget = 'request' | 'response';
 
+/**
+ * The browser a build is for.
+ *
+ * Decided once, at build time, in `lib/target.ts`; everything pure takes it as
+ * a parameter rather than reading it, so Firefox behaviour is testable without
+ * a Firefox build. `lib/compile/capabilities.ts` is the one table of what each
+ * target accepts.
+ */
+export type Target = 'chrome' | 'firefox';
+
 export type ResourceType =
   | 'main_frame'
   | 'sub_frame'
@@ -162,7 +172,15 @@ export type DiagnosticKind =
    * suppresses the whole profile. See lib/compile/suppression.ts for why it is
    * all-or-nothing rather than per-entry.
    */
-  | 'invalid-domain';
+  | 'invalid-domain'
+  /**
+   * The profile lists a request type this browser's declarativeNetRequest
+   * does not know. Sending it rejects the whole batch ("Invalid enumeration
+   * value", measured on Firefox), so the compiler drops the type instead —
+   * `warning` when other types remain, `error` when none do and the profile
+   * is suppressed (`suppressionReason` → `'no-resource-type'`).
+   */
+  | 'unsupported-resource-type';
 
 export interface Diagnostic {
   kind: DiagnosticKind;

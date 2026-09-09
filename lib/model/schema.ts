@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AppState } from '@/lib/model/types';
+import type { AppState, ResourceType } from '@/lib/model/types';
 
 const resourceType = z.enum([
   'main_frame',
@@ -18,6 +18,14 @@ const resourceType = z.enum([
   'webbundle',
   'other',
 ]);
+
+/**
+ * The fifteen values, in schema order, for anyone who needs the list rather
+ * than the validator — `lib/compile/capabilities.ts` derives each target's
+ * supported set from it, so a sixteenth type added here reaches that table
+ * without a second list to update.
+ */
+export const RESOURCE_TYPES: readonly ResourceType[] = resourceType.options;
 
 const requestMethod = z.enum([
   'connect',
