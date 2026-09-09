@@ -63,6 +63,7 @@ test('a configured set rule reaches the wire on Firefox', async ({ firefox, echo
         },
       ],
     }),
+    1,
   );
 
   await firefox.newTab(`${echo.origin}/probe`);
@@ -98,6 +99,7 @@ test('a remove rule strips a header the page would otherwise send, on Firefox', 
         },
       ],
     }),
+    1,
   );
 
   await firefox.newTab(`${echo.origin}/host`);
@@ -136,6 +138,7 @@ test('the popup renders from stored state with no bridge row', async ({ firefox 
         },
       ],
     }),
+    1,
   );
   // A fresh load, so the screen is what a user opening the popup sees, not a
   // re-render mid-write.
@@ -157,6 +160,10 @@ test('the popup renders from stored state with no bridge row', async ({ firefox 
     await firefox.evaluate<number>(
       `document.querySelectorAll('[data-testid="bridgestate"]').length`,
     ),
+  ).toBe(0);
+  // The seeded types are all supported, so the note must not render.
+  expect(
+    await firefox.evaluate<number>(`document.querySelectorAll('[data-testid="type-note"]').length`),
   ).toBe(0);
   expect(
     await firefox.evaluate<number>(`document.querySelectorAll('[data-testid="site"]').length`),

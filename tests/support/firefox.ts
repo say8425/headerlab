@@ -155,6 +155,13 @@ export async function launchFirefox(extensionDir: string): Promise<FirefoxSessio
   child.stdout?.on('data', (c: Buffer) => {
     stderr += c.toString('utf8');
   });
+  // A spawn failure (bad binary, EACCES, …) emits 'error' rather than
+  // 'exit', and an unhandled 'error' event crashes the whole process —
+  // recording it here instead lets `fail()` report it like any other
+  // failure, through the same `stderr` text the connect-failure path reads.
+  child.once('error', (error: Error) => {
+    stderr += `\nspawn error: ${error.message}\n`;
+  });
 
   const killGroup = () => {
     if (child.pid === undefined) return;

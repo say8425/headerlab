@@ -52,7 +52,7 @@ export interface TypeChecklistProps {
    * full text in `title`, the rule CLAUDE.md's Interface section states for
    * every state-dependent line.
    */
-  note?: { severity: 'error' | 'warning'; message: string } | null;
+  note: { severity: 'error' | 'warning'; message: string } | null;
 }
 
 /**
@@ -62,7 +62,7 @@ export interface TypeChecklistProps {
  * touched can simply be small and present rather than hidden behind a chevron
  * that makes the user guess what is behind it.
  */
-export function TypeChecklist({ selected, onToggle, note = null }: TypeChecklistProps) {
+export function TypeChecklist({ selected, onToggle, note }: TypeChecklistProps) {
   return (
     <>
       <div className="grid grid-cols-2 gap-x-2 gap-y-1" data-testid="type-grid">

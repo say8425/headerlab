@@ -17,12 +17,18 @@ import { startEchoServer, type EchoServer } from './echo-server';
 export const test = base.extend<{ firefox: FirefoxSession; echo: EchoServer }>({
   // Playwright reads a fixture's dependencies off its destructuring pattern, so
   // an empty one is how a fixture declares that it depends on nothing.
-  // oxlint-disable-next-line no-empty-pattern
-  firefox: async ({}, use) => {
-    const session = await launchFirefox(assertBuildFresh('firefox-e2e'));
-    await use(session);
-    await session.close();
-  },
+  // The fixture-level timeout is Playwright's own option form ({ timeout }) —
+  // a cold Firefox start counts against the default 30s test timeout, and it
+  // is the fixture's setup, not the test body, that needs the room.
+  firefox: [
+    // oxlint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      const session = await launchFirefox(assertBuildFresh('firefox-e2e'));
+      await use(session);
+      await session.close();
+    },
+    { timeout: 60_000 },
+  ],
   // oxlint-disable-next-line no-empty-pattern
   echo: async ({}, use) => {
     const server = await startEchoServer();
@@ -56,8 +62,18 @@ export const expect = test.expect;
  *
  * **Every Firefox e2e spec must seed through this function**, not through a
  * direct `browser.storage.local.set`, or it reintroduces the same race.
+ *
+ * @param expectedRules - the number of dynamic rules the seed must register —
+ *   the settling signal this function polls for before returning. No
+ *   default: a caller that hands this function a state and forgets to say
+ *   how many rules it should produce is the exact silent-assumption this
+ *   repository's `target` parameters refuse to default either.
  */
-export async function seedFirefoxState(firefox: FirefoxSession, state: AppState): Promise<void> {
+export async function seedFirefoxState(
+  firefox: FirefoxSession,
+  state: AppState,
+  expectedRules: number,
+): Promise<void> {
   await expect
     .poll(
       () =>
@@ -79,5 +95,5 @@ export async function seedFirefoxState(firefox: FirefoxSession, state: AppState)
         ),
       { timeout: 10_000 },
     )
-    .toBe(1);
+    .toBe(expectedRules);
 }
