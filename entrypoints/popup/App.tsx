@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
+import { hasBridge } from '@/lib/compile/capabilities';
 import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
@@ -281,6 +282,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Nothing to probe for on a build with no bridge: the Firefox manifest
+    // declares no nativeMessaging permission and the rail renders no row.
+    if (!hasBridge(TARGET)) return;
     let cancelled = false;
     probeNativeMessaging()
       .then((allowed) => {
@@ -371,6 +375,15 @@ export default function App() {
   const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
 
+  // The one profile-level diagnostic that has a control to sit beside. Picked
+  // by kind because it is being *placed*, not classified — the severity is
+  // still what colours it (TypeChecklist).
+  const typeDiagnostic = routed.scope.find((d) => d.kind === 'unsupported-resource-type');
+  const typeNote =
+    typeDiagnostic !== undefined && typeDiagnostic.severity !== 'incomplete'
+      ? { severity: typeDiagnostic.severity, message: typeDiagnostic.message }
+      : null;
+
   // The three judgements that stop compile() emitting anything for this rule
   // set (compile.ts:28, :40, :51), none of which is rule-level and so none
   // of which reaches `byRow`. `isSuppressed` is called, never restated
@@ -418,8 +431,9 @@ export default function App() {
   // order because a held permission with no port is the state that actually
   // needs a remedy on screen, and reading the port first would hide it behind
   // a bridge nobody enabled.
-  const bridgeMode =
-    bridgeAllowed === null
+  const bridgeMode: ScopeRailProps['bridge'] = !hasBridge(TARGET)
+    ? 'unavailable'
+    : bridgeAllowed === null
       ? 'unknown'
       : !bridgeAllowed
         ? 'off'
@@ -490,6 +504,7 @@ export default function App() {
           // of under-reporting this product exists to rule out.
           if (mountedRef.current) setBridgeAllowed(removed ? false : await probeNativeMessaging());
         }}
+        typeNote={typeNote}
         allSites={active.filter.allSites}
         allSitesGranted={allSitesGranted}
         onToggleAllSites={(next) => {
