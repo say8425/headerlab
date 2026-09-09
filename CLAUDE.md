@@ -133,11 +133,13 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   `tests/unit/manifest.test.ts` pins the block, the absence, and that the Chrome build
   carries no gecko block at all.
 - **No network primitives in the shipped bundle** — no `fetch`, `XMLHttpRequest`,
-  `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` with no
-  exception list, which is the point: the claim is verifiable by a stranger who trusts
-  none of this file. (Vite's modulepreload polyfill once left a dead `fetch(` literal in
-  the bundle; `build.modulePreload: false` removes it.)
-  `tests/unit/bundle.test.ts` guards it, and it reads the **build**, not the sources —
+  `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` and
+  `.output/firefox-mv3` with no exception list, which is the point: the claim is
+  verifiable by a stranger who trusts none of this file. (Vite's modulepreload polyfill
+  once left a dead `fetch(` literal in the bundle; `build.modulePreload: false` removes
+  it.)
+  `tests/unit/bundle.test.ts` guards both builds (`describe.each(['production',
+  'firefox'])`), and it reads the **build**, not the sources —
   the modulepreload incident is the proof that this arrives from tooling rather than from
   authored code, so a source-level check would have missed the only instance there has
   ever been. Mutation-verified: a `fetch()` planted in `entrypoints/background.ts` fails
@@ -187,8 +189,8 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   until 2026-08-15 and is now gone; the paragraph above is its record, not a live setting.
   **A dependency's own build script is a separate mechanism, and an unanswered one fails
   the install rather than warning.** Exactly one package here asks: `spawn-sync`, reached
-  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner. **`pnpm dev:firefox` does
-  not reach it either, measured 2026-09-09.** WXT 0.21 puts its browser runner behind the
+  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner — and `pnpm dev:firefox`
+  does not reach it, measured 2026-09-09. WXT 0.21 puts its browser runner behind the
   optional peer dependency `web-ext`: `resolveRunner` (`core/resolve-config.mjs`) imports
   `./runners/web-ext.mjs`, whose first line imports `web-ext`, and when that throws
   `ERR_MODULE_NOT_FOUND` WXT logs it at debug level and falls back to the manual runner.
@@ -196,9 +198,8 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   carries `fx-runner` and `spawn-sync` — so both `pnpm dev` and `pnpm dev:firefox` print
   `Load ".output/<browser>-mv3-dev" as an unpacked extension manually` and launch nothing.
   The build script this denies has therefore still never run, and nothing this repository
-  can invoke reaches it. Installing `web-ext` to change that would be a new dependency,
-  which is the rule above.
-  `pnpm-workspace.yaml` denies it by name and says why. Answer the
+  can invoke reaches it. Installing `web-ext` to change that would be a new dependency, which
+  is the rule above. `pnpm-workspace.yaml` denies it by name and says why. Answer the
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
   10, and the version that does not own a spelling ignores it in silence.
@@ -1148,7 +1149,13 @@ malformed pattern with `false` where Chrome throws. Playwright cannot load a Fir
 extension; WebDriver BiDi refuses `moz-extension://` navigation; Marionette allows it under
 `-remote-allow-system-access` (Firefox 138+), and its frames are **byte**-length-prefixed —
 the readout's middle dot is two bytes. Firefox's helper processes hold inherited pipes open
-after the parent dies: spawn detached and kill the group.
+after the parent dies: spawn detached and kill the group. The Firefox launcher opens the
+popup before a test can seed storage, and on empty storage the popup bootstraps a profile
+through a read-then-write (`App.tsx`'s bootstrap `patch` → `patchState`), so a seed written
+concurrently can be clobbered — observed on ad hoc headless runs on this Mac, not counted.
+Every Firefox spec therefore seeds through `seedFirefoxState` in
+`tests/e2e/firefox-fixtures.ts`, which waits for that bootstrap write before seeding and
+then waits for the rule to register.
 
 ## No silent failures
 
@@ -1405,10 +1412,11 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the twenty-one e2e tests drive a real request through the
-loopback echo server and read the headers back off it; those two are the strongest
-evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
-never reaches declarativeNetRequest while its sibling still does. Ten more cover
+against a loaded extension. Four of the twenty-one e2e tests drive a real request through
+the loopback echo server and read the headers back off it — two through Chrome and two
+through Firefox; those four are the strongest evidence in the repo — do not weaken them.
+A third checks that a row Chrome would refuse never reaches declarativeNetRequest while
+its sibling still does. Ten more cover
 the popup rendering from stored state and nine layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
