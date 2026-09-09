@@ -2,7 +2,7 @@
 
 [English](../README.md) | [한국어](README.ko.md) | 日本語 | [中文](README.zh.md) | [Español](README.es.md)
 
-HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更・削除します。ユーザーが許可する
+HTTP リクエスト・レスポンスヘッダーを Chrome と Firefox で追加・変更・削除します。ユーザーが許可する
 まで、サイトへのアクセス権限は一切持ちません。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)

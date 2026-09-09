@@ -2,7 +2,7 @@
 
 English | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-Add, modify and remove HTTP request and response headers, in Chrome, with no host access
+Add, modify and remove HTTP request and response headers, in Chrome and Firefox, with no host access
 until you grant it.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)

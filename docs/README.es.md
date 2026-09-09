@@ -2,7 +2,7 @@
 
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | Español
 
-Añade, modifica y elimina cabeceras HTTP de petición y respuesta en Chrome. No tiene acceso
+Añade, modifica y elimina cabeceras HTTP de petición y respuesta en Chrome y Firefox. No tiene acceso
 a ningún sitio hasta que tú se lo concedes.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)

@@ -158,7 +158,12 @@ export async function connectMarionette(
 
   const helloDeadline = Date.now() + 10_000;
   while (hello === null) {
-    if (Date.now() > helloDeadline) throw new Error('Marionette connected but sent no hello');
+    if (Date.now() > helloDeadline) {
+      // Every other failure path in this module cleans up after itself; this
+      // one must not lean on the caller's process kill to close the socket.
+      socket.destroy();
+      throw new Error('Marionette connected but sent no hello');
+    }
     await new Promise((r) => setTimeout(r, 20));
   }
 

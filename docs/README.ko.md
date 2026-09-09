@@ -2,7 +2,7 @@
 
 [English](../README.md) | 한국어 | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-Chrome 에서 HTTP 요청·응답 헤더를 추가하고, 수정하고, 삭제합니다. 사용자가 허용하기
+Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하고, 삭제합니다. 사용자가 허용하기
 전까지는 어떤 사이트 접근 권한도 갖지 않습니다.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)

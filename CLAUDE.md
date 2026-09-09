@@ -293,10 +293,11 @@ and the two cannot drift apart while the flag stays where it is.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 189 `@/…` imports
-(126 when this was written, then 141; the count is whatever `grep -rhoE "from '@/" components
-entrypoints lib tests | wc -l` says today, and it is the repo-wide figure because oxlint
-lints the tests too).
+`correctness` enables (`import/default`, `import/namespace`), across 222 `@/…` imports
+(126 when this was written, then 141, then 189 — which was already 197 by the time the
+Firefox branch started and 222 when it landed; the count is whatever `grep -rhoE "from '@/"
+components entrypoints lib tests | wc -l` says today, and it is the repo-wide figure because
+oxlint lints the tests too).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
 `.wxt/tsconfig.json` present, silence and exit 0 with it moved aside. A lint that passes
 because it looked at nothing is "no silent failures" inverted. `format`/`format:check` are
@@ -1801,7 +1802,9 @@ that no longer renders, passing while describing nothing.
   the Interface rule — one line — and not the second, not clipped. Measured 2026-09-09 in
   the headed Firefox popup, production build: error copy `Not supported in Firefox:
   webbundle, webtransport.` scrolls to 284px, warning copy `Not supported in Firefox:
-  webbundle.` to 203px, against a 199px text budget (rail 224px − `px-3`). Spec §6's own
+  webbundle.` to 203px, against a 199px text budget — the note's parent measured 223.x
+  wide, less `px-3`'s 24px; the nominal 224 − 24 = 200 is the arithmetic the spec used,
+  and the measured box is a pixel narrower. Spec §6's own
   candidate shrink, `Skipped in Firefox: webbundle, webtransport.`, still scrolls to
   248.9px. Numbers: `docs/research/2026-09-08-firefox-marionette-spike.md`. Recorded
   rather than fixed because the state is reachable on Firefox only through a hand-edited
