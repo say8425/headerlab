@@ -556,6 +556,16 @@ test('status 가 억눌린 이유를 사람 말로 말한다', () => {
   );
   assert.equal(unusable.includes('unusable-site'), false);
   assert.equal(unusable.includes('not applying — a listed site cannot be used'), true);
+
+  const noType = renderResult(
+    { ...statusPayload, live: true, suppression: 'no-resource-type' },
+    { command: ['status'], ...plain },
+  );
+  assert.equal(noType.includes('no-resource-type'), false);
+  assert.equal(
+    noType.includes('not applying — no request type this browser supports is selected'),
+    true,
+  );
 });
 
 // 이유가 하나 늘고 여기 말이 안 늘면, 표를 못 찾은 구현은 조용히 아무것도
