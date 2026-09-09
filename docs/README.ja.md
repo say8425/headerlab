@@ -15,7 +15,7 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 
 ## インストール
 
-現在は Chrome のみ対応。Firefox と Safari は対応予定。
+Chrome はストアから、Firefox はビルドを読み込んで — 署名付き Firefox リリースが次です。Safari は対応予定。
 
 ### Chrome ウェブストア
 
@@ -34,10 +34,17 @@ HTTP リクエスト・レスポンスヘッダーを Chrome で追加・変更�
 ```bash
 corepack enable          # pnpm は package.json の packageManager フィールドから来ます
 pnpm install
-pnpm build               # → .output/chrome-mv3
+pnpm build               # → .output/chrome-mv3 と .output/firefox-mv3
 ```
 
 `.output/chrome-mv3` を同じ手順で読み込みます。
+
+### Firefox
+
+署名付きの Firefox ビルドはまだないため、リリース版 Firefox には永続インストールできません。
+一時的に読み込みます: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+`pnpm build` 後の `.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。
+エージェントブリッジは Firefox では提供されません — 制限事項の表を参照。
 
 ## AI
 
@@ -197,6 +204,7 @@ live として数えることは決してありません。まだ待っている
 | サイト単位のランタイム権限 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | タブスコープのルール (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **なし** |
 | ネイティブメッセージング (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (包含アプリ) |
+| エージェントブリッジ (HeaderLab 独自) | ✓ | ✓ | **なし** — イベントページがアイドル時にネイティブポートを閉じる | **なし** |
 
 ## アーキテクチャ
 

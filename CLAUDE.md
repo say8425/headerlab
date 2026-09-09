@@ -12,16 +12,17 @@ product. When a change trades either away for convenience, the change is wrong.
 
 ```bash
 pnpm check           # typecheck · lint · format:check · test — four of CI's six jobs, in one command
-pnpm test            # wxt build && vitest run  — the build is not optional, see below
-pnpm test:e2e        # wxt build --mode e2e && wxt build --mode bridge-e2e && playwright test
+pnpm test            # wxt build && wxt build -b firefox && vitest run — both builds, see below
+pnpm test:e2e        # three e2e builds (chrome e2e · bridge-e2e · firefox e2e) && playwright test
 pnpm test:packages   # pnpm -r test — the agent-bridge packages, node:test, invisible to vitest
 pnpm check:all       # pnpm check && pnpm -r test — everything above, in one command
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 pnpm format:check    # oxfmt --check            (pnpm format to write)
-pnpm build           # production build → .output/chrome-mv3
+pnpm build           # production builds → .output/chrome-mv3 and .output/firefox-mv3
 pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
 pnpm dev             # WXT dev server
+pnpm dev:firefox     # WXT dev server against Firefox (web-ext-run finds the binary)
 pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
 pnpm store:assets    # wxt build && node scripts/store-assets.mjs → docs/store/assets/
 pnpm crx             # wxt zip, then signs → .output/headerlab-<version>-chrome.crx
@@ -44,6 +45,7 @@ the right command, so a bare run tells you rather than lying; do not work around
 ```
 lib/model/       types, zod schema, defaults, migrate.ts   pure
 lib/compile/     AppState → DNR rules + diagnostics        pure
+                 capabilities.ts — the one table of what each target accepts
 lib/permissions/ origins.ts, audit.ts pure · probe.ts is its one browser caller
 lib/view/        popup view models                         pure
 lib/bridge/      protocol.ts (command schema), apply.ts (reducer),
@@ -51,6 +53,7 @@ lib/bridge/      protocol.ts (command schema), apply.ts (reducer),
                  port.ts is its one browser caller
 lib/storage/     state.ts, session.ts, useAppState.ts
 lib/sync/        ruleSync.ts — the single reconcile loop · icon.ts
+lib/target.ts    TARGET — the only reader of import.meta.env.BROWSER; pure code takes a Target parameter
 lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
 components/      popup UI — AddSiteField RuleCard RulePanel ScopeRail SiteRow
                  TypeChecklist
@@ -120,6 +123,15 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   an install warning, and the one consistency check (a `DCHECK_EQ`) is compiled out of
   release builds — so the manifest string alone proves nothing. The real guard is the
   runtime grant actually succeeding, and only `tests/e2e/bridge.spec.ts` exercises that.
+  **The Firefox manifest holds the same two install-time permissions and adds one block.**
+  `browser_specific_settings.gecko` is exactly `{ id: 'headerlab@say8425.github.io',
+  strict_min_version: '128.0', data_collection_permissions: { required: ['none'] } }` —
+  the id MV3 signing needs, the floor where `optional_host_permissions` arrived, and the
+  data-collection declaration AMO requires of new submissions since 2025-11-03. It
+  declares **no `optional_permissions`**: Firefox event pages close native ports on idle
+  (MDN), so the bridge as designed cannot run there and the popup renders no row for it.
+  `tests/unit/manifest.test.ts` pins the block, the absence, and that the Chrome build
+  carries no gecko block at all.
 - **No network primitives in the shipped bundle** — no `fetch`, `XMLHttpRequest`,
   `WebSocket` or `sendBeacon`. Checkable by reading `.output/chrome-mv3` with no
   exception list, which is the point: the claim is verifiable by a stranger who trusts
@@ -175,8 +187,11 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   until 2026-08-15 and is now gone; the paragraph above is its record, not a live setting.
   **A dependency's own build script is a separate mechanism, and an unanswered one fails
   the install rather than warning.** Exactly one package here asks: `spawn-sync`, reached
-  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner, which this Chrome-only
-  extension never invokes. `pnpm-workspace.yaml` denies it by name and says why. Answer the
+  through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner, which `pnpm dev:firefox` now
+  invokes — and it runs without that build script, because the script builds a polyfill for
+  a Node without `child_process.spawnSync`, which this repository's Node 24 has had for a
+  decade (measured 2026-09-08 by running `pnpm dev:firefox` with the build still denied).
+  `pnpm-workspace.yaml` denies it by name and says why. Answer the
   next one with `pnpm approve-builds '!<pkg>'` and let it write the key rather than
   hand-writing it — it is `allowBuilds` in pnpm 11 and was `ignoredBuiltDependencies` in
   10, and the version that does not own a spelling ignores it in silence.
@@ -300,20 +315,21 @@ running. And an override's `plugins` key does **not** enable a plugin — measur
 reported nothing while `oxlint --vitest-plugin` on the same file reported four. Overrides
 retune rules; only the top-level list turns a plugin on.
 
-**Suppressions are per-site and carry a reason.** Eight exist — counted by grepping for the
+**Suppressions are per-site and carry a reason.** Ten exist — counted by grepping for the
 disable comments themselves (`grep -rn "oxlint-disable"`) rather than trusting a stated
 number, which is how this count was corrected twice: an earlier version of this line said
 four, naming only one `no-empty-pattern` site when the tree already carried four, and Task 7b
 then added a fifth `no-control-regex` site without updating the total at all. Each of the
-eight is a rule that cannot see the intent rather than a rule this repo disagrees with:
+ten is a rule that cannot see the intent rather than a rule this repo disagrees with:
 three `no-control-regex` — two on `/^[\x00-\x7F]/` ASCII range checks
 (`lib/permissions/origins.ts`, `lib/compile/filterDiagnostics.ts`) and a third on
 `packages/headerlab/test/render.test.mjs`'s ANSI-stripping regex, which means to match the
 ESC control byte rather than check a range, so the same rule and the same "cannot see the
-intent" reason cover a genuinely different pattern; four `no-empty-pattern` on Playwright's
+intent" reason cover a genuinely different pattern; six `no-empty-pattern` on Playwright's
 `async ({}, use)` fixture idiom, one per fixture that declares no dependency
 (`tests/e2e/fixtures.ts`'s `context`; `tests/e2e/bridge-fixtures.ts`'s `context`,
-`derivedId`, `bridgeSocketDir`); and one `react-hooks/exhaustive-deps` on the truncating
+`derivedId`, `bridgeSocketDir`; `tests/e2e/firefox-fixtures.ts`'s `firefox` and `echo`);
+and one `react-hooks/exhaustive-deps` on the truncating
 effect in App.tsx. The disable comment must be the line *immediately* before its subject —
 a two-line comment ending in the directive suppresses the second comment line and nothing
 else, which reads as working and is not.
@@ -1062,7 +1078,10 @@ looping would reduce `example.com:80:90` to a plausible-looking host.
 (`local:`, `session:`). `public/` is copied to the output root. Output directories are
 mode-suffixed — `--mode e2e` lands in `chrome-mv3-e2e`. E2E fixtures seeding storage
 must also seed the companion version key at the **current** `STATE_VERSION`:
-`{ state, state$: { v: 2 } }`. **Two e2e modes exist — `e2e` and `bridge-e2e`** —
+`{ state, state$: { v: 2 } }`. **Three e2e builds exist**: Chrome `e2e`, Chrome
+`bridge-e2e`, and Firefox `e2e` (`wxt build -b firefox --mode e2e` → `firefox-mv3-e2e`),
+and the first two are modes of one target while the third is the other target in the
+first mode. **Two e2e modes exist — `e2e` and `bridge-e2e`** —
 because granting `nativeMessaging` outright in the shared build put every popup test
 into the bridge's error state; `wxt.config.ts`'s `bridge-e2e` branch carries the full
 reasoning at the point of use.
@@ -1109,6 +1128,20 @@ migrated, which is why a fixture planting an old shape has to plant the matching
 too rather than relying on the migration to fix it. Testing the migration itself needs
 `vi.resetModules()` before importing both fake-browser and `state.ts`, so the seed lands
 in front of the read — `tests/unit/migrate.test.ts` does this.
+
+**Firefox, measured 2026-09-08 (docs/research/2026-09-08-firefox-marionette-spike.md).**
+WXT builds `-b firefox` as **MV2** unless `manifestVersion: 3` is set. Firefox MV3 has no
+`background.service_worker`; WXT emits `background.scripts`. `updateDynamicRules` rejects
+`webbundle` and `webtransport` as enum values — the whole batch — so `conditions.ts`
+filters by target and `suppressionReason` returns `'no-resource-type'` when nothing is
+left; the same call **accepts** `append` on any request header, so Chrome's 21-entry
+allowlist is Chrome's (`capabilities.ts`). `permissions.contains` still needs the six-rung
+ladder (an `http://` grant answers `false` to `*://` and `https://`), and answers a
+malformed pattern with `false` where Chrome throws. Playwright cannot load a Firefox
+extension; WebDriver BiDi refuses `moz-extension://` navigation; Marionette allows it under
+`-remote-allow-system-access` (Firefox 138+), and its frames are **byte**-length-prefixed —
+the readout's middle dot is two bytes. Firefox's helper processes hold inherited pipes open
+after the parent dies: spawn detached and kill the group.
 
 ## No silent failures
 
@@ -1365,7 +1398,7 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Two of the eighteen e2e tests drive a real request through the
+against a loaded extension. Two of the twenty-one e2e tests drive a real request through the
 loopback echo server and read the headers back off it; those two are the strongest
 evidence in the repo — do not weaken them. A third checks that a row Chrome would refuse
 never reaches declarativeNetRequest while its sibling still does. Ten more cover
@@ -1378,11 +1411,14 @@ keep a focus ring that reaches the screen, the add-site field and the ghost row 
 theirs inside what clips them, an
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
+Three are Firefox's, in `tests/e2e/firefox.spec.ts`, driven through Marionette rather than
+Playwright's browser (tests/support/firefox.ts): the same two wire tests, and the popup
+rendering from stored state with no bridge row.
 **That count said seventeen and eight until 2026-08-24**, and the enumeration was missing
 the add-site/ghost focus-ring guard — which is why it is worth re-deriving rather than
 reading. `pnpm exec playwright test --list` with no file argument ends in
-`Total: 18 tests in 3 files`, which is the figure this sentence states.
-`grep -cE '^test\(' tests/e2e/*.spec.ts` gives the same 13 + 4 + 1 and needs no browser,
+`Total: 21 tests in 4 files`, which is the figure this sentence states.
+`grep -cE '^test\(' tests/e2e/*.spec.ts` gives the same 13 + 4 + 1 + 3 and needs no browser,
 but **it agrees only because of three things that are absent today**: a `test.describe`
 wrapper indents every inner `test(` out of a line-initial match, `test.each` collapses N
 tests into one line, and `test.skip(` drops out entirely. There are none of any of those in

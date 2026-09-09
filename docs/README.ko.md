@@ -15,7 +15,7 @@ Chrome 에서 HTTP 요청·응답 헤더를 추가하고, 수정하고, 삭제�
 
 ## 설치
 
-현재는 크롬만 지원합니다. 파이어폭스, 사파리 추후 지원 예정.
+크롬은 스토어에서, 파이어폭스는 빌드를 직접 로드해서 — 서명된 파이어폭스 배포가 다음 순서입니다. 사파리는 예정.
 
 ### 크롬 스토어
 
@@ -34,10 +34,17 @@ Chrome 에서 HTTP 요청·응답 헤더를 추가하고, 수정하고, 삭제�
 ```bash
 corepack enable          # pnpm 은 package.json 의 packageManager 필드에서 옵니다
 pnpm install
-pnpm build               # → .output/chrome-mv3
+pnpm build               # → .output/chrome-mv3 와 .output/firefox-mv3
 ```
 
 `.output/chrome-mv3` 를 같은 방법으로 로드합니다.
+
+### 파이어폭스
+
+아직 서명된 파이어폭스 빌드가 없어 릴리스 파이어폭스에는 영구 설치되지 않습니다. 임시로
+로드합니다: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → `pnpm build`
+뒤의 `.output/firefox-mv3/manifest.json`. 파이어폭스를 재시작하면 사라집니다. 에이전트
+브리지는 파이어폭스에서 제공되지 않습니다 — 제한 사항 표를 보세요.
 
 ## AI
 
@@ -196,6 +203,7 @@ headerlab rule add --target request --op set --name Authorization --value "Beare
 | 사이트별 런타임 권한 (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | 탭 범위 룰 (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **없음** |
 | 네이티브 메시징 (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (감싸는 앱) |
+| 에이전트 브리지 (HeaderLab 자체) | ✓ | ✓ | **없음** — 이벤트 페이지가 유휴 시 네이티브 포트를 닫음 | **없음** |
 
 ## 구조
 

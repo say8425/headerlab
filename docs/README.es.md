@@ -15,7 +15,7 @@ a ningún sitio hasta que tú se lo concedes.
 
 ## Instalación
 
-Por ahora solo Chrome. Firefox y Safari están previstos.
+Chrome desde la tienda, Firefox cargando una build — una release firmada para Firefox es lo siguiente. Safari está previsto.
 
 ### Chrome Web Store
 
@@ -35,10 +35,17 @@ directorio descomprimido.
 ```bash
 corepack enable          # pnpm viene del campo packageManager de package.json
 pnpm install
-pnpm build               # → .output/chrome-mv3
+pnpm build               # → .output/chrome-mv3 y .output/firefox-mv3
 ```
 
 Carga `.output/chrome-mv3` de la misma forma.
+
+### Firefox
+
+Todavía no hay una build firmada para Firefox, así que el Firefox de release no la instalará
+de forma permanente. Cárgala temporalmente: `about:debugging` → **This Firefox** → **Load
+Temporary Add-on** → `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
+Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.
 
 ## AI
 
@@ -206,6 +213,7 @@ Los detalles están en los
 | Concesión por sitio en runtime (`optional_host_permissions`) | 102 | ✓ | 128 | 15.5 |
 | Reglas por pestaña (`RuleCondition.tabIds`) | 92 | ✓ | 113 | **ninguna** |
 | Native messaging (`runtime.connectNative`) | 29 | ✓ | 50 | 14 (app contenedora) |
+| Puente para agentes (propio de HeaderLab) | ✓ | ✓ | **ninguno** — las event pages cierran los puertos nativos al quedar inactivas | **ninguno** |
 
 ## Arquitectura
 
