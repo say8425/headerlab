@@ -1,5 +1,6 @@
+import { supportedResourceTypes } from '@/lib/compile/capabilities';
 import { isValidDomain } from '@/lib/permissions/origins';
-import type { Profile } from '@/lib/model/types';
+import type { Profile, Target } from '@/lib/model/types';
 
 /**
  * A profile the compiler will not emit a rule for.
@@ -44,7 +45,14 @@ export type SuppressionReason =
   /** Nothing says where to apply: no site listed, and all-sites is off. */
   | 'no-scope'
   /** A listed site cannot be used, so the whole profile fails closed. */
-  | 'unusable-site';
+  | 'unusable-site'
+  /**
+   * No listed request type is one this browser's DNR knows, so there is no
+   * type condition to send: an empty list is rejected and an omitted key
+   * widens to every type but main_frame. Outranks all-sites, which empties
+   * the domain condition and says nothing about types.
+   */
+  | 'no-resource-type';
 
 /**
  * *Why* the compiler will not emit a rule, or `null` when it will.
@@ -64,8 +72,15 @@ export type SuppressionReason =
  * killed; it went when that could no longer happen (2026-08-20), and this
  * paragraph is here so the claim is not restored from a stale reading.
  */
-export function suppressionReason(profile: Profile): SuppressionReason | null {
-  const { allSites, domains, mode } = profile.filter;
+export function suppressionReason(profile: Profile, target: Target): SuppressionReason | null {
+  const { allSites, domains, mode, resourceTypes } = profile.filter;
+
+  // First, before the all-sites early return below: that mode drops the
+  // domain condition on purpose and leaves the type condition exactly as it
+  // is, so a profile with no usable type is dead in either mode. Decided here
+  // rather than trusting schema.ts's min(1): this is the last predicate before
+  // DNR, and conditions.ts drops types the same way it drops bad domains.
+  if (supportedResourceTypes(target, resourceTypes).length === 0) return 'no-resource-type';
 
   // All-sites carries no domain condition **on purpose**, which is the one
   // thing the fail-open argument above could not previously distinguish. The
@@ -105,6 +120,6 @@ export function suppressionReason(profile: Profile): SuppressionReason | null {
   return null;
 }
 
-export function isSuppressed(profile: Profile): boolean {
-  return suppressionReason(profile) !== null;
+export function isSuppressed(profile: Profile, target: Target): boolean {
+  return suppressionReason(profile, target) !== null;
 }

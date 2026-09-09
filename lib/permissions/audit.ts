@@ -1,6 +1,6 @@
 import { isSuppressed } from '@/lib/compile/suppression';
 import { scopingHosts } from '@/lib/permissions/origins';
-import type { Diagnostic, Profile } from '@/lib/model/types';
+import type { Diagnostic, Profile, Target } from '@/lib/model/types';
 
 /** One domain's audit answer, as produced by the adapter. */
 export interface DomainGrant {
@@ -26,10 +26,10 @@ export interface DomainGrant {
  * `<all_urls>`, which is not auditable per-domain and is probed on its own
  * (`probeAllSites`).
  */
-export function domainsToAudit(profiles: readonly Profile[]): string[] {
+export function domainsToAudit(profiles: readonly Profile[], target: Target): string[] {
   const hosts: string[] = [];
   for (const profile of profiles) {
-    if (!profile.enabled || isSuppressed(profile)) continue;
+    if (!profile.enabled || isSuppressed(profile, target)) continue;
     for (const host of scopingHosts(profile.filter)) {
       if (!hosts.includes(host)) hosts.push(host);
     }
@@ -51,13 +51,14 @@ export function domainsToAudit(profiles: readonly Profile[]): string[] {
 export function auditDiagnostics(
   profiles: readonly Profile[],
   grants: readonly DomainGrant[],
+  target: Target,
 ): Diagnostic[] {
   const ungranted = new Set(grants.filter((g) => !g.granted).map((g) => g.domain));
   if (ungranted.size === 0) return [];
 
   const diagnostics: Diagnostic[] = [];
   for (const profile of profiles) {
-    if (!profile.enabled || isSuppressed(profile)) continue;
+    if (!profile.enabled || isSuppressed(profile, target)) continue;
     const seen = new Set<string>();
     // Same source as `domainsToAudit` above, so the hosts probed and the hosts
     // reported cannot come apart — a badge for a host nobody probed would

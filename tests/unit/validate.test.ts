@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  APPEND_ALLOWED_REQUEST_HEADERS,
-  isAppendAllowed,
-  validateHeaders,
-} from '@/lib/compile/validate';
+import { validateHeaders } from '@/lib/compile/validate';
+import { APPEND_ALLOWED_REQUEST_HEADERS, isAppendAllowed } from '@/lib/compile/capabilities';
 import { createProfile } from '@/lib/model/defaults';
 import type { HeaderRule, Profile } from '@/lib/model/types';
 
@@ -29,29 +26,49 @@ describe('the append allowlist', () => {
   });
 
   it('allows a listed request header', () => {
-    expect(isAppendAllowed('request', 'Accept-Language')).toBe(true);
+    expect(isAppendAllowed('chrome', 'request', 'Accept-Language')).toBe(true);
   });
 
   it('rejects a custom request header — registration would fail the whole batch', () => {
-    expect(isAppendAllowed('request', 'X-Custom')).toBe(false);
+    expect(isAppendAllowed('chrome', 'request', 'X-Custom')).toBe(false);
   });
 
   it('allows any response header — there is no allowlist for those', () => {
-    expect(isAppendAllowed('response', 'X-Anything')).toBe(true);
+    expect(isAppendAllowed('chrome', 'response', 'X-Anything')).toBe(true);
   });
 
   it('is case-insensitive', () => {
-    expect(isAppendAllowed('request', 'USER-AGENT')).toBe(true);
+    expect(isAppendAllowed('chrome', 'request', 'USER-AGENT')).toBe(true);
+  });
+
+  it("is Chrome's: Firefox appends any request header (measured 2026-09-08)", () => {
+    // docs/research/2026-09-08-firefox-marionette-spike.md — `X-Custom`
+    // with operation `append` was ACCEPTED by Firefox's updateDynamicRules
+    // and is refused by Chrome outside the 21-entry allowlist.
+    expect(isAppendAllowed('chrome', 'request', 'X-Custom')).toBe(false);
+    expect(isAppendAllowed('firefox', 'request', 'X-Custom')).toBe(true);
+    expect(isAppendAllowed('chrome', 'request', 'Accept-Language')).toBe(true);
+  });
+
+  it('never restricts a response header on either target', () => {
+    expect(isAppendAllowed('chrome', 'response', 'X-Custom')).toBe(true);
+    expect(isAppendAllowed('firefox', 'response', 'X-Custom')).toBe(true);
+  });
+
+  it('raises append-not-allowed on Chrome and not on Firefox for the same row', () => {
+    const p = profileWith([row({ operation: 'append', name: 'X-Custom' })]);
+    expect(validateHeaders(p, 'chrome').map((d) => d.kind)).toEqual(['append-not-allowed']);
+    expect(validateHeaders(p, 'firefox')).toEqual([]);
   });
 });
 
 describe('validateHeaders', () => {
   it('is quiet on a clean profile', () => {
-    expect(validateHeaders(profileWith([row({})]))).toEqual([]);
+    expect(validateHeaders(profileWith([row({})]), 'chrome')).toEqual([]);
   });
 
   it('flags a name that is not an RFC 7230 token', () => {
-    const d = validateHeaders(profileWith([row({ name: 'X Test' })]));
+    const d = validateHeaders(profileWith([row({ name: 'X Test' })]), 'chrome');
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('invalid-header-name');
     expect(d[0]?.severity).toBe('error');
@@ -68,7 +85,7 @@ describe('validateHeaders', () => {
     // one severity for both cases and picked its message by testing the name's
     // length — so the only thing telling a typo from an unfinished rule apart
     // was the copy, and no consumer reads copy.
-    const d = validateHeaders(profileWith([row({ name: '' })]));
+    const d = validateHeaders(profileWith([row({ name: '' })]), 'chrome');
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('incomplete-header');
     expect(d[0]?.severity).toBe('incomplete');
@@ -79,7 +96,7 @@ describe('validateHeaders', () => {
     // Suppressing it would trade a red row for the silent failure the whole
     // product exists to remove: a rule that sends nothing and says nothing.
     // The message is what the rail counts, so it has to exist.
-    const d = validateHeaders(profileWith([row({ name: '' })]));
+    const d = validateHeaders(profileWith([row({ name: '' })]), 'chrome');
     expect(d[0]?.message.length).toBeGreaterThan(0);
   });
 
@@ -88,7 +105,7 @@ describe('validateHeaders', () => {
     // applies before deciding what to emit, so "   " and "" are one state.
     // Without this, spaces would fall through to the token test and be
     // reported as a typo the user cannot see.
-    const d = validateHeaders(profileWith([row({ name: '   ' })]));
+    const d = validateHeaders(profileWith([row({ name: '   ' })]), 'chrome');
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('incomplete-header');
   });
@@ -102,7 +119,7 @@ describe('validateHeaders', () => {
     // name — repeating it there spent the width that made the sentence need
     // truncating in the first place. What the message owes the user is the
     // rule they broke, not an echo of what they typed.
-    const d = validateHeaders(profileWith([row({ name: 'X Session Id' })]));
+    const d = validateHeaders(profileWith([row({ name: 'X Session Id' })]), 'chrome');
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('invalid-header-name');
     expect(d[0]?.severity).toBe('error');
@@ -110,11 +127,14 @@ describe('validateHeaders', () => {
   });
 
   it('accepts a name that only needs trimming, matching what the compiler emits', () => {
-    expect(validateHeaders(profileWith([row({ name: 'X-Test ' })]))).toEqual([]);
+    expect(validateHeaders(profileWith([row({ name: 'X-Test ' })]), 'chrome')).toEqual([]);
   });
 
   it('flags append on a request header outside the allowlist', () => {
-    const d = validateHeaders(profileWith([row({ operation: 'append', name: 'X-Custom' })]));
+    const d = validateHeaders(
+      profileWith([row({ operation: 'append', name: 'X-Custom' })]),
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('append-not-allowed');
     expect(d[0]?.severity).toBe('error');
@@ -124,6 +144,7 @@ describe('validateHeaders', () => {
     expect(
       validateHeaders(
         profileWith([row({ target: 'response', operation: 'append', name: 'X-Custom' })]),
+        'chrome',
       ),
     ).toEqual([]);
   });
@@ -134,6 +155,7 @@ describe('validateHeaders', () => {
         row({ id: 'a', name: 'Authorization' }),
         row({ id: 'b', name: 'authorization' }),
       ]),
+      'chrome',
     );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('duplicate-header');
@@ -153,6 +175,7 @@ describe('validateHeaders', () => {
           row({ id: 'a', target: 'request', name: 'X-Same' }),
           row({ id: 'b', target: 'response', name: 'X-Same' }),
         ]),
+        'chrome',
       ),
     ).toEqual([]);
   });
@@ -169,12 +192,13 @@ describe('validateHeaders', () => {
           row({ id: 'a', enabled: false, name: '' }),
           row({ id: 'b', enabled: false, operation: 'append', name: 'X-Custom' }),
         ]),
+        'chrome',
       ),
     ).toEqual([]);
   });
 
   it('carries the profile id on every diagnostic', () => {
-    const d = validateHeaders(profileWith([row({ name: '' })]));
+    const d = validateHeaders(profileWith([row({ name: '' })]), 'chrome');
     expect(d[0]?.profileId).toBe('p1');
   });
 });

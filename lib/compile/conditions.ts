@@ -1,4 +1,5 @@
-import type { DnrRuleCondition, Filter } from '@/lib/model/types';
+import { supportedResourceTypes } from '@/lib/compile/capabilities';
+import type { DnrRuleCondition, Filter, Target } from '@/lib/model/types';
 import { isValidDomain, normalizeDomain } from '@/lib/permissions/origins';
 
 /**
@@ -23,7 +24,11 @@ function buildUrlFilter(pathPattern: string, domains: string[]): string | undefi
   return domains.length === 1 ? `||${domains[0]}^*${path}` : path;
 }
 
-export function filterToCondition(filter: Filter, tabId?: number | null): DnrRuleCondition {
+export function filterToCondition(
+  filter: Filter,
+  target: Target,
+  tabId?: number | null,
+): DnrRuleCondition {
   // Normalized once here so requestDomains and the urlFilter anchor agree with
   // each other and with the permission audit in lib/permissions/origins.ts —
   // "API.Example.com" and "api.example.com" must compile to the same
@@ -50,8 +55,15 @@ export function filterToCondition(filter: Filter, tabId?: number | null): DnrRul
   // this is the only place that decides not to compile them.
   const domains = filter.allSites ? [] : filter.domains.filter(isValidDomain).map(normalizeDomain);
 
+  // Narrowed to what this browser's DNR schema knows. Firefox has no
+  // `webtransport`/`webbundle` and rejects the whole batch for either one
+  // (capabilities.ts). This can leave an empty list — DNR refuses that too,
+  // and omitting the key would widen the rule to every type but main_frame —
+  // so `suppressionReason` fails the profile closed (`'no-resource-type'`)
+  // before compile.ts ever asks for this condition. Same pairing as the
+  // domain drop above: neither half is safe alone.
   const condition: DnrRuleCondition = {
-    resourceTypes: [...filter.resourceTypes],
+    resourceTypes: supportedResourceTypes(target, filter.resourceTypes),
   };
 
   if (domains.length > 0) {

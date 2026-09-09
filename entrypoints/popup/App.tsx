@@ -20,6 +20,7 @@ import { getSyncStatus } from '@/lib/storage/session';
 import { bridgeStatusItem, DEFAULT_BRIDGE_STATUS, getBridgeStatus } from '@/lib/storage/session';
 import type { BridgeStatus } from '@/lib/storage/session';
 import { bootstrapProfile, newRule } from '@/lib/model/defaults';
+import { TARGET } from '@/lib/target';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
 
@@ -118,7 +119,7 @@ export default function App() {
   // compile() is pure, so the popup runs the same function on the same state
   // the background does. Caching diagnostics in storage would mean keeping the
   // two in step; recomputing means they cannot disagree.
-  const compiled = useMemo(() => (state ? compile(state) : null), [state]);
+  const compiled = useMemo(() => (state ? compile(state, TARGET) : null), [state]);
 
   const resolved = state ? resolveSingleProfile(state.profiles) : null;
 
@@ -179,7 +180,7 @@ export default function App() {
   useEffect(() => {
     if (!state) return;
     let cancelled = false;
-    const hosts = domainsToAudit(state.profiles);
+    const hosts = domainsToAudit(state.profiles, TARGET);
 
     // **Answer from what has been established, and read silence as "no".**
     // `grantDiagnostics` starts empty and only fills once the probe resolves,
@@ -361,10 +362,11 @@ export default function App() {
   // consulting it is what produces the row.
   const grantDiagnostics = auditDiagnostics(
     state.profiles,
-    domainsToAudit(state.profiles).map((domain) => ({
+    domainsToAudit(state.profiles, TARGET).map((domain) => ({
       domain,
       granted: knownGrants.get(domain) ?? false,
     })),
+    TARGET,
   );
   const allDiagnostics = [...compiled.diagnostics, ...grantDiagnostics];
   const routed = routeDiagnostics(allDiagnostics.filter((d) => d.profileId === active.id));
@@ -373,7 +375,7 @@ export default function App() {
   // set (compile.ts:28, :40, :51), none of which is rule-level and so none
   // of which reaches `byRow`. `isSuppressed` is called, never restated
   // (lib/compile/suppression.ts).
-  const live = active.enabled && !state.globalPause && !isSuppressed(active);
+  const live = active.enabled && !state.globalPause && !isSuppressed(active, TARGET);
 
   // The fourth judgement, handed to the tally in the same caller-answers
   // shape: whether the hosts that scope this rule set are granted. Counted
@@ -590,7 +592,7 @@ export default function App() {
           // stay consistent with each other.
           const current = stateRef.current;
           if (!current) return granted;
-          const grants = await probeGrants(domainsToAudit(current.profiles));
+          const grants = await probeGrants(domainsToAudit(current.profiles, TARGET));
           if (mountedRef.current) {
             // Into the same record the render above reads, so the host just
             // granted is known rather than defaulting to ungranted.

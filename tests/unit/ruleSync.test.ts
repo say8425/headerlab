@@ -185,7 +185,7 @@ describe('reconcile', () => {
     // The final registered set reflects the latest state, not the one that
     // happened to be read first.
     expect(dnr().updateDynamicRules).toHaveBeenLastCalledWith(
-      expect.objectContaining({ addRules: compile(stateB).dynamic }),
+      expect.objectContaining({ addRules: compile(stateB, 'chrome').dynamic }),
     );
   });
 
@@ -218,7 +218,7 @@ describe('reconcile', () => {
     // Pinned to the fixture's actual output (1 enabled profile => 1 dynamic
     // rule), not just "truthy" — a stub ruleCount of 0 or 1 for every
     // success would pass a weaker assertion here.
-    expect(status.ruleCount).toBe(compile(state).dynamic.length);
+    expect(status.ruleCount).toBe(compile(state, 'chrome').dynamic.length);
     expect(status.ruleCount).toBe(1);
   });
 

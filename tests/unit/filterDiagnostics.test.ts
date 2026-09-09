@@ -10,7 +10,7 @@ function profileWith(filter: Partial<Filter>): Profile {
 
 describe('validateFilter', () => {
   it('is quiet on a filter with one plain domain', () => {
-    expect(validateFilter(profileWith({ domains: ['api.example.com'] }))).toEqual([]);
+    expect(validateFilter(profileWith({ domains: ['api.example.com'] }), 'chrome')).toEqual([]);
   });
 
   it('says nothing when no site has been set — the readout says it instead', () => {
@@ -21,12 +21,12 @@ describe('validateFilter', () => {
     // `suppressionReason` still names the reason for the readout's blame, and
     // the compiler still fails the profile closed; only the duplicate voice
     // is gone.
-    expect(validateFilter(profileWith({ domains: [] }))).toEqual([]);
+    expect(validateFilter(profileWith({ domains: [] }), 'chrome')).toEqual([]);
   });
 
   it('says nothing at all when all-sites is on — that is the answer to "where"', () => {
     // The state the old warning could not distinguish from the one above.
-    expect(validateFilter(profileWith({ allSites: true, domains: [] }))).toEqual([]);
+    expect(validateFilter(profileWith({ allSites: true, domains: [] }), 'chrome')).toEqual([]);
   });
 
   it('calls every domain being unusable an error, not a warning', () => {
@@ -34,7 +34,7 @@ describe('validateFilter', () => {
     // can fix. It used to share `empty-filter`/`warning` with the empty case,
     // which meant one kind and one severity covering "applies to everything"
     // and "applies to nothing" at once.
-    const d = validateFilter(profileWith({ domains: ['a b.com'] }));
+    const d = validateFilter(profileWith({ domains: ['a b.com'] }), 'chrome');
     expect(d).toEqual([
       {
         kind: 'invalid-domain',
@@ -52,7 +52,9 @@ describe('validateFilter', () => {
     // where a value the user can edit belongs — an error card reading
     // "nothing is applied" over an extension applying to every site would be
     // the screen contradicting itself.
-    expect(validateFilter(profileWith({ allSites: true, domains: ['a b.com'] }))).toEqual([]);
+    expect(validateFilter(profileWith({ allSites: true, domains: ['a b.com'] }), 'chrome')).toEqual(
+      [],
+    );
   });
 
   it('says nothing at all about a domain that merely carried a port', () => {
@@ -60,48 +62,48 @@ describe('validateFilter', () => {
     // host, so the drop is visible in the chip, and the fact a port could
     // never have narrowed anything is help text on the field. A warning per
     // entry on top of that is noise in a 196px rail.
-    expect(validateFilter(profileWith({ domains: ['localhost:3000'] }))).toEqual([]);
+    expect(validateFilter(profileWith({ domains: ['localhost:3000'] }), 'chrome')).toEqual([]);
   });
 
   it('does not warn about an empty filter when a port-bearing domain survives', () => {
-    const d = validateFilter(profileWith({ domains: ['localhost:3000'] }));
+    const d = validateFilter(profileWith({ domains: ['localhost:3000'] }), 'chrome');
     expect(d.map((x) => x.kind)).not.toContain('empty-filter');
   });
 
   it('still calls a port-bearing host unusable when the host itself is broken', () => {
     // Stripping the port must not rescue what is wrong with the rest of it.
-    const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }));
+    const d = validateFilter(profileWith({ domains: ['a b.com:3000'] }), 'chrome');
     expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
 
   it('flags a non-ASCII regex — regexFilter is ASCII-only', () => {
-    const d = validateFilter(profileWith({ mode: 'regex', regex: '도메인' }));
+    const d = validateFilter(profileWith({ mode: 'regex', regex: '도메인' }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
     expect(d.find((x) => x.kind === 'regex-unsupported')?.severity).toBe('error');
   });
 
   it('flags a regex over the 2KB compiled budget', () => {
-    const d = validateFilter(profileWith({ mode: 'regex', regex: 'a'.repeat(2049) }));
+    const d = validateFilter(profileWith({ mode: 'regex', regex: 'a'.repeat(2049) }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
   });
 
   it('flags an empty regex in regex mode', () => {
-    const d = validateFilter(profileWith({ mode: 'regex', regex: '' }));
+    const d = validateFilter(profileWith({ mode: 'regex', regex: '' }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
   });
 
   it('does not check the regex when the filter is in structured mode', () => {
-    const d = validateFilter(profileWith({ domains: ['a.com'], regex: '도메인' }));
+    const d = validateFilter(profileWith({ domains: ['a.com'], regex: '도메인' }), 'chrome');
     expect(d.map((x) => x.kind)).not.toContain('regex-unsupported');
   });
 
   it('does not raise empty-filter in regex mode — the regex is the condition', () => {
-    const d = validateFilter(profileWith({ mode: 'regex', regex: '^https://a\\.com/' }));
+    const d = validateFilter(profileWith({ mode: 'regex', regex: '^https://a\\.com/' }), 'chrome');
     expect(d).toEqual([]);
   });
 
   it('flags a non-ASCII path pattern — urlFilter is ASCII-only too', () => {
-    const d = validateFilter(profileWith({ domains: ['a.com'], pathPattern: '/경로' }));
+    const d = validateFilter(profileWith({ domains: ['a.com'], pathPattern: '/경로' }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
   });
 
@@ -120,6 +122,7 @@ describe('validateFilter', () => {
       profileWith({
         domains: ['api.example.com', 'a b.com'],
       }),
+      'chrome',
     );
     expect(d).toEqual([
       {
@@ -136,6 +139,7 @@ describe('validateFilter', () => {
       profileWith({
         domains: ['x y.net', 'api.example.com', 'a b.com'],
       }),
+      'chrome',
     );
     expect(d).toHaveLength(1);
     expect(d[0]?.message).toBe(
@@ -148,7 +152,9 @@ describe('validateFilter', () => {
     // stores and shows that host, and so no diagnostic is owed — the change is
     // the value on screen. A message here would restate what the chip already
     // says, permanently, in the narrowest column of the UI.
-    expect(validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }))).toEqual([]);
+    expect(
+      validateFilter(profileWith({ domains: ['https://www.musinsa.com/'] }), 'chrome'),
+    ).toEqual([]);
   });
 
   it('says nothing about a deep path either', () => {
@@ -158,6 +164,7 @@ describe('validateFilter', () => {
         profileWith({
           domains: ['https://www.musinsa.com/snap/_next/data/K_la.../recommend.json'],
         }),
+        'chrome',
       ),
     ).toEqual([]);
   });
@@ -174,7 +181,8 @@ describe('validateFilter', () => {
     // off + anything unusable is `invalid-domain` in both modes; regex + empty
     // is scoped by its pattern; and all-sites reports nothing about the list
     // at all, because it compiles none of it.
-    const kinds = (f: Partial<Filter>) => validateFilter(profileWith(f)).map((x) => x.kind);
+    const kinds = (f: Partial<Filter>) =>
+      validateFilter(profileWith(f), 'chrome').map((x) => x.kind);
     const rx = { mode: 'regex', regex: '^https://' } as const;
     const all = { allSites: true } as const;
 
@@ -201,6 +209,7 @@ describe('validateFilter', () => {
         regex: '^https://',
         domains: ['ok.com', 'a b.com'],
       }),
+      'chrome',
     );
     expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
   });
@@ -217,6 +226,7 @@ describe('validateFilter', () => {
         regex: '^https://',
         domains: ['a b.com', 'x y.net'],
       }),
+      'chrome',
     );
     expect(d).toEqual([
       {
@@ -232,14 +242,58 @@ describe('validateFilter', () => {
     // The boundary of the branch above: an empty list is not suppressed, so a
     // regex profile that never named a domain must stay quiet.
     expect(
-      validateFilter(profileWith({ mode: 'regex', regex: '^https://a/', domains: [] })),
+      validateFilter(profileWith({ mode: 'regex', regex: '^https://a/', domains: [] }), 'chrome'),
     ).toEqual([]);
   });
 
   it('reports only the unusable entry when a port-bearing one sits beside it', () => {
     // The port needs no words — the chip shows `localhost`. The unusable entry
     // does, and it must not be crowded out or duplicated by the other one.
-    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'a b.com'] }));
+    const d = validateFilter(profileWith({ domains: ['localhost:3000', 'a b.com'] }), 'chrome');
     expect(d.map((x) => x.kind)).toEqual(['invalid-domain']);
+  });
+});
+
+describe('validateFilter — unsupported-resource-type', () => {
+  it('is an error, naming the browser and the types, when nothing usable is left', () => {
+    const d = validateFilter(
+      profileWith({ domains: ['a.com'], resourceTypes: ['webbundle', 'webtransport'] }),
+      'firefox',
+    );
+    expect(d).toEqual([
+      {
+        kind: 'unsupported-resource-type',
+        severity: 'error',
+        profileId: 'p1',
+        message: 'Not supported in Firefox: webbundle, webtransport.',
+      },
+    ]);
+  });
+
+  it('is a warning when other types carry the rule', () => {
+    const d = validateFilter(
+      profileWith({ domains: ['a.com'], resourceTypes: ['webbundle', 'xmlhttprequest'] }),
+      'firefox',
+    );
+    expect(d.map((x) => [x.kind, x.severity, x.message])).toEqual([
+      ['unsupported-resource-type', 'warning', 'Not supported in Firefox: webbundle.'],
+    ]);
+  });
+
+  it('says nothing on Chrome for the same list', () => {
+    expect(
+      validateFilter(
+        profileWith({ domains: ['a.com'], resourceTypes: ['webbundle', 'webtransport'] }),
+        'chrome',
+      ),
+    ).toEqual([]);
+  });
+
+  it('is raised in all-sites mode too — the mode drops the domains, not the types', () => {
+    const d = validateFilter(
+      profileWith({ allSites: true, domains: [], resourceTypes: ['webbundle'] }),
+      'firefox',
+    );
+    expect(d.map((x) => x.kind)).toEqual(['unsupported-resource-type']);
   });
 });

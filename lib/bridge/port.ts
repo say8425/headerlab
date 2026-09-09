@@ -3,6 +3,7 @@ import { apply } from '@/lib/bridge/apply';
 import { parseCommand, parseQuery } from '@/lib/bridge/protocol';
 import { status } from '@/lib/bridge/query';
 import { probeNativeMessaging } from '@/lib/permissions/probe';
+import { TARGET } from '@/lib/target';
 import { loadState, setState } from '@/lib/storage/state';
 import { patchBridgeStatus } from '@/lib/storage/session';
 import type { ApplyResult } from '@/lib/bridge/protocol';
@@ -242,7 +243,7 @@ async function handleMessage(current: chrome.runtime.Port, message: unknown): Pr
     // `patchBridgeStatus({lastCommandAt})` 를 부르지 않는다 — 읽기는
     // 명령이 아니고, 읽었다는 이유로 마지막 명령 시각이 움직이면 팝업이
     // 거짓말을 하게 된다.
-    reply(current, id, { ok: true, ...status(loaded.state) });
+    reply(current, id, { ok: true, ...status(loaded.state, TARGET) });
     return;
   }
 

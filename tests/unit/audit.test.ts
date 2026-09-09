@@ -11,15 +11,15 @@ function p(id: string, name: string, domains: string[], enabled = true): Profile
 describe('domainsToAudit', () => {
   it('collects normalized hosts from enabled profiles, first-seen order', () => {
     expect(
-      domainsToAudit([
-        p('a', 'A', ['B.example.com', 'a.example.com']),
-        p('b', 'B', ['a.example.com']),
-      ]),
+      domainsToAudit(
+        [p('a', 'A', ['B.example.com', 'a.example.com']), p('b', 'B', ['a.example.com'])],
+        'chrome',
+      ),
     ).toEqual(['b.example.com', 'a.example.com']);
   });
 
   it('normalizes a port away before auditing — the pattern would otherwise throw', () => {
-    expect(domainsToAudit([p('a', 'A', ['localhost:3000'])])).toEqual(['localhost']);
+    expect(domainsToAudit([p('a', 'A', ['localhost:3000'])], 'chrome')).toEqual(['localhost']);
   });
 
   it('skips a profile whose domain list is only partly usable', () => {
@@ -29,31 +29,38 @@ describe('domainsToAudit', () => {
     // registers a rule scoped to `ok.com` — so that host does need a
     // permission badge, and withholding one would leave the user with a rule
     // that cannot fire and nothing saying why.
-    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])])).toEqual(['ok.com']);
+    expect(domainsToAudit([p('a', 'A', ['a b.com', 'ok.com'])], 'chrome')).toEqual(['ok.com']);
   });
 
   it('audits every host of a profile whose domains are all usable', () => {
-    expect(domainsToAudit([p('a', 'A', ['ok.com', 'other.com'])])).toEqual(['ok.com', 'other.com']);
+    expect(domainsToAudit([p('a', 'A', ['ok.com', 'other.com'])], 'chrome')).toEqual([
+      'ok.com',
+      'other.com',
+    ]);
   });
 
   it('ignores disabled profiles', () => {
-    expect(domainsToAudit([p('a', 'A', ['x.com'], false)])).toEqual([]);
+    expect(domainsToAudit([p('a', 'A', ['x.com'], false)], 'chrome')).toEqual([]);
   });
 
   it('returns nothing for a profile with no domains — <all_urls> is not auditable per-domain', () => {
-    expect(domainsToAudit([p('a', 'A', [])])).toEqual([]);
+    expect(domainsToAudit([p('a', 'A', [])], 'chrome')).toEqual([]);
   });
 });
 
 describe('auditDiagnostics', () => {
   it('is quiet when every domain is granted', () => {
     expect(
-      auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: true }]),
+      auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: true }], 'chrome'),
     ).toEqual([]);
   });
 
   it('raises permission-missing for an ungranted domain', () => {
-    const d = auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: false }]);
+    const d = auditDiagnostics(
+      [p('a', 'A', ['x.com'])],
+      [{ domain: 'x.com', granted: false }],
+      'chrome',
+    );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('permission-missing');
     expect(d[0]?.severity).toBe('warning');
@@ -65,6 +72,7 @@ describe('auditDiagnostics', () => {
     const d = auditDiagnostics(
       [p('a', 'A', ['x.com']), p('b', 'B', ['x.com'])],
       [{ domain: 'x.com', granted: false }],
+      'chrome',
     );
     expect(d.map((x) => x.profileId).sort()).toEqual(['a', 'b']);
   });
@@ -75,6 +83,7 @@ describe('auditDiagnostics', () => {
     const d = auditDiagnostics(
       [p('a', 'A', ['x.com', 'X.com'])],
       [{ domain: 'x.com', granted: false }],
+      'chrome',
     );
     expect(d).toHaveLength(1);
   });
@@ -82,17 +91,25 @@ describe('auditDiagnostics', () => {
   it('says nothing about a domain it was given no answer for', () => {
     // A probe that threw is reported as ungranted by the adapter, never omitted.
     // An omission here means the adapter never asked, so staying quiet is right.
-    expect(auditDiagnostics([p('a', 'A', ['x.com'])], [])).toEqual([]);
+    expect(auditDiagnostics([p('a', 'A', ['x.com'])], [], 'chrome')).toEqual([]);
   });
 
   it('ignores disabled profiles', () => {
     expect(
-      auditDiagnostics([p('a', 'A', ['x.com'], false)], [{ domain: 'x.com', granted: false }]),
+      auditDiagnostics(
+        [p('a', 'A', ['x.com'], false)],
+        [{ domain: 'x.com', granted: false }],
+        'chrome',
+      ),
     ).toEqual([]);
   });
 
   it('carries the host so the Grant button need not parse the message', () => {
-    const d = auditDiagnostics([p('a', 'A', ['x.com'])], [{ domain: 'x.com', granted: false }]);
+    const d = auditDiagnostics(
+      [p('a', 'A', ['x.com'])],
+      [{ domain: 'x.com', granted: false }],
+      'chrome',
+    );
     expect(d[0]?.host).toBe('x.com');
   });
 
@@ -104,9 +121,22 @@ describe('auditDiagnostics', () => {
     const d = auditDiagnostics(
       [p('a', 'A', ['api.example.com', 'a b.com'])],
       [{ domain: 'api.example.com', granted: false }],
+      'chrome',
     );
     expect(d).toHaveLength(1);
     expect(d[0]?.kind).toBe('permission-missing');
     expect(d[0]?.host).toBe('api.example.com');
+  });
+});
+
+describe('domainsToAudit — per target', () => {
+  it('skips a profile Firefox suppresses for its request types, like any other suppressed profile', () => {
+    const only = p('p1', 'A', ['api.example.com']);
+    const firefoxDead = {
+      ...only,
+      filter: { ...only.filter, resourceTypes: ['webbundle' as const] },
+    };
+    expect(domainsToAudit([firefoxDead], 'firefox')).toEqual([]);
+    expect(domainsToAudit([firefoxDead], 'chrome')).toEqual(['api.example.com']);
   });
 });
