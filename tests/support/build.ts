@@ -62,6 +62,18 @@ const BUILDS = {
     dir: '.output/chrome-mv3-bridge-e2e',
     fix: 'run `pnpm test:e2e`, which builds this mode too — not a bare `playwright test`',
   },
+  // The second shipped target. Same sources, a different manifest and a
+  // different background shape (event page); read on its own account.
+  firefox: {
+    dir: '.output/firefox-mv3',
+    fix: 'run `pnpm test`, which builds both targets first — not a bare `vitest run`',
+  },
+  'firefox-e2e': {
+    dir: '.output/firefox-mv3-e2e',
+    fix:
+      'run `pnpm test:e2e` (or `pnpm build:firefox-e2e` before `playwright test`) — ' +
+      'not a bare `playwright test`, and not a plain `pnpm build`',
+  },
 } as const;
 
 export type BuildMode = keyof typeof BUILDS;

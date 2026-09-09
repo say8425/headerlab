@@ -3,7 +3,12 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
-  manifest: ({ mode }) => ({
+  // Both targets are MV3. WXT's default for Firefox is MV2 — `wxt build -b
+  // firefox` without this wrote `.output/firefox-mv2` (measured 2026-09-08) —
+  // and this extension has no MV2 shape at all: declarativeNetRequest,
+  // optional_host_permissions and the event page are all MV3 facts.
+  manifestVersion: 3,
+  manifest: ({ browser, mode }) => ({
     name: 'HeaderLab',
     // The Chrome Web Store reads the item's title and its summary out of this
     // manifest — neither is a dashboard field. So both of these lines are
@@ -39,13 +44,30 @@ export default defineConfig({
       'No host access until you grant it. No network calls.',
     permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
-    // Requested at runtime from the popup's Enable button, never at install.
-    // `extensions_api_permissions.cc:113-114` carries no `kFlagCannotBeOptional`
-    // for this one (declarativeNetRequest does, at :57-59), and the runtime
-    // grant was measured rather than inferred — the consent dialog appeared,
-    // allowing it worked, and a second click went straight to connectNative
-    // (docs/research/2026-08-11-native-messaging-spike.md).
-    optional_permissions: ['nativeMessaging'],
+    // Per target. Firefox gets the block AMO requires — the id MV3 signing
+    // needs, the floor where optional_host_permissions arrived, and the
+    // data-collection declaration mandatory for new submissions since
+    // 2025-11-03 — and **no optional_permissions**: its event page closes
+    // native ports on idle, so the bridge as designed cannot run there and
+    // the popup renders no row for it (spec §9). Chrome keeps nativeMessaging
+    // optional, requested at runtime from the popup's bridge switch, never at
+    // install. `extensions_api_permissions.cc:113-114` carries no
+    // `kFlagCannotBeOptional` for this one (declarativeNetRequest does, at
+    // :57-59), and the runtime grant was measured rather than inferred — the
+    // consent dialog appeared, allowing it worked, and a second click went
+    // straight to connectNative (docs/research/2026-08-11-native-messaging-spike.md).
+    // tests/unit/manifest.test.ts pins both halves.
+    ...(browser === 'firefox'
+      ? {
+          browser_specific_settings: {
+            gecko: {
+              id: 'headerlab@say8425.github.io',
+              strict_min_version: '128.0',
+              data_collection_permissions: { required: ['none'] },
+            },
+          },
+        }
+      : { optional_permissions: ['nativeMessaging'] }),
     // Icons need no permission — the manifest declares files, it does not ask
     // for a capability. tests/unit/manifest.test.ts pins the permission list
     // unchanged so that stays true rather than being assumed.

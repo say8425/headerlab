@@ -24,8 +24,10 @@ const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ['EventSource', /\bEventSource\b/],
 ];
 
-function bundleFiles(): Array<{ file: string; source: string }> {
-  const dir = assertBuildFresh('production');
+type ShippedBuild = 'production' | 'firefox';
+
+function bundleFiles(mode: ShippedBuild = 'production'): Array<{ file: string; source: string }> {
+  const dir = assertBuildFresh(mode);
   const out: Array<{ file: string; source: string }> = [];
   for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
     if (!entry.isFile()) continue;
@@ -36,20 +38,24 @@ function bundleFiles(): Array<{ file: string; source: string }> {
   return out;
 }
 
-describe('the shipped bundle', () => {
+describe.each(['production', 'firefox'] as const)('the shipped %s bundle', (mode) => {
   it('has files to read, so an empty build cannot satisfy the checks below', () => {
-    const files = bundleFiles();
+    const files = bundleFiles(mode);
     expect(files.length).toBeGreaterThan(0);
     expect(files.some((f) => f.file.endsWith('.js'))).toBe(true);
   });
 
   it.each(FORBIDDEN)('calls no %s anywhere in the build', (_name, pattern) => {
-    const offenders = bundleFiles()
+    // Same sources, but WXT emits per target — the Firefox bundle is read on
+    // its own account, not inferred from Chrome's.
+    const offenders = bundleFiles(mode)
       .filter((f) => pattern.test(f.source))
       .map((f) => f.file);
     expect(offenders).toEqual([]);
   });
+});
 
+describe('the forbidden patterns themselves', () => {
   // The checks above are all "expect nothing", which passes just as happily
   // when a pattern is broken. These two pin the patterns themselves.
   it('matches every forbidden form when it is present', () => {
