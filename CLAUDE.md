@@ -1158,7 +1158,11 @@ through a read-then-write (`App.tsx`'s bootstrap `patch` → `patchState`), so a
 concurrently can be clobbered — observed on ad hoc headless runs on this Mac, not counted.
 Every Firefox spec therefore seeds through `seedFirefoxState` in
 `tests/e2e/firefox-fixtures.ts`, which waits for that bootstrap write before seeding and
-then waits for the rule to register.
+then waits for the rule to register. **CI ran this path for the first time on 2026-09-09
+and it was green**: run `34309995398`, the e2e job in 1m16s on `ubuntu-latest`'s apt Firefox
+154.0.1, headless under xvfb — so the harness has now been measured on two surfaces, this
+Mac's Developer Edition 156 and that runner, and a red e2e job there is a real signal rather
+than a first-contact guess.
 
 ## No silent failures
 
