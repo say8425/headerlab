@@ -1812,4 +1812,9 @@ that no longer renders, passing while describing nothing.
   Firefox — `title` carries the full sentence regardless, and the remedy is the owner's
   call between a count-style line (`2 types not supported in Firefox`, names moved into
   the tooltip — its width unmeasured) and a two-line reservation. No guard exists for the
-  same reason a fix doesn't: a width assertion would be red today.
+  same reason a fix doesn't: a width assertion would be red today. **The same state has a
+  second, quieter edge:** `domainsToAudit` and `auditDiagnostics` skip every suppressed
+  profile, which is right for `no-scope` and `unusable-site` (nothing is scoped) but here
+  leaves perfectly good hosts unprobed — so a site row in that state shows no Grant button
+  even when the permission is missing. The note says why the profile is dead, and the
+  same hand-edited store is the only way in; recorded with the note, fixed with it.
