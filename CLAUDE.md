@@ -1,6 +1,6 @@
 # HeaderLab
 
-Chrome MV3 extension that modifies HTTP request and response headers. It replaces
+Chrome and Firefox MV3 extension that modifies HTTP request and response headers. It replaces
 ModHeader, which was pulled from the Chrome Web Store in July 2026 after a hidden
 tracker was found in it.
 
@@ -20,6 +20,8 @@ pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix to apply fixes)
 pnpm format:check    # oxfmt --check            (pnpm format to write)
 pnpm build           # production builds → .output/chrome-mv3 and .output/firefox-mv3
+pnpm build:firefox   # wxt build -b firefox → .output/firefox-mv3
+pnpm build:firefox-e2e # wxt build -b firefox --mode e2e → .output/firefox-mv3-e2e
 pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
 pnpm dev             # WXT dev server
 pnpm dev:firefox     # WXT dev server → .output/firefox-mv3-dev; launches nothing here, see the spawn-sync note
@@ -192,7 +194,8 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   through `wxt → web-ext-run → fx-runner`, WXT's Firefox runner — and `pnpm dev:firefox`
   does not reach it, measured 2026-09-09. WXT 0.21 puts its browser runner behind the
   optional peer dependency `web-ext`: `resolveRunner` (`core/resolve-config.mjs`) imports
-  `./runners/web-ext.mjs`, whose first line imports `web-ext`, and when that throws
+  `./runners/web-ext.mjs`, whose imports begin with `web-ext` (measured: the import is on
+  line 4 of `node_modules/wxt/dist/core/runners/web-ext.mjs`), and when that throws
   `ERR_MODULE_NOT_FOUND` WXT logs it at debug level and falls back to the manual runner.
   `web-ext` is not installed here — only wxt's own dependency `web-ext-run`, which is what
   carries `fx-runner` and `spawn-sync` — so both `pnpm dev` and `pnpm dev:firefox` print
@@ -1412,11 +1415,16 @@ in the rail-budget design file above.
 ## Testing
 
 Three layers: pure logic without a browser, adapters with hand-planted spies, e2e
-against a loaded extension. Four of the twenty-one e2e tests drive a real request through
-the loopback echo server and read the headers back off it — two through Chrome and two
-through Firefox; those four are the strongest evidence in the repo — do not weaken them.
-A third checks that a row Chrome would refuse never reaches declarativeNetRequest while
-its sibling still does. Ten more cover
+against a loaded extension. The suite is four files summing to twenty-one tests: Chrome's
+thirteen in `tests/e2e/header-modification.spec.ts`, Firefox's three in
+`tests/e2e/firefox.spec.ts`, and the bridge's five, in `tests/e2e/bridge.spec.ts` and
+`tests/e2e/bridge-rail.spec.ts` (13 + 3 + 5 = 21).
+
+Four of the twenty-one — two in Chrome's file, two in Firefox's — drive a real request
+through the loopback echo server and read the headers back off it; those four are the
+strongest evidence in the repo — do not weaken them. Chrome's file also carries a third
+test that checks a row Chrome would refuse never reaches declarativeNetRequest while its
+sibling still does, and ten more covering
 the popup rendering from stored state and nine layout guards: nothing wider than what
 holds it, a control appearing moves nothing, an overflowing list clips nothing while its
 neighbours stay put, a rule row's gutter chips match size *and* the row keeps its height
@@ -1426,9 +1434,9 @@ keep a focus ring that reaches the screen, the add-site field and the ghost row 
 theirs inside what clips them, an
 error diagnostic replacing a value never resizes the row or moves the rows below it, and
 the bridge row does not push the rail past its own column.
-Three are Firefox's, in `tests/e2e/firefox.spec.ts`, driven through Marionette rather than
-Playwright's browser (tests/support/firefox.ts): the same two wire tests, and the popup
-rendering from stored state with no bridge row.
+Firefox's file, driven through Marionette rather than Playwright's browser
+(tests/support/firefox.ts), closes with the popup rendering from stored state with no
+bridge row.
 **That count said seventeen and eight until 2026-08-24**, and the enumeration was missing
 the add-site/ghost focus-ring guard — which is why it is worth re-deriving rather than
 reading. `pnpm exec playwright test --list` with no file argument ends in
@@ -1784,3 +1792,17 @@ that no longer renders, passing while describing nothing.
   terminal. `headerlab state get --json | jq .state > backup.json` is the
   only backup there is. The README promised none of this, so nothing false
   has shipped publicly.
+- **The dropped-types note is one line and clips in both states.** `components/TypeChecklist.tsx`'s
+  `[data-testid="type-note"]` is `truncate`, so the guarantee is only the first half of
+  the Interface rule — one line — and not the second, not clipped. Measured 2026-09-09 in
+  the headed Firefox popup, production build: error copy `Not supported in Firefox:
+  webbundle, webtransport.` scrolls to 284px, warning copy `Not supported in Firefox:
+  webbundle.` to 203px, against a 199px text budget (rail 224px − `px-3`). Spec §6's own
+  candidate shrink, `Skipped in Firefox: webbundle, webtransport.`, still scrolls to
+  248.9px. Numbers: `docs/research/2026-09-08-firefox-marionette-spike.md`. Recorded
+  rather than fixed because the state is reachable on Firefox only through a hand-edited
+  store — the checklist offers eight types Firefox supports, and there is no CLI on
+  Firefox — `title` carries the full sentence regardless, and the remedy is the owner's
+  call between a count-style line (`2 types not supported in Firefox`, names moved into
+  the tooltip — its width unmeasured) and a two-line reservation. No guard exists for the
+  same reason a fix doesn't: a width assertion would be red today.

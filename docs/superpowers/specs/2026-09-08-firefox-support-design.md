@@ -296,6 +296,9 @@ NativeMessagingHosts/`, `allowed_extensions: [gecko id]`), CLI `--browser firefo
 - **스펙 C — AMO.** `wxt zip -b firefox` (sources zip 포함), `wxt submit` (이미 wxt 의 의존성인
   `publish-browser-extension`), listed/unlisted 채널 결정, 릴리스 첨부, AMO 리스팅 문서
   (`docs/store/` 의 Firefox 판), README 의 Install 세 경로. 릴리스 워크플로는 그때 바뀐다.
+  README 태그라인(`README.md` 5번째 줄 안팎의 "in Chrome" 과 네 개 번역판의 대응 문구)과
+  `PRIVACY.md` 의 "in Chrome" 도 여전히 브라우저 하나만 이름한다 — 서명된 배포와 함께
+  바뀐다.
 - **스펙 D — Firefox 브릿지.** §9.
 - Firefox 스크린샷 (`pnpm screenshots` 는 Chrome 만).
 - Firefox 레이아웃 가드.
