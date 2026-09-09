@@ -80,11 +80,17 @@ describe('validateFilter', () => {
     const d = validateFilter(profileWith({ mode: 'regex', regex: '도메인' }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
     expect(d.find((x) => x.kind === 'regex-unsupported')?.severity).toBe('error');
+    expect(d.find((x) => x.kind === 'regex-unsupported')?.message).toEqual(
+      'Only ASCII characters are accepted in a regex filter.',
+    );
   });
 
   it('flags a regex over the 2KB compiled budget', () => {
     const d = validateFilter(profileWith({ mode: 'regex', regex: 'a'.repeat(2049) }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
+    expect(d.find((x) => x.kind === 'regex-unsupported')?.message).toEqual(
+      'This regex is too large. A compiled pattern is capped at 2KB.',
+    );
   });
 
   it('flags an empty regex in regex mode', () => {
@@ -105,6 +111,9 @@ describe('validateFilter', () => {
   it('flags a non-ASCII path pattern — urlFilter is ASCII-only too', () => {
     const d = validateFilter(profileWith({ domains: ['a.com'], pathPattern: '/경로' }), 'chrome');
     expect(d.map((x) => x.kind)).toContain('regex-unsupported');
+    expect(d.find((x) => x.kind === 'regex-unsupported')?.message).toEqual(
+      'Only ASCII characters are accepted in a path pattern.',
+    );
   });
 
   it('names the unusable entry when only some domains are usable', () => {
@@ -295,5 +304,34 @@ describe('validateFilter — unsupported-resource-type', () => {
       'firefox',
     );
     expect(d.map((x) => x.kind)).toEqual(['unsupported-resource-type']);
+  });
+
+  it('reports both problems, each at its own error severity, when the type list and the domain list are each independently dead', () => {
+    // A regression this pins: `invalid-domain`'s `fatal` used to be
+    // `reason === 'unusable-site'`, and `reason` (the composed
+    // `suppressionReason`) returns `'no-resource-type'` first whenever both
+    // apply — so this state used to read `invalid-domain` as a `warning`
+    // promising "skipped, neighbours still apply" when in fact nothing was
+    // applying at all. `invalid-domain`'s fatality now asks
+    // `scopeSuppression` directly, which answers for the domain list alone
+    // regardless of what the type list says.
+    const d = validateFilter(
+      profileWith({ domains: ['a b.com'], resourceTypes: ['webbundle'] }),
+      'firefox',
+    );
+    expect(d).toEqual([
+      {
+        kind: 'unsupported-resource-type',
+        severity: 'error',
+        profileId: 'p1',
+        message: 'Not supported in Firefox: webbundle.',
+      },
+      {
+        kind: 'invalid-domain',
+        severity: 'error',
+        profileId: 'p1',
+        message: 'No usable site: "a b.com". Use a bare hostname like example.com.',
+      },
+    ]);
   });
 });

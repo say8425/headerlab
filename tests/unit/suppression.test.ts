@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSuppressed, suppressionReason } from '@/lib/compile/suppression';
+import { isSuppressed, scopeSuppression, suppressionReason } from '@/lib/compile/suppression';
 import { createProfile } from '@/lib/model/defaults';
 import type { Filter, Profile } from '@/lib/model/types';
 
@@ -45,5 +45,22 @@ describe('suppressionReason — request types', () => {
     expect(suppressionReason(profileWith({ domains: ['a b.com'] }), 'firefox')).toBe(
       'unusable-site',
     );
+  });
+});
+
+describe('scopeSuppression — the target-free domain half', () => {
+  it('answers unusable-site, no-scope or null for the three domain states, independent of any target', () => {
+    expect(scopeSuppression(profileWith({ domains: ['a b.com'] }))).toBe('unusable-site');
+    expect(scopeSuppression(profileWith({ domains: [] }))).toBe('no-scope');
+    expect(scopeSuppression(profileWith({ domains: ['api.example.com'] }))).toBeNull();
+  });
+
+  it('lets a target-only failure through — suppressionReason still puts no-resource-type first', () => {
+    // A domain list this function calls perfectly fine (`null`) can still be
+    // part of a suppressed profile once the type list is asked too — that
+    // composition, and its priority, belongs to `suppressionReason` alone.
+    const p = profileWith({ domains: ['api.example.com'], resourceTypes: ['webbundle'] });
+    expect(scopeSuppression(p)).toBeNull();
+    expect(suppressionReason(p, 'firefox')).toBe('no-resource-type');
   });
 });

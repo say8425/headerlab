@@ -1,5 +1,5 @@
 import { BROWSER_NAME, unsupportedResourceTypes } from '@/lib/compile/capabilities';
-import { suppressionReason } from '@/lib/compile/suppression';
+import { scopeSuppression, suppressionReason } from '@/lib/compile/suppression';
 import { analyzeDomain } from '@/lib/permissions/origins';
 import type { Diagnostic, Profile, Target } from '@/lib/model/types';
 
@@ -66,9 +66,10 @@ export function validateFilter(profile: Profile, target: Target): Diagnostic[] {
 
   // Said before the domain diagnostics, because it outranks them in
   // `suppressionReason`. Raised in every mode: all-sites drops the domain
-  // list, not the type list. `error` exactly when the suppression reason is
-  // this one — the same coupling `invalid-domain` below keeps with
-  // `'unusable-site'`.
+  // list, not the type list. `error` exactly when the composed suppression
+  // reason is this one — asked of the composed answer, not the domain half
+  // alone, because this diagnostic is about the type list and `reason`
+  // already carries the priority between the two halves correctly.
   const dropped = unsupportedResourceTypes(target, filter.resourceTypes);
   if (dropped.length > 0) {
     diagnostics.push({
@@ -95,7 +96,15 @@ export function validateFilter(profile: Profile, target: Target): Diagnostic[] {
   // entry is still marked broken on its own row, which is where a value the
   // user can edit belongs.
   if (bad.length > 0 && !filter.allSites) {
-    const fatal = reason === 'unusable-site';
+    // Asked of `scopeSuppression`, the domain-only half — never of the
+    // composed `reason` above. This diagnostic is about the domain list, so
+    // its "fatal or not" must answer for the domain list alone: composed
+    // `reason` can be `'no-resource-type'` while the domain list still has a
+    // usable entry, and reading that as fatal here would say "skipped,
+    // neighbours still apply" is false when in fact nothing is applying
+    // (because of the *type* list) — or the reverse, calling this fatal when
+    // the type list, not the domain list, is what killed the profile.
+    const fatal = scopeSuppression(profile) === 'unusable-site';
     diagnostics.push({
       kind: 'invalid-domain',
       severity: fatal ? 'error' : 'warning',
