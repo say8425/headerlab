@@ -176,6 +176,63 @@ describe('the store description', () => {
   });
 });
 
+/** The Firefox Add-ons description, out of its fenced block. */
+function amoDescription(): string {
+  const file = path.join(STORE, 'amo', 'description.en.md');
+  const fenced = /```text\n([\s\S]*?)\n```/.exec(readFileSync(file, 'utf8'));
+  if (!fenced) throw new Error('docs/store/amo/description.en.md has no ```text block.');
+  return fenced[1]!;
+}
+
+/**
+ * The AMO copy is the Chrome copy with its Chrome-specific words made
+ * browser-neutral and the agent bridge marked Chrome-only. Holding it to the
+ * same three rules is the easy half; the fourth test is what stops the two
+ * listings drifting into two products — every line the AMO copy carries that
+ * the Chrome copy does not is listed, by name, and there are exactly four.
+ */
+describe('the Firefox Add-ons description', () => {
+  it('keeps its shape — the Chrome copy with the two agent paragraphs folded into one', () => {
+    expect(skeleton(amoDescription())).toBe('T_T_BBBBB_T_T_T_BBBB_T_T');
+  });
+
+  it('spells every API name, licence, URL and button label as the product does', () => {
+    const text = amoDescription();
+    const missing = VERBATIM.filter(([, pattern]) => !pattern.test(text)).map(([what]) => what);
+    expect(missing, 'missing from amo/description.en.md').toEqual([]);
+  });
+
+  it('carries no Markdown — AMO would render some of it, and the same plain text goes to both stores', () => {
+    const leaks = amoDescription()
+      .split('\n')
+      .flatMap((line) =>
+        MARKDOWN.filter(([, pattern]) => pattern.test(line)).map(([what]) => `${what}: ${line}`),
+      );
+    expect(leaks, 'Markdown in amo/description.en.md').toEqual([]);
+  });
+
+  it('differs from the Chrome copy on exactly the four lines the spec names', () => {
+    const chromeLines = new Set(description('en').split('\n'));
+    const foreign = amoDescription()
+      .split('\n')
+      .filter((line) => !chromeLines.has(line));
+    expect(foreign).toEqual([
+      "HeaderLab sets, appends and removes HTTP request and response headers on the sites you choose, using the browser's own declarativeNetRequest engine. It holds no access to any site until you grant it.",
+      "• Filter by request type. Eight request types, each its own checkbox, main_frame included — which the browser's own default quietly leaves out.",
+      "HeaderLab ships an optional command line tool and a skill for Claude Code and Codex, so an agent can read and change your header rules while it works. That bridge is Chrome-only for now: Firefox closes native-messaging ports when an extension's event page goes idle, so this Firefox build does not offer it and asks for no nativeMessaging permission.",
+      "• Nothing leaves your machine. Your rules live in the browser's own extension storage.",
+    ]);
+  });
+
+  it('says the bridge is Chrome-only, and names Chrome nowhere else', () => {
+    const text = amoDescription();
+    expect(text).toContain('Chrome-only');
+    // `Chrome's` is the possessive every browser-specific sentence in the
+    // Chrome copy used; none of them may survive here.
+    expect(text).not.toContain("Chrome's");
+  });
+});
+
 describe('the summary table in listing.md', () => {
   /**
    * `listing.md` prints the summary and its length so the listing can be checked
