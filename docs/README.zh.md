@@ -14,7 +14,7 @@
 
 ## 安装
 
-Chrome 从商店安装，Firefox 直接加载构建 — 签名的 Firefox 发布是下一步。Safari 在计划中。
+Chrome 从商店安装，Firefox 可临时加载构建版本。Firefox Add-ons 发布正在准备中。Safari 在计划中。
 
 ### Chrome 网上应用店
 
@@ -24,8 +24,10 @@ Chrome 从商店安装，Firefox 直接加载构建 — 签名的 Firefox 发布
 
 ### 发布页面
 
-每个 `extension-v*` 发布都附带 `headerlab-<version>-chrome.zip`。在
-[发布页面](https://github.com/say8425/headerlab/releases)取下你要的版本，解压，然后
+1.7.0 之后的每个 `extension-v*` 发布都附带三个压缩包：`headerlab-<version>-chrome.zip`、
+`headerlab-<version>-firefox.zip`，以及 Mozilla 审核者用来重新构建的源码包
+`headerlab-<version>-sources.zip` — 一并附上，让任何人都能看到他们拿到的是什么。1.7.0 及更早的发布只有 Chrome zip。在
+[发布页面](https://github.com/say8425/headerlab/releases)取下你要的版本的 Chrome 资源，解压，然后
 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的目录。
 
 ### 自行构建
@@ -38,12 +40,14 @@ pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 
 用同样的方式加载 `.output/chrome-mv3`。
 
+需要 Node 24（`.nvmrc`）。`pnpm build:firefox` 仅构建 `.output/firefox-mv3`。
+
 ### Firefox
 
-目前还没有签名的 Firefox 构建，正式版 Firefox 不会永久安装它。临时加载：`about:debugging`
-→ **This Firefox** → **Load Temporary Add-on** → `pnpm build` 之后的
-`.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在 Firefox 上提供 —
-见限制表。
+Firefox Add-ons 列表上线之前，正式版 Firefox 不会永久安装未签名的 zip。临时安装：`about:debugging`
+→ **This Firefox** → **Load Temporary Add-on** → 直接选发布页的 `headerlab-<version>-firefox.zip`，
+或者 `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在
+Firefox 上提供 — 见限制表。
 
 ## AI
 
@@ -230,9 +234,11 @@ pnpm test:e2e        # 构建两个 e2e 模式后运行 playwright test —— �
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 修复)
 pnpm format:check    # oxfmt --check             (pnpm format 写入)
-pnpm build           # 生产构建 → .output/chrome-mv3
+pnpm build           # 生产构建 → .output/chrome-mv3 和 .output/firefox-mv3
 pnpm screenshots     # 从真实弹窗重新生成本 README 中的图片
 pnpm store:assets    # 重新生成 Chrome 网上应用店的 8 张图片 → docs/store/assets/
+pnpm amo:submit      # 打包 Firefox 构建并提交到 Firefox Add-ons（凭据来自 1Password）
+pnpm amo:probe       # 只读取 Firefox Add-ons 列表的状态 — 不上传任何东西
 ```
 
 **用 pnpm，不用 npm。** `package.json` 的 `packageManager` 写明了确切版本，所以

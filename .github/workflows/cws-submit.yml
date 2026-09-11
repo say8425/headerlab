@@ -1,4 +1,4 @@
-name: Store submit
+name: Chrome Web Store submit
 
 # Two triggers, and the second is the recovery path.
 #
@@ -148,14 +148,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release download "$TAG" --pattern '*.zip' --dir .output
+        run: gh release download "$TAG" --pattern '*-chrome.zip' --dir .output
 
       - name: Sign it
         env:
           # Ubuntu runners ship Google Chrome; pack-crx.mjs defaults to the macOS
           # path because that is where it is normally run by hand.
           CHROME: /usr/bin/google-chrome
-        run: node scripts/pack-crx.mjs .output/*.zip
+        run: node scripts/pack-crx.mjs .output/*-chrome.zip
 
       # Submits for review. It cannot publish — the store's own wording is that
       # `:publish` submits and Google publishes on passing — so success here means

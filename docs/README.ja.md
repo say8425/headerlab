@@ -15,7 +15,7 @@ HTTP リクエスト・レスポンスヘッダーを Chrome と Firefox で追�
 
 ## インストール
 
-Chrome はストアから、Firefox はビルドを読み込んで — 署名付き Firefox リリースが次です。Safari は対応予定。
+Chrome はストアから、Firefox はビルドを一時的に読み込んで使用できます。Firefox Add-ons での配布は準備中です。Safari は対応予定。
 
 ### Chrome ウェブストア
 
@@ -24,9 +24,12 @@ Chrome はストアから、Firefox はビルドを読み込んで — 署名付
 
 ### リリースページ
 
-`extension-v*` リリースにはそれぞれ `headerlab-<version>-chrome.zip` が添付されています。
+1.7.0 より後の `extension-v*` リリースには三つのアーカイブが添付されます: `headerlab-<version>-chrome.zip`、
+`headerlab-<version>-firefox.zip`、そして Mozilla のレビュアーが再ビルドするソースアーカイブ
+`headerlab-<version>-sources.zip` — 彼らが受け取ったものを誰でも見られるよう、一緒に添付します。
+1.7.0 以前のリリースには Chrome の zip だけがあります。
 [リリースページ](https://github.com/say8425/headerlab/releases)から必要なバージョンの
-アセットを取得して展開し、`chrome://extensions` → **デベロッパーモード** →
+Chrome アセットを取得して展開し、`chrome://extensions` → **デベロッパーモード** →
 **パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
 
 ### 自分でビルドする
@@ -39,12 +42,15 @@ pnpm build               # → .output/chrome-mv3 と .output/firefox-mv3
 
 `.output/chrome-mv3` を同じ手順で読み込みます。
 
+Node 24 が必要です（`.nvmrc`）。`pnpm build:firefox` は `.output/firefox-mv3` のみをビルドします。
+
 ### Firefox
 
-署名付きの Firefox ビルドはまだないため、リリース版 Firefox には永続インストールできません。
-一時的に読み込みます: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-`pnpm build` 後の `.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。
-エージェントブリッジは Firefox では提供されません — 制限事項の表を参照。
+Firefox Add-ons のリスティングが公開されるまで、リリース版 Firefox は署名のない zip を永続
+インストールしません。一時的なインストール: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+リリースの `headerlab-<version>-firefox.zip` をそのまま、または `pnpm build` 後の
+`.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。エージェントブリッジは
+Firefox では提供されません — 制限事項の表を参照。
 
 ## AI
 
@@ -255,9 +261,11 @@ pnpm test:e2e        # e2e モード 2 つをビルドして playwright test —
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix で修正)
 pnpm format:check    # oxfmt --check             (pnpm format で書き込み)
-pnpm build           # 本番ビルド → .output/chrome-mv3
+pnpm build           # 本番ビルド → .output/chrome-mv3 と .output/firefox-mv3
 pnpm screenshots     # この README の画像を実際のポップアップから再生成
 pnpm store:assets    # Chrome ウェブストア用の画像 8 枚を再生成 → docs/store/assets/
+pnpm amo:submit      # Firefox ビルドを zip し、Firefox Add-ons に提出（認証情報は 1Password から）
+pnpm amo:probe       # Firefox Add-ons のリスティング状態を読むだけ — 何もアップロードしない
 ```
 
 **npm ではなく pnpm。** `package.json` の `packageManager` が正確なバージョンを指定して

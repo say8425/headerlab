@@ -15,12 +15,9 @@ and what it deliberately does not.
 | [`checklist.md`](checklist.md) | The runbook: account, package, upload, both tabs, submit, aftermath |
 | [`listing.md`](listing.md) | Store listing tab — category, URLs, the asset-to-slot mapping, and which fields are read from the manifest rather than typed |
 | [`description.en.md`](description.en.md) | Detailed description, English |
-| [`description.ko.md`](description.ko.md) | Detailed description, 한국어 |
-| [`description.ja.md`](description.ja.md) | Detailed description, 日本語 |
-| [`description.zh_CN.md`](description.zh_CN.md) | Detailed description, 简体中文 |
-| [`description.es.md`](description.es.md) | Detailed description, Español |
 | [`privacy.md`](privacy.md) | Privacy practices tab — single purpose, a justification per permission, data-use answers |
 | [`../../PRIVACY.md`](../../PRIVACY.md) | The privacy policy itself. This is the URL the store is given |
+| [`amo/`](amo/README.md) | Firefox Add-ons runbook and listing copy |
 | `assets/` | Every image, generated — see below |
 
 ## Three things that are easy to get wrong

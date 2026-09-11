@@ -1,0 +1,152 @@
+name: Firefox Add-ons submit
+
+# Two triggers, and the second is the recovery path — the same shape as
+# cws-submit.yml, for the same reason: release-please cuts the tag in its own
+# step, so this runs with the release already irreversible, and a failure here
+# is re-run against the same tag, never re-cut. AMO refuses a version it
+# already holds, so a re-run after a partial success fails loudly rather than
+# uploading twice.
+#
+# There is deliberately no `on: release`. release-please creates the release
+# with the default GITHUB_TOKEN, and by GitHub's loop-prevention rule that
+# event starts no workflow run at all.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The extension release tag, e.g. extension-v1.8.0
+        required: true
+        type: string
+      version:
+        description: The version AMO must end up holding, e.g. 1.8.0
+        required: true
+        type: string
+      channel:
+        # A release never passes this: the environment's FIREFOX_CHANNEL
+        # variable decides, and `listed` when that is unset. Declared here so
+        # the expression below resolves under both triggers.
+        description: Unused by a release. See the workflow_dispatch input of the same name.
+        required: false
+        type: string
+      ref:
+        description: Unused by a release. See the workflow_dispatch input of the same name.
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The extension release tag to submit, e.g. extension-v1.8.0
+        required: true
+        type: string
+      version:
+        description: The version AMO must end up holding, e.g. 1.8.0
+        required: true
+        type: string
+      channel:
+        description: listed (AMO hosts it) or unlisted (AMO signs it and the xpi is attached to the release)
+        required: true
+        type: choice
+        options:
+          - listed
+          - unlisted
+        default: listed
+      ref:
+        description: >-
+          Which revision supplies the SCRIPTS. Leave empty to use the tag. Set it
+          to main when the failure is in the scripts themselves — see the comment
+          on the checkout step below.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    # The script's own ceilings sum to thirty-two minutes — fifteen for wxt
+    # submit, whose validation poll alone may take ten; on unlisted, fifteen for
+    # the signature and two for the download — and checkout and install come on
+    # top. The job allows more than all of it, so a slow run ends with the
+    # script's own message naming what to check, not the runner's cancellation.
+    timeout-minutes: 40
+
+    # The environment is the whole authorization story for the API key.
+    #
+    # Environment secrets are readable ONLY by a job that names the environment,
+    # and are read when that job starts rather than when the run is queued. The
+    # deployment branch rule must be `Selected branches and tags → Ref type:
+    # Branch → main`, exactly as chrome-web-store's is.
+    #
+    # The name below is pinned by tests/unit/storeSubmit.test.ts. A typo does
+    # not fail — GitHub silently creates an environment with that name, with no
+    # protection rules and no secrets, and the job runs ungated.
+    environment: firefox-amo
+
+    steps:
+      # The checkout supplies the SCRIPTS and the dependency tree — the archives
+      # come from the release, two steps down — so the two failure modes want
+      # different revisions, the same two as the Chrome job: the tag by default,
+      # so the archive check in amo-submit.mjs agrees with package.json; `ref:
+      # main` when the failure is in the scripts and main still carries the
+      # tag's version. docs/store/amo/checklist.md §8 carries the table.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || inputs.tag }}
+          persist-credentials: false
+
+      # Unlike the Chrome job, this one installs: `wxt submit` is
+      # publish-browser-extension, reached through node_modules. The job that
+      # holds the credential is that much larger; the alternative is a second
+      # AMO client in this repository.
+      - uses: ./.github/actions/setup
+
+      # An absent GitHub secret dereferences to an empty string rather than
+      # failing. wxt submit would refuse it too — after the checkout and the
+      # install — and the issuer's shape is the one cheap check that catches
+      # the two secrets pasted into each other's slots.
+      - name: Refuse to run without real AMO credentials
+        env:
+          ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+          CHANNEL: ${{ inputs.channel || vars.FIREFOX_CHANNEL || 'listed' }}
+        run: |
+          set -euo pipefail
+          test -n "$SECRET" || { echo "FIREFOX_JWT_SECRET is empty"; exit 1; }
+          [[ "$ISSUER" =~ ^user:[0-9]+:[0-9]+$ ]] || { echo "FIREFOX_JWT_ISSUER is not an AMO API key (user:<id>:<key>)"; exit 1; }
+          case "$CHANNEL" in
+            listed|unlisted) ;;
+            *) echo "channel must be listed or unlisted, got '$CHANNEL'"; exit 1 ;;
+          esac
+          echo "FIREFOX_CHANNEL=$CHANNEL" >> "$GITHUB_ENV"
+          echo "submitting on the $CHANNEL channel"
+
+      # The release's own archives, so what Mozilla reviews is what anyone can
+      # download from the release page. Named, not globbed: there are three.
+      - name: Take the archives from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download "$TAG" --pattern '*-firefox.zip' --pattern '*-sources.zip' --dir .output
+
+      # One command, the same one a person types. It checks the archive is the
+      # version being submitted, runs wxt submit, and on the unlisted channel
+      # waits for the signature and writes the xpi. A green step on `listed`
+      # means AMO validated the upload and created the version — approval is
+      # Mozilla's and arrives by email. Nothing here publishes.
+      - name: Submit to Firefox Add-ons
+        env:
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+          VERSION: ${{ inputs.version }}
+        run: node scripts/amo-submit.mjs --channel "$FIREFOX_CHANNEL" --expect-version "$VERSION"
+
+      # Only on unlisted, and only after AMO signed it — on listed, AMO hosts
+      # the file and there is nothing to attach. `--clobber` because a re-run
+      # of this workflow is the recovery path.
+      - name: Attach the signed package to the release
+        if: env.FIREFOX_CHANNEL == 'unlisted'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" .output/*.xpi --clobber

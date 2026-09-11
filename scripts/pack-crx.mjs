@@ -17,7 +17,7 @@
  * its behalf. That cost is real and the owner took it anyway, so that merging the
  * release PR is the whole of a release; CLAUDE.md's "Chrome Web Store" section
  * keeps the argument beside the decision and lists what narrows it. Nothing in
- * this file changed for it — `.github/workflows/store-submit.yml` sets
+ * this file changed for it — `.github/workflows/cws-submit.yml` sets
  * `HEADERLAB_CRX_KEY` and `CHROME` and calls it exactly as a person would.
  *
  * The key comes out of 1Password by default and is never written anywhere but a

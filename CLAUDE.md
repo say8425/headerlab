@@ -22,7 +22,9 @@ pnpm format:check    # oxfmt --check            (pnpm format to write)
 pnpm build           # production builds → .output/chrome-mv3 and .output/firefox-mv3
 pnpm build:firefox   # wxt build -b firefox → .output/firefox-mv3
 pnpm build:firefox-e2e # wxt build -b firefox --mode e2e → .output/firefox-mv3-e2e
-pnpm zip             # builds, then → .output/headerlab-<version>-chrome.zip
+pnpm zip             # both builds → .output/headerlab-<version>-{chrome,firefox,sources}.zip
+pnpm amo:submit      # build Firefox archives, then submit; credentials from env or 1Password
+pnpm amo:probe       # read AMO state without uploading
 pnpm dev             # WXT dev server
 pnpm dev:firefox     # WXT dev server → .output/firefox-mv3-dev; launches nothing here, see the spawn-sync note
 pnpm screenshots     # wxt build && node scripts/screenshots.mjs → docs/screenshots/
@@ -293,9 +295,9 @@ and the two cannot drift apart while the flag stays where it is.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 222 `@/…` imports
+`correctness` enables (`import/default`, `import/namespace`), across 224 `@/…` imports
 (126 when this was written, then 141, then 189 — which was already 197 by the time the
-Firefox branch started and 222 when it landed; the count is whatever `grep -rhoE "from '@/"
+Firefox branch started, 222 when it landed and 224 with the Firefox Add-ons branch; the count is whatever `grep -rhoE "from '@/"
 components entrypoints lib tests | wc -l` says today, and it is the repo-wide figure because
 oxlint lints the tests too).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
@@ -386,18 +388,34 @@ set, and the *ordering* is what the choice rests on, which reproduces either way
 `singleQuote: true` matches what the repo already wrote. **oxfmt also sorts `package.json`
 keys** by default — that is why `dependencies` now precedes `devDependencies`.
 
-**Writing about a utility ships it.** Tailwind v4 auto-detects sources by scanning the
-tree as raw text, so a class name quoted in a *comment* is indistinguishable from one
-used on an element and its CSS is emitted. (Testing's mutation-verify paragraph records
+**Writing about a utility ships it — from the four directories the stylesheet names.**
+Tailwind v4 reads its sources as raw text, so a class name quoted in a *comment* is
+indistinguishable from one used on an element and its CSS is emitted. (Testing's mutation-verify paragraph records
 the same collision from the other side: a class named in a comment is also what a
 first-occurrence string replace edits, so a mutation lands in the prose and the suite
-stays green.) Measured: the 143 B this repo's popup CSS grew
-during the documentation task came entirely from prose — docblocks and test comments
-naming classes while explaining a bug — and excluding `tests/` and `scripts/` leaves the
-remaining CSS byte-identical across those commits. Currently `tests/` contributes 324 B
-and `scripts/` 30 B, 0.8% of 43,790 B, which is not worth two more `@source not` lines;
-that is a re-measurable ruling, not a permanent one. One thing not to waste time on: **`.md` files are not scanned at all** — probed by
-planting a unique utility in CLAUDE.md and rebuilding, which changed nothing.
+stays green.) **Since 2026-09-11 the stylesheet, not auto-detection, decides what is source**:
+`@import "tailwindcss" source(none)` and four `@source` lines — `components`,
+`entrypoints`, `lib`, `public`. Auto-detection read the whole tree minus `.gitignore`,
+which made the popup CSS a function of where it was built, and the Firefox Add-ons sources
+archive is where that stopped being tolerable: extracted and rebuilt, it produced
+**45,274 B** of popup CSS against the repository's **45,818 B**. The repository side
+carried ten selectors only test files mention (`bg-input/30`, `invert`, `h-[60px]`
+among them), and `wxt zip` leaves test files out of that archive; the extracted side,
+with no `.gitignore` in it, read the build's own half-written `.output/` and gained
+`uppercase`. AMO's reviewers rebuild that archive and diff — "There must be no
+differences." With the list pinned the CSS is 45,055 B and an extraction rebuilds all 12
+files byte-identical, twice (docs/store/amo/reviewer-notes.md). The ten selectors that
+went were each checked against the four directories and none is used there.
+`tests/unit/cssSources.test.ts` holds every tracked `.tsx`/`.html` outside `tests/`
+and `docs/` to a listed directory, because a UI file outside the list loses its CSS in
+silence — that is the price of the list, and the guard is what keeps it paid.
+Earlier figures, kept as the record: the 143 B this CSS grew during the documentation task
+came entirely from test and script prose, and `tests/` contributed 324 B and `scripts/`
+30 B of 43,790 B — which this paragraph once called "not worth two more `@source not`
+lines". Prose inside the four directories still ships. One thing not to waste time on:
+**`.md` files are not scanned at all** — probed by planting a unique utility in CLAUDE.md
+and rebuilding, which changed nothing — and neither is the stylesheet itself: its
+`@source` comment names three utilities and none of them is emitted.
 
 **And one thing that cost time, because this file got the reason wrong.** It said
 `.superpowers/` contributes exactly 0 B "because auto-detection skips dot-directories".
@@ -411,10 +429,12 @@ sitting in this tree for four days: the popup CSS built **105,485 B** with it pr
 exactly what CI builds, so that directory was the entire difference between a local build
 and the released one. 658 selectors, ~59 kB, from files nobody thought were source.
 `.design/` and `.zcode/` are in `.gitignore` now for that reason rather than for tidiness.
-The rule to carry forward is that **untracked is not excluded**: anything Tailwind can read
-as text and git does not ignore is source. That is why `@source not "../../docs"`
-exists for the `.html` mocks in that tree rather than for its prose, and why class names
-may be quoted freely *here* but cost bytes in a `.ts` comment.
+The rule that carried forward was that **untracked is not excluded**: anything Tailwind
+could read as text and git did not ignore was source. `source(none)` retired it — a
+scratch directory like `.design/` sits outside the four `@source` directories and costs
+nothing now, gitignored or not, and `@source not "../../docs"` went with it — which is
+why class names may be quoted freely *here* and in tests, and still cost bytes in a
+comment under `components/`.
 
 **`pnpm-lock.yaml` records no URL at all, and that deletes a whole defect class.** The
 `package-lock.json` it replaced carried a `resolved` URL per package, and this office's
@@ -502,7 +522,7 @@ OIDC token is what publishes to npm. A moved upstream tag reaches all of it, and
 this repository forecloses that; a SHA was the only thing that did.
 
 Two things bound it rather than remove it. The CRX signing key is **not** in this job — it
-is an environment secret readable only by `store-submit.yml`'s own job, which uses no
+is an environment secret readable only by `cws-submit.yml`'s own job, which uses no
 third-party action at all. And `main` refuses a direct push, so a *local* change to which
 action runs has to arrive as a pull request. Neither of those helps against the upstream tag
 moving, which is the actual residual risk.
@@ -534,8 +554,8 @@ supply-chain surface.
 
 **Release is `release-please.yml`, on push to `main`.** It opens and grooms a release PR
 from the conventional-commit subjects; merging that PR is what tags, releases, and — only
-then — builds `pnpm zip` and attaches `.output/headerlab-<version>-chrome.zip` to the
-release.
+then — builds `pnpm zip` and attaches the Chrome, Firefox and sources archives to the
+release. The release calls `cws-submit.yml` and `amo-submit.yml` independently.
 
 **Both packages name themselves in their tags, and that is about the release title rather
 than the tag.** release-please builds the GitHub release name as `<component>: v<x.y.z>`,
@@ -710,7 +730,7 @@ there because `ci.yml` and `release-please.yml` both fire on the push to `main` 
 waits for the other, so `ci.yml` passing is never a fact the release job can act on — and
 because everything below the release-please step runs with the tag already cut.
 
-**There is a Chrome Web Store step now** (2026-08-26), and it is `store-submit.yml` rather
+**There is a Chrome Web Store step now** (2026-08-26), and it is `cws-submit.yml` rather
 than `wxt submit`. It signs the release's own zip into a CRX and submits it. Three things
 about it are load-bearing and none is obvious from the YAML:
 
@@ -741,6 +761,35 @@ about it are load-bearing and none is obvious from the YAML:
   the two constraints genuinely conflict and the answer is a local `pnpm crx` and the
   dashboard. `docs/store/checklist.md` §10 carries the table.
 
+**There is a Firefox Add-ons step beside it (2026-09-11), and it is exactly the
+`wxt submit` step the Chrome one is not.** `amo-submit.yml` is the second reusable
+workflow the release run calls, side by side with `cws-submit.yml` — neither waits for
+the other — and gated by its own `firefox-amo` environment (secrets `FIREFOX_JWT_ISSUER`
+and `FIREFOX_JWT_SECRET`, variable `FIREFOX_CHANNEL`). It types the one command a person
+types: `node scripts/amo-submit.mjs --channel <c> --expect-version <v>`. That script checks
+the release's Firefox zip is the version being submitted, runs `wxt submit` with the
+sources archive attached, and on `unlisted` waits for AMO's signature and attaches
+`headerlab-<v>-firefox.xpi`. Three things about it are load-bearing:
+
+- **A green run means AMO validated the upload and created the version.** On `listed`,
+  approval is Mozilla's and arrives by email; on `unlisted` the signed file is on the
+  release. Neither is "published", and nothing waits for a verdict.
+- **`wxt submit` cannot create the add-on, and AMO refuses a version it already holds.**
+  So the first submission is a person's (`docs/store/amo/checklist.md` §3), and the order
+  matters: it goes in *before* the next extension release PR is merged, with the archives
+  `main` builds — otherwise that release's AMO job goes red on a 404 (designed: there is
+  no add-on) and the automated path's first run slips a whole version.
+- **The channel lives in the environment, not in the code.** `FIREFOX_CHANNEL` on
+  `firefox-amo`, `listed` when unset, overridden by a `workflow_dispatch` input; the
+  script itself reads only its flag. Unlisted installs do not auto-update — no
+  `update_url`, by decision — the same bargain the Chrome "release page" route makes.
+
+The Chrome job now names `*-chrome.zip` in both places it used to glob `*.zip`; with
+three archives, `unzip` and `pack-crx.mjs` would each have taken the second and third as
+member patterns, silently. `tests/unit/storeSubmit.test.ts` pins that, both environment
+names, that each credential is read only in the workflow declaring its environment, and
+that the id the script submits under is the id the Firefox build carries.
+
 **The first run started from zero tags and zero releases**, so it read the whole history and
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
@@ -769,7 +818,7 @@ on a push).
 **It is listed.** `kgapijlldieckifoenckgninnepafhnn`, published 2026-08-25 at version
 1.7.0, category Developer Tools. `docs/store/checklist.md` is still the runbook for what a
 submission needs; what changed is that the READMEs no longer say there is no listing, and
-`store-submit.yml` now does the upload that used to be a manual dashboard step.
+`cws-submit.yml` now does the upload that used to be a manual dashboard step.
 
 **The v2 `fetchStatus` response was guessed wrong, and `pnpm store:probe` is what caught
 it (2026-08-28).** The guess was a top-level `itemState` and `crxVersion`. The real body
@@ -1054,6 +1103,109 @@ the downloaded release asset while calling it a preference rather than a require
 parsing, pure, and `tests/unit/crx.test.ts` tests it against synthetic headers — a real CRX
 needs the key, which CI does not have, so the live end-to-end evidence is the packer's own
 check and the reader's evidence is the unit suite.
+
+## Firefox Add-ons (AMO)
+
+**Not listed yet.** The add-on `headerlab@say8425.github.io` does not exist on AMO:
+`GET /api/v5/addons/addon/headerlab@say8425.github.io/` answered 404 anonymously and with
+the developer's JWT on 2026-09-09, and anonymously again on 2026-09-11; the slug
+`headerlab` answered 404 on both days. The account is real and had never submitted: the
+profile endpoint answered 200 with `is_addon_developer: false` and `num_addons_listed: 0`.
+On 2026-09-11 the real key — `node scripts/amo-submit.mjs --dry-run` and `pnpm amo:probe`,
+both through 1Password — got 404 from the add-on endpoint rather than 401: the key works and
+there is nothing to update yet. Neither run printed either credential. The `firefox-amo`
+environment holds both secrets as of that day.
+The runbook for the one submission a person makes is `docs/store/amo/checklist.md`;
+everything after it is `amo-submit.yml`, described under Release.
+
+**`wxt submit` is `publish-browser-extension` under an alias, and that settles the
+dependency question.** `node_modules/wxt/dist/cli/commands.mjs:77` registers `submit` as
+an alias of that package's `publish-extension` CLI, and the package (5.1.0) is a
+dependency of wxt itself. So a `wxt submit` step adds nothing to `package.json`, and the
+rule stands. Its Firefox flow is four calls (`dist/init-B7pE83dc.mjs:1590-1641`): GET the
+add-on, POST the upload with the channel, poll the upload until `processed` (5 s apart, ten
+minutes at most — `pollUntil`, `:1442`), POST the version with the sources archive as
+`source`. **Two things it does not do** are why `scripts/amo-submit.mjs` exists around it:
+it cannot create an add-on (the first call 404s and it stops), and it never fetches the
+signed file — on `unlisted` that is the script's own poll on the version-detail endpoint,
+reading `file.status` through `readSignedFile` in `scripts/lib/amo.mjs`, fail-closed on
+any status the API does not document (`public`, `unreviewed`, `disabled`). `--dry-run`
+stops after the first call: it proves the credentials and the add-on's existence and
+uploads nothing. The publisher reads `.env.submit` when one exists — `wxt submit init`
+writes secrets there — so `.gitignore` carries it and the script refuses to run while it
+exists, before it asks 1Password for anything; `submitEnvironment` also strips every ambient `CHROME_*`, `EDGE_*`, `OPERA_*`,
+`FIREFOX_*` and `DRY_RUN` from the child's environment, so a stray variable cannot turn a
+Firefox submission into another store's upload or a silent dry run. **It also puts
+`node_modules/.bin` first on the child's PATH, and the first review is what found that
+missing.** The `submit` alias spawns `wxt-publish-extension` by bare name, and only
+`pnpm run` puts that directory on PATH — so `node scripts/amo-submit.mjs`, the line the
+workflow types, got exit 1 and zero bytes of output (reproduced 2026-09-11 with a
+runner-like PATH), while `pnpm amo:submit` on this machine worked. The alias swallows the
+spawn error, so the script names that cause itself whenever the child exits non-zero having
+printed nothing.
+
+**The credential is a JWT the script mints per request.** AMO wants `Authorization: JWT
+<token>`, HS256 over `{ iss, jti, iat, exp }`, and `exp` "must be no longer than five
+minutes past the issued at time" — `claimSet` refuses a longer life, because the
+alternative is a 401 with nothing in it. The key pair is the 1Password item **Firefox AMO
+Token** (Personal vault, created 2026-09-09): its `username` field is the issuer
+(`user:<id>:<key>`) and its `password` field the secret. `amo-submit.mjs` and
+`amo-probe.mjs` read them with `op read` when the environment carries neither; half a
+pair is refused rather than completed from the vault, and under `CI` the vault is never
+asked. Neither value is ever an argument, and the wxt child's output is piped and redacted —
+both values, and anything shaped like a JWT — before it is printed. **Treat the issuer as
+a secret too**; it is half of the pair. `op` reads through the 1Password app's CLI
+integration — there is no `op signin`; the app asks for biometrics on the first read — and
+`op whoami` answering "account is not signed in" before that first read is not a failure.
+An earlier pass took it for one and stopped, while its own failed read had its stderr
+discarded; a failed read now prints `op`'s first line.
+
+**The signed-file download is the one path not yet measured.** `file.url` sits outside
+`/api/`, and whether AMO honours the JWT there — or redirects an unlisted file at all — is
+inferred, from `web-ext sign` doing the same. So the download follows at most three
+redirects by hand, only to AMO or `addons.cdn.mozilla.net` (`downloadHop`), with the JWT
+sent to AMO only; integrity is the sha256 from the authenticated version response, not the
+host. An earlier version refused every redirect, which would have failed the first
+unlisted release after its tag had AMO answered with one. The first unlisted run is the
+measurement; `pnpm amo:probe` prints what `readSignedFile` makes of each version before
+that run relies on it.
+
+**The sources archive is required, and it had to be made to rebuild.** AMO asks for the
+source of anything bundled, and a reviewer rebuilds it and diffs: "There must be no
+differences." `wxt zip -b firefox` writes it by default (sources are on for Firefox and
+Opera, `resolve-config.mjs:200`), dropping node_modules, the test files, `.output/` and
+every dotfile — and **not** reading `.gitignore`: its zip step is a tinyglobby over
+`**/*`, so a local `test-results/` (22 files on 2026-09-11) would ship.
+`wxt.config.ts` therefore excludes `docs/**` and the four report directories. Measured:
+214 files and 2,767,184 bytes on 2026-09-09 with no exclusions, 151 files and about 480 KB
+on 2026-09-11 with them — re-run `unzip -Z1 .output/headerlab-<v>-sources.zip | wc -l`
+rather than trusting either. **`.nvmrc` is not in the archive** — a dotfile — which is why
+the five READMEs' "Build it yourself" say Node 24 in words. **The first rebuild did not
+match**: Tailwind's auto-detection made the popup CSS depend on the tree around it, and
+Toolchain's "Writing about a utility ships it" carries the measurement and the fix. With
+the stylesheet's sources pinned, a clean extraction on Node 24.16.0 rebuilt all 12 files
+byte-identical, twice. The release attaches the archive beside the two zips so what Mozilla
+reviewed is what anyone can download, and `amo-submit.yml` takes it from there rather
+than rebuilding it.
+
+**What the listing takes, from the store's own pages.** Summary ≤ 250 characters (the
+manifest's 119 pre-fills it; `manifest.test.ts`'s 132 cap is the smaller one). Up to two
+categories; slug `web-development`. Licence slug `Apache-2.0`. Screenshots at 1280×800,
+"the maximum image display size" — exactly what `docs/store/assets/` holds, so the five
+Chrome captures are reused (owner's call, 2026-09-10) at the cost that each shows the
+agent bridge row the Firefox popup does not render; `docs/store/amo/listing.md` says
+what the captions leave out. **The privacy policy is pasted as text, not linked** — the
+same `PRIVACY.md`, rewritten on 2026-09-11 to name both browsers. The data-collection
+declaration needs no form: it renders from the manifest's
+`data_collection_permissions: none`.
+
+**The reproduction check before the tag was declined (owner's call, 2026-09-10), and the
+premise it rested on turned out false the next day.** The decision assumed the archive
+rebuilds; the first measurement found it did not. It rebuilds now, and nothing re-checks
+it: a job that unzips, installs, builds and diffs would cost about a minute per push (the
+install alone was 54 s through a warm store here). What skipping it costs is that the next
+thing to read outside its inputs reaches a reviewer before it reaches CI. Known gaps
+records it.
 
 ## Platform traps that have already cost time
 
@@ -1761,13 +1913,14 @@ that no longer renders, passing while describing nothing.
   the payload builder async (probeGrants through the socket handler) and re-deriving
   the CLI's own wording; until then the popup is the surface that tells the truth
   here.
-- **Five hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
-  `socket.d.mts` and `install.d.mts` beside it, plus `scripts/lib/png.d.mts` and
-  `scripts/lib/crx.d.mts` — because `tests/` and `tests/e2e/` import `.mjs` modules from
+- **Seven hand-written declaration files exist** — `packages/headerlab/lib/manifest.d.mts`,
+  `socket.d.mts` and `install.d.mts` beside it, plus `scripts/lib/png.d.mts`,
+  `crx.d.mts`, `cws.d.mts` and `amo.d.mts` — because `tests/` and `tests/e2e/` import `.mjs` modules from
   TypeScript and `allowJs` is off. Nothing checks that any of them still matches its
   implementation. **This entry said "three" and named only the `packages/` ones while
-  `png.d.mts` had already existed for the same reason**, so re-derive the list rather than
-  trusting it: `find . -name '*.d.mts' -not -path './node_modules/*'`.
+  `png.d.mts` had already existed for the same reason**, and it then said five while
+  `cws.d.mts` sat beside the store submitter — the same drift twice — so re-derive the list
+  rather than trusting it: `find . -name '*.d.mts' -not -path './node_modules/*'`.
 - **The bridge's `idle` state means "the permission is held and no port is open," not
   "a CLI is not attached."** The extension has no way to see the host's socket clients —
   it can only see its own `connectNative` port — and giving it that visibility would turn
@@ -1818,3 +1971,11 @@ that no longer renders, passing while describing nothing.
   leaves perfectly good hosts unprobed — so a site row in that state shows no Grant button
   even when the permission is missing. The note says why the profile is dead, and the
   same hand-edited store is the only way in; recorded with the note, fixed with it.
+- **Nothing re-checks that the sources archive rebuilds the Firefox package.** Owner's
+  call, 2026-09-10 (Firefox Add-ons section). It was measured byte-identical on 2026-09-11 —
+  after a first measurement the same day found it was not — and
+  `tests/unit/cssSources.test.ts` guards the one cause found. Anything else that starts
+  reading outside its own inputs would reach a reviewer first.
+- **The Firefox Add-ons screenshots are the Chrome popup.** All five show the agent bridge
+  row, which the Firefox popup does not render. Reused on the owner's instruction;
+  `tests/support/firefox.ts`'s `screenshot()` is the tool for a Firefox set.

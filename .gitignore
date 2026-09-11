@@ -59,3 +59,12 @@ yarn.lock
 # staleness message is the cheaper failure of the two.
 *.pem
 *.crx
+
+# `wxt submit init` writes the Firefox Add-ons API key and secret into
+# `.env.submit`, and the unlisted release path writes the signed Firefox package
+# beside the zips. Neither should ever be what `git add -A` discovers. The
+# credentials live in 1Password (`Firefox AMO Token`) and in the `firefox-amo`
+# environment; `scripts/amo-submit.mjs` refuses to run while `.env.submit`
+# exists, because `wxt submit` would read it. See docs/store/amo/checklist.md.
+.env.submit
+*.xpi

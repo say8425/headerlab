@@ -208,8 +208,9 @@ describe('the toolbar icon', () => {
  * because of that distinction; reading the manifest would have been the
  * plausible-looking wrong choice.
  *
- * So the assumption worth pinning is that nothing overrides it. A `zip` key in
- * `wxt.config.ts` would leave the checklist naming a file that does not exist —
+ * So the assumption worth pinning is that neither archive template is overridden.
+ * Source exclusions may change without changing the archive names. An override
+ * would leave the checklist naming a file that does not exist —
  * and `unzip -p` answers a missing archive with exit 9 and zero bytes on stderr,
  * so the strongest claim in the submission runbook would go silent rather than
  * red. That is the failure this whole pairing exists to prevent, one level up.
@@ -219,7 +220,7 @@ describe('the zip name the store checklist derives', () => {
     const config = readFileSync('wxt.config.ts', 'utf8');
     // Source-level on purpose: resolving WXT's config here would import the
     // build toolchain into a unit suite to learn one fact about a file.
-    expect(config).not.toMatch(/^\s*zip\s*:/m);
+    expect(config).not.toMatch(/\b(?:artifactTemplate|sourcesTemplate)\s*:/);
   });
 });
 
