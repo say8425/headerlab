@@ -109,10 +109,18 @@ const readOp = (reference) => {
     })
       .toString()
       .trim();
-  } catch {
+  } catch (error) {
+    // op's own first line names the cause — a locked app, a declined prompt, a
+    // missing item — and carries no secret: the value is on stdout, and stdout
+    // is what failed to arrive. Swallowing it once cost a wrong diagnosis.
+    const reason =
+      String(error.stderr ?? '')
+        .split('\n')
+        .find((line) => line.trim()) ?? error.message;
     die(
-      `could not read ${reference} from 1Password\n` +
-        '  Sign in with `op signin`, or set FIREFOX_JWT_ISSUER and FIREFOX_JWT_SECRET.',
+      `could not read ${reference} from 1Password: ${reason.trim()}\n` +
+        '  op reads through the 1Password app (Settings, Developer, CLI integration), so there is\n' +
+        '  no op signin: unlock the app and allow its prompt, or set FIREFOX_JWT_ISSUER and FIREFOX_JWT_SECRET.',
     );
   }
 };

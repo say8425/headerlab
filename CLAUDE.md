@@ -1111,6 +1111,10 @@ check and the reader's evidence is the unit suite.
 the developer's JWT on 2026-09-09, and anonymously again on 2026-09-11; the slug
 `headerlab` answered 404 on both days. The account is real and had never submitted: the
 profile endpoint answered 200 with `is_addon_developer: false` and `num_addons_listed: 0`.
+On 2026-09-11 the real key — `node scripts/amo-submit.mjs --dry-run` and `pnpm amo:probe`,
+both through 1Password — got 404 from the add-on endpoint rather than 401: the key works and
+there is nothing to update yet. Neither run printed either credential. The `firefox-amo`
+environment holds both secrets as of that day.
 The runbook for the one submission a person makes is `docs/store/amo/checklist.md`;
 everything after it is `amo-submit.yml`, described under Release.
 
@@ -1150,8 +1154,11 @@ Token** (Personal vault, created 2026-09-09): its `username` field is the issuer
 pair is refused rather than completed from the vault, and under `CI` the vault is never
 asked. Neither value is ever an argument, and the wxt child's output is piped and redacted —
 both values, and anything shaped like a JWT — before it is printed. **Treat the issuer as
-a secret too**; it is half of the pair. `op` must be signed in locally: "account is not
-signed in" in the output is 1Password's answer, not AMO's.
+a secret too**; it is half of the pair. `op` reads through the 1Password app's CLI
+integration — there is no `op signin`; the app asks for biometrics on the first read — and
+`op whoami` answering "account is not signed in" before that first read is not a failure.
+An earlier pass took it for one and stopped, while its own failed read had its stderr
+discarded; a failed read now prints `op`'s first line.
 
 **The signed-file download is the one path not yet measured.** `file.url` sits outside
 `/api/`, and whether AMO honours the JWT there — or redirects an unlisted file at all — is

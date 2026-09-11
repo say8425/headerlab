@@ -30,8 +30,10 @@ Everything to paste lives beside this file:
       `password` is the JWT secret. Measured working the same day: a JWT signed
       with them got `200` from `/api/v5/accounts/profile/`. `pnpm amo:probe`
       reads them from 1Password and asks for the add-on — `404` until step 3
-      creates it. It needs `op` signed in; "account is not signed in" in its
-      output is 1Password's answer, not AMO's.
+      creates it — measured on 2026-09-11, an authenticated 404, not a 401.
+      `op` reads through the 1Password app's CLI integration, so there is no
+      `op signin`: the app asks for biometrics on the first read, and `op whoami`
+      reporting "not signed in" before that means nothing.
 
 ---
 
@@ -191,7 +193,8 @@ side by side. For Firefox:
   | the scripts themselves | Fix on `main`, then re-run with `ref: main` while `main` still carries the tag's version |
   | the scripts, but `main` has moved on | Neither. `gh release download extension-v<v> -p '*-firefox.zip' -p '*-sources.zip' -D .output`, then `node scripts/amo-submit.mjs --channel <c> --expect-version <v>` locally, `<c>` being the environment's `FIREFOX_CHANNEL` — the script defaults to `listed` and never reads that variable itself — with the credentials read from 1Password |
 
-One-time setup, outside the repository: environment `firefox-amo` with
+One-time setup, outside the repository, done 2026-09-11 with the secrets piped
+straight from 1Password: environment `firefox-amo` with
 deployment branch rule `Branch → main` and "Allow administrators to bypass"
 off, secrets `FIREFOX_JWT_ISSUER` and `FIREFOX_JWT_SECRET` piped from the
 1Password item, variable `FIREFOX_CHANNEL=listed` — the same shape as
