@@ -8,6 +8,27 @@ export default defineConfig({
   // and this extension has no MV2 shape at all: declarativeNetRequest,
   // optional_host_permissions and the event page are all MV3 facts.
   manifestVersion: 3,
+  zip: {
+    // `wxt zip -b firefox` also writes `headerlab-<v>-sources.zip`, the archive
+    // Firefox Add-ons reviewers rebuild and diff against the package. WXT drops
+    // node_modules, test files, `.output/` and every dotfile on its own —
+    // `.gitignore` and `.nvmrc` included, which is why README states the Node
+    // version in words — but it does not read `.gitignore` (its zip step is a
+    // tinyglobby over `**/*`), so the four report directories below ship
+    // whenever they exist locally: `test-results/` held 22 files on 2026-09-11,
+    // Playwright's error-context reports among them. `docs/` is 67 files, 1.2 MB
+    // of them store PNGs, and no build input. With all five out the archive was
+    // 151 files and about 480 KB on 2026-09-11, against 214 files and 2.77 MB with
+    // none. What the reviewer's rebuild actually depends on is the stylesheet's
+    // pinned `@source` list, not this one — entrypoints/popup/style.css says why.
+    excludeSources: [
+      'docs/**',
+      'test-results/**',
+      'playwright-report/**',
+      'blob-report/**',
+      'coverage/**',
+    ],
+  },
   manifest: ({ browser, mode }) => ({
     name: 'HeaderLab',
     // The Chrome Web Store reads the item's title and its summary out of this

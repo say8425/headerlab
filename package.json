@@ -17,7 +17,7 @@
     "build:bridge-e2e": "wxt build --mode bridge-e2e",
     "build:firefox": "wxt build -b firefox",
     "build:firefox-e2e": "wxt build -b firefox --mode e2e",
-    "zip": "wxt zip",
+    "zip": "wxt zip && wxt zip -b firefox",
     "typecheck": "wxt prepare && tsc --noEmit",
     "lint": "wxt prepare && oxlint --deny-warnings",
     "lint:fix": "wxt prepare && oxlint --fix",
@@ -31,6 +31,8 @@
     "test:packages": "pnpm -r test",
     "check:all": "pnpm check && pnpm -r test",
     "postinstall": "wxt prepare",
+    "amo:submit": "wxt zip -b firefox && node scripts/amo-submit.mjs",
+    "amo:probe": "node scripts/amo-probe.mjs",
     "crx": "wxt zip && node scripts/pack-crx.mjs"
   },
   "dependencies": {
