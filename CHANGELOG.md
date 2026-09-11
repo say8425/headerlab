@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0](https://github.com/say8425/headerlab/compare/extension-v1.7.0...extension-v1.8.0) (2026-09-11)
+
+
+### Features
+
+* build for Firefox, and prove it on the wire ([#86](https://github.com/say8425/headerlab/issues/86)) ([04f4297](https://github.com/say8425/headerlab/commit/04f429776fd0ec48e5f6bdfa6241a78c869b8173))
+* submit the Firefox build to Firefox Add-ons from the release ([#88](https://github.com/say8425/headerlab/issues/88)) ([9318df5](https://github.com/say8425/headerlab/commit/9318df5d5a396ba2313c4899e6b5e46777ed44c7))
+
+
+### Bug Fixes
+
+* stop the local build scanning scratch dirs, and retract three false claims ([#81](https://github.com/say8425/headerlab/issues/81)) ([b0e7345](https://github.com/say8425/headerlab/commit/b0e7345a7a1d2f2760f7e2cddbe77c15f25bd53f))
+
 ## [1.7.0](https://github.com/say8425/headerlab/compare/extension-v1.6.0...extension-v1.7.0) (2026-08-24)
 
 
