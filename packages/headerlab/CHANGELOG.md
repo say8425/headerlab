@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/say8425/headerlab/compare/cli-v0.3.1...cli-v0.4.0) (2026-09-11)
+
+
+### Features
+
+* build for Firefox, and prove it on the wire ([#86](https://github.com/say8425/headerlab/issues/86)) ([04f4297](https://github.com/say8425/headerlab/commit/04f429776fd0ec48e5f6bdfa6241a78c869b8173))
+
 ## [0.3.1](https://github.com/say8425/headerlab/compare/cli-v0.3.0...cli-v0.3.1) (2026-08-23)
 
 
