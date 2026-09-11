@@ -15,7 +15,7 @@ a ningún sitio hasta que tú se lo concedes.
 
 ## Instalación
 
-Chrome desde la tienda, Firefox cargando una build — una release firmada para Firefox es lo siguiente. Safari está previsto.
+Chrome desde la tienda; Firefox cargando temporalmente una build. La distribución en Firefox Add-ons está en preparación. Safari está previsto.
 
 ### Chrome Web Store
 
@@ -24,10 +24,12 @@ Se recomienda instalarla desde la
 
 ### Página de releases
 
-Cada release `extension-v*` adjunta `headerlab-<version>-chrome.zip`. Descarga el asset de
-la versión que quieras desde la
-[página de releases](https://github.com/say8425/headerlab/releases) y descomprímelo. Luego
-`chrome://extensions` → **Modo de desarrollador** → **Cargar descomprimida** → el
+Cada release `extension-v*` posterior a 1.7.0 adjunta tres archivos: `headerlab-<version>-chrome.zip`,
+`headerlab-<version>-firefox.zip` y `headerlab-<version>-sources.zip` — el archivo de
+fuentes que los revisores de Mozilla reconstruyen, adjunto para que cualquiera vea
+exactamente lo que recibieron. La 1.7.0 y las anteriores solo llevan el zip de Chrome. Descarga el asset de Chrome de la versión que quieras desde
+la [página de releases](https://github.com/say8425/headerlab/releases) y descomprímelo.
+Luego `chrome://extensions` → **Modo de desarrollador** → **Cargar descomprimida** → el
 directorio descomprimido.
 
 ### Constrúyelo tú mismo
@@ -40,11 +42,13 @@ pnpm build               # → .output/chrome-mv3 y .output/firefox-mv3
 
 Carga `.output/chrome-mv3` de la misma forma.
 
+Se requiere Node 24 (`.nvmrc`). `pnpm build:firefox` construye solo `.output/firefox-mv3`.
+
 ### Firefox
 
-Todavía no hay una build firmada para Firefox, así que el Firefox de release no la instalará
-de forma permanente. Cárgala temporalmente: `about:debugging` → **This Firefox** → **Load
-Temporary Add-on** → `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
+Instalación temporal: `about:debugging` →
+**This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
+release tal cual, o `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
 Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.
 
 ## AI
@@ -266,9 +270,11 @@ pnpm test:e2e        # construye los dos modos e2e y lanza playwright test
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix arregla)
 pnpm format:check    # oxfmt --check             (pnpm format para escribir)
-pnpm build           # build de producción → .output/chrome-mv3
+pnpm build           # builds de producción → .output/chrome-mv3 y .output/firefox-mv3
 pnpm screenshots     # regenera las imágenes de este README desde el popup real
 pnpm store:assets    # regenera las 8 imágenes de la Chrome Web Store → docs/store/assets/
+pnpm amo:submit      # empaqueta la build de Firefox y la envía a Firefox Add-ons (credenciales desde 1Password)
+pnpm amo:probe       # lee el estado del listado en Firefox Add-ons — no sube nada
 ```
 
 **pnpm, no npm.** `package.json` nombra la versión exacta en `packageManager`, así que

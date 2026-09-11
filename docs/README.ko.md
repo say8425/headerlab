@@ -15,7 +15,7 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ## 설치
 
-크롬은 스토어에서, 파이어폭스는 빌드를 직접 로드해서 — 서명된 파이어폭스 배포가 다음 순서입니다. 사파리는 예정.
+크롬은 스토어에서, 파이어폭스는 빌드를 임시로 로드해서 사용합니다. Firefox Add-ons 배포를 준비 중입니다. 사파리는 예정.
 
 ### 크롬 스토어
 
@@ -24,8 +24,11 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ### 릴리즈 페이지
 
-`extension-v*` 릴리즈마다 `headerlab-<version>-chrome.zip` 이 첨부됩니다.
-[릴리즈](https://github.com/say8425/headerlab/releases)에서 원하는 버전의 에셋 압축을 풀고
+1.7.0 이후의 `extension-v*` 릴리즈마다 아카이브 셋이 첨부됩니다: `headerlab-<version>-chrome.zip`,
+`headerlab-<version>-firefox.zip`, 그리고 Mozilla 리뷰어가 다시 빌드하는 소스 아카이브
+`headerlab-<version>-sources.zip` — 그들이 받은 것을 누구나 볼 수 있도록 함께 붙입니다.
+1.7.0 과 그 이전 릴리즈에는 크롬 zip 만 있습니다.
+[릴리즈](https://github.com/say8425/headerlab/releases)에서 원하는 버전의 크롬 에셋 압축을 풀고
 `chrome://extensions` → **개발자 모드** → **압축해제된 확장 프로그램을 로드합니다** →
 압축 푼 디렉터리 선택.
 
@@ -39,12 +42,14 @@ pnpm build               # → .output/chrome-mv3 와 .output/firefox-mv3
 
 `.output/chrome-mv3` 를 같은 방법으로 로드합니다.
 
+Node 24가 필요합니다 (`.nvmrc`). `pnpm build:firefox`는 `.output/firefox-mv3`만 빌드합니다.
+
 ### 파이어폭스
 
-아직 서명된 파이어폭스 빌드가 없어 릴리스 파이어폭스에는 영구 설치되지 않습니다. 임시로
-로드합니다: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → `pnpm build`
-뒤의 `.output/firefox-mv3/manifest.json`. 파이어폭스를 재시작하면 사라집니다. 에이전트
-브리지는 파이어폭스에서 제공되지 않습니다 — 제한 사항 표를 보세요.
+임시 설치: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+릴리즈의 `headerlab-<version>-firefox.zip` 을 그대로, 또는 `pnpm build` 뒤의
+`.output/firefox-mv3/manifest.json`. 파이어폭스를 재시작하면 사라집니다. 에이전트 브리지는
+파이어폭스에서 제공되지 않습니다 — 제한 사항 표를 보세요.
 
 ## AI
 
@@ -254,9 +259,11 @@ pnpm test:e2e        # e2e 모드 둘을 빌드한 뒤 playwright test — 진�
 pnpm typecheck       # wxt prepare && tsc --noEmit
 pnpm lint            # wxt prepare && oxlint --deny-warnings   (lint:fix 로 수정)
 pnpm format:check    # oxfmt --check             (pnpm format 으로 쓰기)
-pnpm build           # 프로덕션 빌드 → .output/chrome-mv3
+pnpm build           # 프로덕션 빌드 → .output/chrome-mv3 와 .output/firefox-mv3
 pnpm screenshots     # 이 README 의 이미지를 실제 팝업에서 다시 생성
 pnpm store:assets    # 크롬 웹 스토어용 이미지 8 장을 다시 생성 → docs/store/assets/
+pnpm amo:submit      # 파이어폭스 빌드를 zip 하고 Firefox Add-ons 에 제출 (자격 증명은 1Password 에서)
+pnpm amo:probe       # Firefox Add-ons 리스팅 상태를 읽기만 — 아무것도 올리지 않음
 ```
 
 **npm 이 아니라 pnpm 입니다.** `package.json` 의 `packageManager` 가 정확한 버전을
