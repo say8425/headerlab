@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 /* tooltip.tsx(shadcn)의 data-open:animate-in/fade-in-0/zoom-in-95, data-closed:
    animate-out/fade-out-0/zoom-out-95, data-[side=*]:slide-in-from-* 는 이 패키지가
    정의하는 유틸리티다 — import 없이는 전부 존재하지 않는 클래스라 아무 CSS도
@@ -6,11 +6,21 @@
    dependency 를 실제로 쓰는 것일 뿐 새 의존성이 아니다. */
 @import "tw-animate-css";
 
-/* Tailwind 의 자동 소스 탐지가 이 파일 밖의 .tsx/.html 도 훑어서 클래스를 찾는다.
-   docs/ 는 마크업이 아니라 산문(설계 문서·시안)이라 계속 뺀다. components/ui/ 는
-   Task 3 부터 shadcn 프리미티브(checkbox/tooltip/badge/separator)가 실제로 이
-   디렉터리에 쓰여 더는 죽은 코드가 아니므로, 그 예외를 뺐다. */
-@source not "../../docs";
+/* 클래스를 찾을 곳은 자동 탐지가 아니라 이 네 줄이 정한다 (source(none), 2026-09-11).
+   자동 탐지는 저장소를 텍스트로 훑되 .gitignore 에 적힌 경로만 건너뛰어서, 같은 코드가
+   어디서 빌드되느냐에 따라 다른 CSS 를 냈다. 잰 것: Firefox Add-ons 에 올리는 sources
+   zip 을 풀어 빌드하면 팝업 CSS 가 45,818 B 에서 45,274 B 로 달라졌다. 저장소 쪽은
+   tests/ 의 테스트 파일 넷이 주석과 단언에 적은 클래스(bg-input/30, invert, …)를
+   더했고 — wxt 는 테스트 파일을 sources zip 에서 뺀다 — 풀린 쪽은 .gitignore 가 없어
+   빌드 도중의 .output/ 을 읽고 uppercase 를 더했다. AMO 리뷰어는 그 zip 을 다시
+   빌드해 제출본과 diff 하고 "There must be no differences." 이다.
+   UI 의 클래스는 이 네 디렉터리에만 산다. scripts/store-assets.mjs 는 자기 <style> 을
+   쓰고, tests/·docs/·packages/ 는 UI 가 아니다. 새 디렉터리가 UI 클래스를 갖게 되면
+   여기에 한 줄을 더한다 — 빠뜨리면 그 클래스의 CSS 가 조용히 사라진다. */
+@source "../../components";
+@source "../../entrypoints";
+@source "../../lib";
+@source "../../public";
 
 /* public/theme.js 가 파싱 시점에 documentElement 에 .dark 를 붙인다.
    MV3 는 인라인 스크립트를 막으므로 그 부트스트랩은 classic script 로 남고,
