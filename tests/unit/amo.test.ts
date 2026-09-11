@@ -278,15 +278,42 @@ describe('request security', () => {
           DRY_RUN: 'true',
         },
         { issuer: 'user:1:1', secret: 'secret' },
+        { binDir: '/repo/node_modules/.bin' },
       ),
     ).toEqual({
-      PATH: '/bin',
+      PATH: '/repo/node_modules/.bin:/bin',
       FIREFOX_EXTENSION_ID: GECKO_ID,
       FIREFOX_JWT_ISSUER: 'user:1:1',
       FIREFOX_JWT_SECRET: 'secret',
       DRY_RUN: 'false',
       FIREFOX_SKIP_SUBMIT_REVIEW: 'false',
     });
+  });
+});
+
+/**
+ * `wxt submit` is an alias that spawns `wxt-publish-extension` by bare name, and
+ * only `pnpm run` puts node_modules/.bin on PATH. Run the way the workflow runs
+ * it — `node scripts/amo-submit.mjs` — the alias could not find the binary and
+ * exited 1 with zero bytes of output (reproduced 2026-09-11 with a runner-like
+ * PATH). These pin the fix where it lives.
+ */
+describe("the submit child's PATH", () => {
+  const creds = { issuer: 'user:1:1', secret: 's' };
+
+  it('puts node_modules/.bin first and keeps the rest', () => {
+    const env = submitEnvironment({ PATH: '/usr/bin:/bin' }, creds, {
+      binDir: '/repo/node_modules/.bin',
+    });
+    expect(env.PATH).toBe('/repo/node_modules/.bin:/usr/bin:/bin');
+  });
+
+  it('still names the bin directory when the parent had no PATH', () => {
+    expect(submitEnvironment({}, creds, { binDir: '/b' }).PATH).toBe('/b');
+  });
+
+  it('refuses to build an environment without one', () => {
+    expect(() => submitEnvironment({}, creds, {} as never)).toThrow(/binDir/);
   });
 });
 
@@ -342,7 +369,9 @@ describe('CLI preflight', () => {
       env: { PATH: '', CI: 'true' },
     });
     expect(result.status).toBe(1);
-    expect(result.stderr).not.toMatch(/1Password|Set both FIREFOX/);
+    // Case-insensitive: the refusal reads "set both …", and a case-sensitive
+    // pattern would leave only the 1Password alternative doing any work.
+    expect(result.stderr).not.toMatch(/1Password|set both FIREFOX/i);
     expect(result.stderr).toMatch(/channel|timeout|version/);
   });
   it('prints help without reading a credential', () => {

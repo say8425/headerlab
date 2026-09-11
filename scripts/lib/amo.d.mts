@@ -58,6 +58,7 @@ export declare function trustedAmoUrl(input: string): string;
 export declare function submitEnvironment(
   env: Record<string, string | undefined>,
   creds: { issuer: string; secret: string },
+  options: { binDir: string },
 ): Record<string, string | undefined>;
 
 export declare const DOWNLOAD_ORIGINS: readonly string[];

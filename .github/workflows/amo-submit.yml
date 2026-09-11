@@ -64,9 +64,12 @@ permissions:
 jobs:
   submit:
     runs-on: ubuntu-latest
-    # wxt submit polls validation for up to ten minutes; on the unlisted
-    # channel the script then waits up to fifteen more for the signature.
-    timeout-minutes: 30
+    # The script's own ceilings sum to thirty-two minutes — fifteen for wxt
+    # submit, whose validation poll alone may take ten; on unlisted, fifteen for
+    # the signature and two for the download — and checkout and install come on
+    # top. The job allows more than all of it, so a slow run ends with the
+    # script's own message naming what to check, not the runner's cancellation.
+    timeout-minutes: 40
 
     # The environment is the whole authorization story for the API key.
     #

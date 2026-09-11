@@ -23,6 +23,8 @@
  * test can pin it; `node:crypto` signs it in the caller.
  */
 
+import { delimiter } from 'node:path';
+
 export const AMO_ORIGIN = 'https://addons.mozilla.org';
 
 /** The gecko id. Public — it is in the manifest and in the README. */
@@ -212,14 +214,30 @@ export const downloadHop = (location, from) => {
   return { url: url.href, withAuth: url.origin === AMO_ORIGIN };
 };
 
-/** Ambient publisher configuration must not turn an AMO submission into another store upload. */
-export const submitEnvironment = (env, { issuer, secret }) => ({
-  ...Object.fromEntries(
-    Object.entries(env).filter(([key]) => !/^(CHROME_|EDGE_|OPERA_|FIREFOX_|DRY_RUN$)/.test(key)),
-  ),
-  FIREFOX_EXTENSION_ID: GECKO_ID,
-  FIREFOX_JWT_ISSUER: issuer,
-  FIREFOX_JWT_SECRET: secret,
-  DRY_RUN: 'false',
-  FIREFOX_SKIP_SUBMIT_REVIEW: 'false',
-});
+/**
+ * The child's environment for `wxt submit`, which has two jobs.
+ *
+ * Ambient publisher configuration must not turn an AMO submission into another
+ * store's upload or a silent dry run, so every `CHROME_`, `EDGE_`, `OPERA_` and
+ * `FIREFOX_` variable and `DRY_RUN` is dropped and the Firefox ones are set here.
+ *
+ * And `binDir` goes first on PATH. `wxt submit` is an alias that spawns
+ * `wxt-publish-extension` by bare name, and only `pnpm run` puts
+ * node_modules/.bin on PATH — run as `node scripts/amo-submit.mjs`, which is the
+ * line the workflow types, the alias could not find it and exited 1 with zero
+ * bytes of output (reproduced 2026-09-11 with a runner-like PATH).
+ */
+export const submitEnvironment = (env, { issuer, secret }, { binDir } = {}) => {
+  if (!binDir) throw new Error('submitEnvironment: binDir is required');
+  return {
+    ...Object.fromEntries(
+      Object.entries(env).filter(([key]) => !/^(CHROME_|EDGE_|OPERA_|FIREFOX_|DRY_RUN$)/.test(key)),
+    ),
+    PATH: env.PATH ? `${binDir}${delimiter}${env.PATH}` : binDir,
+    FIREFOX_EXTENSION_ID: GECKO_ID,
+    FIREFOX_JWT_ISSUER: issuer,
+    FIREFOX_JWT_SECRET: secret,
+    DRY_RUN: 'false',
+    FIREFOX_SKIP_SUBMIT_REVIEW: 'false',
+  };
+};

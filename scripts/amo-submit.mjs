@@ -68,6 +68,18 @@ import {
 } from './lib/amo.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = path.join(ROOT, 'node_modules', '.bin');
+const WXT = path.join(BIN, 'wxt');
+
+/**
+ * The script's own ceilings: wxt submit (whose validation poll alone may take
+ * ten minutes), and the signed-file download, which gets its own budget rather
+ * than whatever the signature poll left over. amo-submit.yml's job timeout is
+ * set above the sum of these and the poll, so a slow run ends with this
+ * script's message rather than the runner's.
+ */
+const SUBMIT_TIMEOUT_MS = 15 * 60_000;
+const DOWNLOAD_TIMEOUT_MS = 2 * 60_000;
 
 /** Where the API key lives when the environment does not carry it. */
 const OP_ISSUER = 'op://Personal/Firefox AMO Token/username';
@@ -187,18 +199,15 @@ const checkManifest = (zip, version) => {
 /**
  * `node_modules/.bin/wxt` rather than `pnpm exec`: the same line works on this
  * machine and in the workflow, and does not depend on which pnpm is on PATH.
+ * That alone was not enough, and the first review caught it: the alias itself
+ * spawns `wxt-publish-extension` by bare name, so the child's PATH must hold
+ * node_modules/.bin — `submitEnvironment` puts it first.
  * The credentials go in through the environment, which is where
  * publish-browser-extension reads them (`FIREFOX_JWT_*`, `FIREFOX_EXTENSION_ID`);
  * a `--firefox-*` flag wins over an environment variable there, so the channel
  * is passed as a flag and cannot be overridden by a stray `FIREFOX_CHANNEL`.
  */
 const runWxtSubmit = ({ extension, sources, channel, dryRun, creds }) => {
-  if (existsSync(path.join(ROOT, '.env.submit')))
-    die(
-      'Remove .env.submit before submission; credentials and store settings must come from this entry point',
-    );
-  const wxt = path.join(ROOT, 'node_modules', '.bin', 'wxt');
-  if (!existsSync(wxt)) die(`no wxt at ${wxt}\n  Run pnpm install first.`);
   const argv = [
     'submit',
     '--firefox-zip',
@@ -210,13 +219,13 @@ const runWxtSubmit = ({ extension, sources, channel, dryRun, creds }) => {
     ...(dryRun ? ['--dry-run'] : []),
   ];
   log(`wxt ${argv.join(' ')}`);
-  const result = spawnSync(wxt, argv, {
+  const result = spawnSync(WXT, argv, {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 10 << 20,
-    timeout: 15 * 60_000,
-    env: submitEnvironment(process.env, creds),
+    timeout: SUBMIT_TIMEOUT_MS,
+    env: submitEnvironment(process.env, creds, { binDir: BIN }),
   });
   // Validation errors in the publisher can echo configuration; redact both halves.
   for (const output of [result.stdout, result.stderr]) {
@@ -230,9 +239,24 @@ const runWxtSubmit = ({ extension, sources, channel, dryRun, creds }) => {
           .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED JWT]'),
       );
   }
+  if (result.error?.code === 'ETIMEDOUT') {
+    die(
+      `wxt submit ran past ${SUBMIT_TIMEOUT_MS / 60_000} minutes and was stopped.\n` +
+        '  AMO may already hold this version; check pnpm amo:probe before retrying.',
+    );
+  }
   if (result.error) die(`could not start wxt submit: ${result.error.message}`);
   if (result.status !== 0) {
-    die(`wxt submit exited ${result.status}. Its output is above; nothing was retried.`);
+    // wxt's submit alias catches a failure to start wxt-publish-extension and
+    // exits 1 without a word, so an empty exit is named here rather than left
+    // pointing at an "output above" that does not exist.
+    const silent = !result.stdout?.trim() && !result.stderr?.trim();
+    die(
+      silent
+        ? `wxt submit exited ${result.status} and printed nothing. Its submit alias does that when it\n` +
+            `  cannot start wxt-publish-extension; check ${path.join(BIN, 'wxt-publish-extension')} exists.`
+        : `wxt submit exited ${result.status}. Its output is above; nothing was retried.`,
+    );
   }
 };
 
@@ -249,12 +273,12 @@ const runWxtSubmit = ({ extension, sources, channel, dryRun, creds }) => {
  * signed. An earlier version refused every redirect, which would have failed
  * the first unlisted release after its tag if AMO answers with one.
  */
-const downloadSigned = async (first, creds, deadline) => {
+const downloadSigned = async (first, creds) => {
   let hop = { url: first, withAuth: true };
   for (let redirects = 0; redirects <= 3; redirects += 1) {
     const response = await fetch(hop.url, {
       redirect: 'manual',
-      signal: AbortSignal.timeout(Math.max(1, Math.min(60_000, deadline - Date.now()))),
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
       headers: hop.withAuth ? { Authorization: `JWT ${token(creds)}` } : {},
     });
     if (response.status >= 300 && response.status < 400) {
@@ -304,7 +328,7 @@ const fetchSigned = async ({ version, channel, signed, creds, timeoutMinutes }) 
     if (verdict.kind === 'refused') die(`AMO will not hand over a signed file: ${verdict.reason}`);
     if (verdict.kind === 'ready') {
       const expected = parseHash(verdict.hash);
-      const bytes = await downloadSigned(trustedAmoUrl(verdict.url), creds, deadline);
+      const bytes = await downloadSigned(trustedAmoUrl(verdict.url), creds);
       const actual = createHash('sha256').update(bytes).digest('hex');
       if (actual !== expected.hex) {
         die(`the downloaded file hashes to sha256:${actual}; AMO says ${verdict.hash}`);
@@ -369,6 +393,15 @@ const main = async () => {
     `${path.basename(archives.extension)} + ${path.basename(archives.sources)} → ${channel}` +
       (values['dry-run'] ? ' (dry run)' : ''),
   );
+
+  // Two more refusals that need no credential, so they come before 1Password.
+  if (existsSync(path.join(ROOT, '.env.submit'))) {
+    die(
+      'remove .env.submit first: wxt submit would read store settings and credentials from it,\n' +
+        '  and both must come from this entry point.',
+    );
+  }
+  if (!existsSync(WXT)) die(`no wxt at ${WXT}\n  Run pnpm install first.`);
 
   const creds = credentials();
   runWxtSubmit({ ...archives, channel, dryRun: values['dry-run'], creds });
