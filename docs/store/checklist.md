@@ -311,8 +311,10 @@ again.
 ## 10. Releasing to the store, from here on
 
 Merging the release PR is the whole of it. `release-please.yml` cuts the tag,
-attaches the zip and publishes the CLI, then calls `store-submit.yml`, which
-signs that zip into a CRX and submits it. Two things to hold on to:
+attaches the three archives and publishes the CLI, then calls `cws-submit.yml`,
+which signs the Chrome zip into a CRX and submits it — and, beside it,
+`amo-submit.yml`, which sends the Firefox zip and the sources archive to Firefox
+Add-ons (`amo/checklist.md` §8). Two things to hold on to, for Chrome:
 
 - **A green run means `PENDING_REVIEW`, not published.** Google publishes when
   the review passes, and the result arrives by email — there is no webhook.
@@ -323,7 +325,7 @@ signs that zip into a CRX and submits it. Two things to hold on to:
 
   | The failure was in | Do this |
   | --- | --- |
-  | the network, the token, the store | Re-run `store-submit.yml` against the same tag, leaving `ref` empty. |
+  | the network, the token, the store | Re-run `cws-submit.yml` against the same tag, leaving `ref` empty. |
   | the scripts themselves | Fix on `main`, then re-run with `ref: main`. |
   | the scripts, but `main` has already moved to a later version | Neither. Sign locally with `pnpm crx` and upload through the dashboard. |
 
@@ -352,8 +354,9 @@ with no branch protection defined it lets every branch deploy.
 ## Things that will not happen, so do not wait for them
 
 - **A `wxt submit` step is not what does this.** Verified CRX Uploads is on, so
-  the store refuses a zip; `store-submit.yml` signs a CRX and posts it to the v2
-  API instead.
+  the store refuses a zip; `cws-submit.yml` signs a CRX and posts it to the v2
+  API instead. (Firefox is the opposite: `amo-submit.yml` is exactly a
+  `wxt submit` step — `amo/checklist.md` §8.)
 - **The store will not tell you the item name is wrong.** The title and the
   summary come from the manifest, so fixing either means shipping a new package,
   not editing the listing.
