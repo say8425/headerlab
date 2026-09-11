@@ -46,7 +46,8 @@ Node 24 が必要です（`.nvmrc`）。`pnpm build:firefox` は `.output/firefo
 
 ### Firefox
 
-一時的なインストール: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+Firefox Add-ons のリスティングが公開されるまで、リリース版 Firefox は署名のない zip を永続
+インストールしません。一時的なインストール: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
 リリースの `headerlab-<version>-firefox.zip` をそのまま、または `pnpm build` 後の
 `.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。エージェントブリッジは
 Firefox では提供されません — 制限事項の表を参照。

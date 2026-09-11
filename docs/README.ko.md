@@ -46,7 +46,8 @@ Node 24가 필요합니다 (`.nvmrc`). `pnpm build:firefox`는 `.output/firefox-
 
 ### 파이어폭스
 
-임시 설치: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+Firefox Add-ons 리스팅이 게시되기 전까지 릴리스 파이어폭스는 서명 없는 zip 을 영구 설치하지
+않습니다. 임시 설치: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
 릴리즈의 `headerlab-<version>-firefox.zip` 을 그대로, 또는 `pnpm build` 뒤의
 `.output/firefox-mv3/manifest.json`. 파이어폭스를 재시작하면 사라집니다. 에이전트 브리지는
 파이어폭스에서 제공되지 않습니다 — 제한 사항 표를 보세요.

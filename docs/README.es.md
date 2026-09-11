@@ -46,7 +46,8 @@ Se requiere Node 24 (`.nvmrc`). `pnpm build:firefox` construye solo `.output/fir
 
 ### Firefox
 
-Instalación temporal: `about:debugging` →
+Hasta que el listado en Firefox Add-ons esté publicado, el Firefox de release no instalará
+el zip sin firmar de forma permanente. Instalación temporal: `about:debugging` →
 **This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
 release tal cual, o `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
 Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.

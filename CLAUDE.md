@@ -1129,9 +1129,16 @@ any status the API does not document (`public`, `unreviewed`, `disabled`). `--dr
 stops after the first call: it proves the credentials and the add-on's existence and
 uploads nothing. The publisher reads `.env.submit` when one exists — `wxt submit init`
 writes secrets there — so `.gitignore` carries it and the script refuses to run while it
-exists; `submitEnvironment` also strips every ambient `CHROME_*`, `EDGE_*`, `OPERA_*`,
+exists, before it asks 1Password for anything; `submitEnvironment` also strips every ambient `CHROME_*`, `EDGE_*`, `OPERA_*`,
 `FIREFOX_*` and `DRY_RUN` from the child's environment, so a stray variable cannot turn a
-Firefox submission into another store's upload or a silent dry run.
+Firefox submission into another store's upload or a silent dry run. **It also puts
+`node_modules/.bin` first on the child's PATH, and the first review is what found that
+missing.** The `submit` alias spawns `wxt-publish-extension` by bare name, and only
+`pnpm run` puts that directory on PATH — so `node scripts/amo-submit.mjs`, the line the
+workflow types, got exit 1 and zero bytes of output (reproduced 2026-09-11 with a
+runner-like PATH), while `pnpm amo:submit` on this machine worked. The alias swallows the
+spawn error, so the script names that cause itself whenever the child exits non-zero having
+printed nothing.
 
 **The credential is a JWT the script mints per request.** AMO wants `Authorization: JWT
 <token>`, HS256 over `{ iss, jti, iat, exp }`, and `exp` "must be no longer than five

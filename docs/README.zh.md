@@ -44,7 +44,7 @@ pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 
 ### Firefox
 
-临时安装：`about:debugging`
+Firefox Add-ons 列表上线之前，正式版 Firefox 不会永久安装未签名的 zip。临时安装：`about:debugging`
 → **This Firefox** → **Load Temporary Add-on** → 直接选发布页的 `headerlab-<version>-firefox.zip`，
 或者 `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在
 Firefox 上提供 — 见限制表。

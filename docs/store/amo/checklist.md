@@ -21,9 +21,9 @@ Everything to paste lives beside this file:
       AMO requires two-factor authentication on developer accounts; set it up
       before the first submission rather than being stopped by it mid-form.
 - [ ] Accept the **Firefox Add-on Distribution Agreement** the first time the
-      Hub asks. The API refuses uploads until this is done — measured on
-      2026-09-09, the profile endpoint answered `is_addon_developer: false` for
-      this account, which is what "never submitted" looks like.
+      Hub asks; AMO's documentation has uploads wait on it. What was measured
+      is only the account's state: on 2026-09-09 the profile endpoint answered
+      `is_addon_developer: false`, which is what "never submitted" looks like.
 - [x] API credentials — <https://addons.mozilla.org/developers/addon/api/key/>
       — generated 2026-09-09 and stored in 1Password as **Firefox AMO Token**
       (Personal vault): `username` is the JWT issuer (`user:<id>:<key>`),
@@ -160,7 +160,9 @@ it 404s. On the day the listing is live:
       Web Store or beside it, reading "Installing from
       [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) is
       the recommended route on Firefox."; and the `### Firefox` subsection's
-      temporary-load instructions stay available for people building from source.
+      first sentence ("Until the Firefox Add-ons listing is live …", in each
+      language) is deleted, leaving the temporary-load instructions for people
+      building from source.
 - [ ] `docs/store/amo/README.md`: replace "not yet published" in its first
       paragraph with the listing URL.
 - [ ] `gh repo edit --description` — check the repository description and update it if it still names only Chrome.
@@ -187,7 +189,7 @@ side by side. For Firefox:
   | --- | --- |
   | the network, the credentials, AMO | Re-run `amo-submit.yml` against the same tag, `ref` empty. AMO refuses a duplicate version, so a run that failed *after* creating the version cannot be repeated — check `pnpm amo:probe` first |
   | the scripts themselves | Fix on `main`, then re-run with `ref: main` while `main` still carries the tag's version |
-  | the scripts, but `main` has moved on | Neither. `gh release download extension-v<v> -p '*-firefox.zip' -p '*-sources.zip' -D .output`, then `node scripts/amo-submit.mjs --expect-version <v>` locally — it reads the credentials from 1Password |
+  | the scripts, but `main` has moved on | Neither. `gh release download extension-v<v> -p '*-firefox.zip' -p '*-sources.zip' -D .output`, then `node scripts/amo-submit.mjs --channel <c> --expect-version <v>` locally, `<c>` being the environment's `FIREFOX_CHANNEL` — the script defaults to `listed` and never reads that variable itself — with the credentials read from 1Password |
 
 One-time setup, outside the repository: environment `firefox-amo` with
 deployment branch rule `Branch → main` and "Allow administrators to bypass"
