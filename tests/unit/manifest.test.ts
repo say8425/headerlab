@@ -226,14 +226,16 @@ describe('the zip name the store checklist derives', () => {
 
 describe('the Firefox manifest', () => {
   it('carries the gecko block AMO requires, exactly', () => {
-    // MV3 needs an id to be signed at all; 128 is where optional_host_permissions
-    // arrived (below it the all-sites switch asks for a grant it can never get);
+    // MV3 needs an id to be signed at all; 140 is where data_collection_permissions
+    // is understood on the desktop — 128 was the floor before, where
+    // optional_host_permissions arrived (below it the all-sites switch asks for a
+    // grant it can never get), until AMO's validator flagged the gap on 1.7.0;
     // data_collection_permissions is mandatory for new AMO submissions since
     // 2025-11-03 and `none` is this product's premise.
     expect(readFirefoxManifest().browser_specific_settings).toEqual({
       gecko: {
         id: GECKO_ID,
-        strict_min_version: '128.0',
+        strict_min_version: '140.0',
         data_collection_permissions: { required: ['none'] },
       },
     });
