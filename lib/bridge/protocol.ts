@@ -1,4 +1,6 @@
-import { z } from 'zod';
+// The configured zod, not the package itself: lib/model/zod.ts sets jitless
+// before any schema exists.
+import { z } from '@/lib/model/zod';
 import type { AppState } from '@/lib/model/types';
 
 /**
