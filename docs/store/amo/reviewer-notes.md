@@ -23,9 +23,10 @@ The extension makes no network calls. `grep -rE 'fetch\(|XMLHttpRequest|WebSocke
 The validator's warnings come from two dependencies, not from this extension's code. "The Function constructor is eval" (background.js and the popup chunk) is zod 4's probe for whether it may compile parsers, `try { Function("") } catch { return false }`; the extension sets zod's jitless option before any schema is built, so the probe never runs, and the MV3 content security policy would refuse it regardless. "Unsafe assignment to innerHTML" (the popup chunk) is React DOM's handler for the dangerouslySetInnerHTML prop, which no component in this extension uses. The Firefox for Android minimum-version warning remains because the manifest carries one strict_min_version and the add-on is listed for Firefox desktop only.
 ```
 
-**The jitless sentence is true from 1.8.0.** 1.7.0 still runs zod's probe, which the
-CSP refuses; if a reviewer asks about 1.7.0, the rest of the paragraph stands and that
-sentence is the one to drop.
+**About the block's last paragraph, for 1.7.0 only.** Its words "the extension sets
+zod's jitless option before any schema is built, so the probe never runs" are true from
+1.8.0. 1.7.0 still runs zod's probe, which the CSP refuses; if a reviewer asks about
+1.7.0, paste that paragraph without those words and keep the rest.
 
 **Why that measurement holds, and what would break it.** The one part of the
 build that read beyond its inputs was Tailwind, which scanned the whole tree

@@ -31,6 +31,13 @@ describe('zod, as the extension configures it', () => {
     expect(util.allowsEval.value).toBe(false);
   });
 
+  /**
+   * zod means the fast path and the jitless path to agree, and this file checks
+   * only that the flag landed. The behavioural cover is everywhere else: the
+   * schema and protocol suites build through the configured module, so since
+   * this change they run jitless — unknown keys, defaults and nested errors
+   * included — and a divergence would surface there.
+   */
   it('still parses an object schema without the compiled fast path', () => {
     expect(z.object({ a: z.string() }).parse({ a: 'x' })).toEqual({ a: 'x' });
     expect(() => z.object({ a: z.string() }).parse({ a: 1 })).toThrow(/expected string/);
@@ -42,21 +49,50 @@ describe('zod, as the extension configures it', () => {
  * module that configures it. A new file importing 'zod' directly could build an
  * object schema before that module loads — and then that file's schemas, and
  * the cached probe, would be decided without the flag, in silence.
+ *
+ * Statements, not text: a comment saying "not from 'zod'" is not an import, and
+ * the first version of this pattern read one as if it were. Three forms count —
+ * a static `import`/`export … from`, a dynamic `import('zod')` and
+ * `require('zod')` — because any of them can build a schema before the
+ * configured module loads; the first version knew only the static one.
+ * `[^;]*?` keeps the static form inside one statement, multi-line braces
+ * included.
  */
+const IMPORTS_ZOD = new RegExp(
+  [
+    String.raw`^\s*(?:import|export)\b[^;]*?\bfrom\s+['"]zod(?:\/[^'"]*)?['"]`,
+    String.raw`\b(?:import|require)\s*\(\s*['"]zod(?:\/[^'"]*)?['"]\s*\)`,
+  ].join('|'),
+  'm',
+);
+
 describe('who imports zod', () => {
-  const SHIPPED = ['lib', 'components', 'entrypoints'];
-  const sources = SHIPPED.flatMap((dir) =>
-    (readdirSync(dir, { recursive: true }) as string[])
-      .filter((file) => /\.(ts|tsx)$/.test(file))
-      .map((file) => path.join(dir, file)),
-  );
+  it.each([
+    "import { z } from 'zod';",
+    'import {\n  z,\n} from "zod";',
+    "export { z } from 'zod';",
+    "import { util } from 'zod/v4/core';",
+    "const { z } = await import('zod');",
+    "const { z } = require('zod');",
+  ])('counts %j as importing zod', (source) => {
+    expect(IMPORTS_ZOD.test(source)).toBe(true);
+  });
+
+  it.each([
+    "// The configured zod, not the package itself: not from 'zod'.",
+    "import { z } from '@/lib/model/zod';",
+    "import { zodiac } from 'zodiac';",
+  ])('does not count %j', (source) => {
+    expect(IMPORTS_ZOD.test(source)).toBe(false);
+  });
 
   it('is lib/model/zod.ts alone, among the shipped sources', () => {
+    const sources = ['lib', 'components', 'entrypoints'].flatMap((dir) =>
+      (readdirSync(dir, { recursive: true }) as string[])
+        .filter((file) => /\.(ts|tsx)$/.test(file))
+        .map((file) => path.join(dir, file)),
+    );
     expect(sources.length).toBeGreaterThan(20);
-    // Statements, not text: a comment saying "not from 'zod'" is not an import,
-    // and the first version of this pattern read one as if it were. `[^;]*?`
-    // keeps a match inside one statement, multi-line braces included.
-    const IMPORTS_ZOD = /^\s*(?:import|export)\b[^;]*?\bfrom\s+['"]zod(?:\/[^'"]*)?['"]/m;
     const direct = sources.filter((file) => IMPORTS_ZOD.test(readFileSync(file, 'utf8')));
     expect(direct).toEqual(['lib/model/zod.ts']);
   });
