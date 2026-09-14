@@ -19,7 +19,13 @@ To reproduce, on any OS with Node 24 (the repository pins it in .nvmrc, which th
 The contents of .output/firefox-mv3/ are the uploaded package, byte for byte. Measured on 2026-09-11 from a clean extraction of this archive with Node 24.16.0 and pnpm 11.20.0: all 12 files identical to the uploaded zip's, and again after a second build in the same tree.
 
 The extension makes no network calls. `grep -rE 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon' .output/firefox-mv3` returns nothing, and tests/unit/bundle.test.ts in the repository asserts the same against every build. It declares no host permissions at install; access is requested per site at runtime through optional_host_permissions.
+
+The validator's warnings come from two dependencies, not from this extension's code. "The Function constructor is eval" (background.js and the popup chunk) is zod 4's probe for whether it may compile parsers, `try { Function("") } catch { return false }`; the extension sets zod's jitless option before any schema is built, so the probe never runs, and the MV3 content security policy would refuse it regardless. "Unsafe assignment to innerHTML" (the popup chunk) is React DOM's handler for the dangerouslySetInnerHTML prop, which no component in this extension uses. The Firefox for Android minimum-version warning remains because the manifest carries one strict_min_version and the add-on is listed for Firefox desktop only.
 ```
+
+**The jitless sentence is true from 1.8.0.** 1.7.0 still runs zod's probe, which the
+CSP refuses; if a reviewer asks about 1.7.0, the rest of the paragraph stands and that
+sentence is the one to drop.
 
 **Why that measurement holds, and what would break it.** The one part of the
 build that read beyond its inputs was Tailwind, which scanned the whole tree
