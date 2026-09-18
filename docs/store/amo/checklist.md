@@ -193,6 +193,7 @@ side by side. For Firefox:
 
   | The failure was in | Do this |
   | --- | --- |
+  | AMO's write throttle (`429`, "Expected available in N seconds") | Wait out the N it names, **ask `pnpm amo:probe` what AMO now holds**, then re-run `amo-submit.yml` against the same tag with `ref` empty. On 1.8.0 the refused call was the version-create, with the upload and validation already past, so the re-run repeated the whole flow and duplicated nothing. Read that as one measurement rather than a rule: a `429` inside the unlisted channel's signature poll arrives *after* the version exists, and a blind re-run would then meet the duplicate refusal the row below describes |
   | the network, the credentials, AMO | Re-run `amo-submit.yml` against the same tag, `ref` empty. AMO refuses a duplicate version, so a run that failed *after* creating the version cannot be repeated — check `pnpm amo:probe` first |
   | the scripts themselves | Fix on `main`, then re-run with `ref: main` while `main` still carries the tag's version |
   | the scripts, but `main` has moved on | Neither. `gh release download extension-v<v> -p '*-firefox.zip' -p '*-sources.zip' -D .output`, then `node scripts/amo-submit.mjs --channel <c> --expect-version <v>` locally, `<c>` being the environment's `FIREFOX_CHANNEL` — the script defaults to `listed` and never reads that variable itself — with the credentials read from 1Password |

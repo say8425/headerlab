@@ -1127,11 +1127,23 @@ described under Release.
 the homepage URL and three of the five captioned screenshots were set on 2026-09-18 through
 `PATCH /addons/addon/headerlab/` (JSON for text, multipart for the `icon` part),
 `POST …/previews/` and `PATCH …/previews/<id>/`; `docs/store/amo/listing.md` carries the
-table. **AMO throttles those writes**, and it is what left the last two screenshots for
-later: three in quick succession went through and the fourth answered `429` with
-"Expected available in 56 seconds", then an hour for the next upload — so a filler has to pace
-itself, read the listing back, and upload only what is missing — a repeated `POST` to
-`previews/` adds a second copy rather than replacing the first. The privacy policy needed a second
+table. **AMO throttles those writes, and a release spends from the same budget** — which is
+the expensive half, learned on 2026-09-18. Filling the listing by hand left no allowance for
+the 1.8.0 release an hour later: its `amo-submit` job uploaded the package, passed validation
+with 0 errors and 5 warnings, and then took a `429` on the one call that creates the version.
+Observed waits, all from one afternoon — the last in run 35316517281's own log, the first
+three read off the API by hand and recorded nowhere else: 56 seconds after three quick
+writes, 1571 before the privacy policy would go, 3433 before a fourth screenshot, 933 for
+the release's version-create. Read it as one bucket per account rather than one per endpoint, **do not fill
+the listing in the hours before merging a release PR**, and pace whatever is sent — read the
+listing back, upload only what is missing, since a repeated `POST` to `previews/` adds a
+second copy rather than replacing the first. The recovery is the documented one and it was
+measured here: wait out the seconds the `429` names, ask `pnpm amo:probe` what AMO now holds,
+then `workflow_dispatch` `amo-submit.yml` against the same tag with `ref` empty. On 1.8.0
+nothing was duplicated, because the refused call was the version-create with the upload and
+validation already past — one measurement, not a rule: a `429` inside the unlisted channel's
+signature poll lands *after* the version exists, and a blind re-run would meet AMO's
+duplicate refusal instead. The privacy policy needed a second
 copy rather than a call: AMO wants text where Chrome wants a URL, and it renders no
 Markdown. Measured 2026-09-18 across six listed add-ons carrying a policy — uBlock Origin,
 Privacy Badger, Dark Reader, Bitwarden, Ghostery, and Multi-Account Containers, which has
