@@ -233,6 +233,73 @@ describe('the Firefox Add-ons description', () => {
   });
 });
 
+/** The Firefox Add-ons privacy policy, out of its fenced block. */
+function amoPrivacy(): string {
+  const file = path.join(STORE, 'amo', 'privacy.en.md');
+  const fenced = /```text\n([\s\S]*?)\n```/.exec(readFileSync(file, 'utf8'));
+  if (!fenced) throw new Error('docs/store/amo/privacy.en.md has no ```text block.');
+  return fenced[1]!;
+}
+
+/**
+ * AMO takes the privacy policy as text where Chrome takes a URL, so this
+ * repository carries `PRIVACY.md` twice: as Markdown for the link Chrome is
+ * given, and as plain text for the field AMO renders. Two copies of a promise
+ * is exactly the shape that drifts, so what is pinned here is that both name
+ * the same things — if a claim leaves one file it has to leave the other, or
+ * this goes red.
+ *
+ * The no-Markdown rule is the other half. Measured on 2026-09-18 across six
+ * listed add-ons carrying a policy, not one uses Markdown: AMO renders none of
+ * it, so a `#` or a backtick would reach the reader as itself.
+ */
+describe('the Firefox Add-ons privacy policy', () => {
+  /**
+   * Each of these is a thing the policy promises about, spelled as the product
+   * spells it: the API that changes headers, the two storage areas, the button
+   * that grants a site, the two pages a grant is withdrawn from, and the
+   * permission the Firefox build does not declare.
+   */
+  const CLAIMS = [
+    'declarativeNetRequest',
+    'chrome.storage.local',
+    'browser.storage.local',
+    'Grant',
+    'about:addons',
+    'chrome://extensions',
+    'nativeMessaging',
+    'sendBeacon',
+  ] as const;
+
+  it('names everything PRIVACY.md names', () => {
+    const markdown = readFileSync(path.join(REPO_ROOT, 'PRIVACY.md'), 'utf8');
+    const text = amoPrivacy();
+    expect(
+      CLAIMS.filter((claim) => !markdown.includes(claim)),
+      'missing from PRIVACY.md',
+    ).toEqual([]);
+    expect(
+      CLAIMS.filter((claim) => !text.includes(claim)),
+      'missing from amo/privacy.en.md',
+    ).toEqual([]);
+  });
+
+  it('keeps the sentence the whole policy rests on, in both', () => {
+    const sentence = 'The extension makes no network calls of any kind.';
+    expect(readFileSync(path.join(REPO_ROOT, 'PRIVACY.md'), 'utf8')).toContain(sentence);
+    expect(amoPrivacy()).toContain(sentence);
+  });
+
+  it('carries no Markdown, which AMO would render as literal characters', () => {
+    const leaks = amoPrivacy()
+      .split('\n')
+      .flatMap((line) =>
+        MARKDOWN.filter(([, pattern]) => pattern.test(line)).map(([what]) => `${what}: ${line}`),
+      );
+    expect(leaks, 'Markdown in amo/privacy.en.md').toEqual([]);
+  });
+});
+
 describe('the summary table in listing.md', () => {
   /**
    * `listing.md` prints the summary and its length so the listing can be checked

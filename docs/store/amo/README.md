@@ -15,14 +15,16 @@ its last section is the one that stays useful afterwards.
 | [`listing.md`](listing.md) | Every field on the form with its value, the images, the screenshot order and captions |
 | [`description.en.md`](description.en.md) | The detailed description — the Chrome copy with its Chrome-specific words made neutral, and the agent bridge marked Chrome-only |
 | [`reviewer-notes.md`](reviewer-notes.md) | Notes to Reviewer: how to rebuild the package from the sources archive |
+| [`privacy.en.md`](privacy.en.md) | The privacy policy as plain text, which is what AMO's field takes |
 | [`../../../PRIVACY.md`](../../../PRIVACY.md) | The privacy policy. AMO takes it as pasted text, not as a URL |
 | `../assets/` | The five 1280×800 screenshots, generated for Chrome and reused |
 
 ## Three things that differ from the Chrome Web Store
 
 **The privacy policy is pasted, not linked.** Chrome's form takes a URL and
-this repository gives it `PRIVACY.md` on `main`; AMO's form takes the text.
-Same file, and it is written for both.
+this repository gives it `PRIVACY.md` on `main`; AMO's takes the text, and
+renders no Markdown. `privacy.en.md` is that same policy as plain text, held to
+PRIVACY.md by `tests/unit/storeListing.test.ts` so the two cannot drift apart.
 
 **The sources archive is required, and it is reviewed by rebuilding.** The
 package is bundled, so Mozilla's policy asks for the source and a reviewer
