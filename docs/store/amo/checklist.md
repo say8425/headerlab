@@ -145,29 +145,29 @@ Work through `listing.md`. In short:
 
 ## 7. After it is published
 
-Kept as a diff to apply, because none of it may be written while the listing
-does not exist — a badge for a missing add-on renders "not found" and a link to
-it 404s. On the day the listing is live:
+Done on 2026-09-18, the day the first version was approved. Kept because a
+second listing would need all of it again.
 
-- [ ] `README.md` and `docs/README.{ko,ja,zh,es}.md`: under the Chrome Web
-      Store badge, add
+- [x] The five READMEs carry a Firefox Add-ons badge beside the Chrome one:
 
       ```markdown
       [![Firefox Add-ons](https://img.shields.io/amo/v/headerlab?logo=firefox&logoColor=%23FF7139&color=%23FF7139&label=firefox%20add-ons)](https://addons.mozilla.org/firefox/addon/headerlab/)
       ```
 
-- [ ] The five Install sections: the intro line becomes "Chrome and Firefox
-      from their stores. Safari is planned." (each in its own language); a new
-      `### Firefox Add-ons` subsection goes first under Install, before Chrome
-      Web Store or beside it, reading "Installing from
-      [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) is
-      the recommended route on Firefox."; and the `### Firefox` subsection's
-      first sentence ("Until the Firefox Add-ons listing is live …", in each
-      language) is deleted, leaving the temporary-load instructions for people
-      building from source.
-- [ ] `docs/store/amo/README.md`: replace "not yet published" in its first
-      paragraph with the listing URL.
-- [ ] `gh repo edit --description` — check the repository description and update it if it still names only Chrome.
+- [x] Their Install sections open with both stores, carry a `### Firefox Add-ons`
+      route beside the Chrome one, and keep the temporary-load instructions for
+      people running a build of their own rather than as a warning about an
+      unsigned zip.
+- [x] `README.md` in this directory names the listing, its id and its slug
+      instead of saying it does not exist.
+- [x] The icon, the five screenshots with their captions, and the homepage URL,
+      filled through the API — `listing.md` has the calls and the throttle.
+- [ ] The privacy policy is still empty on the listing (`has_privacy_policy`
+      is `false`). AMO takes it as text rather than as a URL, and `PRIVACY.md`
+      is Markdown: decide between pasting it as it is and keeping a plain-text
+      rendition beside it. §5 says what the field is for.
+- [ ] `gh repo edit --description` — the repository description still names
+      Chrome alone.
 
 ---
 

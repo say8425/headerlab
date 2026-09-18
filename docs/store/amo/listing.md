@@ -24,7 +24,7 @@ are in `../listing.md`, compared against the built manifest by
 
 | Field | Value |
 | --- | --- |
-| Add-on URL (slug) | `headerlab` — free when measured on 2026-09-09: `GET /api/v5/addons/addon/headerlab/` answered 404 both anonymously and with the developer's JWT. The Hub is what finally decides; if it refuses, pick another and change `amo/checklist.md` §7's badge and links with it |
+| Add-on URL (slug) | `headerlab` — taken, and live at <https://addons.mozilla.org/firefox/addon/headerlab/> |
 | Description | `description.en.md`, the fenced block, as plain text |
 | Categories | **Web Development** (slug `web-development`). The second of the two slots is left empty, as Chrome's single category is; `privacy-security` is the candidate if the owner wants one |
 | Support email | none — the Chrome listing has none either. Owner's call |
@@ -43,6 +43,26 @@ are in `../listing.md`, compared against the built manifest by
 | --- | --- | --- | --- |
 | Icon | `../../../public/icon/active-128.png` | 128×128 | Full bleed. AMO does not ask for the 16px padding the Chrome store does and draws icons edge to edge in a rounded frame; the padded `../assets/store-icon-128.png` would read smaller than its neighbours. Same glyph — swap it if the two stores should match |
 | Screenshots | `../assets/screenshot-{1..5}-*.png` | 1280×800 | AMO's own recommendation is 1280×800, "the maximum image display size". Upload in numeric order |
+
+### Filling the images and the URLs after publication
+
+The Hub is not the only way: the API takes all of it, and that is how this
+listing's icon, screenshots and homepage were set on 2026-09-18, straight from
+the files and captions below.
+
+| What | Call |
+| --- | --- |
+| Homepage and the other text fields | `PATCH /api/v5/addons/addon/headerlab/`, JSON, translated fields as `{ "en-US": … }` |
+| Icon | the same `PATCH`, as `multipart/form-data` with an `icon` part |
+| A screenshot | `POST /api/v5/addons/addon/headerlab/previews/`, multipart, parts `image` and `position` |
+| Its caption | `PATCH …/previews/<id>/`, JSON, `caption` as a translated field |
+| The privacy policy | `PATCH /api/v5/addons/addon/headerlab/eula_policy/`, JSON, `privacy_policy` |
+
+**AMO throttles these writes, and the first attempt found it the hard way.**
+Three in quick succession went through and the fourth answered `429` with
+"Request was throttled. Expected available in 56 seconds." So pace them, read
+the listing back before retrying, and upload only what is missing — a repeated
+`POST` to `previews/` adds a second copy rather than replacing the first.
 
 ### Screenshot order and captions
 

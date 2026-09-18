@@ -1106,17 +1106,25 @@ check and the reader's evidence is the unit suite.
 
 ## Firefox Add-ons (AMO)
 
-**Not listed yet.** The add-on `headerlab@say8425.github.io` does not exist on AMO:
-`GET /api/v5/addons/addon/headerlab@say8425.github.io/` answered 404 anonymously and with
-the developer's JWT on 2026-09-09, and anonymously again on 2026-09-11; the slug
-`headerlab` answered 404 on both days. The account is real and had never submitted: the
-profile endpoint answered 200 with `is_addon_developer: false` and `num_addons_listed: 0`.
-On 2026-09-11 the real key — `node scripts/amo-submit.mjs --dry-run` and `pnpm amo:probe`,
-both through 1Password — got 404 from the add-on endpoint rather than 401: the key works and
-there is nothing to update yet. Neither run printed either credential. The `firefox-amo`
-environment holds both secrets as of that day.
-The runbook for the one submission a person makes is `docs/store/amo/checklist.md`;
-everything after it is `amo-submit.yml`, described under Release.
+**Listed since 2026-09-18**, at <https://addons.mozilla.org/firefox/addon/headerlab/> —
+add-on id 3071835, slug `headerlab`, first version 1.7.0, `status: public`. That version
+was submitted by hand, because `wxt submit` cannot create an add-on; every version after
+it goes through `amo-submit.yml`. Before it existed the add-on endpoint answered 404 both
+anonymously and with the developer's JWT, and the account read `is_addon_developer: false`
+— that is what "never submitted" looks like, and `pnpm amo:probe` is what asks.
+`docs/store/amo/checklist.md` is the runbook; everything after the first submission is
+described under Release.
+
+**The listing's own fields are an API away, and the Hub is not the only door.** Icon,
+screenshots with captions, and the homepage URL were all set on 2026-09-18 through
+`PATCH /addons/addon/headerlab/` (JSON for text, multipart for the `icon` part),
+`POST …/previews/` and `PATCH …/previews/<id>/`; `docs/store/amo/listing.md` carries the
+table. **AMO throttles those writes**: three in quick succession went through and the
+fourth answered `429` with "Expected available in 56 seconds", so a filler has to pace
+itself, read the listing back, and upload only what is missing — a repeated `POST` to
+`previews/` adds a second copy rather than replacing the first. The privacy policy is the
+one field still empty (`has_privacy_policy: false`): AMO wants text where Chrome wants a
+URL, and `PRIVACY.md` is Markdown, so it waits on a decision rather than on a call.
 
 **`wxt submit` is `publish-browser-extension` under an alias, and that settles the
 dependency question.** `node_modules/wxt/dist/cli/commands.mjs:77` registers `submit` as

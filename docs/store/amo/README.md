@@ -1,9 +1,9 @@
 # Firefox Add-ons (AMO) listing
 
 Everything the Firefox Add-ons listing is made of, beside the Chrome Web
-Store's in `../`. Not yet published: the first submission is a person's
-(`checklist.md` §3), and until it lands nothing in the five READMEs points
-here. The two listings share `../assets/` and almost all of their copy; what
+Store's in `../`. **Published on 2026-09-18** at <https://addons.mozilla.org/firefox/addon/headerlab/> — add-on id 3071835,
+slug `headerlab`, first version 1.7.0, submitted by hand as `checklist.md` §3
+describes. Every version after it goes through the release workflow. The two listings share `../assets/` and almost all of their copy; what
 differs is named below so nobody has to diff two runbooks.
 
 **Start with [`checklist.md`](checklist.md).** It runs top to bottom, once;
