@@ -59,11 +59,21 @@ throttle below asked for an hour; the last two follow it.
 | Its caption | `PATCH …/previews/<id>/`, JSON, `caption` as a translated field |
 | The privacy policy | `PATCH /api/v5/addons/addon/headerlab/eula_policy/`, JSON, `privacy_policy` |
 
-**AMO throttles these writes, and the first attempt found it the hard way.**
-Three in quick succession went through and the fourth answered `429` with
-"Request was throttled. Expected available in 56 seconds." So pace them, read
-the listing back before retrying, and upload only what is missing — a repeated
-`POST` to `previews/` adds a second copy rather than replacing the first.
+**AMO throttles these writes, and the release shares the same budget.** That is
+the expensive half of the lesson, learned on 2026-09-18: filling the listing by
+hand left no allowance for the 1.8.0 release an hour later, and its
+`amo-submit` job uploaded the package, passed validation, and then took a
+`429` on the one call that creates the version. Observed waits, all from one
+afternoon: 56 seconds after three quick writes, 1571 seconds before the privacy
+policy would go, 3433 seconds before a fourth screenshot, 933 seconds for the
+release's version-create. Read them as a bucket per account rather than per
+endpoint.
+
+So: **do not fill the listing in the hours before merging a release PR**, pace
+what you do send, read the listing back before retrying, and upload only what is
+missing — a repeated `POST` to `previews/` adds a second copy rather than
+replacing the first. If a release does take the `429`, `amo/checklist.md` §8
+has the recovery.
 
 ### Screenshot order and captions
 
