@@ -64,10 +64,13 @@ the expensive half of the lesson, learned on 2026-09-18: filling the listing by
 hand left no allowance for the 1.8.0 release an hour later, and its
 `amo-submit` job uploaded the package, passed validation, and then took a
 `429` on the one call that creates the version. Observed waits, all from one
-afternoon: 56 seconds after three quick writes, 1571 seconds before the privacy
-policy would go, 3433 seconds before a fourth screenshot, 933 seconds for the
-release's version-create. Read them as a bucket per account rather than per
-endpoint.
+afternoon — the last one in that job's own log, the first three read off the API
+by hand here and recorded nowhere else: 56 seconds after three quick writes,
+1571 seconds before the privacy policy would go, 3433 seconds before a fourth
+screenshot, 933 seconds for the release's version-create. The privacy policy is
+one `PATCH` like any other write; the plain-text copy beside `PRIVACY.md` is
+about Markdown, not about this. Read the waits as a bucket per account rather
+than per endpoint.
 
 So: **do not fill the listing in the hours before merging a release PR**, pace
 what you do send, read the listing back before retrying, and upload only what is
