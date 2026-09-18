@@ -22,13 +22,13 @@ side turns it red.
 ```text
 HEADERLAB PRIVACY POLICY
 
-Last updated: 2026-09-18
+Last updated: 2026-09-11
 
 HeaderLab is a browser extension for Chrome and Firefox that adds, changes and removes HTTP request and response headers on websites you choose.
 
 Nothing HeaderLab stores is sent to its developer, to any server, or to any third party. The extension makes no network calls of any kind.
 
-This policy is short because there is little to describe. It is written anyway because both stores ask for one, and because data handled on your own computer is still data being handled.
+This policy is short because there is little to describe. It is written anyway because both stores ask for one. The Chrome Web Store requires an extension to disclose how it handles user data "even when data is processed or stored locally on a user's device and is not transmitted to external servers or third parties", which is exactly HeaderLab's situation, and Firefox Add-ons takes the policy as text on this listing.
 
 WHAT HEADERLAB STORES
 
@@ -49,7 +49,7 @@ WHAT HEADERLAB DOES NOT COLLECT
 • No page contents. Nothing is injected into any page. Headers are changed by the browser's own declarativeNetRequest engine, which applies your rules inside the browser and never hands request or response contents to the extension.
 • No remote code. Nothing is downloaded or executed from outside the installed package.
 
-The shipped bundle contains no call to fetch, XMLHttpRequest, WebSocket, sendBeacon or EventSource. You do not have to take that on trust: build the extension from source and search both build outputs. An automated test asserts the same thing against every build.
+The shipped bundle contains no call to fetch, XMLHttpRequest, WebSocket, sendBeacon or EventSource. You do not have to take that on trust: build the extension from source and search both build outputs. An automated test asserts the same thing against every build. On Firefox Add-ons, the listing's data-collection declaration, none, comes from the extension's own manifest rather than from a form.
 
 ONE THING WORTH UNDERSTANDING
 

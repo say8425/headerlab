@@ -12,8 +12,11 @@ This policy is short because there is little to describe. It is written anyway
 because both stores ask for one. The Chrome Web Store requires an extension to
 disclose how it handles user data "even when data is processed or stored locally
 on a user's device and is not transmitted to external servers or third parties"
-— which is exactly HeaderLab's situation — and Firefox Add-ons takes the same
-policy as text on the listing. One document, the same words in both places.
+— which is exactly HeaderLab's situation — and Firefox Add-ons takes the policy
+as text on the listing rather than as a link. One policy in two shapes, then:
+this file, and the plain-text copy at `docs/store/amo/privacy.en.md` that the
+listing carries, because AMO renders no Markdown. A test requires the two to
+keep naming the same things and to carry the same date.
 
 ## What HeaderLab stores
 

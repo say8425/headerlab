@@ -252,6 +252,12 @@ function amoPrivacy(): string {
  * The no-Markdown rule is the other half. Measured on 2026-09-18 across six
  * listed add-ons carrying a policy, not one uses Markdown: AMO renders none of
  * it, so a `#` or a backtick would reach the reader as itself.
+ *
+ * **What this cannot do**, said here rather than implied: it checks that names
+ * are present, not that sentences still mean the same. Rewriting "not encrypted
+ * by HeaderLab" into something softer, or "one at a time" into "at once", passes
+ * every assertion below. A reader is what catches that, at the moment the policy
+ * is edited — the guard is for the claim that quietly disappears from one copy.
  */
 describe('the Firefox Add-ons privacy policy', () => {
   /**
@@ -269,6 +275,11 @@ describe('the Firefox Add-ons privacy policy', () => {
     'chrome://extensions',
     'nativeMessaging',
     'sendBeacon',
+    // The store rule this policy exists to satisfy, and where the listing's
+    // data-collection answer comes from. The first draft of the plain text lost
+    // both, and nothing here noticed until a reviewer read the two side by side.
+    'processed or stored locally',
+    'data-collection declaration',
   ] as const;
 
   it('names everything PRIVACY.md names', () => {
@@ -288,6 +299,19 @@ describe('the Firefox Add-ons privacy policy', () => {
     const sentence = 'The extension makes no network calls of any kind.';
     expect(readFileSync(path.join(REPO_ROOT, 'PRIVACY.md'), 'utf8')).toContain(sentence);
     expect(amoPrivacy()).toContain(sentence);
+  });
+
+  /**
+   * Same policy, so same date. The plain text was written with the day it was
+   * typed rather than the day the policy last changed, and nothing here could
+   * see it: a listing dated later than the policy it copies says an edit
+   * happened that never did.
+   */
+  it('is dated the day PRIVACY.md is dated', () => {
+    const date = (text: string) => /Last updated: (\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+    const source = date(readFileSync(path.join(REPO_ROOT, 'PRIVACY.md'), 'utf8'));
+    expect(source, 'PRIVACY.md carries no "Last updated:" date').toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(date(amoPrivacy())).toBe(source);
   });
 
   it('carries no Markdown, which AMO would render as literal characters', () => {
