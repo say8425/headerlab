@@ -1131,9 +1131,14 @@ table. **AMO throttles those writes**, and it is what left the last two screensh
 later: three in quick succession went through and the fourth answered `429` with
 "Expected available in 56 seconds", then an hour for the next upload — so a filler has to pace
 itself, read the listing back, and upload only what is missing — a repeated `POST` to
-`previews/` adds a second copy rather than replacing the first. The privacy policy is the
-one field still empty (`has_privacy_policy: false`): AMO wants text where Chrome wants a
-URL, and `PRIVACY.md` is Markdown, so it waits on a decision rather than on a call.
+`previews/` adds a second copy rather than replacing the first. The privacy policy needed a second
+copy rather than a call: AMO wants text where Chrome wants a URL, and it renders no
+Markdown. Measured 2026-09-18 across six listed add-ons carrying a policy — uBlock Origin,
+Privacy Badger, Dark Reader, Bitwarden, Ghostery, and Multi-Account Containers, which has
+none — **not one uses Markdown**: they are plain paragraphs with capitalised headings, two
+of them with raw `<a href>` links. So `docs/store/amo/privacy.en.md` is `PRIVACY.md` as
+plain text, and `tests/unit/storeListing.test.ts` holds the two together by the things they
+both have to name, because two copies of a promise is the shape that drifts.
 
 **`wxt submit` is `publish-browser-extension` under an alias, and that settles the
 dependency question.** `node_modules/wxt/dist/cli/commands.mjs:77` registers `submit` as

@@ -124,11 +124,12 @@ Work through `listing.md`. In short:
 
 ## 5. Privacy policy
 
-- [ ] Paste the body of `PRIVACY.md` into the **Privacy Policy** field. It is
-      text here, not a URL. AMO accepts a little Markdown; look at the rendered
-      page after publication and fix the file, not the field, if something
-      reads wrong — the file is what the Chrome listing links to, and the two
-      must say the same thing.
+- [ ] Paste the block from `privacy.en.md` into the **Privacy Policy** field,
+      or send it with the call `listing.md` names. It is text here, not a URL,
+      and AMO renders no Markdown — measured on 2026-09-18 across six listed
+      add-ons with a policy, not one uses any. Edit `../../../PRIVACY.md`
+      first and carry the change into `privacy.en.md`; a test holds the two
+      together.
 - [ ] The data-collection declaration needs nothing from you: it comes from the
       manifest (`data_collection_permissions: none`) and the listing renders it
       as "does not collect data".

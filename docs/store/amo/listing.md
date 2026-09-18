@@ -31,7 +31,7 @@ are in `../listing.md`, compared against the built manifest by
 | Support website | `https://github.com/say8425/headerlab/issues` |
 | Homepage | `https://github.com/say8425/headerlab` |
 | License | **Apache License 2.0** (slug `Apache-2.0`) |
-| Privacy policy | the body of `../../../PRIVACY.md`, pasted. **Text, not a URL** — this is the first thing that differs from Chrome's form |
+| Privacy policy | the block in `privacy.en.md`, pasted. **Text, not a URL** — this is the first thing that differs from Chrome's form, and AMO renders no Markdown |
 | Notes to reviewer | `reviewer-notes.md` |
 | Compatibility | Firefox desktop only. Do not tick Firefox for Android: the popup is 748×600 and was never measured on a phone |
 | This add-on is experimental / requires payment | No / No |
