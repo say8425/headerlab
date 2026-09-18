@@ -66,9 +66,9 @@ export default defineConfig({
     permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
     optional_host_permissions: ['<all_urls>'],
     // Per target. Firefox gets the block AMO requires — the id MV3 signing
-    // needs, the floor where optional_host_permissions arrived, and the
-    // data-collection declaration mandatory for new submissions since
-    // 2025-11-03 — and **no optional_permissions**: its event page closes
+    // needs, a floor of 140 (see below), and the data-collection declaration
+    // mandatory for new submissions since 2025-11-03 — and **no
+    // optional_permissions**: its event page closes
     // native ports on idle, so the bridge as designed cannot run there and
     // the popup renders no row for it (spec §9). Chrome keeps nativeMessaging
     // optional, requested at runtime from the popup's bridge switch, never at
@@ -83,7 +83,13 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: 'headerlab@say8425.github.io',
-              strict_min_version: '128.0',
+              // 140, not 128. 128 is where optional_host_permissions arrived and
+              // was the floor until Firefox Add-ons' validator flagged the 1.7.0
+              // upload: data_collection_permissions below is understood from 140
+              // on the desktop and 142 on Android, so a 128 floor declared a key
+              // the oldest supported version does not know. The Android half of
+              // that warning stays — the listing is desktop only.
+              strict_min_version: '140.0',
               data_collection_permissions: { required: ['none'] },
             },
           },

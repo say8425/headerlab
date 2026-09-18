@@ -86,9 +86,11 @@ constraint produced.
 `tests/unit/purity.test.ts` enforces it, and **it does not cover everything the tree
 above calls pure.** Two directories are auto-discovered, so a new file in either is
 guarded for free: `lib/compile/` and `lib/view/`. Everything else is a hand-written list
-of exactly eight files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
+of exactly nine files — `lib/permissions/origins.ts`, `lib/permissions/audit.ts`,
 `lib/model/migrate.ts`, `lib/model/defaults.ts`, `lib/bridge/protocol.ts`,
-`lib/bridge/apply.ts`, `lib/bridge/query.ts` and `lib/model/schema.ts`.
+`lib/bridge/apply.ts`, `lib/bridge/query.ts`, `lib/model/schema.ts` and
+`lib/model/zod.ts` — the last because both schema modules import `z` from it as a runtime
+value.
 `lib/permissions/` and `lib/bridge/`
 each also hold an adapter that must *not* be guarded — `probe.ts` and `port.ts` — so
 neither directory has a directory-shaped rule to apply. That is also why
@@ -129,9 +131,13 @@ second path for state to drift down. Add a trigger, not a parallel writer.
   runtime grant actually succeeding, and only `tests/e2e/bridge.spec.ts` exercises that.
   **The Firefox manifest holds the same two install-time permissions and adds one block.**
   `browser_specific_settings.gecko` is exactly `{ id: 'headerlab@say8425.github.io',
-  strict_min_version: '128.0', data_collection_permissions: { required: ['none'] } }` —
-  the id MV3 signing needs, the floor where `optional_host_permissions` arrived, and the
-  data-collection declaration AMO requires of new submissions since 2025-11-03. It
+  strict_min_version: '140.0', data_collection_permissions: { required: ['none'] } }` —
+  the id MV3 signing needs, a floor of 140, and the data-collection declaration AMO
+  requires of new submissions since 2025-11-03. **The floor was 128**, where
+  `optional_host_permissions` arrived, until AMO's validator flagged the 1.7.0 upload:
+  `data_collection_permissions` is understood from 140 on the desktop and 142 on Android,
+  so 128 declared a key its oldest version does not know. The Android half of that
+  warning stays on purpose — the listing is desktop only. It
   declares **no `optional_permissions`**: Firefox event pages close native ports on idle
   (MDN), so the bridge as designed cannot run there and the popup renders no row for it.
   `tests/unit/manifest.test.ts` pins the block, the absence, and that the Chrome build
@@ -295,9 +301,10 @@ and the two cannot drift apart while the flag stays where it is.
 `tsconfig.json` extends `./.wxt/tsconfig.json`, which is what oxlint resolves `@/…` imports
 through. With that file missing — a fresh clone under `ignore-scripts=true` — oxlint does
 not complain. It **exits 0 having checked nothing** for the alias-resolving rules that
-`correctness` enables (`import/default`, `import/namespace`), across 224 `@/…` imports
+`correctness` enables (`import/default`, `import/namespace`), across 228 `@/…` imports
 (126 when this was written, then 141, then 189 — which was already 197 by the time the
-Firefox branch started, 222 when it landed and 224 with the Firefox Add-ons branch; the count is whatever `grep -rhoE "from '@/"
+Firefox branch started, 222 when it landed, 224 with the Firefox Add-ons branch and 228
+with the zod configuration module; the count is whatever `grep -rhoE "from '@/"
 components entrypoints lib tests | wc -l` says today, and it is the repo-wide figure because
 oxlint lints the tests too).
 Reproduced both ways with a one-line probe importing a non-existent default: an error with
@@ -1187,6 +1194,20 @@ the stylesheet's sources pinned, a clean extraction on Node 24.16.0 rebuilt all 
 byte-identical, twice. The release attaches the archive beside the two zips so what Mozilla
 reviewed is what anyone can download, and `amo-submit.yml` takes it from there rather
 than rebuilding it.
+
+**What AMO's validator says, and why none of it is this repository's code.** The 1.7.0
+upload (2026-09-14) came back with 0 errors and 6 warnings. Two were the minimum version:
+`data_collection_permissions` is understood from Firefox 140 on the desktop and 142 on
+Android, and the manifest said 128; the floor is 140 since, which clears the desktop half,
+and the Android half stays because the listing is desktop only. Two were "The Function
+constructor is eval", in `background.js` and the popup chunk: zod 4's probe for whether it
+may compile parsers, `try { Function('') } catch { return false }`, which the MV3 CSP
+always refuses. `lib/model/zod.ts` now sets `jitless`, so the probe never runs — zod
+reads that flag when an object schema is *built*, which is why every shipped schema gets
+`z` from that module and `tests/unit/zodConfig.test.ts` refuses a direct import — but zod
+ships the code regardless and the warning stays. Two were "Unsafe assignment to
+innerHTML": React DOM's handler for `dangerouslySetInnerHTML`, which nothing here uses.
+`docs/store/amo/reviewer-notes.md` says all of this to the reviewer.
 
 **What the listing takes, from the store's own pages.** Summary ≤ 250 characters (the
 manifest's 119 pre-fills it; `manifest.test.ts`'s 132 cap is the smaller one). Up to two

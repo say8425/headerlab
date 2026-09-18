@@ -46,6 +46,10 @@ const EXPLICIT = [
   // directory-shaped rule because `port.ts` is the adapter that must not be
   // guarded, so this pure file is named here rather than auto-discovered.
   'lib/bridge/query.ts',
+  // zod, configured once (jitless). `schema.ts` and `protocol.ts` import `z`
+  // from it as a runtime value, so it is one hop from two guarded files — the
+  // reason `defaults.ts` and `schema.ts` are listed.
+  'lib/model/zod.ts',
 ];
 
 const PURE_FILES = [...AUTO_DISCOVERED, ...EXPLICIT];
@@ -108,6 +112,7 @@ describe('the pure layer stays pure', () => {
       'lib/bridge/apply.ts',
       'lib/model/schema.ts',
       'lib/bridge/query.ts',
+      'lib/model/zod.ts',
     ]);
   });
 
