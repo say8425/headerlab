@@ -47,8 +47,9 @@ are in `../listing.md`, compared against the built manifest by
 ### Filling the images and the URLs after publication
 
 The Hub is not the only way: the API takes all of it, and that is how this
-listing's icon, screenshots and homepage were set on 2026-09-18, straight from
-the files and captions below.
+listing's icon, homepage and screenshots were set on 2026-09-18, straight from
+the files and captions below. Three of the five screenshots went up before the
+throttle below asked for an hour; the last two follow it.
 
 | What | Call |
 | --- | --- |

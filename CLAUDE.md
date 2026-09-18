@@ -1106,8 +1106,9 @@ check and the reader's evidence is the unit suite.
 
 ## Firefox Add-ons (AMO)
 
-**Listed since 2026-09-18**, at <https://addons.mozilla.org/firefox/addon/headerlab/> —
-add-on id 3071835, slug `headerlab`, first version 1.7.0, `status: public`. That version
+**Listed**, at <https://addons.mozilla.org/firefox/addon/headerlab/> — add-on id 3071835,
+slug `headerlab`, first version 1.7.0, `status: public` when measured on 2026-09-18, with
+the version's own `reviewed` timestamp reading 2026-09-17. That version
 was submitted by hand, because `wxt submit` cannot create an add-on; every version after
 it goes through `amo-submit.yml`. Before it existed the add-on endpoint answered 404 both
 anonymously and with the developer's JWT, and the account read `is_addon_developer: false`
@@ -1115,12 +1116,13 @@ anonymously and with the developer's JWT, and the account read `is_addon_develop
 `docs/store/amo/checklist.md` is the runbook; everything after the first submission is
 described under Release.
 
-**The listing's own fields are an API away, and the Hub is not the only door.** Icon,
-screenshots with captions, and the homepage URL were all set on 2026-09-18 through
+**The listing's own fields are an API away, and the Hub is not the only door.** The icon,
+the homepage URL and three of the five captioned screenshots were set on 2026-09-18 through
 `PATCH /addons/addon/headerlab/` (JSON for text, multipart for the `icon` part),
 `POST …/previews/` and `PATCH …/previews/<id>/`; `docs/store/amo/listing.md` carries the
-table. **AMO throttles those writes**: three in quick succession went through and the
-fourth answered `429` with "Expected available in 56 seconds", so a filler has to pace
+table. **AMO throttles those writes**, and it is what left the last two screenshots for
+later: three in quick succession went through and the fourth answered `429` with
+"Expected available in 56 seconds", then an hour for the next upload — so a filler has to pace
 itself, read the listing back, and upload only what is missing — a repeated `POST` to
 `previews/` adds a second copy rather than replacing the first. The privacy policy is the
 one field still empty (`has_privacy_policy: false`): AMO wants text where Chrome wants a

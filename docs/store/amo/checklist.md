@@ -160,8 +160,11 @@ second listing would need all of it again.
       unsigned zip.
 - [x] `README.md` in this directory names the listing, its id and its slug
       instead of saying it does not exist.
-- [x] The icon, the five screenshots with their captions, and the homepage URL,
-      filled through the API — `listing.md` has the calls and the throttle.
+- [x] The icon and the homepage URL, filled through the API.
+- [ ] The screenshots: **three of five** are up with their captions
+      (`scoped`, `permission`, `blocked`), measured on the listing. AMO's upload
+      throttle answered the fourth with an hour's wait, so `allsites` and `dark`
+      follow once it lifts. `listing.md` has the calls and the throttle.
 - [ ] The privacy policy is still empty on the listing (`has_privacy_policy`
       is `false`). AMO takes it as text rather than as a URL, and `PRIVACY.md`
       is Markdown: decide between pasting it as it is and keeping a plain-text
