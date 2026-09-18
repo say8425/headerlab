@@ -6,6 +6,7 @@ Add, modify and remove HTTP request and response headers, in Chrome and Firefox,
 until you grant it.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![Firefox Add-ons](https://img.shields.io/amo/v/headerlab?logo=firefox&logoColor=%23FF7139&color=%23FF7139&label=firefox%20add-ons)](https://addons.mozilla.org/firefox/addon/headerlab/)
 [![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 
@@ -15,13 +16,17 @@ until you grant it.
 
 ## Install
 
-Chrome from the store, Firefox by loading a build temporarily. Firefox Add-ons distribution is being prepared. Safari is planned.
+Chrome and Firefox from their stores. Safari is planned.
 
 ### Chrome Web Store
 
 Installing from the
 [Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 is the recommended route.
+
+### Firefox Add-ons
+
+Installing from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) is the recommended route on Firefox.
 
 ### Release page
 
@@ -47,8 +52,8 @@ Node 24 is required (`.nvmrc`). `pnpm build:firefox` builds only `.output/firefo
 
 ### Firefox
 
-Until the Firefox Add-ons listing is live, release Firefox will not install the
-unsigned zip permanently. For temporary installation: `about:debugging` → **This Firefox** →
+To load a build you made yourself, rather than the signed one from the store:
+`about:debugging` → **This Firefox** →
 **Load Temporary Add-on** → either the release's `headerlab-<version>-firefox.zip` as it
 is, or `.output/firefox-mv3/manifest.json` after `pnpm build`. It stays until Firefox
 restarts. The agent bridge is not offered on Firefox — see Limitations.

@@ -5,6 +5,7 @@
 在 Chrome 和 Firefox 里增删改 HTTP 请求头和响应头。在你授权之前，它没有任何站点访问权限。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![Firefox Add-ons](https://img.shields.io/amo/v/headerlab?logo=firefox&logoColor=%23FF7139&color=%23FF7139&label=firefox%20add-ons)](https://addons.mozilla.org/firefox/addon/headerlab/)
 [![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 
@@ -14,13 +15,17 @@
 
 ## 安装
 
-Chrome 从商店安装，Firefox 可临时加载构建版本。Firefox Add-ons 发布正在准备中。Safari 在计划中。
+Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### Chrome 网上应用店
 
 推荐从
 [Chrome 网上应用店](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
 安装。
+
+### Firefox Add-ons
+
+在 Firefox 上推荐从 [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) 安装。
 
 ### 发布页面
 
@@ -44,7 +49,7 @@ pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 
 ### Firefox
 
-Firefox Add-ons 列表上线之前，正式版 Firefox 不会永久安装未签名的 zip。临时安装：`about:debugging`
+想试自己构建的版本而不是商店里的签名版时，临时加载：`about:debugging`
 → **This Firefox** → **Load Temporary Add-on** → 直接选发布页的 `headerlab-<version>-firefox.zip`，
 或者 `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在
 Firefox 上提供 — 见限制表。

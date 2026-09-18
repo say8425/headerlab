@@ -6,6 +6,7 @@ HTTP リクエスト・レスポンスヘッダーを Chrome と Firefox で追�
 まで、サイトへのアクセス権限は一切持ちません。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![Firefox Add-ons](https://img.shields.io/amo/v/headerlab?logo=firefox&logoColor=%23FF7139&color=%23FF7139&label=firefox%20add-ons)](https://addons.mozilla.org/firefox/addon/headerlab/)
 [![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 
@@ -15,12 +16,16 @@ HTTP リクエスト・レスポンスヘッダーを Chrome と Firefox で追�
 
 ## インストール
 
-Chrome はストアから、Firefox はビルドを一時的に読み込んで使用できます。Firefox Add-ons での配布は準備中です。Safari は対応予定。
+Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### Chrome ウェブストア
 
 [Chrome ウェブストア](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)からの
 インストールを推奨します。
+
+### Firefox Add-ons
+
+Firefox では [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) からのインストールを推奨します。
 
 ### リリースページ
 
@@ -46,8 +51,8 @@ Node 24 が必要です（`.nvmrc`）。`pnpm build:firefox` は `.output/firefo
 
 ### Firefox
 
-Firefox Add-ons のリスティングが公開されるまで、リリース版 Firefox は署名のない zip を永続
-インストールしません。一時的なインストール: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+ストアの署名済みビルドではなく自分でビルドしたものを試すときは、一時的に読み込みます:
+`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
 リリースの `headerlab-<version>-firefox.zip` をそのまま、または `pnpm build` 後の
 `.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。エージェントブリッジは
 Firefox では提供されません — 制限事項の表を参照。

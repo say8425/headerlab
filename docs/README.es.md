@@ -6,6 +6,7 @@ Añade, modifica y elimina cabeceras HTTP de petición y respuesta en Chrome y F
 a ningún sitio hasta que tú se lo concedes.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kgapijlldieckifoenckgninnepafhnn?logo=googlechrome&logoColor=%234285F4&color=%234285F4&label=chrome%20web%20store)](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
+[![Firefox Add-ons](https://img.shields.io/amo/v/headerlab?logo=firefox&logoColor=%23FF7139&color=%23FF7139&label=firefox%20add-ons)](https://addons.mozilla.org/firefox/addon/headerlab/)
 [![CLI](https://img.shields.io/npm/v/headerlab?logo=npm&logoColor=%23CC3534&color=%23CC3534&label=cli)](https://www.npmjs.com/package/headerlab)
 [![CI](https://github.com/say8425/headerlab/actions/workflows/ci.yml/badge.svg)](https://github.com/say8425/headerlab/actions/workflows/ci.yml)
 
@@ -15,12 +16,16 @@ a ningún sitio hasta que tú se lo concedes.
 
 ## Instalación
 
-Chrome desde la tienda; Firefox cargando temporalmente una build. La distribución en Firefox Add-ons está en preparación. Safari está previsto.
+Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Chrome Web Store
 
 Se recomienda instalarla desde la
 [Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn).
+
+### Firefox Add-ons
+
+En Firefox se recomienda instalarla desde [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/).
 
 ### Página de releases
 
@@ -46,9 +51,8 @@ Se requiere Node 24 (`.nvmrc`). `pnpm build:firefox` construye solo `.output/fir
 
 ### Firefox
 
-Hasta que el listado en Firefox Add-ons esté publicado, el Firefox de release no instalará
-el zip sin firmar de forma permanente. Instalación temporal: `about:debugging` →
-**This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
+Para probar una build propia en lugar de la firmada de la tienda, cárgala temporalmente:
+`about:debugging` → **This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
 release tal cual, o `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
 Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.
 
