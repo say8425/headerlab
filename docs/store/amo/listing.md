@@ -47,9 +47,12 @@ are in `../listing.md`, compared against the built manifest by
 ### Filling the images and the URLs after publication
 
 The Hub is not the only way: the API takes all of it, and that is how this
-listing's icon, homepage and screenshots were set on 2026-09-18, straight from
-the files and captions below. Three of the five screenshots went up before the
-throttle below asked for an hour; the last two follow it.
+listing's icon, homepage, screenshots and privacy policy were set, straight from
+the files and captions below. Three of the five screenshots went up on
+2026-09-18, before the throttle below asked for an hour; the last two and the
+policy went up on 2026-09-19, after it. The listing now reads five previews at
+1280×800 in the caption order of the table further down, and
+`has_privacy_policy: true`.
 
 | What | Call |
 | --- | --- |
@@ -77,6 +80,20 @@ what you do send, read the listing back before retrying, and upload only what is
 missing — a repeated `POST` to `previews/` adds a second copy rather than
 replacing the first. If a release does take the `429`, `amo/checklist.md` §8
 has the recovery.
+
+### Reading the privacy policy back: AMO linkifies it
+
+**The stored policy is never byte-identical to the file, and that is AMO's doing
+rather than a failed write.** Measured 2026-09-19, straight after the `PATCH
+…/eula_policy/` that filled it: 6,416 characters stored against the file's
+5,672, the same 71 lines, and unwrapping the four `<a … rel="nofollow">`
+elements AMO inserted leaves the two identical. Two of the four wrap real URLs —
+the issues page and `PRIVACY.md`. The other two wrap `api.example.com`, the
+reserved example domain the policy uses to say what a header rule does, so the
+listing renders that example as a clickable outgoing link. Cosmetic, and left
+as it is; `example.com` is reserved for documentation precisely so it can be
+written without owning it. Compare with the anchors unwrapped, or a correct
+write reads as a mismatch.
 
 ### Screenshot order and captions
 

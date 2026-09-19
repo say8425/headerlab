@@ -146,7 +146,9 @@ Work through `listing.md`. In short:
 
 ## 7. After it is published
 
-Done on 2026-09-18, the day the first version was approved. Kept because a
+Begun on 2026-09-18, the day the first version was approved, and finished on
+2026-09-19 — AMO's write throttle is what held the last two screenshots and the
+privacy policy to a second day, not anything about the work. Kept because a
 second listing would need all of it again.
 
 - [x] The five READMEs carry a Firefox Add-ons badge beside the Chrome one:
@@ -162,16 +164,17 @@ second listing would need all of it again.
 - [x] `README.md` in this directory names the listing, its id and its slug
       instead of saying it does not exist.
 - [x] The icon and the homepage URL, filled through the API.
-- [ ] The screenshots: **three of five** are up with their captions
-      (`scoped`, `permission`, `blocked`), measured on the listing. AMO's upload
-      throttle answered the fourth with an hour's wait, so `allsites` and `dark`
-      follow once it lifts. `listing.md` has the calls and the throttle.
-- [ ] The privacy policy is still empty on the listing (`has_privacy_policy`
-      is `false`). AMO takes it as text rather than as a URL, and `PRIVACY.md`
-      is Markdown: decide between pasting it as it is and keeping a plain-text
-      rendition beside it. §5 says what the field is for.
-- [ ] `gh repo edit --description` — the repository description still names
-      Chrome alone.
+- [x] The screenshots: **all five** are up with their captions, measured on the
+      listing as five previews at 1280×800 in the caption order of
+      `listing.md`'s table. AMO's upload throttle answered the fourth with an
+      hour's wait on 2026-09-18, so `allsites` and `dark` went up on 2026-09-19.
+      `listing.md` has the calls and the throttle.
+- [x] The privacy policy is on the listing (`has_privacy_policy` is `true`), as
+      the plain-text block in `privacy.en.md` — AMO takes text rather than a URL
+      and renders no Markdown. Reading it back is **not** byte-identical to the
+      file, because AMO linkifies what it stores; `listing.md` carries that
+      measurement and the comparison that settles it.
+- [x] `gh repo edit --description` — the description names both browsers.
 
 ---
 
