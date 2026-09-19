@@ -1128,9 +1128,12 @@ the homepage URL and all five captioned screenshots were set through
 `PATCH /addons/addon/headerlab/` (JSON for text, multipart for the `icon` part),
 `POST …/previews/` and `PATCH …/previews/<id>/` — three of the screenshots on 2026-09-18,
 and the last two plus the privacy policy on 2026-09-19, once the throttle below had let go;
-`docs/store/amo/listing.md` carries the table. The listing reads five previews at 1280×800
-in caption order and `has_privacy_policy: true` (`pnpm amo:probe`, then a read of
-`previews` and `eula_policy/`). **AMO throttles those writes, and a release spends from the same budget** — which is
+`docs/store/amo/listing.md` carries the table. **`pnpm amo:probe` is what checks that rather
+than restating it**: it prints five previews at 1280×800 in caption order, the icon, and
+`has_privacy_policy true`. Those fields ride on the add-on response the probe already asks
+for, so they cost no second request — an earlier version of this sentence cited "a read of
+`previews` and `eula_policy/`", which named two endpoints `endpoints()` does not define and
+a request nothing here makes. **AMO throttles those writes, and a release spends from the same budget** — which is
 the expensive half, learned on 2026-09-18. Filling the listing by hand left no allowance for
 the 1.8.0 release an hour later: its `amo-submit` job uploaded the package, passed validation
 with 0 errors and 5 warnings, and then took a `429` on the one call that creates the version.
@@ -1159,10 +1162,17 @@ both have to name, because two copies of a promise is the shape that drifts.
 file it came from.** Measured 2026-09-19 on the `PATCH …/eula_policy/` that filled it: the
 stored text is 6,416 characters against the file's 5,672 and the same 71 lines, and
 unwrapping the four `<a … rel="nofollow">` elements AMO inserted makes the two identical.
-Two of the four wrap real URLs. The other two wrap `api.example.com` — the reserved example
-domain the policy uses to explain what a header rule does — so the listing renders that
-example as a clickable outgoing link; cosmetic, and left alone rather than reworded around
-the transform. The point is the comparison: a check that does not unwrap those anchors
+**The 744 characters that buys is mostly the href, and that is the part worth writing down**,
+because the anchor does not carry the URL from the text: Mozilla rewrites every one into its
+outgoing-link wrapper, `https://prod.outgoing.prod.webservices.mozgcp.net/v1/<64 hex>/<the
+original, percent-encoded>`. So the two anchors around `api.example.com` are 187 characters
+each replacing 15, and the two around real URLs are 236 replacing 43 and 264 replacing 57 —
+172 + 172 + 193 + 207 = 744. Guess the plain `<a href="<the url>" rel="nofollow">` shape
+instead and the arithmetic lands on 264, which is the kind of near-miss that reads as a
+documentation error rather than as the mechanism nobody wrote down.
+`api.example.com` is the reserved example domain the policy uses to explain what a header
+rule does, so the listing renders that example as a clickable link; cosmetic, and left alone
+rather than reworded around the transform. The point is the comparison: a check that does not unwrap those anchors
 reports a mismatch that is not one, which is what the upload script's own `identical to the
 file: false` said on a policy that had stored correctly.
 

@@ -124,12 +124,17 @@ Work through `listing.md`. In short:
 
 ## 5. Privacy policy
 
-- [ ] Paste the block from `privacy.en.md` into the **Privacy Policy** field,
+- [x] Paste the block from `privacy.en.md` into the **Privacy Policy** field,
       or send it with the call `listing.md` names. It is text here, not a URL,
       and AMO renders no Markdown — measured on 2026-09-18 across six listed
       add-ons with a policy, not one uses any. Edit `../../../PRIVACY.md`
       first and carry the change into `privacy.en.md`; a test holds the two
       together.
+      **Done 2026-09-19 by the call, not the form** — `PATCH …/eula_policy/`,
+      which is why §7 reads `has_privacy_policy true`. What came back is not
+      byte-identical to what went up, because AMO linkifies; `listing.md` has
+      that measurement. Whether the form stores it the same way was not
+      measured, so do not read this as a claim about the Hub.
 - [ ] The data-collection declaration needs nothing from you: it comes from the
       manifest (`data_collection_permissions: none`) and the listing renders it
       as "does not collect data".
@@ -164,16 +169,17 @@ second listing would need all of it again.
 - [x] `README.md` in this directory names the listing, its id and its slug
       instead of saying it does not exist.
 - [x] The icon and the homepage URL, filled through the API.
-- [x] The screenshots: **all five** are up with their captions, measured on the
-      listing as five previews at 1280×800 in the caption order of
-      `listing.md`'s table. AMO's upload throttle answered the fourth with an
-      hour's wait on 2026-09-18, so `allsites` and `dark` went up on 2026-09-19.
-      `listing.md` has the calls and the throttle.
-- [x] The privacy policy is on the listing (`has_privacy_policy` is `true`), as
-      the plain-text block in `privacy.en.md` — AMO takes text rather than a URL
-      and renders no Markdown. Reading it back is **not** byte-identical to the
-      file, because AMO linkifies what it stores; `listing.md` carries that
-      measurement and the comparison that settles it.
+- [x] The screenshots: **all five** are up with their captions — `pnpm amo:probe`
+      prints five previews at 1280×800 in the caption order of `listing.md`'s
+      table. AMO's upload throttle answered the fourth with an hour's wait on
+      2026-09-18, so `allsites` and `dark` went up on 2026-09-19. `listing.md`
+      has the calls and the throttle.
+- [x] The privacy policy is on the listing — the same `pnpm amo:probe` prints
+      `has_privacy_policy true` — as the plain-text block in `privacy.en.md`,
+      since AMO takes text rather than a URL and renders no Markdown. Reading it
+      back is **not** byte-identical to the file, because AMO linkifies what it
+      stores; `listing.md` carries that measurement and the comparison that
+      settles it.
 - [x] `gh repo edit --description` — the description names both browsers.
 
 ---
