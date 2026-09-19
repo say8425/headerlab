@@ -18,6 +18,12 @@
  * repository has seen. Run this after the first submission and compare what
  * it prints against what the unlisted path expects, before the first unlisted
  * release relies on it.
+ *
+ * It also prints the listing's own filled-in fields — the icon, the captioned
+ * previews and whether a privacy policy is stored. Those ride on the add-on
+ * response this already asks for, so they cost no second request, and they are
+ * what makes `docs/store/amo/listing.md`'s claims about the listing checkable
+ * by a command rather than by opening the page.
  */
 import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
@@ -86,6 +92,15 @@ const token = ({ issuer, secret }) => {
   return `${input}.${createHmac('sha256', secret).update(input).digest('base64url')}`;
 };
 
+/**
+ * A translated field arrives as a locale map unless the request names a `lang`,
+ * and this one does not. Reading `field['en-US']` off the flat string a `lang`
+ * request returns is how the fill script came to report a homepage it had set
+ * as `none`, so take either shape.
+ */
+const oneLocale = (field) =>
+  field && typeof field === 'object' ? (field['en-US'] ?? Object.values(field)[0]) : field;
+
 const get = async (url, creds) => {
   const response = await fetch(trustedAmoUrl(url), {
     redirect: 'error',
@@ -121,6 +136,20 @@ const main = async () => {
   console.log(
     `  listed:    ${a.current_version?.version ?? '(none)'}   unlisted: ${a.latest_unlisted_version?.version ?? '(none)'}`,
   );
+
+  // The listing's own fields ride on this same response, so printing them costs
+  // no request. They are what says the listing is filled — `docs/store/amo/
+  // listing.md` claims five captioned previews and a policy, and this is the
+  // command that checks the claim rather than restating it.
+  const previews = [...(a.previews ?? [])].sort((x, y) => x.position - y.position);
+  console.log(`  icon:      ${a.icon_url ?? '(none)'}`);
+  console.log(`  policy:    has_privacy_policy ${a.has_privacy_policy === true}`);
+  console.log(`  previews:  ${previews.length}`);
+  for (const p of previews) {
+    console.log(
+      `    ${p.position}  ${(p.image_size ?? []).join('x') || '?'}  ${oneLocale(p.caption) ?? '(no caption)'}`,
+    );
+  }
 
   const versions = await get(`${api.versions('all_with_unlisted')}&page_size=5`, creds);
   if (!versions.response.ok) {

@@ -801,12 +801,12 @@ that the id the script submits under is the id the Firefox build carries.
 its first changelog held every commit this repository had — expected, not a
 misconfiguration; it proposed a version from `package.json`'s `1.0.0` and the
 conventional-commit subjects above it rather than releasing `1.0.0` itself. That is history
-now: there are twelve tags and twelve releases (`git tag | wc -l` and `gh release list
---limit 30 | wc -l`, both `12` on 2026-08-17, after `extension-v1.3.0`, `extension-v1.3.1`
-and `cli-v0.3.0`), and a run
+now: there are nineteen tags and nineteen releases (`git tag | wc -l` and `gh release list
+--limit 30 | wc -l`, both `19` on 2026-09-19, after `cli-v0.4.0`), and a run
 finds the previous release through the `extension-v*` / `cli-v*` tag formats. **That count
 goes stale on every release, so re-run the two commands rather than reading it** — it said
-seven until the clig.dev release and nine until this one, five releases' worth of drift in
+seven until the clig.dev release, nine until the one after, and twelve until this one,
+twelve releases' worth of drift in
 a file that treats a stale measurement as a defect. Kept because the same paragraph is what a fresh
 fork of this setup would need.
 
@@ -1124,10 +1124,16 @@ anonymously and with the developer's JWT, and the account read `is_addon_develop
 described under Release.
 
 **The listing's own fields are an API away, and the Hub is not the only door.** The icon,
-the homepage URL and three of the five captioned screenshots were set on 2026-09-18 through
+the homepage URL and all five captioned screenshots were set through
 `PATCH /addons/addon/headerlab/` (JSON for text, multipart for the `icon` part),
-`POST …/previews/` and `PATCH …/previews/<id>/`; `docs/store/amo/listing.md` carries the
-table. **AMO throttles those writes, and a release spends from the same budget** — which is
+`POST …/previews/` and `PATCH …/previews/<id>/` — three of the screenshots on 2026-09-18,
+and the last two plus the privacy policy on 2026-09-19, once the throttle below had let go;
+`docs/store/amo/listing.md` carries the table. **`pnpm amo:probe` is what checks that rather
+than restating it**: it prints five previews at 1280×800 in caption order, the icon, and
+`has_privacy_policy true`. Those fields ride on the add-on response the probe already asks
+for, so they cost no second request — an earlier version of this sentence cited "a read of
+`previews` and `eula_policy/`", which named two endpoints `endpoints()` does not define and
+a request nothing here makes. **AMO throttles those writes, and a release spends from the same budget** — which is
 the expensive half, learned on 2026-09-18. Filling the listing by hand left no allowance for
 the 1.8.0 release an hour later: its `amo-submit` job uploaded the package, passed validation
 with 0 errors and 5 warnings, and then took a `429` on the one call that creates the version.
@@ -1151,6 +1157,24 @@ none — **not one uses Markdown**: they are plain paragraphs with capitalised h
 of them with raw `<a href>` links. So `docs/store/amo/privacy.en.md` is `PRIVACY.md` as
 plain text, and `tests/unit/storeListing.test.ts` holds the two together by the things they
 both have to name, because two copies of a promise is the shape that drifts.
+
+**AMO linkifies what it stores, so reading that field back is never byte-identical to the
+file it came from.** Measured 2026-09-19 on the `PATCH …/eula_policy/` that filled it: the
+stored text is 6,416 characters against the file's 5,672 and the same 71 lines, and
+unwrapping the four `<a … rel="nofollow">` elements AMO inserted makes the two identical.
+**The 744 characters that buys is mostly the href, and that is the part worth writing down**,
+because the anchor does not carry the URL from the text: Mozilla rewrites every one into its
+outgoing-link wrapper, `https://prod.outgoing.prod.webservices.mozgcp.net/v1/<64 hex>/<the
+original, percent-encoded>`. So the two anchors around `api.example.com` are 187 characters
+each replacing 15, and the two around real URLs are 236 replacing 43 and 264 replacing 57 —
+172 + 172 + 193 + 207 = 744. Guess the plain `<a href="<the url>" rel="nofollow">` shape
+instead and the arithmetic lands on 264, which is the kind of near-miss that reads as a
+documentation error rather than as the mechanism nobody wrote down.
+`api.example.com` is the reserved example domain the policy uses to explain what a header
+rule does, so the listing renders that example as a clickable link; cosmetic, and left alone
+rather than reworded around the transform. The point is the comparison: a check that does not unwrap those anchors
+reports a mismatch that is not one, which is what the upload script's own `identical to the
+file: false` said on a policy that had stored correctly.
 
 **`wxt submit` is `publish-browser-extension` under an alias, and that settles the
 dependency question.** `node_modules/wxt/dist/cli/commands.mjs:77` registers `submit` as
