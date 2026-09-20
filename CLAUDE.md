@@ -1168,13 +1168,18 @@ outgoing-link wrapper, `https://prod.outgoing.prod.webservices.mozgcp.net/v1/<64
 original, percent-encoded>`. So the two anchors around `api.example.com` are 187 characters
 each replacing 15, and the two around real URLs are 236 replacing 43 and 264 replacing 57 —
 172 + 172 + 193 + 207 = 744. Guess the plain `<a href="<the url>" rel="nofollow">` shape
-instead and the arithmetic lands on 264, which is the kind of near-miss that reads as a
-documentation error rather than as the mechanism nobody wrote down.
+instead — 30 fixed characters around the URL the text already had — and the arithmetic
+lands on 250, or on 264 if you also guess the `http://` AMO prefixes onto the bare domain.
+Either is the kind of near-miss that reads as a documentation error rather than as the
+mechanism nobody wrote down. **This paragraph shipped the 264 without saying which guess
+produced it**, which a review caught: the same unstated-assumption defect as the sentence
+before it, one revision later.
 `api.example.com` is the reserved example domain the policy uses to explain what a header
 rule does, so the listing renders that example as a clickable link; cosmetic, and left alone
 rather than reworded around the transform. The point is the comparison: a check that does not unwrap those anchors
-reports a mismatch that is not one, which is what the upload script's own `identical to the
-file: false` said on a policy that had stored correctly.
+reports a mismatch that is not one. The one-off script that filled the listing said exactly
+that — `identical to the file: false` — on a policy that had stored correctly. It is not in
+this repository, so what carries forward is the comparison rather than the citation.
 
 **`wxt submit` is `publish-browser-extension` under an alias, and that settles the
 dependency question.** `node_modules/wxt/dist/cli/commands.mjs:77` registers `submit` as

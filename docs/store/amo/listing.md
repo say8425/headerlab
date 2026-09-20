@@ -69,8 +69,9 @@ already asks for, so the read below is one `GET` rather than three.
 
 A translated field comes back as a locale map unless the request names a `lang`,
 and as a flat string when it does. Read only `field['en-US']` and a listing that
-is filled reports itself empty — which is exactly what the upload script did
-with a homepage it had just set.
+is filled reports itself empty — which is exactly what the one-off script that
+filled this listing did with a homepage it had just set. That script is not in
+this repository, so the trap is written here rather than cited.
 
 **AMO throttles these writes, and the release shares the same budget.** That is
 the expensive half of the lesson, learned on 2026-09-18: filling the listing by
@@ -108,9 +109,12 @@ wrapper:
 ```
 
 187 characters replacing 15, twice; the two real URLs cost 236 replacing 43 and
-264 replacing 57. 172 + 172 + 193 + 207 = 744. Assume the plain `<a href="<the
-url>" rel="nofollow">` shape and the arithmetic comes to 264 instead, which
-reads as an error in this page rather than as a mechanism it failed to mention.
+264 replacing 57. 172 + 172 + 193 + 207 = 744. Assume instead the plain
+`<a href="<the url>" rel="nofollow">` shape — 30 fixed characters around the URL
+the text already had — and the total comes to **250**, or to 264 if you also
+guess the `http://` AMO prefixes onto the bare domain — which is what the
+`http%3A//` above is. Either lands far enough short to read as an error in this
+page rather than as a mechanism it failed to mention.
 
 Two of the four wrap real URLs — the issues page and `PRIVACY.md`. The other two
 wrap `api.example.com`, the example domain the policy uses to say what a header
