@@ -138,6 +138,47 @@ nobody has clicked Grant, and that is expected, not a bug in this CLI. If
 you add a site on someone's behalf, tell them a permission grant is still
 outstanding — do not imply the site is already active.
 
+## A rule set can be enabled and still send nothing
+
+Every read — `status`, `rule ls`, `site ls`, `state get` — answers from one
+query, and its reply carries a `suppression` field beside `tally` and
+`scopingHosts`. Read it off `--json`: it sits outside `.state`, so `state get`'s
+human output does not show it, and only `status` prints it in words.
+
+**`null` does not mean the rules are going out.** There are three states, and
+the middle one is the only healthy one:
+
+| `tally` | `suppression` | What it means |
+|---|---|---|
+| `null` | `null` | **There is no rule set at all.** A fresh install ships `profiles: []`, and this is what an agent meets first. Nothing is being emitted; there is simply nothing to emit. |
+| an object | `null` | The compiler will emit this set's rules. |
+| an object | a slug | Nothing in the set reaches the browser, whatever each rule's own on/off state says. |
+
+When it is a slug, it names why:
+
+| `suppression` | What it means | What to say |
+|---|---|---|
+| `no-scope` | Nothing says where to apply: no site is listed and all-sites is off. | `site add <domain>` scopes it; `site all-sites on` is the other route, and still needs the Grant above. |
+| `unusable-site` | Every listed site is unusable, so the set fails closed rather than widening to every site on the web. | `site ls` shows which; fix or `site rm` it. |
+| `no-resource-type` | No listed request type is one this browser's DNR knows. | Not reachable from here — see below. |
+
+**Read this before calling a rule active.** `tally.live` is 0 whenever
+`suppression` is non-null, so the two agree; reporting a rule as applied off a
+non-null `suppression` is the wrong answer this field exists to prevent.
+
+That third value is Firefox's and you will not meet it. Chrome's DNR accepts
+every request type HeaderLab offers, and a set listing none of them fails
+validation before it can be stored — so on Chrome there is nothing left for it
+to describe. This CLI only ever talks to Chrome anyway: Firefox event pages
+close native ports on idle, so the bridge does not run there. It is in the
+contract, not in your path.
+
+**The list grows.** A value not named above means "suppressed for a reason this
+document does not list" — report the slug as it came and do not call the rules
+active. `status`'s own human output does the same, printing an unknown slug
+verbatim rather than falling silent; the other three reads do not print
+suppression in words at all.
+
 ## Error codes
 
 Besides `ok:false` with a message, `error.code` is one of the names below.
