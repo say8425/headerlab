@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { COMMANDS, pathKey } from '../lib/commands.mjs';
 import { ERROR_CODES, EXIT, exitFor } from '../lib/exit.mjs';
 import { ISSUES_URL } from '../lib/help.mjs';
+import { SUPPRESSION_WORDS } from '../lib/render.mjs';
 
 /**
  * 문서가 만들어진 것을 서술하는지 검사한다. 이 저장소가 제일 비싸게 치른
@@ -213,6 +214,39 @@ test('에이전트 스킬이 표의 모든 명령을 이름으로 담는다', ()
 test('에이전트 스킬이 계약의 모든 에러 코드를 이름으로 담는다', () => {
   const skill = read('packages/plugin/skills/headerlab/SKILL.md');
   const missing = ERROR_CODES.filter((code) => !skill.includes(`\`${code}\``));
+  assert.deepEqual(missing, []);
+});
+
+/**
+ * 억눌림 이유도 같은 방식으로 묶는다. 이것이 실제로 갈라진 자리이기
+ * 때문이다: `cli 0.4.0` 의 CLI 변경은 `SUPPRESSION_WORDS` 에
+ * `no-resource-type` 한 줄을 더한 것이 전부였고, 스킬은 그때 아무 말도
+ * 하지 않았으며, 위의 세 가드 중 무엇도 그것을 볼 수 없었다 — 셋은 명령
+ * 이름과 에러 코드를 묶지 페이로드의 필드를 묶지 않는다. 에이전트는
+ * `--json` 을 읽으라고 배우므로, 활성화된 규칙 옆의
+ * `"suppression":"unusable-site"` 를 읽고도 그 규칙들이 어떤 요청에도
+ * 닿지 않는다는 것을 알 길이 없었다.
+ *
+ * 확장의 `lib/compile/suppression.ts` 가 아니라 CLI 자신의 표를 읽는다.
+ * 저 파일은 확장의 TypeScript 이고 이 수트는 CLI 패키지의 node:test 이며,
+ * 무엇보다 **움직인 것이 이 표**다. 표가 한 이유를 배우면 스킬도 배워야
+ * 한다는 것이 여기서 묶고 싶은 것이다.
+ *
+ * 백틱을 요구하는 이유는 위 가드와 같다. 슬러그가 하이픈을 달고 있어
+ * 산문에 우연히 섞일 일은 적지만, 맨 `includes` 는 "적혀 있다" 가 아니라
+ * "그 글자가 어딘가 있다" 를 검사한다.
+ *
+ * **이 가드도 이름을 묶지 주장을 묶지 않는다.** 셋을 백틱으로 나열하고
+ * 뜻을 전부 거짓으로 적어도 초록이다. 그리고 표가 비면 `[]` 를 걸러
+ * `deepEqual([], [])` 로 공허하게 통과하므로, 계약 쪽이 비지 않았다는
+ * 것을 먼저 주장한다.
+ */
+test('에이전트 스킬이 CLI 가 아는 모든 억눌림 이유를 이름으로 담는다', () => {
+  const reasons = Object.keys(SUPPRESSION_WORDS);
+  assert.ok(reasons.length > 0, 'SUPPRESSION_WORDS 가 비었다 — 가드가 검사할 계약이 없다');
+
+  const skill = read('packages/plugin/skills/headerlab/SKILL.md');
+  const missing = reasons.filter((reason) => !skill.includes(`\`${reason}\``));
   assert.deepEqual(missing, []);
 });
 
