@@ -124,17 +124,16 @@ Work through `listing.md`. In short:
 
 ## 5. Privacy policy
 
-- [x] Paste the block from `privacy.en.md` into the **Privacy Policy** field,
+- [ ] Paste the block from `privacy.en.md` into the **Privacy Policy** field,
       or send it with the call `listing.md` names. It is text here, not a URL,
       and AMO renders no Markdown — measured on 2026-09-18 across six listed
       add-ons with a policy, not one uses any. Edit `../../../PRIVACY.md`
       first and carry the change into `privacy.en.md`; a test holds the two
       together.
-      **Done 2026-09-19 by the call, not the form** — `PATCH …/eula_policy/`,
-      which is why §7 reads `has_privacy_policy true`. What came back is not
-      byte-identical to what went up, because AMO linkifies; `listing.md` has
-      that measurement. Whether the form stores it the same way was not
-      measured, so do not read this as a claim about the Hub.
+      **Only the call has been measured**, on 2026-09-19: `PATCH
+      …/eula_policy/`, and what AMO stores is not byte-identical to what was
+      sent, because it linkifies (`listing.md` has the measurement). Whether the
+      form stores it the same way is unknown — nobody has run that route here.
 - [ ] The data-collection declaration needs nothing from you: it comes from the
       manifest (`data_collection_permissions: none`) and the listing renders it
       as "does not collect data".
@@ -179,7 +178,8 @@ second listing would need all of it again.
       since AMO takes text rather than a URL and renders no Markdown. Reading it
       back is **not** byte-identical to the file, because AMO linkifies what it
       stores; `listing.md` carries that measurement and the comparison that
-      settles it.
+      settles it. §5 says what the field is for, and stays unticked with the
+      rest of the runbook: a second listing walks it again.
 - [x] `gh repo edit --description` — the description names both browsers.
 
 ---
