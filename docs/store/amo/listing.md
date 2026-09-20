@@ -47,17 +47,31 @@ are in `../listing.md`, compared against the built manifest by
 ### Filling the images and the URLs after publication
 
 The Hub is not the only way: the API takes all of it, and that is how this
-listing's icon, homepage and screenshots were set on 2026-09-18, straight from
-the files and captions below. Three of the five screenshots went up before the
-throttle below asked for an hour; the last two follow it.
+listing's icon, homepage, screenshots and privacy policy were set, straight from
+the files and captions below. Three of the five screenshots went up on
+2026-09-18, before the throttle below asked for an hour; the last two and the
+policy went up on 2026-09-19, after it.
+
+**`pnpm amo:probe` is what says so, and reading it is cheaper than trusting this
+page.** It prints the icon, `has_privacy_policy`, and every preview with its
+size and caption in position order — five at 1280×800, in the caption order of
+the table further down. Those fields ride on the add-on response the probe
+already asks for, so the read below is one `GET` rather than three.
 
 | What | Call |
 | --- | --- |
+| Everything already set | `GET /api/v5/addons/addon/headerlab/` — `icon_url`, `previews[]` with `image_size` and `caption`, `has_privacy_policy`. This is `pnpm amo:probe` |
 | Homepage and the other text fields | `PATCH /api/v5/addons/addon/headerlab/`, JSON, translated fields as `{ "en-US": … }` |
 | Icon | the same `PATCH`, as `multipart/form-data` with an `icon` part |
 | A screenshot | `POST /api/v5/addons/addon/headerlab/previews/`, multipart, parts `image` and `position` |
 | Its caption | `PATCH …/previews/<id>/`, JSON, `caption` as a translated field |
 | The privacy policy | `PATCH /api/v5/addons/addon/headerlab/eula_policy/`, JSON, `privacy_policy` |
+
+A translated field comes back as a locale map unless the request names a `lang`,
+and as a flat string when it does. Read only `field['en-US']` and a listing that
+is filled reports itself empty — which is exactly what the one-off script that
+filled this listing did with a homepage it had just set. That script is not in
+this repository, so the trap is written here rather than cited.
 
 **AMO throttles these writes, and the release shares the same budget.** That is
 the expensive half of the lesson, learned on 2026-09-18: filling the listing by
@@ -77,6 +91,37 @@ what you do send, read the listing back before retrying, and upload only what is
 missing — a repeated `POST` to `previews/` adds a second copy rather than
 replacing the first. If a release does take the `429`, `amo/checklist.md` §8
 has the recovery.
+
+### Reading the privacy policy back: AMO linkifies it
+
+**The stored policy is never byte-identical to the file, and that is AMO's doing
+rather than a failed write.** Measured 2026-09-19, straight after the `PATCH
+…/eula_policy/` that filled it: 6,416 characters stored against the file's
+5,672, the same 71 lines, and unwrapping the four `<a … rel="nofollow">`
+elements AMO inserted leaves the two identical.
+
+**Those 744 characters are mostly href**, because the anchor does not carry the
+URL that was in the text. Mozilla rewrites each one into its outgoing-link
+wrapper:
+
+```html
+<a href="https://prod.outgoing.prod.webservices.mozgcp.net/v1/<64 hex>/http%3A//api.example.com" rel="nofollow">api.example.com</a>
+```
+
+187 characters replacing 15, twice; the two real URLs cost 236 replacing 43 and
+264 replacing 57. 172 + 172 + 193 + 207 = 744. Assume instead the plain
+`<a href="<the url>" rel="nofollow">` shape — 30 fixed characters around the URL
+the text already had — and the total comes to **250**, or to 264 if you also
+guess the `http://` AMO prefixes onto the bare domain — which is what the
+`http%3A//` above is. Either lands far enough short to read as an error in this
+page rather than as a mechanism it failed to mention.
+
+Two of the four wrap real URLs — the issues page and `PRIVACY.md`. The other two
+wrap `api.example.com`, the example domain the policy uses to say what a header
+rule does, so the listing renders that example as a clickable link. Cosmetic,
+and left as it is: `example.com` is reserved for documentation (RFC 2606 §3)
+precisely so it can be written without owning it. Compare with the anchors
+unwrapped, or a correct write reads as a mismatch.
 
 ### Screenshot order and captions
 
