@@ -138,6 +138,35 @@ nobody has clicked Grant, and that is expected, not a bug in this CLI. If
 you add a site on someone's behalf, tell them a permission grant is still
 outstanding — do not imply the site is already active.
 
+## A rule set can be enabled and still send nothing
+
+Every read — `status`, `rule ls`, `site ls`, `state get` — carries a
+`suppression` field beside `tally` and `scopingHosts`. It is `null` when the
+compiler will emit rules. When it is **not** null, no rule in that set reaches
+the browser at all, whatever each rule's own on/off state says:
+
+| `suppression` | What it means | What to say |
+|---|---|---|
+| `no-scope` | Nothing says where to apply: no site is listed and all-sites is off. | `site add <domain>` scopes it; `site all-sites on` is the other route, and still needs the Grant above. |
+| `unusable-site` | Every listed site is unusable, so the set fails closed rather than widening to every site on the web. | `site ls` shows which; fix or `site rm` it. |
+| `no-resource-type` | No listed request type is one this browser's DNR knows. | Not reachable from here — see below. |
+
+**Read this before calling a rule active.** `tally.live` is 0 whenever
+`suppression` is non-null, so the two agree; reporting a rule as applied off a
+non-null `suppression` is the wrong answer this field exists to prevent.
+
+That third value is Firefox's and you will not meet it. Chrome's DNR accepts
+every request type HeaderLab offers, and a set listing none of them fails
+validation before it can be stored — so on Chrome there is nothing left for it
+to describe. This CLI only ever talks to Chrome anyway: Firefox event pages
+close native ports on idle, so the bridge does not run there. It is in the
+contract, not in your path.
+
+**The list grows.** A value not named above means "suppressed for a reason this
+document does not list" — report the slug as it came and do not call the rules
+active. The CLI's own human output does the same, printing an unknown slug
+verbatim rather than falling silent.
+
 ## Error codes
 
 Besides `ok:false` with a message, `error.code` is one of the names below.
