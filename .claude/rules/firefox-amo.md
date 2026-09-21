@@ -1,7 +1,7 @@
 ---
 paths:
-  - "scripts/amo-*.mjs"
-  - "scripts/lib/amo.mjs"
+  - ".github/scripts/amo-*.mjs"
+  - ".github/scripts/lib/amo.mjs"
   - "docs/store/amo/**"
   - ".github/workflows/amo-submit.yml"
   - "PRIVACY.md"
@@ -17,7 +17,7 @@ Listed at <https://addons.mozilla.org/firefox/addon/headerlab/> — add-on id 30
 
 ## Submitting
 
-- `amo-submit.yml` runs `node scripts/amo-submit.mjs --channel <c> --expect-version <v>`: it
+- `amo-submit.yml` runs `node .github/scripts/amo-submit.mjs --channel <c> --expect-version <v>`: it
   checks the release's Firefox zip is that version, runs `wxt submit` with the sources archive,
   and on `unlisted` waits for the signature and attaches `headerlab-<v>-firefox.xpi` to the
   release. Green means AMO validated the upload and created the version — not published; listed

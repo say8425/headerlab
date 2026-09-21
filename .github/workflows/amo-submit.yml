@@ -139,7 +139,7 @@ jobs:
           FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
           VERSION: ${{ inputs.version }}
-        run: node scripts/amo-submit.mjs --channel "$FIREFOX_CHANNEL" --expect-version "$VERSION"
+        run: node .github/scripts/amo-submit.mjs --channel "$FIREFOX_CHANNEL" --expect-version "$VERSION"
 
       # Only on unlisted, and only after AMO signed it — on listed, AMO hosts
       # the file and there is nothing to attach. `--clobber` because a re-run

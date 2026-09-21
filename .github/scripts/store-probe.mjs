@@ -3,9 +3,9 @@
  * answer. Reads only — it uploads nothing, publishes nothing, changes nothing.
  *
  *   CWS_SERVICE_ACCOUNT_JSON="$(cat key.json)" CWS_PUBLISHER_ID=… \
- *     node scripts/store-probe.mjs
+ *     node .github/scripts/store-probe.mjs
  *
- * **Why this exists.** `scripts/lib/cws.mjs` decides three things from a
+ * **Why this exists.** `.github/scripts/lib/cws.mjs` decides three things from a
  * `fetchStatus` body — whether uploading is allowed, whether a submission
  * landed, and when to stop polling — and the field names it reads (`itemState`,
  * `crxVersion`) are an inference. The v2 page documents the endpoint and not the
@@ -107,7 +107,7 @@ const main = async () => {
   if (!published.present && !submitted.present) {
     console.log(
       '\nstore-probe: neither revision was found. Either this item has never been\n' +
-        '  published and never submitted, or the field names in scripts/lib/cws.mjs\n' +
+        '  published and never submitted, or the field names in .github/scripts/lib/cws.mjs\n' +
         '  no longer match the API. Read the JSON above before releasing.',
     );
   } else if (gate.allowed) {
@@ -116,7 +116,7 @@ const main = async () => {
     console.log(
       '\nstore-probe: a release would refuse before uploading, for the reason above.\n' +
         '  If that state is an ordinary one to upload over, widen the state sets in\n' +
-        '  scripts/lib/cws.mjs.',
+        '  .github/scripts/lib/cws.mjs.',
     );
   }
 };

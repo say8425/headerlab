@@ -2,13 +2,14 @@
  * Renders the toolbar icons from one SVG source.
  *
  * Chrome's `icons` and `action.default_icon` take PNG, not SVG, and no image
- * tooling is installed. Rather than add one — the registry is under a 72-hour
- * publish quarantine — this borrows the rasteriser the repo already ships: the
+ * tooling is installed. Rather than add one — this repository takes no new
+ * dependencies — this borrows the rasteriser the repo already ships: the
  * Playwright Chromium the e2e suite runs against. Same engine that will draw
  * the icon in the toolbar, so what is measured here is what ships.
  *
- * Run with `node scripts/make-icons.mjs`. Outputs are committed alongside this
- * file so a size or palette change is a re-run, not an excavation.
+ * Run with `node scripts/make-icons.mjs`; nothing else runs it. The outputs in
+ * `public/icon/` are committed, so a size or palette change is a re-run, not an
+ * excavation.
  *
  *   node scripts/make-icons.mjs            # write public/icon/*.png
  *   node scripts/make-icons.mjs --preview  # also write the legibility sheet

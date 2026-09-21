@@ -14,14 +14,14 @@ import {
   TOKEN_ENDPOINT,
   uploadHeaders,
   uploadStillRunning,
-} from '@/scripts/lib/cws.mjs';
+} from '@/.github/scripts/lib/cws.mjs';
 
 /**
  * The Chrome Web Store submission, tested where it can be wrong silently.
  *
  * None of this talks to the store — it cannot, since the credential and the
  * signing key are both outside CI's unit job by design. What it does cover is
- * every place `scripts/store-submit.mjs` decides what a response *means*, and
+ * every place `.github/scripts/store-submit.mjs` decides what a response *means*, and
  * that is the surface that matters: the store answers a rejected signature in
  * the response body while the status line still reads 200, so a caller that
  * trusts HTTP alone reports a release it never submitted.

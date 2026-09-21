@@ -2,8 +2,8 @@
  * The Chrome Web Store publish API, as decisions rather than as requests.
  *
  * Everything here is pure: URLs, headers, a JWT claim set, and four readers that
- * turn an API response into a verdict. `scripts/store-submit.mjs` does the I/O.
- * Same split as `scripts/lib/crx.mjs` beside it, and for the same reason — the
+ * turn an API response into a verdict. `.github/scripts/store-submit.mjs` does the I/O.
+ * Same split as `.github/scripts/lib/crx.mjs` beside it, and for the same reason — the
  * parts that can be wrong in a way nobody notices are the parts that decide
  * whether a response means success, and those are the parts a test can reach
  * without a network, a key, or a store item.
@@ -200,7 +200,7 @@ export const interpretUpload = (body) => {
     reason:
       detail ??
       `unrecognised uploadState ${JSON.stringify(state)} — refusing to read it as success. ` +
-        'Record what the store actually returned and widen the sets in scripts/lib/cws.mjs.',
+        'Record what the store actually returned and widen the sets in .github/scripts/lib/cws.mjs.',
   };
 };
 
@@ -320,7 +320,7 @@ export const mayUpload = (status, expectedVersion) => {
     reason:
       `unrecognised submitted-revision state ${JSON.stringify(state)} — refusing rather than ` +
       'uploading over something this cannot name. Record what the store returned and widen ' +
-      'the state sets in scripts/lib/cws.mjs.',
+      'the state sets in .github/scripts/lib/cws.mjs.',
   };
 };
 

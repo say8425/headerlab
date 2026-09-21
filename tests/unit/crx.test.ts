@@ -7,10 +7,10 @@ import {
   extensionIdFromPublicKey,
   parseCrx,
   readCrxHeader,
-} from '@/scripts/lib/crx.mjs';
+} from '@/.github/scripts/lib/crx.mjs';
 
 /**
- * `scripts/pack-crx.mjs` reads the bytes Chrome wrote rather than trusting its
+ * `.github/scripts/pack-crx.mjs` reads the bytes Chrome wrote rather than trusting its
  * exit code, and this is the reader. Everything here is synthetic, and the
  * reason is Chrome rather than the key: a throwaway `openssl genpkey` pair
  * packs a real CRX3 perfectly well, so what a CI run would need is

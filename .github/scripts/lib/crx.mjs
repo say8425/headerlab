@@ -2,7 +2,7 @@
  * Reading a CRX3 package: the header format, and the extension id a public key
  * produces.
  *
- * This exists because `scripts/pack-crx.mjs` must not merely *run* Chrome's
+ * This exists because `.github/scripts/pack-crx.mjs` must not merely *run* Chrome's
  * packer and believe it. The store's verified-upload check rejects a package
  * signed with the wrong key, and it rejects it at upload time — after a release
  * is already tagged. Checking the bytes here moves that failure to the machine

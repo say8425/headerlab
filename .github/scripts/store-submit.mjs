@@ -2,7 +2,7 @@
  * Submits a signed CRX to the Chrome Web Store and waits until the store agrees
  * it is in review.
  *
- *   node scripts/store-submit.mjs <path/to/headerlab-<version>-chrome.crx>
+ *   node .github/scripts/store-submit.mjs <path/to/headerlab-<version>-chrome.crx>
  *
  * **This submits for review. It does not publish.** The store's own sentence is
  * "The item will be submitted for review and published when the item passes", so
@@ -12,7 +12,7 @@
  *
  * **Why this exists rather than a third-party action.** No new dependencies, and
  * the pieces are small: a signed claim set for a token, one upload, one publish,
- * one poll. Every decision it makes lives in `scripts/lib/cws.mjs`, pure and
+ * one poll. Every decision it makes lives in `.github/scripts/lib/cws.mjs`, pure and
  * unit-tested, because the failure this design most needs to avoid is reading a
  * rejection as a success — the store answers a bad signature in the response
  * *body* while the status line still says 200.
@@ -185,7 +185,7 @@ const awaitSubmission = async (url, token, expectedVersion, attempts = 10, delay
 
 const main = async () => {
   const crxPath = process.argv[2];
-  if (!crxPath) die('usage: node scripts/store-submit.mjs <path/to/*.crx>');
+  if (!crxPath) die('usage: node .github/scripts/store-submit.mjs <path/to/*.crx>');
   if (!crxPath.endsWith('.crx')) die(`this item takes a signed CRX; ${crxPath} is not one`);
   let bytes;
   try {

@@ -3,8 +3,8 @@
  *
  * Everything here is pure: names, endpoints, a JWT claim set, and readers that
  * turn an AMO response or an archive's manifest into a verdict.
- * `scripts/amo-submit.mjs` and `scripts/amo-probe.mjs` do the I/O. Same split
- * as `scripts/lib/cws.mjs` beside it, and for the same reason — the parts that
+ * `.github/scripts/amo-submit.mjs` and `.github/scripts/amo-probe.mjs` do the I/O. Same split
+ * as `.github/scripts/lib/cws.mjs` beside it, and for the same reason — the parts that
  * can be wrong in a way nobody notices are the parts that decide what a
  * response *means*, and those are the parts a test can reach without a
  * network, a key, or a listing.
@@ -223,7 +223,7 @@ export const downloadHop = (location, from) => {
  *
  * And `binDir` goes first on PATH. `wxt submit` is an alias that spawns
  * `wxt-publish-extension` by bare name, and only `pnpm run` puts
- * node_modules/.bin on PATH — run as `node scripts/amo-submit.mjs`, which is the
+ * node_modules/.bin on PATH — run as `node .github/scripts/amo-submit.mjs`, which is the
  * line the workflow types, the alias could not find it and exited 1 with zero
  * bytes of output (reproduced 2026-09-11 with a runner-like PATH).
  */

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GECKO_ID } from '@/scripts/lib/amo.mjs';
+import { GECKO_ID } from '@/.github/scripts/lib/amo.mjs';
 import { readBuildFile } from '../support/build';
 
 /**
@@ -12,8 +12,8 @@ import { readBuildFile } from '../support/build';
  *
  * Two stores now, two reusable workflows, each gated by its own environment.
  * Each assertion defends a failure that is silent by construction. None of
- * them can tell you a store accepted anything; that is `scripts/store-submit.mjs`'s
- * and `scripts/amo-submit.mjs`'s job, and the only thing that ever proves it is
+ * them can tell you a store accepted anything; that is `.github/scripts/store-submit.mjs`'s
+ * and `.github/scripts/amo-submit.mjs`'s job, and the only thing that ever proves it is
  * a real run.
  */
 
@@ -86,7 +86,7 @@ describe('each store submission is gated by its own environment', () => {
   it('the Chrome job refuses to run before it has looked at the key', () => {
     const refusal = cwsSubmit.indexOf('Refuse to run without a real signing key');
     const staging = cwsSubmit.indexOf('Stage the signing key');
-    const signing = cwsSubmit.indexOf('scripts/pack-crx.mjs');
+    const signing = cwsSubmit.indexOf('.github/scripts/pack-crx.mjs');
     expect(refusal).toBeGreaterThan(-1);
     expect(refusal).toBeLessThan(staging);
     expect(staging).toBeLessThan(signing);
@@ -100,7 +100,7 @@ describe('each store submission is gated by its own environment', () => {
   it('the Firefox job refuses before it downloads, and downloads before it submits', () => {
     const refusal = amoSubmit.indexOf('Refuse to run without real AMO credentials');
     const download = amoSubmit.indexOf('Take the archives from the release');
-    const submit = amoSubmit.indexOf('scripts/amo-submit.mjs');
+    const submit = amoSubmit.indexOf('.github/scripts/amo-submit.mjs');
     expect(refusal).toBeGreaterThan(-1);
     expect(refusal).toBeLessThan(download);
     expect(download).toBeLessThan(submit);

@@ -46,7 +46,7 @@ package-lock.json
 yarn.lock
 
 # The Chrome Web Store's verified-upload signing key, and anything packed with
-# it. `scripts/pack-crx.mjs` keeps the key in 1Password and writes it only to a
+# it. `.github/scripts/pack-crx.mjs` keeps the key in 1Password and writes it only to a
 # 0600 file inside a temp directory it removes on every exit path, so neither
 # pattern should ever have anything to match — which is the point: a key that
 # reaches this tree at all is a mistake, and `git add -A` must not be what
@@ -62,7 +62,7 @@ yarn.lock
 # `.env.submit`, and the unlisted release path writes the signed Firefox package
 # beside the zips. Neither should ever be what `git add -A` discovers. The
 # credentials live in 1Password (`Firefox AMO Token`) and in the `firefox-amo`
-# environment; `scripts/amo-submit.mjs` refuses to run while `.env.submit`
+# environment; `.github/scripts/amo-submit.mjs` refuses to run while `.env.submit`
 # exists, because `wxt submit` would read it. See docs/store/amo/checklist.md.
 .env.submit
 *.xpi

@@ -2,7 +2,7 @@
  * Signs the release ZIP into a CRX3 the Chrome Web Store's verified-upload
  * check will accept. `pnpm crx` builds the ZIP first.
  *
- *   node scripts/pack-crx.mjs [path/to/headerlab-<version>-chrome.zip]
+ *   node .github/scripts/pack-crx.mjs [path/to/headerlab-<version>-chrome.zip]
  *
  * **Why the ZIP and not the build directory.** `.output/chrome-mv3` and the
  * release ZIP are two artifacts of one build, and only the ZIP is what a
@@ -47,7 +47,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extensionIdFromPublicKey, parseCrx, readCrxHeader } from './lib/crx.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** Where the item's signing key lives. The public half is on the same record. */
 const OP_SECRET = 'op://Personal/HeaderLab CRX signing key/private key';

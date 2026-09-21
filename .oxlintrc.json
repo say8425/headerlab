@@ -22,8 +22,8 @@
   },
 
   "overrides": [
-    // Generators: console.log is their output.
-    { "files": ["scripts/**"], "rules": { "no-console": "off" } },
+    // Generators and release tooling: console.log is their output.
+    { "files": ["scripts/**", ".github/scripts/**"], "rules": { "no-console": "off" } },
     {
       "files": ["tests/**"],
       // Off for now: 59 call sites whose types the props interface already fixes.

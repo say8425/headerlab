@@ -18,7 +18,7 @@ import {
   parseHash,
   readSignedFile,
   signingInput,
-} from '@/scripts/lib/amo.mjs';
+} from '@/.github/scripts/lib/amo.mjs';
 
 /**
  * The Firefox Add-ons submission, tested where it can be wrong silently.
@@ -294,7 +294,7 @@ describe('request security', () => {
 /**
  * `wxt submit` is an alias that spawns `wxt-publish-extension` by bare name, and
  * only `pnpm run` puts node_modules/.bin on PATH. Run the way the workflow runs
- * it — `node scripts/amo-submit.mjs` — the alias could not find the binary and
+ * it — `node .github/scripts/amo-submit.mjs` — the alias could not find the binary and
  * exited 1 with zero bytes of output (reproduced 2026-09-11 with a runner-like
  * PATH). These pin the fix where it lives.
  */
@@ -364,7 +364,7 @@ describe('CLI preflight', () => {
     ['--timeout-minutes', '0'],
     ['--expect-version', '../../other'],
   ])('refuses %s %s before credentials or network', (flag, value) => {
-    const result = spawnSync(process.execPath, ['scripts/amo-submit.mjs', flag, value], {
+    const result = spawnSync(process.execPath, ['.github/scripts/amo-submit.mjs', flag, value], {
       encoding: 'utf8',
       env: { PATH: '', CI: 'true' },
     });
@@ -375,7 +375,7 @@ describe('CLI preflight', () => {
     expect(result.stderr).toMatch(/channel|timeout|version/);
   });
   it('prints help without reading a credential', () => {
-    const result = spawnSync(process.execPath, ['scripts/amo-submit.mjs', '--help'], {
+    const result = spawnSync(process.execPath, ['.github/scripts/amo-submit.mjs', '--help'], {
       encoding: 'utf8',
       env: { PATH: '', CI: 'true' },
     });

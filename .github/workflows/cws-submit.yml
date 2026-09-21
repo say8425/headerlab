@@ -83,7 +83,7 @@ jobs:
       # means the CRX is signed by the code that was released.
       #
       # Override, `ref: main`: when the failure is in the scripts — the likeliest
-      # one being `mayUpload` in `scripts/lib/cws.mjs` refusing a state the
+      # one being `mayUpload` in `.github/scripts/lib/cws.mjs` refusing a state the
       # store really does use — the fix lives on `main`, and a tag-pinned re-run
       # would replay the same refusal forever. This only works while `main` still
       # carries the tag's version, which is the immediate-retry case. Once `main`
@@ -155,7 +155,7 @@ jobs:
           # Ubuntu runners ship Google Chrome; pack-crx.mjs defaults to the macOS
           # path because that is where it is normally run by hand.
           CHROME: /usr/bin/google-chrome
-        run: node scripts/pack-crx.mjs .output/*-chrome.zip
+        run: node .github/scripts/pack-crx.mjs .output/*-chrome.zip
 
       # Submits for review. It cannot publish — the store's own wording is that
       # `:publish` submits and Google publishes on passing — so success here means
@@ -165,7 +165,7 @@ jobs:
           CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
           CWS_EXPECTED_VERSION: ${{ inputs.version }}
-        run: node scripts/store-submit.mjs .output/*.crx
+        run: node .github/scripts/store-submit.mjs .output/*.crx
 
       # Only after the store accepted it. Attaching earlier would put bytes on a
       # public release that no store had agreed to.
