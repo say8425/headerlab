@@ -30,8 +30,8 @@ Store release tooling (signing, submitting, probing the stores) is not here; it 
 - Install **both** of Playwright's Chromium builds: `pnpm exec playwright install --with-deps
   chromium` (without `--no-shell`). The popup captures (`lib/popup-shots.mjs`) load the extension
   and need the full Chromium; `make-icons.mjs` and `store-assets.mjs`'s tiles render with
-  `chromium.launch()`, which uses the headless shell. The `--no-shell` install in the root
-  README is enough for the e2e suite but not for these two.
+  `chromium.launch()`, which uses the headless shell. (CI's e2e job installs with
+  `--no-shell` on purpose: it only loads the extension.)
   Do not switch those two to the full Chromium to save the download: measured, it changes the
   anti-aliasing of every committed icon, up to fully flipped edge pixels at 16px.
 - The outputs are tracked files, so a run leaves changes in `git status`. Commit them only when

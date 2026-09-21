@@ -284,17 +284,19 @@ pnpm amo:probe       # Firefox Add-ons のリスティング状態を読むだ�
 生んだことがあります。そのため `tests/support/build.ts` が古さを検知し、実行すべき
 コマンドを添えて失敗します。
 
-**`pnpm test:e2e`、`pnpm screenshots`、`pnpm store:assets` は、Playwright が既定では
-インストールしないブラウザを必要とします:**
+**`pnpm test:e2e`、`pnpm screenshots`、`pnpm store:assets` には Playwright の Chromium が
+必要です:**
 
 ```bash
-pnpm exec playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
-`--no-shell` が重要です。Playwright が既定でダウンロードするヘッドレス版は
-`chromium-headless-shell` で、これは拡張機能を読み込めない縮小ビルドです。ところが上の
-2 つのコマンドは、拡張機能を読み込むために存在します。完全なバイナリがないと、依存の
-欠落ではなくコードの問題に見える形で失敗します。
+このコマンドは 2 つのビルドをインストールします。拡張機能を読み込む処理(e2e スイートと
+すべてのポップアップ撮影)には完全な Chromium が必要です。縮小ビルドの
+`chromium-headless-shell` は拡張機能を読み込めないからです。`pnpm store:assets` はタイルを
+そのヘッドレスシェルでも描画します。そのため `--no-shell` は付けないでください。シェルが入らず
+`pnpm store:assets` が "Executable doesn't exist" で失敗し、依存の欠落ではなくコードの問題に
+見えます。
 
 **`pnpm screenshots` と `pnpm store:assets` は追跡中の PNG を上書きします。** 対象は
 それぞれ `docs/screenshots/` と `docs/store/assets/` で、後者はディレクトリを空にしてから
