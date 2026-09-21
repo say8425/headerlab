@@ -8,7 +8,7 @@ is bundled, and Mozilla's rule is that a reviewer rebuilds it and diffs: "There
 must be no differences."
 
 ```text
-Built with WXT 0.21 (Vite) and Tailwind CSS v4, so the package is bundled; the sources archive is the repository at the release tag, produced by `wxt zip -b firefox`, with docs/ and generated test/coverage reports left out (no build inputs there).
+Built with WXT 0.21 (Vite) and Tailwind CSS v4, so the package is bundled; the sources archive is the repository at the release tag, produced by `wxt zip -b firefox`, with docs/, dot-directories (including .github/, which holds the release scripts) and generated test/coverage reports left out (no build inputs there).
 
 To reproduce, on any OS with Node 24 (the repository pins it in .nvmrc, which the archive omits as a dotfile):
 

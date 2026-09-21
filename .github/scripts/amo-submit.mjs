@@ -3,7 +3,7 @@
  * channel waits for the signed package and writes it beside the archives.
  *
  *   node .github/scripts/amo-submit.mjs [--channel listed|unlisted] [--expect-version <v>]
- *                               [--dry-run] [--timeout-minutes <n>]
+ *                                       [--dry-run] [--timeout-minutes <n>]
  *
  * `pnpm amo:submit` zips first. This is the one entry point for both the
  * developer's machine and `.github/workflows/amo-submit.yml` — the workflow

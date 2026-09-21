@@ -563,3 +563,48 @@ describe('the release configuration', () => {
     expect(emptyWithLines).toEqual([]);
   });
 });
+
+/**
+ * Every script a workflow or a root `package.json` command runs by path must
+ * exist. The store jobs cannot run without cutting a release, so a path left
+ * behind by a move — `scripts/` to `.github/scripts/` was one — would otherwise
+ * surface only after the tag it was meant to ship.
+ *
+ * The lists are pinned as well as checked: an extractor that matched nothing
+ * would pass the existence check vacuously, and a new invocation should be a
+ * visible diff here.
+ */
+describe('scripts run by path', () => {
+  const invoked = (file: string): string[] =>
+    [
+      ...new Set(
+        [...readFileSync(file, 'utf8').matchAll(/\bnode\s+([\w./-]+\.mjs)\b/g)].map((m) => m[1]!),
+      ),
+    ].sort();
+  const workflows = readdirSync('.github/workflows').map((name) => `.github/workflows/${name}`);
+
+  it('names the scripts the workflows and package.json actually run', () => {
+    expect(workflows.flatMap(invoked).sort()).toEqual([
+      '.github/scripts/amo-submit.mjs',
+      '.github/scripts/pack-crx.mjs',
+      '.github/scripts/store-submit.mjs',
+    ]);
+    expect(invoked('package.json')).toEqual([
+      '.github/scripts/amo-probe.mjs',
+      '.github/scripts/amo-submit.mjs',
+      '.github/scripts/pack-crx.mjs',
+      '.github/scripts/store-probe.mjs',
+      'scripts/screenshots.mjs',
+      'scripts/store-assets.mjs',
+    ]);
+  });
+
+  it('names only files that exist', () => {
+    const missing = [...workflows, 'package.json'].flatMap((file) =>
+      invoked(file)
+        .filter((script) => !existsSync(script))
+        .map((script) => `${file}: ${script}`),
+    );
+    expect(missing).toEqual([]);
+  });
+});

@@ -53,8 +53,8 @@ runbook.
 ## Store API (v2)
 
 - **Run `pnpm store:probe` before changing anything that reads the API.** It prints the raw
-  `fetchStatus` body and what `.github/scripts/lib/cws.mjs` makes of it. The schema was first written
-  from a guess, and tests written from the same guess could not see it.
+  `fetchStatus` body and what `.github/scripts/lib/cws.mjs` makes of it. The schema was first
+  written from a guess, and tests written from the same guess could not see it.
 - State lives on two revisions, `publishedItemRevisionStatus` and `submittedItemRevisionStatus`,
   either possibly unset. After `:publish`, the new version is the **submitted** revision while
   the published one keeps the old version until review passes. The version is in
@@ -64,8 +64,8 @@ runbook.
   (also accept `UPLOAD_IN_PROGRESS`, which the field docs use). `ItemState`:
   `ITEM_STATE_UNSPECIFIED`, `PENDING_REVIEW`, `STAGED`, `PUBLISHED`, `PUBLISHED_TO_TESTERS`,
   `REJECTED`, `CANCELLED` — there is no `IN_REVIEW`.
-- `mayUpload` in `.github/scripts/lib/cws.mjs` is fail-closed: it refuses any submitted-revision state it
-  cannot name. If it refuses a state the store really uses, widen the sets in that file from
+- `mayUpload` in `.github/scripts/lib/cws.mjs` is fail-closed: it refuses any submitted-revision
+  state it cannot name. If it refuses a state the store really uses, widen the sets in that file from
   the probe's output, and re-run the store job with `ref` (ci-release rules).
 
 ## Listing

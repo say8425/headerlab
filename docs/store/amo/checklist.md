@@ -207,6 +207,9 @@ side by side. For Firefox:
   | the scripts themselves | Fix on `main`, then re-run with `ref: main` while `main` still carries the tag's version |
   | the scripts, but `main` has moved on | Neither. `gh release download extension-v<v> -p '*-firefox.zip' -p '*-sources.zip' -D .output`, then `node .github/scripts/amo-submit.mjs --channel <c> --expect-version <v>` locally, `<c>` being the environment's `FIREFOX_CHANNEL` — the script defaults to `listed` and never reads that variable itself — with the credentials read from 1Password |
 
+  A tag cut before 2026-09-21 predates `.github/scripts/`, so a re-run against it
+  finds no scripts at the tag: pass `ref: main` for those.
+
 One-time setup, outside the repository, done 2026-09-11 with the secrets piped
 straight from 1Password: environment `firefox-amo` with
 deployment branch rule `Branch → main` and "Allow administrators to bypass"

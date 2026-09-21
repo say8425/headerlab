@@ -1,7 +1,7 @@
 # scripts
 
-Generators for the images this repository commits. Nothing here ships in the extension, and
-nothing here needs a credential — anyone with a clone can run all of it.
+Generators for the images this repository commits. Nothing here ships in the extension, nothing
+here needs a credential, and no workflow runs it — anyone with a clone can run all of it.
 
 Store release tooling (signing, submitting, probing the stores) is not here; it lives in
 [`.github/scripts/`](../.github/scripts/README.md), because CI runs it.
@@ -27,15 +27,20 @@ Store release tooling (signing, submitting, probing the stores) is not here; it 
 
 ## Before you run them
 
-- `screenshots.mjs` and `store-assets.mjs` load the extension, which needs Playwright's full
-  Chromium rather than its default headless shell:
-  `pnpm exec playwright install --with-deps --no-shell chromium`.
+- Install **both** of Playwright's Chromium builds: `pnpm exec playwright install --with-deps
+  chromium` (without `--no-shell`). The popup captures (`lib/popup-shots.mjs`) load the extension
+  and need the full Chromium; `make-icons.mjs` and `store-assets.mjs`'s tiles render with
+  `chromium.launch()`, which uses the headless shell. The `--no-shell` install in the root
+  README is enough for the e2e suite but not for these two.
+  Do not switch those two to the full Chromium to save the download: measured, it changes the
+  anti-aliasing of every committed icon, up to fully flipped edge pixels at 16px.
 - The outputs are tracked files, so a run leaves changes in `git status`. Commit them only when
   the UI or the artwork actually changed.
-- `screenshots.mjs` loads the production build with one edit — `host_permissions` for the
-  example hosts — because Playwright cannot click a permission dialog. The READMEs say so under
-  the images.
+- Every popup capture — the README screenshots and the store screenshots alike — loads the
+  production build with one edit, `host_permissions` for the example hosts
+  (`lib/popup-shots.mjs`), because Playwright cannot click a permission dialog. The READMEs say
+  so under the images.
 - `make-icons.mjs --preview` also writes `.icon-preview.png` at the repository root, a
-  legibility sheet. It is not gitignored; delete it when you are done.
-- The icon's artwork is drawn twice: in `make-icons.mjs` and in `store-assets.mjs` (`MARK`).
-  Change both together — nothing checks they agree.
+  legibility sheet. It is gitignored.
+- The icon's artwork is drawn three times: `make-icons.mjs` (`svg()`), and `store-assets.mjs`
+  twice (`MARK` and `STORE_ICON_HTML`). Change all three together — nothing checks they agree.
