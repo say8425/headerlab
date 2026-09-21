@@ -332,8 +332,8 @@ Add-ons (`amo/checklist.md` §8). Two things to hold on to, for Chrome:
   The middle row exists because the checkout supplies only the scripts — the
   CRX's payload always comes from the release's own zip — so a tag-pinned re-run
   replays the same broken script forever. The likeliest instance is
-  `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing an item state the store
-  really does use, which is deliberately fail-closed and therefore deliberately
+  `mayUpload` in `scripts/lib/cws.mjs` refusing an item state the store really
+  does use, which is deliberately fail-closed and therefore deliberately
   something you may have to widen once.
 
   The third row is the genuine conflict: `pack-crx.mjs` refuses an archive whose

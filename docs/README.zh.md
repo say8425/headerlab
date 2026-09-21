@@ -276,8 +276,9 @@ pnpm exec playwright install --with-deps --no-shell chromium
 `nativeMessaging`。`tests/unit/manifest.test.ts` 断言两者都进不了生产。运行 e2e 套件不会
 碰 `.output/chrome-mv3`，需要新的生产构建就跑 `pnpm build`。
 
-其余的写在 `../CLAUDE.md` 里：`lint` 为什么要串 `wxt prepare`、`postinstall` 为什么可能
-一次都不会跑、oxfmt 格式化什么又不格式化什么，以及那些已经耗掉过别人时间的平台陷阱。
+其余的写在 `../CLAUDE.md` 和 `../.claude/rules/` 里：`lint` 为什么要串 `wxt prepare`、
+`postinstall` 为什么可能一次都不会跑、oxfmt 格式化什么又不格式化什么，以及那些已经耗掉过
+别人时间的平台陷阱。
 
 ## 测试
 

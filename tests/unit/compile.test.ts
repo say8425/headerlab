@@ -540,8 +540,8 @@ describe('compile emits diagnostics', () => {
   });
 
   it('suppresses only the diagnosed row, not the whole profile, when one row is bad and another is fine', () => {
-    // The asymmetry CLAUDE.md states: headers skip per row, domains suppress
-    // the whole profile. This is the row half.
+    // Headers skip per row. (Domains skip per entry too, and only the last
+    // unusable one suppresses the profile — CLAUDE.md, No silent failures.)
     const p = profile({
       headers: [
         header({ id: 'bad', name: 'X-Custom', operation: 'append' }),

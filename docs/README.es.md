@@ -319,9 +319,9 @@ puede pulsar. El segundo concede `nativeMessaging` directamente.
 Ejecutar la suite e2e no toca `.output/chrome-mv3`: para una build de producción fresca,
 usa `pnpm build`.
 
-El resto está en `../CLAUDE.md`: por qué `lint` encadena `wxt prepare`, por qué
-`postinstall` puede no ejecutarse nunca, qué formatea oxfmt y qué no, y las trampas de
-plataforma que ya le han costado tiempo a alguien.
+El resto está en `../CLAUDE.md` y `../.claude/rules/`: por qué `lint` encadena
+`wxt prepare`, por qué `postinstall` puede no ejecutarse nunca, qué formatea oxfmt y qué no, y
+las trampas de plataforma que ya le han costado tiempo a alguien.
 
 ## Tests
 

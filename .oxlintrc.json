@@ -6,7 +6,7 @@
   // here, not in the tests override: an override cannot enable a plugin.
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "import", "promise", "vitest"],
 
-  // correctness only. See CLAUDE.md for the counts behind that choice.
+  // correctness only. See .claude/rules/toolchain.md for the counts behind that choice.
   "categories": { "correctness": "error" },
 
   "rules": {

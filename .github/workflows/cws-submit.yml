@@ -83,7 +83,7 @@ jobs:
       # means the CRX is signed by the code that was released.
       #
       # Override, `ref: main`: when the failure is in the scripts — the likeliest
-      # one being `UPLOADABLE_STATES` in `scripts/lib/cws.mjs` refusing a state the
+      # one being `mayUpload` in `scripts/lib/cws.mjs` refusing a state the
       # store really does use — the fix lives on `main`, and a tag-pinned re-run
       # would replay the same refusal forever. This only works while `main` still
       # carries the tag's version, which is the immediate-retry case. Once `main`

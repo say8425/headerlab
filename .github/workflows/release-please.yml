@@ -91,9 +91,8 @@ jobs:
           # the trusted publisher is configured on.
           registry-url: https://registry.npmjs.org
 
-      # `npm`, not `pnpm`: pnpm is broken on the developer's machine (CLAUDE.md)
-      # and publishing only ever happens here, where npm ships with the Node
-      # setup-node just installed. `.nvmrc` pins 24, whose npm is 11.13.0 —
+      # `npm`, not `pnpm`: publishing only ever happens here, where npm ships
+      # with the Node setup-node just installed. `.nvmrc` pins 24, whose npm is 11.13.0 —
       # trusted publishing needs npm 11.5.1 and Node 22.14.0 at minimum.
       #
       # **No token.** Authentication is OIDC against the trusted publisher

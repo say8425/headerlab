@@ -253,8 +253,8 @@ describe('the release calls both store submissions', () => {
   /**
    * Every action is a floating major, third-party included (owner's call,
    * 2026-08-27). Pinned so a well-meaning edit back to a SHA — or forward to an
-   * exact `@v5.0.0` — has to argue with CLAUDE.md's CI section rather than land
-   * quietly, since that section records the trade this repository accepted.
+   * exact `@v5.0.0` — has to argue with .claude/rules/ci-release.md rather than
+   * land quietly, since that file records the trade this repository accepted.
    */
   it('targets the latest major of every action, never a commit or an exact tag', () => {
     // Every workflow, not just this change's: the rule is repo-wide, and a rule

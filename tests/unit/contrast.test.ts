@@ -255,9 +255,9 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   ['REQ direction badge — the Badge wearing an ArrowUp, data-dir=request', '--req', '--req-bg'],
   ['RES direction badge — the Badge wearing an ArrowDown, data-dir=response', '--res', '--res-bg'],
   // Task 13 moved a rule's diagnostic off a sibling block below the row
-  // (CLAUDE.md: a control appearing must not resize what holds it, and a
-  // block gaining height still pushed every following row down by that
-  // much) into two slots that already have a size. Both pairs that named
+  // (.claude/rules/popup-ui.md: a control appearing must not resize what
+  // holds it, and a block gaining height still pushed every following row
+  // down by that much) into two slots that already have a size. Both pairs that named
   // "the diagnostic line below the row" — text on `--pending-bg` for a
   // warning, text on `--destructive-bg` for an error — went with the block:
   // there is no coloured fill left anywhere in a rule row for either
@@ -475,7 +475,7 @@ const SHAPE_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
   // itself still exists as a severity — `validate.ts` gives it to
   // `incomplete-header` — but that one is routed `byRow` and rendered inside
   // a rule row, which wears no note edge at all. Deleted rather than moved,
-  // because this is the case CLAUDE.md's Testing section warns about twice:
+  // because this is the case CLAUDE.md's "Guards guard something" warns about:
   // a contrast pair pinned to an element that no longer renders passes while
   // describing nothing.
 ];

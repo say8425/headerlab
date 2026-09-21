@@ -19,7 +19,7 @@ import { SUPPRESSION_WORDS } from '../lib/render.mjs';
  * --dry-run` → **21 파일**, `bin/`·`lib/` 에 npm 이 `files` 와 무관하게 늘
  * 넣는 셋(package.json·README.md·LICENSE)뿐이고 `test/` 는 디스크에만 있다),
  * 이 결합이 설치된 패키지를 깨뜨릴 길은 없다. 13 이라고 적혀 있었는데 그
- * 수는 두 가지로 틀렸다 — CLAUDE.md 의 같은 항목이 그 내력을 적고 있다.
+ * 수는 두 가지로 틀렸다 — 그 내력은 2026-09-21 이전 CLAUDE.md 의 git 이력에 있다.
  * 수를 믿지 말고 명령을 다시 돌려라. CLI 는 움직인다.
  */
 const root = (name) => fileURLToPath(new URL(`../../../${name}`, import.meta.url));

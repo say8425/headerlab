@@ -676,7 +676,8 @@ export function ScopeRail({
           a keyboard user saw a ring open at the bottom. Three pixels of padding
           put the ring inside the clip without moving the field: padding grows
           the box the clip uses, not the content's position. The rail can afford
-          it — the leftover is 28px with no notes up (CLAUDE.md, Interface) —
+          it — the leftover was 28px with no notes up when this was measured
+          (re-measure per .claude/rules/popup-ui.md before relying on it) —
           and the alternative, dropping the clip, is what let the field
           overprint the request-types heading under pressure. */}
       <div className="mt-3 flex min-h-0 flex-col gap-1.5 overflow-hidden pb-[3px]">
@@ -1005,7 +1006,8 @@ export function ScopeRail({
             entry now wears its invalid Badge on its own row (SiteRow), and
             "no site set" is the readout's own sentence ("blocked until a site
             is set"). What the notes' arrival-and-departure geometry once cost
-            this section is recorded in CLAUDE.md's Interface table; the two
+            this section was recorded in CLAUDE.md's Interface table (in git history
+            since 2026-09-21); the two
             error notes that remain (sync-error, icon-error) render above the
             section, not here, and are untouched by this. */}
       </div>
