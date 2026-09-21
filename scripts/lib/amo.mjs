@@ -120,7 +120,7 @@ export const parseHash = (hash) => {
  * The API documents three file states — `public` (Approved), `unreviewed`
  * (Awaiting Review), `disabled` (Rejected, disabled, or not reviewed) — and this
  * refuses a fourth rather than reading it as either. Fail-closed, like
- * `UPLOADABLE_STATES` in cws.mjs: an unrecognised value is a schema drift, and
+ * `mayUpload` in cws.mjs: an unrecognised value is a schema drift, and
  * the one place it must not be silently absorbed is the loop that decides
  * whether to keep waiting.
  */

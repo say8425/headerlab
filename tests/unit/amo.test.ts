@@ -154,7 +154,7 @@ describe('parseHash', () => {
 /**
  * The judgment table. The API documents exactly three file states — `public`,
  * `unreviewed`, `disabled` — and this refuses a fourth rather than guessing,
- * the same fail-closed shape as `UPLOADABLE_STATES` in cws.mjs.
+ * the same fail-closed shape as `mayUpload` in cws.mjs.
  */
 describe('readSignedFile', () => {
   const version = (over: Record<string, unknown> = {}) => ({

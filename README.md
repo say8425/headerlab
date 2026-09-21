@@ -307,9 +307,9 @@ second grants `nativeMessaging` outright. `tests/unit/manifest.test.ts` asserts 
 ever reaches production, and running the e2e suite does not touch `.output/chrome-mv3` —
 run `pnpm build` for a fresh production build.
 
-`CLAUDE.md` carries the rest: why `lint` chains `wxt prepare`, why `postinstall` may never
-run, what oxfmt does and does not format, and the platform traps that have already cost
-someone time.
+`CLAUDE.md` and its path-scoped rules in `.claude/rules/` carry the rest: why `lint` chains
+`wxt prepare`, why `postinstall` may never run, what oxfmt does and does not format, and the
+platform traps that have already cost someone time.
 
 ## Testing
 

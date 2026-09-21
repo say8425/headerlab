@@ -14,7 +14,7 @@
  * release, after the tag is cut.
  *
  * One read settles it. Run this before the first release that uses the automated
- * path, compare what it prints against `UPLOADABLE_STATES`, and widen that set
+ * path, compare what it prints against `mayUpload`'s state sets, and widen them
  * from a real response rather than from a guess.
  *
  * The token exchange below repeats `store-submit.mjs`'s. That is deliberate: the

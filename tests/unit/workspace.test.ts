@@ -393,14 +393,14 @@ describe('the release configuration', () => {
    * **It cannot tell that commit from a deliberate one of the same shape, and
    * this repository has written both.** `8110753` (root README plus the CLI's)
    * and `49d16b3` (CLAUDE.md plus the CLI's) are correctly-typed `fix:`
-   * commits whose entire diff is prose, and the second is the one CLAUDE.md
-   * calls worth stating outright, being about a provenance promise the first
-   * release could not keep. Both survive today only because each touches two
+   * commits whose entire diff is prose, and the second is about the provenance
+   * promise the first release could not keep — the one
+   * `.claude/rules/ci-release.md` keeps `--provenance` for. Both survive today only because each touches two
    * prose files and only one of them is excluded on either package — an
    * accident of their shape, not something enforced here. A prose-only `fix:`
    * confined to the root README alone would be skipped by the extension and
-   * never seen by the CLI, and would land in no changelog at all: the outcome
-   * CLAUDE.md ranks below appearing in a debatable one.
+   * never seen by the CLI, and would land in no changelog at all, which is
+   * worse than appearing in a debatable one.
    *
    * That is the trade this setting makes. It is taken knowingly — a mistyped
    * prose commit is likelier than a single-file safety-critical doc fix — but
@@ -416,14 +416,17 @@ describe('the release configuration', () => {
    *
    * `docs` — no trailing slash, matching the value — covers the four README
    * translations, the agent-bridge documents, the generated screenshots and the
-   * design and research notes. `CHANGELOG.md` is absent for the reason given on
-   * the CLI's entry above, which is not the obvious one.
+   * design and research notes. `.claude` holds CLAUDE.md's path-scoped rules,
+   * which were CLAUDE.md itself until 2026-09-21 and are the same kind of prose.
+   * `CHANGELOG.md` is absent for the reason given on the CLI's entry above,
+   * which is not the obvious one.
    */
   it('keeps a prose-only commit from proposing an extension release', () => {
     expect(config.packages['.']['exclude-paths']).toEqual([
       'packages/headerlab',
       'README.md',
       'CLAUDE.md',
+      '.claude',
       'docs',
     ]);
   });

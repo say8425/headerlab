@@ -13,15 +13,13 @@
 # file is a cost worth paying to stop it from piling up untracked wherever
 # Finder opens.
 
-# Local scratch that is not this project's source. These are ignored for a
-# second reason beyond keeping `git status` readable, and it is the load-bearing
-# one: **Tailwind v4's automatic source detection skips gitignored paths**, so an
-# untracked-but-unignored directory of HTML is scanned as source and its class
-# names ship. Measured on `.design/` (design mocks, one of them 2.3 MB): the
-# popup CSS built 105,485 B with it present and 45,818 B with it listed here —
-# the directory still on disk, only the ignore line added. 45,818 is what CI
-# builds, so the difference was the whole gap between a local build and the
-# released one.
+# Local scratch that is not this project's source. Ignored so `git status`
+# stays readable and so tests/support/build.ts, which counts every tracked or
+# untracked-but-unignored file as a build input, does not report the builds
+# stale over them. They were once also the whole gap between a local popup CSS
+# build and CI's — `.design/` alone added 59 kB through Tailwind's automatic
+# source detection — but entrypoints/popup/style.css has pinned its sources with
+# `source(none)` since 2026-09-11, so Tailwind no longer reads them either way.
 .superpowers/
 .design/
 .zcode/

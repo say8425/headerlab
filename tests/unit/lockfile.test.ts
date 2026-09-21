@@ -36,7 +36,7 @@ import { REPO_ROOT } from '../support/build';
  * against a platform nothing builds on.
  *
  * When this fails, do not hand-edit the lockfile. Regenerate it where the whole
- * registry is visible — CI — as recorded in CLAUDE.md.
+ * registry is visible — CI — as recorded in .claude/rules/toolchain.md.
  */
 
 const LOCKFILE = readFileSync(path.join(REPO_ROOT, 'pnpm-lock.yaml'), 'utf8');

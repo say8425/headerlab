@@ -284,8 +284,8 @@ describe('apply — rule.add', () => {
   });
 
   // `append` on a request header outside Chrome's 21-header allowlist
-  // invalidates the whole updateDynamicRules batch (CLAUDE.md's "Platform
-  // traps"). apply() is not where that gets judged — it is the reducer, not
+  // invalidates the whole updateDynamicRules batch ("Platform traps" in
+  // .claude/rules/extension-runtime.md). apply() is not where that gets judged — it is the reducer, not
   // the compiler — so it stores whatever operation it was given and leaves
   // validate.ts to decide, at compile time, whether this particular append is
   // allowed. This only pins that the reducer itself does not lose or
