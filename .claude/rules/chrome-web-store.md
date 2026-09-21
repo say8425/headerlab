@@ -86,6 +86,7 @@ runbook.
   tile, marquee) and refuses a set whose PNG IHDR sizes the store would reject. Nothing reads a
   pixel's colour — look at them. The store icon is 96×96 artwork inside 16px of padding: the
   toolbar glyph wrapped in `translate(16,16) scale(0.75)`, never redrawn.
-- `tests/unit/storeListing.test.ts` holds the five descriptions to one positional skeleton (no
-  Markdown — the store renders none, so `**` reaches readers as itself). It cannot see two
-  bullets swapping places. Nothing checks that the five READMEs' store badge URLs agree.
+- `tests/unit/storeListing.test.ts` holds `docs/store/description.en.md` and the AMO copy each
+  to a positional skeleton (no Markdown — the store renders none, so `**` reaches readers as
+  itself) and lists by name every line the AMO copy adds. A skeleton cannot see two bullets
+  swapping places.

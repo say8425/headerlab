@@ -327,9 +327,9 @@ describe('the Firefox Add-ons privacy policy', () => {
 describe('the summary table in listing.md', () => {
   /**
    * `listing.md` prints the summary and its length so the listing can be checked
-   * without running anything. CLAUDE.md is a long record of measured numbers
-   * going stale in the file that measured them, so the table is compared against
-   * the real value rather than trusted.
+   * without running anything. CLAUDE.md was, until 2026-09-21, a long record of
+   * measured numbers going stale in the file that measured them, so the table is
+   * compared against the real value rather than trusted.
    *
    * **The comparison source moved.** The summary used to live in
    * `public/_locales/en/messages.json`; it is now a string literal in

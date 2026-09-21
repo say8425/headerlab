@@ -318,7 +318,7 @@ export function SiteRow({ domain, usable, inert, diagnostics, onGrant, onRemove 
             never on an unrelated one, and nothing above the list moves at
             all. The e2e guard that promised otherwise was rewritten in the
             same commit rather than left describing a rule this no longer
-            keeps — CLAUDE.md, Interface, "before removing a reservation".
+            keeps — .claude/rules/popup-ui.md, "Removing a reservation".
 
             It is still not reserved by rendering a hidden button. An
             invisible control is still in the accessibility tree and still

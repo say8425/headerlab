@@ -57,15 +57,17 @@ CLAUDE.md. This file carries the detail.
   window (for example `await new Promise((r) => setTimeout(r, 300))` before
   `writeRegistryEntry` in `packages/headerlab/lib/host.mjs`). Wait for every file an assertion
   depends on, then assert only what the wait did not already establish — waiting for a file and
-  asserting it exists is a tautology.
+  asserting it exists is a tautology. Fix such a race in the test: the host writes its registry
+  entry only after a successful bind on purpose, so the entry's presence proves a full start.
 
 ## CLI tests (`packages/headerlab`)
 
 - The presentation layer — `lib/render.mjs`, `help.mjs`, `commands.mjs`, `suggest.mjs`,
   `exit.mjs` — is pure; test it without spawning. `lib/output.mjs` takes streams and
   environment as arguments (`resolveMode(globals, streams)`, `resolveColor(globals, env,
-  stream)`), so tty-only branches are table-testable. Only `test/process.test.mjs` needs a real
-  process (closed stdout pipe, SIGINT, terminal-only branches).
+  stream)`), so tty-only branches are table-testable. For the presentation layer, only
+  `test/process.test.mjs` needs a real process (closed stdout pipe, SIGINT, terminal-only
+  branches).
 - `test-support/tty-harness.mjs` sets `process.stdin.isTTY = true` on a real pipe before
   importing the CLI: it reaches the branch, not a terminal. `process.stdin.pause()` releases the
   event loop on a pty but not on a pipe, so the prompt also calls `unref()`.

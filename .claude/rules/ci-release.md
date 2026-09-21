@@ -28,20 +28,24 @@ paths:
   `release-please-action` reaches the job holding `contents: write`, `pull-requests: write`
   and the `id-token: write` that publishes to npm; only a SHA would foreclose that. No
   dependabot, so major bumps stay manual.
-- Workflows carry comments only where something is surprising at the point of use; the
-  reasoning lives here.
+- What keeps that trade acceptable for `ci.yml`: it holds only `contents: read`, every checkout
+  sets `persist-credentials: false`, and it never interpolates `github.event.*`. Breaking any
+  of the three reopens the pinning decision — the test above will not notice.
+- The workflow files carry much of their reasoning in comments at the point of use (step
+  ordering, output syntax, recovery paths). Keep those comments; this file does not repeat them.
 - Release branches do get `ci.yml` runs on `pull_request`, sometimes needing approval by hand.
 
 ## Release (`release-please.yml`, on push to `main`)
 
-- release-please opens one release PR per package (`separate-pull-requests: true`). Merging one
-  tags and releases, and only then builds `pnpm zip` and attaches the Chrome, Firefox and
-  sources archives. The release run then calls `cws-submit.yml` and `amo-submit.yml`, neither
-  waiting for the other.
-- **Everything after the release-please step runs with the tag already cut**, so a failure there
-  leaves a released version. `pnpm check` runs inside the release job because `ci.yml` and the
-  release run both fire on the same push and neither waits for the other. Order any new step
-  with that in mind: npm's `EUSAGE`/`EOTP` refusals once arrived after the tag.
+- release-please opens one release PR per package (`separate-pull-requests: true`).
+- **Everything that can fail runs before the release-please step**, unconditionally, on every
+  push to `main`: `pnpm check` and `pnpm zip`. The step itself tags and releases when a release
+  PR was merged; after it, only the gated steps run — attaching the Chrome, Firefox and sources
+  archives, `npm publish`, and the `cws-submit.yml` / `amo-submit.yml` calls (neither waits for
+  the other) — all with the tag already cut, so a failure there leaves a released version. Put
+  any new step that can fail above the release-please step: npm's `EUSAGE` and `EOTP` refusals
+  once arrived after the tag. `pnpm check` is in this job because `ci.yml` fires on the same
+  push and neither run waits for the other.
 - The release job checks out unconditionally because the next step is a local action.
 - The extension stays at the repository root: release-please prefixes every output with the
   package path once it is not `.`, which would make conditions in `release-please.yml` evaluate
@@ -56,6 +60,9 @@ paths:
   `tests/unit/workspace.test.ts` derives the sibling exclusions from the config and pins the
   prose ones. `packages/plugin` is deliberately not excluded: it is versioned through the CLI's
   `extra-files`, so excluding it would leave a skill-only commit in no changelog.
+- **Only directory entries take effect.** release-please 17.6.0 matches an exclude path with
+  `file.indexOf(\`${path}/\`) === 0`, so the file entries (`README.md`, `CLAUDE.md`, and the CLI's
+  `packages/headerlab/README.md`) currently match nothing. Unresolved; do not rely on them.
 - A `BREAKING CHANGE:` footer applies to every package the squash-merged commit touches — a CLI
   break once proposed `extension 2.0.0`. See what a commit touches outside the CLI with
   `git show --name-only --format='' <sha> | sed '/^$/d' | grep -v '^packages/headerlab/'`.

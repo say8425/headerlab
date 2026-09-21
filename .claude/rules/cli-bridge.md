@@ -15,6 +15,11 @@ paths:
   `invalid-args`, exit 2), and `lib/bridge/port.ts` with `lib/bridge/apply.ts` (what the
   extension refuses — exit 1). Filing a code under the wrong layer is the drift the guards
   missed last time.
+- **A breaking CLI change also reaches the extension's version.** The `SKILL.md` edit above is
+  outside `packages/headerlab/` (and `packages/plugin` is not excluded), so the squash-merged
+  commit counts for the extension too and its `BREAKING CHANGE:` footer proposes an extension
+  major. Pin the extension with a line-initial `Release-As:` footer in the commit message
+  (`.claude/rules/ci-release.md`).
 - **One published package, and that is structural.** `bridge install` writes a launcher naming
   the native-messaging host's entry file by absolute path (`lib/manifest.mjs`'s
   `launcherScript`). A CLI shipped without its host would still write it, and Chrome would

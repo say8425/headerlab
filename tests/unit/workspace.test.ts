@@ -395,8 +395,9 @@ describe('the release configuration', () => {
    * and `49d16b3` (CLAUDE.md plus the CLI's) are correctly-typed `fix:`
    * commits whose entire diff is prose, and the second is about the provenance
    * promise the first release could not keep — the one
-   * `.claude/rules/ci-release.md` keeps `--provenance` for. Both survive today only because each touches two
-   * prose files and only one of them is excluded on either package — an
+   * `.claude/rules/ci-release.md` keeps `--provenance` for. Both survive today
+   * only because each touches two prose files and only one of them is
+   * excluded on either package — an
    * accident of their shape, not something enforced here. A prose-only `fix:`
    * confined to the root README alone would be skipped by the extension and
    * never seen by the CLI, and would land in no changelog at all, which is

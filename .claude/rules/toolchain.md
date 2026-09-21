@@ -21,13 +21,15 @@ paths:
 
 ## pnpm and the lockfile
 
-- **Never write `pnpm-lock.yaml` on this machine.** The office proxy serves incomplete
-  packuments for platform bindings, and `pnpm import` dropped every non-darwin
-  `@oxfmt/binding-*` in silence — green on macOS, broken on Linux. Regenerate in CI (the same
-  `pnpm import`, against a registry that sees everything, uploaded as an artifact); a correct
-  regeneration is insertions only. `tests/unit/lockfile.test.ts` pairs platforms (whatever
-  `darwin-arm64` resolved, `linux-x64-gnu` must too) so this machine can catch the defect it
-  causes. Never hand-edit the lockfile.
+- **Never re-resolve `pnpm-lock.yaml` on this machine.** The office proxy serves incomplete
+  packuments for platform bindings: resolving here (a `pnpm import` from the old
+  `package-lock.json`, before that file was deleted in `49f7804`) dropped every non-darwin
+  `@oxfmt/binding-*` in silence — green on macOS, broken on Linux. Re-resolve only where the
+  registry serves complete packuments (a CI runner, or a network outside the proxy); no
+  workflow does this today. `tests/unit/lockfile.test.ts` pairs platforms (whatever
+  `darwin-arm64` resolved, `linux-x64-gnu` must too), so this machine can catch the defect.
+- Hand edits are safe only when they re-resolve nothing, like the empty workspace-importer
+  entries `tests/unit/workspace.test.ts` explains.
 - `pnpm install --frozen-lockfile` is the everyday command. `.github/actions/setup` runs
   `git diff --exit-code pnpm-lock.yaml` straight after it, because whether pnpm 11 fails or
   silently rewrites a lockfile missing a workspace importer has never been measured on the
@@ -76,6 +78,8 @@ paths:
   the config file.
 - `printWidth: 100` (least churn in a sweep of 80–120), `singleQuote: true`. oxfmt also sorts
   `package.json` keys.
+- `format` and `format:check` deliberately do not chain `wxt prepare`: oxfmt reads no tsconfig
+  and resolves nothing.
 
 ## TypeScript
 
@@ -84,7 +88,7 @@ paths:
   (`lib/bridge/port.ts`). Do not fix it with `tsconfig.json`'s `types` — that array replaces
   tsgo's auto-list instead of extending it.
 - `typecheck` chains `wxt prepare` because `tsconfig.json` extends `./.wxt/tsconfig.json`.
-- Seven hand-written `.d.mts` files type `.mjs` modules imported from TypeScript (`allowJs` is
+- Hand-written `.d.mts` files type the `.mjs` modules imported from TypeScript (`allowJs` is
   off), and nothing checks they match their implementation. List them with
   `find . -name '*.d.mts' -not -path '*/node_modules/*'`.
 

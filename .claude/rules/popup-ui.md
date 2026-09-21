@@ -38,8 +38,9 @@ paths:
 1. `truncate` on the line (`white-space: nowrap` plus ellipsis), so no string can add a line.
    Short copy alone is not the rule — prose grows.
 2. **Measure every string against the space the text gets, not against the box.** `site-line`
-   is 155px wide and spends 20px on `pl-5`, so the budget is 135px. Keep real headroom: CI's
-   Linux fallback fonts differ, and the truncation check has zero tolerance.
+   is 155px wide and spends 20px on `pl-5`, so the budget is 135px. Keep real headroom — 10% was
+   not enough and 15% was accepted — because CI's Linux fallback fonts differ and the
+   truncation check has zero tolerance.
 3. **Guard both halves** — one line *and* not clipped. `measureLines` in
    `tests/e2e/header-modification.spec.ts` reports `truncated`.
 

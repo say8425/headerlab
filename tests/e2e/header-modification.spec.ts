@@ -922,8 +922,8 @@ test("an error diagnostic replacing a rule row's value never resizes the row or 
   // test's own first version did: `remove` never shows a wrapping value —
   // it is a single-line sentence regardless of error state — so cycling
   // through it changes this row's height for a reason that has nothing to
-  // do with a diagnostic, and nothing this file promises (CLAUDE.md's own
-  // invariant names on/off and a diagnostic appearing, not an operation
+  // do with a diagnostic, and nothing this file promises (the invariant this
+  // guard holds names on/off and a diagnostic appearing, not an operation
   // change). Renaming keeps the operation at `set` throughout, so the only
   // thing moving is the diagnostic — the actual claim under test.
   const nameField = target.getByRole('textbox', { name: 'Header name' });
@@ -1054,7 +1054,7 @@ test("the ghost row at the end of the list matches a minimum rule row's height",
   // and it did not — it measured both rows at rest and never hovered.** A
   // review caught that by planting `hover:h-[60px]` on the button and watching
   // all thirteen tests in this file stay green. That is the shape CLAUDE.md
-  // names twice: a guard asserted over a state its fixture never reaches, and
+  // names: a guard asserted over a state its fixture never reaches, and
   // a comment claiming the guard while it does so.
   //
   // The fill is compared against the sibling row's **own computed fill**, never

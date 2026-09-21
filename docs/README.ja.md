@@ -310,9 +310,9 @@ pnpm exec playwright install --with-deps --no-shell chromium
 しており、e2e スイートを走らせても `.output/chrome-mv3` には触れません。新しい本番ビルドは
 `pnpm build` で作ってください。
 
-残りは `../CLAUDE.md` と `../.claude/rules/` にあります。`lint` がなぜ `wxt prepare` を連結するのか、
-`postinstall` がなぜ一度も走らないことがあるのか、oxfmt が何をフォーマットして何をしない
-のか、そしてすでに誰かの時間を奪ったプラットフォームの罠です。
+残りは `../CLAUDE.md` と `../.claude/rules/` にあります。`lint` がなぜ
+`wxt prepare` を連結するのか、`postinstall` がなぜ一度も走らないことがあるのか、oxfmt が
+何をフォーマットして何をしないのか、そしてすでに誰かの時間を奪ったプラットフォームの罠です。
 
 ## テスト
 

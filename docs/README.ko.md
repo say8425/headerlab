@@ -308,9 +308,9 @@ pnpm exec playwright install --with-deps --no-shell chromium
 e2e 스위트를 돌려도 `.output/chrome-mv3` 는 건드리지 않으니, 새 프로덕션 빌드는 `pnpm build`
 로 만드세요.
 
-나머지는 `../CLAUDE.md` 와 `../.claude/rules/` 에 있습니다. `lint` 가 왜 `wxt prepare` 를 체인하는지,
-`postinstall` 이 왜 아예 안 돌 수 있는지, oxfmt 가 무엇을 포맷하고 무엇을 하지 않는지,
-그리고 이미 누군가의 시간을 태운 플랫폼 함정들.
+나머지는 `../CLAUDE.md` 와 `../.claude/rules/` 에 있습니다. `lint` 가 왜
+`wxt prepare` 를 체인하는지, `postinstall` 이 왜 아예 안 돌 수 있는지, oxfmt 가 무엇을
+포맷하고 무엇을 하지 않는지, 그리고 이미 누군가의 시간을 태운 플랫폼 함정들.
 
 ## 테스트
 
