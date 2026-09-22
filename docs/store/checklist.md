@@ -186,7 +186,7 @@ rather than pretending it away. 1Password remains the copy of record: losing
 
       ```bash
       gh release download extension-v<version> -p '*.zip' -D .output
-      node scripts/pack-crx.mjs ".output/headerlab-<version>-chrome.zip"
+      node .github/scripts/pack-crx.mjs ".output/headerlab-<version>-chrome.zip"
       ```
 
       It is a preference rather than a requirement, and the measurement says
@@ -329,10 +329,13 @@ Add-ons (`amo/checklist.md` §8). Two things to hold on to, for Chrome:
   | the scripts themselves | Fix on `main`, then re-run with `ref: main`. |
   | the scripts, but `main` has already moved to a later version | Neither. Sign locally with `pnpm crx` and upload through the dashboard. |
 
+  A tag cut before 2026-09-21 predates `.github/scripts/`, so a re-run against it
+  finds no scripts at the tag: pass `ref: main` for those.
+
   The middle row exists because the checkout supplies only the scripts — the
   CRX's payload always comes from the release's own zip — so a tag-pinned re-run
   replays the same broken script forever. The likeliest instance is
-  `mayUpload` in `scripts/lib/cws.mjs` refusing an item state the store really
+  `mayUpload` in `.github/scripts/lib/cws.mjs` refusing an item state the store really
   does use, which is deliberately fail-closed and therefore deliberately
   something you may have to widen once.
 

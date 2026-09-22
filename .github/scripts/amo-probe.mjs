@@ -167,7 +167,7 @@ const main = async () => {
   }
   console.log(
     '\n  `ready` is what amo-submit.mjs downloads; `refused` on a version AMO shows as\n' +
-      '  signed means scripts/lib/amo.mjs no longer matches the API. Inspect the fields\n' +
+      '  signed means .github/scripts/lib/amo.mjs no longer matches the API. Inspect the fields\n' +
       '  above before the first unlisted release.',
   );
 };

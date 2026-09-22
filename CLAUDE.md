@@ -33,7 +33,7 @@ pnpm dev             # WXT dev server; dev:firefox → .output/firefox-mv3-dev. 
                      # browser here: load the printed directory unpacked
 pnpm screenshots     # README screenshots → docs/screenshots/
 pnpm store:assets    # Chrome Web Store images → docs/store/assets/
-pnpm store:probe     # read-only: raw Chrome Web Store status, and what scripts/lib/cws.mjs reads
+pnpm store:probe     # read-only: raw Chrome Web Store status, and what .github/scripts/lib/cws.mjs reads
 pnpm amo:probe       # read-only: what Firefox Add-ons holds
 pnpm amo:submit      # build Firefox archives, then submit; credentials from env or 1Password
 ```
@@ -70,9 +70,10 @@ lib/utils.ts     cn — twMerge(clsx(…)); every components/ui/ file calls it
 components/      popup UI · components/ui/ is vendored shadcn this repo owns and edits
 entrypoints/     background.ts, popup/ · popup/style.css is the Tailwind entry point
 public/          copied to the output root — theme.js, icon/
-scripts/         not shipped: image generators, store packing/submission/probes · lib/
-                 holds their shared modules (cws, crx, amo, png; popup-shots is the
-                 screenshot capture loop)
+scripts/         not shipped: generators of committed images (icons, README
+                 screenshots, store images) — scripts/README.md
+.github/scripts/ not shipped: store release tooling, run by CI and by the maintainer
+                 (sign, submit, probe) — .github/scripts/README.md
 packages/        pnpm workspace: headerlab (CLI + native-messaging host, published to npm),
                  plugin (Claude Code / Codex skill, not published)
 ```

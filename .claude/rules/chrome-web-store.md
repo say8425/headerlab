@@ -1,9 +1,11 @@
 ---
 paths:
-  - "scripts/pack-crx.mjs"
-  - "scripts/store-*.mjs"
+  - ".github/scripts/pack-crx.mjs"
+  - ".github/scripts/store-*.mjs"
+  - ".github/scripts/lib/{cws,crx}.mjs"
+  - "scripts/store-assets.mjs"
   - "scripts/make-icons.mjs"
-  - "scripts/lib/{cws,crx,png,popup-shots}.mjs"
+  - "scripts/lib/{png,popup-shots}.mjs"
   - "docs/store/*.md"
   - "docs/store/assets/**"
   - "PRIVACY.md"
@@ -39,7 +41,7 @@ runbook.
   public key must be this key's DER **and** the signed crx id must be the one this key derives
   (the store rejects a mismatch of either, after the tag is cut), and every payload file is
   compared with the release archive by SHA-256. Compare contents, never archives — `pnpm zip`
-  is not byte-reproducible, though its contents are. `scripts/lib/crx.mjs` holds the pure
+  is not byte-reproducible, though its contents are. `.github/scripts/lib/crx.mjs` holds the pure
   parsing, tested against synthetic headers in `tests/unit/crx.test.ts`.
 - `pnpm crx` writes the key to a 0600 file in a 0700 temp directory and removes it from a
   `process.on('exit')` handler registered right after `mkdtempSync`, with a `SIGINT` handler
@@ -51,8 +53,8 @@ runbook.
 ## Store API (v2)
 
 - **Run `pnpm store:probe` before changing anything that reads the API.** It prints the raw
-  `fetchStatus` body and what `scripts/lib/cws.mjs` makes of it. The schema was first written
-  from a guess, and tests written from the same guess could not see it.
+  `fetchStatus` body and what `.github/scripts/lib/cws.mjs` makes of it. The schema was first
+  written from a guess, and tests written from the same guess could not see it.
 - State lives on two revisions, `publishedItemRevisionStatus` and `submittedItemRevisionStatus`,
   either possibly unset. After `:publish`, the new version is the **submitted** revision while
   the published one keeps the old version until review passes. The version is in
@@ -62,8 +64,8 @@ runbook.
   (also accept `UPLOAD_IN_PROGRESS`, which the field docs use). `ItemState`:
   `ITEM_STATE_UNSPECIFIED`, `PENDING_REVIEW`, `STAGED`, `PUBLISHED`, `PUBLISHED_TO_TESTERS`,
   `REJECTED`, `CANCELLED` — there is no `IN_REVIEW`.
-- `mayUpload` in `scripts/lib/cws.mjs` is fail-closed: it refuses any submitted-revision state it
-  cannot name. If it refuses a state the store really uses, widen the sets in that file from
+- `mayUpload` in `.github/scripts/lib/cws.mjs` is fail-closed: it refuses any submitted-revision
+  state it cannot name. If it refuses a state the store really uses, widen the sets in that file from
   the probe's output, and re-run the store job with `ref` (ci-release rules).
 
 ## Listing

@@ -254,16 +254,16 @@ pnpm amo:probe       # 只读取 Firefox Add-ons 列表的状态 — 不上传�
 的，而裸工具不会构建。陈旧的产物出过两次事：一次假绿，悄悄让一个守卫失效；一次假红，耗掉
 一小时。所以 `tests/support/build.ts` 会检测陈旧，并带着该运行的命令报错。
 
-**`pnpm test:e2e`、`pnpm screenshots` 和 `pnpm store:assets` 需要一个 Playwright 默认不会
-安装的浏览器：**
+**`pnpm test:e2e`、`pnpm screenshots` 和 `pnpm store:assets` 需要 Playwright 的 Chromium：**
 
 ```bash
-pnpm exec playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
-`--no-shell` 是关键。Playwright 默认下载的无头版本是 `chromium-headless-shell`，那是一个
-加载不了扩展的精简构建，而上面这两条命令存在的意义恰恰就是加载扩展。没有完整二进制时，
-它们失败的样子看起来像代码问题，而不是缺少依赖。
+这条命令会安装两个构建。加载扩展(e2e 测试套件和每一张弹窗截图)需要完整的 Chromium，因为
+精简构建 `chromium-headless-shell` 加载不了扩展；`pnpm store:assets` 还会用这个无头 shell
+渲染宣传图块。所以不要加 `--no-shell`：它会跳过 shell，`pnpm store:assets` 随后以
+"Executable doesn't exist" 失败，看起来像代码问题，而不是缺少依赖。
 
 **`pnpm screenshots` 和 `pnpm store:assets` 会覆盖被追踪的 PNG**，分别在
 `docs/screenshots/` 和 `docs/store/assets/`，后者会先清空目录再重写全部 8 张。这正是它们

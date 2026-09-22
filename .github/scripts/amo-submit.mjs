@@ -2,8 +2,8 @@
  * Submits the Firefox build to Firefox Add-ons (AMO), and on the unlisted
  * channel waits for the signed package and writes it beside the archives.
  *
- *   node scripts/amo-submit.mjs [--channel listed|unlisted] [--expect-version <v>]
- *                               [--dry-run] [--timeout-minutes <n>]
+ *   node .github/scripts/amo-submit.mjs [--channel listed|unlisted] [--expect-version <v>]
+ *                                       [--dry-run] [--timeout-minutes <n>]
  *
  * `pnpm amo:submit` zips first. This is the one entry point for both the
  * developer's machine and `.github/workflows/amo-submit.yml` — the workflow
@@ -67,7 +67,7 @@ import {
   trustedAmoUrl,
 } from './lib/amo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BIN = path.join(ROOT, 'node_modules', '.bin');
 const WXT = path.join(BIN, 'wxt');
 
@@ -372,7 +372,7 @@ const main = async () => {
   });
   if (values.help) {
     log(
-      'usage: node scripts/amo-submit.mjs [--channel listed|unlisted] [--expect-version <v>] [--dry-run] [--timeout-minutes <n>]',
+      'usage: node .github/scripts/amo-submit.mjs [--channel listed|unlisted] [--expect-version <v>] [--dry-run] [--timeout-minutes <n>]',
     );
     return;
   }

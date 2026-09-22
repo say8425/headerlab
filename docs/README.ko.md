@@ -282,17 +282,18 @@ pnpm amo:probe       # Firefox Add-ons 리스팅 상태를 읽기만 — 아무�
 가드를 조용히 무력화한 가짜 초록과 한 시간을 태운 가짜 빨강이 둘 다 나온 적이 있습니다.
 그래서 `tests/support/build.ts` 가 낡음을 감지하고 실행할 명령과 함께 실패합니다.
 
-**`pnpm test:e2e`, `pnpm screenshots`, `pnpm store:assets` 에는 Playwright 가 기본으로
-설치하지 않는 브라우저가 필요합니다:**
+**`pnpm test:e2e`, `pnpm screenshots`, `pnpm store:assets` 에는 Playwright 의 Chromium 이
+필요합니다:**
 
 ```bash
-pnpm exec playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
-`--no-shell` 이 중요합니다. Playwright 가 기본으로 내려받는 헤드리스 빌드는
-`chromium-headless-shell` 인데, 이것은 확장을 로드할 수 없는 축약 빌드입니다. 그런데 저 두
-명령은 확장을 로드하려고 존재합니다. 전체 바이너리가 없으면, 의존성이 빠진 것이 아니라 코드가
-잘못된 것처럼 보이는 방식으로 실패합니다.
+이 명령은 빌드 두 개를 설치합니다. 확장을 로드하는 작업(e2e 스위트와 모든 팝업 캡처)에는 전체
+Chromium 이 필요합니다. 축약 빌드인 `chromium-headless-shell` 은 확장을 로드할 수 없기
+때문입니다. `pnpm store:assets` 는 타일을 그 헤드리스 셸로도 그립니다. 그러니 `--no-shell` 을
+붙이지 마세요. 셸이 빠지면 `pnpm store:assets` 가 "Executable doesn't exist" 로 실패하는데,
+의존성이 빠진 것이 아니라 코드가 잘못된 것처럼 보입니다.
 
 **`pnpm screenshots` 와 `pnpm store:assets` 는 추적 중인 PNG 를 덮어씁니다.** 각각
 `docs/screenshots/` 와 `docs/store/assets/` 이고, 뒤엣것은 디렉터리를 비우고 8 장을 다시

@@ -175,7 +175,7 @@ export async function launchFirefox(extensionDir: string): Promise<FirefoxSessio
   // `detached: true` means Node exiting does not take this process group
   // with it, so without this a rejection anywhere in the setup below — or a
   // Ctrl-C — leaks a headless Firefox that outlives the test run. Same shape
-  // as scripts/pack-crx.mjs registering its own teardown right after
+  // as .github/scripts/pack-crx.mjs registering its own teardown right after
   // mkdtempSync, for the same reason: teardown that can be skipped will be.
   process.on('exit', killGroup);
 

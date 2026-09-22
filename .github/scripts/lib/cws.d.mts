@@ -2,7 +2,7 @@
  * Hand-written declarations for `cws.mjs`, whose exports are consumed from
  * TypeScript by `tests/unit/cws.test.ts`. Without this file `tsc --noEmit`
  * fails that import with TS7016 — `allowJs` is off, so a plain `.mjs` has no
- * inferred shape. The same gap `scripts/lib/crx.d.mts` and
+ * inferred shape. The same gap `.github/scripts/lib/crx.d.mts` and
  * `scripts/lib/png.d.mts` close for their own modules.
  *
  * Nothing checks that this still matches the implementation; CLAUDE.md's "Known

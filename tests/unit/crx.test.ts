@@ -7,10 +7,10 @@ import {
   extensionIdFromPublicKey,
   parseCrx,
   readCrxHeader,
-} from '@/scripts/lib/crx.mjs';
+} from '@/.github/scripts/lib/crx.mjs';
 
 /**
- * `scripts/pack-crx.mjs` reads the bytes Chrome wrote rather than trusting its
+ * `.github/scripts/pack-crx.mjs` reads the bytes Chrome wrote rather than trusting its
  * exit code, and this is the reader. Everything here is synthetic, and the
  * reason is Chrome rather than the key: a throwaway `openssl genpkey` pair
  * packs a real CRX3 perfectly well, so what a CI run would need is
@@ -207,8 +207,8 @@ describe('extensionIdFromDigest', () => {
 
   // `packages/headerlab/lib/manifest.mjs` applies this same alphabet to a load
   // path's bytes for an *unpacked* extension. The two cannot share code — that
-  // file ships in a separately versioned npm package and `scripts/` is not in
-  // its tarball — so this asserts they agree instead. One of them changing the
+  // file ships in a separately versioned npm package and `.github/scripts/` is
+  // not in its tarball — so this asserts they agree instead. One of them changing the
   // alphabet turns this red without either importing the other.
   it('agrees with the unpacked-extension id encoder on the same 32 hex digits', () => {
     const path = '/Users/penguin/dev/headerlab/.output/chrome-mv3';

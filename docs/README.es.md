@@ -292,17 +292,18 @@ artefacto obsoleto ya ha producido un verde falso que desactivó un guard en sil
 rojo falso que costó una hora. Por eso `tests/support/build.ts` detecta la obsolescencia y
 falla indicando el comando a ejecutar.
 
-**`pnpm test:e2e`, `pnpm screenshots` y `pnpm store:assets` necesitan un navegador que
-Playwright no instala por defecto:**
+**`pnpm test:e2e`, `pnpm screenshots` y `pnpm store:assets` necesitan el Chromium de
+Playwright:**
 
 ```bash
-pnpm exec playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
-`--no-shell` importa. La descarga headless por defecto de Playwright es
-`chromium-headless-shell`, una build recortada que no puede cargar extensiones, y esos dos
-comandos existen precisamente para cargar una. Sin el binario completo fallan de una forma
-que parece un problema de código y no una dependencia que falta.
+Ese comando instala dos builds. Cargar la extensión —la suite e2e y cada captura del popup—
+necesita el Chromium completo, porque la build recortada `chromium-headless-shell` no puede
+cargar extensiones; `pnpm store:assets` además dibuja sus mosaicos con ese headless shell. Así
+que no añadas `--no-shell`: omite el shell, y `pnpm store:assets` falla entonces con
+"Executable doesn't exist", lo que parece un problema de código y no una dependencia que falta.
 
 **`pnpm screenshots` y `pnpm store:assets` sobrescriben los PNG versionados**, en
 `docs/screenshots/` y `docs/store/assets/` respectivamente; el segundo vacía su directorio

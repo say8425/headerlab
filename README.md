@@ -281,17 +281,17 @@ pnpm amo:probe       # read the Firefox Add-ons listing's state — uploads noth
 green that silently disabled a guard and a false red that cost an hour, so
 `tests/support/build.ts` detects staleness and fails with the command to run.
 
-**`pnpm test:e2e`, `pnpm screenshots` and `pnpm store:assets` need a browser Playwright
-does not install by default:**
+**`pnpm test:e2e`, `pnpm screenshots` and `pnpm store:assets` need Playwright's Chromium:**
 
 ```bash
-pnpm exec playwright install --with-deps --no-shell chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
-`--no-shell` matters. Playwright's default headless download is `chromium-headless-shell`,
-a stripped build that cannot load extensions — and both of those commands exist to load
-one. Without the full binary they fail in a way that looks like a code problem rather than
-a missing dependency.
+That installs two builds. Loading the extension — the e2e suite and every popup capture —
+needs the full Chromium, because the stripped `chromium-headless-shell` cannot load
+extensions; `pnpm store:assets` also renders its tiles with that headless shell. So do not
+add `--no-shell`: it skips the shell, and `pnpm store:assets` then fails with "Executable
+doesn't exist" — which looks like a code problem rather than a missing dependency.
 
 **`pnpm screenshots` and `pnpm store:assets` overwrite tracked PNGs** — under
 `docs/screenshots/` and `docs/store/assets/` respectively, and the second empties its
