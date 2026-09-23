@@ -20,12 +20,11 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ### 크롬 스토어
 
-[크롬스토어](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)에서
-다운로드를 권장합니다.
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="Chrome 웹 스토어에서 사용 가능" height="58"></a>
 
 ### Firefox Add-ons
 
-파이어폭스에서는 [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) 설치를 권장합니다.
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox 부가 기능 받기" width="166" height="58"></a>
 
 ### 릴리즈 페이지
 

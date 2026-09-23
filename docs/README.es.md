@@ -20,12 +20,11 @@ Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Chrome Web Store
 
-Se recomienda instalarla desde la
-[Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn).
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="Disponible en Chrome Web Store" height="58"></a>
 
 ### Firefox Add-ons
 
-En Firefox se recomienda instalarla desde [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/).
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Obtén el complemento para Firefox" width="166" height="58"></a>
 
 ### Página de releases
 
