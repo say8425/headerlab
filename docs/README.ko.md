@@ -24,7 +24,7 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ### Firefox Add-ons
 
-<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox 부가 기능 받기" height="58"></a>
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox 부가 기능 받기" width="166" height="58"></a>
 
 ### 릴리즈 페이지
 

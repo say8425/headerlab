@@ -24,7 +24,7 @@ Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Firefox Add-ons
 
-<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Obtén el complemento para Firefox" height="58"></a>
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Obtén el complemento para Firefox" width="166" height="58"></a>
 
 ### Página de releases
 

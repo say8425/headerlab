@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -80,5 +81,84 @@ describe('the five READMEs quote the popup identically', () => {
         expect(text.includes(literal), `${path} wraps a line inside "${head}…"`).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * The store badges under `## Install`, and the one thing about them a reader
+ * cannot check: their `src` is relative to the file that carries it, so the
+ * English README says `docs/badges/…` and the four in `docs/` say `badges/…`.
+ *
+ * **Why this exists.** That split is the shape a copy-paste gets wrong, and
+ * nothing would say so. A sixth translation that copies the English form points
+ * at `docs/docs/badges/…`; GitHub draws one broken-image icon and every check in
+ * this repository stays green — the same silence that let two wrong claims sit in
+ * four translations above. So this resolves each `src` against its own README's
+ * directory and asks the filesystem, rather than matching a string that a wrong
+ * path would satisfy just as well.
+ *
+ * It also pins what each badge links to. A badge is a picture of one store, and
+ * a picture of one store linking the other is wrong in a way no reader checks
+ * before clicking.
+ */
+const BADGES = [
+  {
+    file: 'chrome-web-store.png',
+    href: 'https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn',
+  },
+  {
+    file: 'firefox-add-ons.svg',
+    href: 'https://addons.mozilla.org/firefox/addon/headerlab/',
+  },
+] as const;
+
+/** Every `<a href="…"><img src="…"…></a>` pair, which is the badges' only form here. */
+const BADGE_LINK = /<a href="([^"]+)"><img src="([^"]+)"[^>]*><\/a>/g;
+
+describe('the five READMEs carry both store badges', () => {
+  /** Both groups are required by the pattern, so a match always carries both. */
+  const badgesIn = (text: string) =>
+    [...text.matchAll(BADGE_LINK)].map((link) => ({ href: link[1]!, src: link[2]! }));
+
+  it.each(sources.map(([path, text]) => [path, text] as const))(
+    '%s links each badge to its own store',
+    (_path, text) => {
+      expect(badgesIn(text).map(({ href }) => href)).toEqual(BADGES.map(({ href }) => href));
+    },
+  );
+
+  it.each(sources.map(([path, text]) => [path, text] as const))(
+    '%s points at a badge file that exists, from its own directory',
+    (path, text) => {
+      const badges = badgesIn(text);
+      expect(badges, `${path} carries ${badges.length} badges, not ${BADGES.length}`).toHaveLength(
+        BADGES.length,
+      );
+
+      for (const [index, { src }] of badges.entries()) {
+        const { file } = BADGES[index]!;
+        expect(src, `${path} names some other file`).toBe(
+          `${path === 'README.md' ? 'docs/' : ''}badges/${file}`,
+        );
+
+        const onDisk = resolve(dirname(path), src);
+        expect(existsSync(onDisk), `${path} points at ${onDisk}, which is not there`).toBe(true);
+      }
+    },
+  );
+
+  /**
+   * The five must reach the *same* two files. Resolving to something that exists
+   * is not enough: a second copy of a badge under `docs/` would satisfy the check
+   * above in every file that pointed at it, and then one store's artwork would be
+   * committed here twice, to drift apart the next time one of them is updated.
+   */
+  it('resolves to one pair of files across all five', () => {
+    const resolved = sources.map(([path, text]) =>
+      badgesIn(text).map(({ src }) => resolve(dirname(path), src)),
+    );
+
+    for (const paths of resolved) expect(paths).toEqual(resolved[0]);
+    expect(resolved[0]).toEqual(BADGES.map(({ file }) => resolve('docs/badges', file)));
   });
 });

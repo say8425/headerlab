@@ -24,7 +24,7 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### Firefox Add-ons
 
-<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox アドオンを入手" height="58"></a>
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox アドオンを入手" width="166" height="58"></a>
 
 ### リリースページ
 

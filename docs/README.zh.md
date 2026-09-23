@@ -23,7 +23,7 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### Firefox Add-ons
 
-<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="获取 Firefox 附加组件" height="58"></a>
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="获取 Firefox 附加组件" width="166" height="58"></a>
 
 ### 发布页面
 
