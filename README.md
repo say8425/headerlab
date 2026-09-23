@@ -20,13 +20,11 @@ Chrome and Firefox from their stores. Safari is planned.
 
 ### Chrome Web Store
 
-Installing from the
-[Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
-is the recommended route.
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="docs/badges/chrome-web-store.png" alt="Available in the Chrome Web Store" height="58"></a>
 
 ### Firefox Add-ons
 
-Installing from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) is the recommended route on Firefox.
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="docs/badges/firefox-add-ons.svg" alt="Get the Firefox add-on" height="58"></a>
 
 ### Release page
 

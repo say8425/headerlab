@@ -20,12 +20,11 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### Chrome ウェブストア
 
-[Chrome ウェブストア](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)からの
-インストールを推奨します。
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="Chrome ウェブストアで利用可能" height="58"></a>
 
 ### Firefox Add-ons
 
-Firefox では [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) からのインストールを推奨します。
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox アドオンを入手" height="58"></a>
 
 ### リリースページ
 

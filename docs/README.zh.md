@@ -19,13 +19,11 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### Chrome 网上应用店
 
-推荐从
-[Chrome 网上应用店](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
-安装。
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="可在 Chrome 网上应用店获取" height="58"></a>
 
 ### Firefox Add-ons
 
-在 Firefox 上推荐从 [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) 安装。
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="获取 Firefox 附加组件" height="58"></a>
 
 ### 发布页面
 
