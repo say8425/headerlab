@@ -28,13 +28,27 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### リリースページ
 
-1.7.0 より後の `extension-v*` リリースには三つのアーカイブが添付されます: `headerlab-<version>-chrome.zip`、
-`headerlab-<version>-firefox.zip`、そして Mozilla のレビュアーが再ビルドするソースアーカイブ
-`headerlab-<version>-sources.zip` — 彼らが受け取ったものを誰でも見られるよう、一緒に添付します。
-1.7.0 以前のリリースには Chrome の zip だけがあります。
-[リリースページ](https://github.com/say8425/headerlab/releases)から必要なバージョンの
-Chrome アセットを取得して展開し、`chrome://extensions` → **デベロッパーモード** →
+タイトルが `extension:` で始まるリリースの **Assets** に、ブラウザーごとのビルドが添付されて
+います — `cli:` のほうは CLI パッケージです。
+[リリースページ](https://github.com/say8425/headerlab/releases)から、自分のブラウザーに合う
+ものを取得します:
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+**Chrome.** 展開してから `chrome://extensions` → **デベロッパーモード** →
 **パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
+
+**Firefox.** 展開はしません: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → zip をそのまま選びます。このアーカイブにはストアの署名がないので
+一時的なアドオンとして読み込まれ、Firefox を再起動すると消えます — 残るインストールが必要
+なら、上の Firefox Add-ons から入れてください。
+
+同じリリースには、Mozilla のレビュアーが再ビルドするソースアーカイブ
+`headerlab-<version>-sources.zip` も添付されます。彼らが受け取ったものを誰でも見られるように
+するためです。署名済みの `.crx` もありますが、これは Chrome ウェブストアへの申請が受け取る
+ファイルで、手で読み込むためのものではありません。1.7.0 以前のリリースには Chrome の zip だけが
+あります。
 
 ### 自分でビルドする
 
@@ -50,11 +64,10 @@ Node 24 が必要です（`.nvmrc`）。`pnpm build:firefox` は `.output/firefo
 
 ### Firefox
 
-ストアの署名済みビルドではなく自分でビルドしたものを試すときは、一時的に読み込みます:
-`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-リリースの `headerlab-<version>-firefox.zip` をそのまま、または `pnpm build` 後の
-`.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。エージェントブリッジは
-Firefox では提供されません — 制限事項の表を参照。
+自分でビルドしたものも同じ手順で読み込みます: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `pnpm build` 後の `.output/firefox-mv3/manifest.json`。こちらも
+Firefox を再起動すると消えます。エージェントブリッジは Firefox では提供されません —
+制限事項の表を参照。
 
 ## AI
 

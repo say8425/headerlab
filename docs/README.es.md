@@ -28,13 +28,25 @@ Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Página de releases
 
-Cada release `extension-v*` posterior a 1.7.0 adjunta tres archivos: `headerlab-<version>-chrome.zip`,
-`headerlab-<version>-firefox.zip` y `headerlab-<version>-sources.zip` — el archivo de
-fuentes que los revisores de Mozilla reconstruyen, adjunto para que cualquiera vea
-exactamente lo que recibieron. La 1.7.0 y las anteriores solo llevan el zip de Chrome. Descarga el asset de Chrome de la versión que quieras desde
-la [página de releases](https://github.com/say8425/headerlab/releases) y descomprímelo.
-Luego `chrome://extensions` → **Modo de desarrollador** → **Cargar descomprimida** → el
-directorio descomprimido.
+Las releases tituladas `extension:` llevan una build para cada navegador en sus **Assets** —
+las `cli:` son el paquete de la CLI. Descarga la que corresponda a tu navegador desde la
+[página de releases](https://github.com/say8425/headerlab/releases):
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+**Chrome.** Descomprímelo y luego `chrome://extensions` → **Modo de desarrollador** →
+**Cargar descomprimida** → el directorio descomprimido.
+
+**Firefox.** No lo descomprimas: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → el zip tal cual. El archivo no lleva firma de la tienda, así que se
+carga como complemento temporal y desaparece al reiniciar Firefox — si quieres una instalación
+que permanezca, descárgala de Firefox Add-ons más arriba.
+
+La misma release lleva además `headerlab-<version>-sources.zip`, el archivo de fuentes que los
+revisores de Mozilla reconstruyen, adjunto para que cualquiera vea exactamente lo que
+recibieron, y un `.crx` firmado, que es lo que recibe el envío a la Chrome Web Store y no un
+archivo para cargar a mano. La 1.7.0 y las anteriores solo llevan el zip de Chrome.
 
 ### Constrúyelo tú mismo
 
@@ -50,10 +62,10 @@ Se requiere Node 24 (`.nvmrc`). `pnpm build:firefox` construye solo `.output/fir
 
 ### Firefox
 
-Para probar una build propia en lugar de la firmada de la tienda, cárgala temporalmente:
-`about:debugging` → **This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
-release tal cual, o `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
-Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.
+Una build propia se carga igual: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `.output/firefox-mv3/manifest.json` tras `pnpm build`. También
+desaparece al reiniciar Firefox. El puente para agentes no se ofrece en Firefox — ver
+Limitaciones.
 
 ## AI
 

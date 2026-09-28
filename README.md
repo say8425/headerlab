@@ -28,13 +28,25 @@ Chrome and Firefox from their stores. Safari is planned.
 
 ### Release page
 
-Every `extension-v*` release after 1.7.0 attaches three archives: `headerlab-<version>-chrome.zip`,
-`headerlab-<version>-firefox.zip`, and `headerlab-<version>-sources.zip` — the source
-archive Mozilla's reviewers rebuild, attached so anyone can see exactly what they got.
-1.7.0 and earlier carry the Chrome zip only.
-Take the Chrome asset for the version you want from the [releases page](../../releases),
-unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** → the
-unpacked directory.
+The releases titled `extension:` carry a build for each browser under **Assets** — the `cli:`
+ones are the CLI package. Take the one for your browser from the
+[releases page](../../releases):
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+**Chrome.** Unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** →
+the unpacked directory.
+
+**Firefox.** Do not unpack it: `about:debugging` → **This Firefox** → **Load Temporary Add-on**
+→ the zip as it is. The archive carries no store signature, so it loads as a temporary add-on
+and is gone when Firefox restarts — for an install that stays, take it from Firefox Add-ons
+above.
+
+The same release also carries `headerlab-<version>-sources.zip`, the source archive Mozilla's
+reviewers rebuild, attached so anyone can see exactly what they got, and a signed `.crx`, which
+is what the Chrome Web Store submission takes rather than a file to load by hand. 1.7.0 and
+earlier carry the Chrome zip only.
 
 ### Build it yourself
 
@@ -50,11 +62,9 @@ Node 24 is required (`.nvmrc`). `pnpm build:firefox` builds only `.output/firefo
 
 ### Firefox
 
-To load a build you made yourself, rather than the signed one from the store:
-`about:debugging` → **This Firefox** →
-**Load Temporary Add-on** → either the release's `headerlab-<version>-firefox.zip` as it
-is, or `.output/firefox-mv3/manifest.json` after `pnpm build`. It stays until Firefox
-restarts. The agent bridge is not offered on Firefox — see Limitations.
+A build you made yourself loads the same way: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `.output/firefox-mv3/manifest.json` after `pnpm build`. It too is
+gone when Firefox restarts. The agent bridge is not offered on Firefox — see Limitations.
 
 ## AI
 

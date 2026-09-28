@@ -27,11 +27,22 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### 发布页面
 
-1.7.0 之后的每个 `extension-v*` 发布都附带三个压缩包：`headerlab-<version>-chrome.zip`、
-`headerlab-<version>-firefox.zip`，以及 Mozilla 审核者用来重新构建的源码包
-`headerlab-<version>-sources.zip` — 一并附上，让任何人都能看到他们拿到的是什么。1.7.0 及更早的发布只有 Chrome zip。在
-[发布页面](https://github.com/say8425/headerlab/releases)取下你要的版本的 Chrome 资源，解压，然后
-`chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的目录。
+标题以 `extension:` 开头的发布，其 **Assets** 里带着每个浏览器的构建 —— `cli:` 那些是 CLI
+包。到[发布页面](https://github.com/say8425/headerlab/releases)取适合你浏览器的那一个：
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+**Chrome.** 解压，然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** →
+选择解压后的目录。
+
+**Firefox.** 不要解压：`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+直接选那个 zip。这个压缩包没有商店签名，所以它作为临时附加组件加载，Firefox 重启后即消失
+—— 想要留得住的安装，就从上面的 Firefox Add-ons 装。
+
+同一个发布还带着 `headerlab-<version>-sources.zip`，也就是 Mozilla 审核者用来重新构建的源码
+包，一并附上，让任何人都能看到他们拿到的是什么；另外还有一个签名过的 `.crx`，那是提交给
+Chrome 网上应用店时用的文件，不是拿来手动加载的。1.7.0 及更早的发布只有 Chrome zip。
 
 ### 自行构建
 
@@ -47,10 +58,9 @@ pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 
 ### Firefox
 
-想试自己构建的版本而不是商店里的签名版时，临时加载：`about:debugging`
-→ **This Firefox** → **Load Temporary Add-on** → 直接选发布页的 `headerlab-<version>-firefox.zip`，
-或者 `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在
-Firefox 上提供 — 见限制表。
+自己构建的版本也用同样的方式加载：`about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。它同样在
+Firefox 重启后消失。代理桥接不在 Firefox 上提供 — 见限制表。
 
 ## AI
 

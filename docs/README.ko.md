@@ -28,13 +28,25 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ### 릴리즈 페이지
 
-1.7.0 이후의 `extension-v*` 릴리즈마다 아카이브 셋이 첨부됩니다: `headerlab-<version>-chrome.zip`,
-`headerlab-<version>-firefox.zip`, 그리고 Mozilla 리뷰어가 다시 빌드하는 소스 아카이브
-`headerlab-<version>-sources.zip` — 그들이 받은 것을 누구나 볼 수 있도록 함께 붙입니다.
+제목이 `extension:` 으로 시작하는 릴리즈의 **Assets** 에 브라우저별 빌드가 붙어 있습니다 —
+`cli:` 쪽은 CLI 패키지입니다. [릴리즈](https://github.com/say8425/headerlab/releases)에서
+자기 브라우저에 맞는 것을 받습니다:
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+**크롬.** 압축을 풀고 `chrome://extensions` → **개발자 모드** →
+**압축해제된 확장 프로그램을 로드합니다** → 압축 푼 디렉터리 선택.
+
+**파이어폭스.** 압축을 풀지 않습니다: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → zip 파일을 그대로 선택. 이 아카이브에는 스토어 서명이 없어서 임시
+부가 기능으로 올라가고, 파이어폭스를 재시작하면 사라집니다 — 남는 설치를 원하면 위의
+Firefox Add-ons 에서 받으세요.
+
+같은 릴리즈에는 Mozilla 리뷰어가 다시 빌드하는 소스 아카이브 `headerlab-<version>-sources.zip`
+도 함께 붙습니다. 그들이 받은 것을 누구나 볼 수 있도록 붙이는 것입니다. 서명된 `.crx` 도
+있지만, 그것은 크롬 웹 스토어 제출이 받는 파일이지 직접 로드하는 파일이 아닙니다.
 1.7.0 과 그 이전 릴리즈에는 크롬 zip 만 있습니다.
-[릴리즈](https://github.com/say8425/headerlab/releases)에서 원하는 버전의 크롬 에셋 압축을 풀고
-`chrome://extensions` → **개발자 모드** → **압축해제된 확장 프로그램을 로드합니다** →
-압축 푼 디렉터리 선택.
 
 ### 직접 빌드
 
@@ -50,11 +62,10 @@ Node 24가 필요합니다 (`.nvmrc`). `pnpm build:firefox`는 `.output/firefox-
 
 ### 파이어폭스
 
-스토어의 서명본 대신 직접 만든 빌드를 올려 보려면 임시로 로드합니다:
-`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-릴리즈의 `headerlab-<version>-firefox.zip` 을 그대로, 또는 `pnpm build` 뒤의
-`.output/firefox-mv3/manifest.json`. 파이어폭스를 재시작하면 사라집니다. 에이전트 브리지는
-파이어폭스에서 제공되지 않습니다 — 제한 사항 표를 보세요.
+직접 만든 빌드도 같은 방법으로 올립니다: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `pnpm build` 뒤의 `.output/firefox-mv3/manifest.json`. 이것도
+파이어폭스를 재시작하면 사라집니다. 에이전트 브리지는 파이어폭스에서 제공되지 않습니다 —
+제한 사항 표를 보세요.
 
 ## AI
 
