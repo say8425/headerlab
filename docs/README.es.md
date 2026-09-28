@@ -35,11 +35,6 @@ las `cli:` son el paquete de la CLI. Descarga la que corresponda a tu navegador 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-La misma release lleva además `headerlab-<version>-sources.zip`, el archivo de fuentes que los
-revisores de Mozilla reconstruyen, adjunto para que cualquiera vea exactamente lo que
-recibieron, y un `.crx` firmado, que es lo que recibe el envío a la Chrome Web Store y no un
-archivo para cargar a mano. La 1.7.0 y las anteriores solo llevan el zip de Chrome.
-
 #### Chrome
 
 Descomprímelo y luego `chrome://extensions` → **Modo de desarrollador** →

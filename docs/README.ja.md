@@ -36,12 +36,6 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-同じリリースには、Mozilla のレビュアーが再ビルドするソースアーカイブ
-`headerlab-<version>-sources.zip` も添付されます。彼らが受け取ったものを誰でも見られるように
-するためです。署名済みの `.crx` もありますが、これは Chrome ウェブストアへの申請が受け取る
-ファイルで、手で読み込むためのものではありません。1.7.0 以前のリリースには Chrome の zip だけが
-あります。
-
 #### Chrome
 
 展開してから `chrome://extensions` → **デベロッパーモード** →

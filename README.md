@@ -35,11 +35,6 @@ ones are the CLI package. Take the one for your browser from the
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-The same release also carries `headerlab-<version>-sources.zip`, the source archive Mozilla's
-reviewers rebuild, attached so anyone can see exactly what they got, and a signed `.crx`, which
-is what the Chrome Web Store submission takes rather than a file to load by hand. 1.7.0 and
-earlier carry the Chrome zip only.
-
 #### Chrome
 
 Unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked
