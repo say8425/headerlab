@@ -35,18 +35,21 @@ ones are the CLI package. Take the one for your browser from the
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-**Chrome.** Unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** →
-the unpacked directory.
-
-**Firefox.** Do not unpack it: `about:debugging` → **This Firefox** → **Load Temporary Add-on**
-→ the zip as it is. The archive carries no store signature, so it loads as a temporary add-on
-and is gone when Firefox restarts — for an install that stays, take it from Firefox Add-ons
-above.
-
 The same release also carries `headerlab-<version>-sources.zip`, the source archive Mozilla's
 reviewers rebuild, attached so anyone can see exactly what they got, and a signed `.crx`, which
 is what the Chrome Web Store submission takes rather than a file to load by hand. 1.7.0 and
 earlier carry the Chrome zip only.
+
+#### Chrome
+
+Unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked
+directory.
+
+#### Firefox
+
+Do not unpack it: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → the zip as
+it is. The archive carries no store signature, so it loads as a temporary add-on and is gone
+when Firefox restarts — for an install that stays, take it from Firefox Add-ons above.
 
 ### Build it yourself
 

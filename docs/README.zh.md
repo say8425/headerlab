@@ -33,16 +33,20 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-**Chrome.** 解压，然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** →
-选择解压后的目录。
-
-**Firefox.** 不要解压：`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-直接选那个 zip。这个压缩包没有商店签名，所以它作为临时附加组件加载，Firefox 重启后即消失
-—— 想要留得住的安装，就从上面的 Firefox Add-ons 装。
-
 同一个发布还带着 `headerlab-<version>-sources.zip`，也就是 Mozilla 审核者用来重新构建的源码
 包，一并附上，让任何人都能看到他们拿到的是什么；另外还有一个签名过的 `.crx`，那是提交给
 Chrome 网上应用店时用的文件，不是拿来手动加载的。1.7.0 及更早的发布只有 Chrome zip。
+
+#### Chrome
+
+解压，然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的
+目录。
+
+#### Firefox
+
+不要解压：`about:debugging` → **This Firefox** → **Load Temporary Add-on** → 直接选那个 zip。
+这个压缩包没有商店签名，所以它作为临时附加组件加载，Firefox 重启后即消失 —— 想要留得住的
+安装，就从上面的 Firefox Add-ons 装。
 
 ### 自行构建
 

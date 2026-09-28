@@ -36,19 +36,23 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
-**Chrome.** 展開してから `chrome://extensions` → **デベロッパーモード** →
-**パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
-
-**Firefox.** 展開はしません: `about:debugging` → **This Firefox** →
-**Load Temporary Add-on** → zip をそのまま選びます。このアーカイブにはストアの署名がないので
-一時的なアドオンとして読み込まれ、Firefox を再起動すると消えます — 残るインストールが必要
-なら、上の Firefox Add-ons から入れてください。
-
 同じリリースには、Mozilla のレビュアーが再ビルドするソースアーカイブ
 `headerlab-<version>-sources.zip` も添付されます。彼らが受け取ったものを誰でも見られるように
 するためです。署名済みの `.crx` もありますが、これは Chrome ウェブストアへの申請が受け取る
 ファイルで、手で読み込むためのものではありません。1.7.0 以前のリリースには Chrome の zip だけが
 あります。
+
+#### Chrome
+
+展開してから `chrome://extensions` → **デベロッパーモード** →
+**パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
+
+#### Firefox
+
+展開はしません: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → zip を
+そのまま選びます。このアーカイブにはストアの署名がないので一時的なアドオンとして読み込まれ、
+Firefox を再起動すると消えます — 残るインストールが必要なら、上の Firefox Add-ons から入れて
+ください。
 
 ### 自分でビルドする
 
