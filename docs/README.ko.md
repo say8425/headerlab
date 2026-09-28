@@ -28,23 +28,25 @@ Chrome 과 Firefox 에서 HTTP 요청·응답 헤더를 추가하고, 수정하�
 
 ### 릴리즈 페이지
 
-제목이 `extension:` 으로 시작하는 릴리즈의 **Assets** 에 브라우저별 빌드가 붙어 있습니다 —
-`cli:` 쪽은 CLI 패키지입니다. [릴리즈](https://github.com/say8425/headerlab/releases)에서
-자기 브라우저에 맞는 것을 받습니다:
+[릴리즈](https://github.com/say8425/headerlab/releases)에서 제목이 `extension:` 인 것을 찾아,
+브라우저에 맞는 파일을 받습니다. `cli:` 는 CLI 패키지입니다.
 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
 #### 크롬
 
-압축을 풀고 `chrome://extensions` → **개발자 모드** →
+압축을 풉니다. 그다음 `chrome://extensions` → **개발자 모드** →
 **압축해제된 확장 프로그램을 로드합니다** → 압축 푼 디렉터리 선택.
 
 #### 파이어폭스
 
-압축을 풀지 않습니다: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-zip 파일을 그대로 선택. 이 아카이브에는 스토어 서명이 없어서 임시 부가 기능으로 올라가고,
-파이어폭스를 재시작하면 사라집니다 — 남는 설치를 원하면 위의 Firefox Add-ons 에서 받으세요.
+압축을 풀지 않습니다. `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
+zip 파일 선택.
+
+> [!NOTE]
+> 이 아카이브에는 서명이 없습니다. 임시 부가 기능으로 올라가고, 파이어폭스를 재시작하면
+> 사라집니다. 남는 설치는 위의 Firefox Add-ons 에서 받으세요.
 
 ### 직접 빌드
 

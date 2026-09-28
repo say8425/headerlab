@@ -28,25 +28,24 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### リリースページ
 
-タイトルが `extension:` で始まるリリースの **Assets** に、ブラウザーごとのビルドが添付されて
-います — `cli:` のほうは CLI パッケージです。
-[リリースページ](https://github.com/say8425/headerlab/releases)から、自分のブラウザーに合う
-ものを取得します:
+[リリースページ](https://github.com/say8425/headerlab/releases)でタイトルが `extension:` の
+ものを開き、自分のブラウザー用のファイルを取得します。`cli:` は CLI パッケージです。
 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
 #### Chrome
 
-展開してから `chrome://extensions` → **デベロッパーモード** →
+展開します。そのあと `chrome://extensions` → **デベロッパーモード** →
 **パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
 
 #### Firefox
 
-展開はしません: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → zip を
-そのまま選びます。このアーカイブにはストアの署名がないので一時的なアドオンとして読み込まれ、
-Firefox を再起動すると消えます — 残るインストールが必要なら、上の Firefox Add-ons から入れて
-ください。
+展開しません。`about:debugging` → **This Firefox** → **Load Temporary Add-on** → zip を選びます。
+
+> [!NOTE]
+> このアーカイブには署名がありません。一時的なアドオンとして読み込まれ、Firefox を再起動すると
+> 消えます。残るインストールには、上の Firefox Add-ons を使ってください。
 
 ### 自分でビルドする
 

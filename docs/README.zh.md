@@ -27,22 +27,24 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### 发布页面
 
-标题以 `extension:` 开头的发布，其 **Assets** 里带着每个浏览器的构建 —— `cli:` 那些是 CLI
-包。到[发布页面](https://github.com/say8425/headerlab/releases)取适合你浏览器的那一个：
+到[发布页面](https://github.com/say8425/headerlab/releases)找标题以 `extension:` 开头的发布，
+取适合你浏览器的文件。`cli:` 是 CLI 包。
 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
 #### Chrome
 
-解压，然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的
+先解压。然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的
 目录。
 
 #### Firefox
 
-不要解压：`about:debugging` → **This Firefox** → **Load Temporary Add-on** → 直接选那个 zip。
-这个压缩包没有商店签名，所以它作为临时附加组件加载，Firefox 重启后即消失 —— 想要留得住的
-安装，就从上面的 Firefox Add-ons 装。
+不要解压。`about:debugging` → **This Firefox** → **Load Temporary Add-on** → 选那个 zip。
+
+> [!NOTE]
+> 这个压缩包没有签名。它作为临时附加组件加载，Firefox 重启后即消失。想要留得住的安装，用上面的
+> Firefox Add-ons。
 
 ### 自行构建
 

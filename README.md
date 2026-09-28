@@ -28,23 +28,24 @@ Chrome and Firefox from their stores. Safari is planned.
 
 ### Release page
 
-The releases titled `extension:` carry a build for each browser under **Assets** — the `cli:`
-ones are the CLI package. Take the one for your browser from the
-[releases page](../../releases):
+Take the build for your browser from a release titled `extension:` on the
+[releases page](../../releases). The `cli:` ones are the CLI package.
 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
 #### Chrome
 
-Unpack it, then `chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked
+Unpack it. Then `chrome://extensions` → **Developer mode** → **Load unpacked** → the unpacked
 directory.
 
 #### Firefox
 
-Do not unpack it: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → the zip as
-it is. The archive carries no store signature, so it loads as a temporary add-on and is gone
-when Firefox restarts — for an install that stays, take it from Firefox Add-ons above.
+Do not unpack it. `about:debugging` → **This Firefox** → **Load Temporary Add-on** → the zip.
+
+> [!NOTE]
+> The archive is unsigned. It loads as a temporary add-on and is gone when Firefox restarts.
+> For an install that stays, use Firefox Add-ons above.
 
 ### Build it yourself
 

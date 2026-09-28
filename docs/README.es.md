@@ -28,24 +28,25 @@ Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Página de releases
 
-Las releases tituladas `extension:` llevan una build para cada navegador en sus **Assets** —
-las `cli:` son el paquete de la CLI. Descarga la que corresponda a tu navegador desde la
-[página de releases](https://github.com/say8425/headerlab/releases):
+Descarga la build de tu navegador desde una release titulada `extension:` en la
+[página de releases](https://github.com/say8425/headerlab/releases). Las `cli:` son el paquete
+de la CLI.
 
 - `headerlab-<version>-chrome.zip`
 - `headerlab-<version>-firefox.zip`
 
 #### Chrome
 
-Descomprímelo y luego `chrome://extensions` → **Modo de desarrollador** →
+Descomprímelo. Luego `chrome://extensions` → **Modo de desarrollador** →
 **Cargar descomprimida** → el directorio descomprimido.
 
 #### Firefox
 
-No lo descomprimas: `about:debugging` → **This Firefox** → **Load Temporary Add-on** → el zip
-tal cual. El archivo no lleva firma de la tienda, así que se carga como complemento temporal y
-desaparece al reiniciar Firefox — si quieres una instalación que permanezca, descárgala de
-Firefox Add-ons más arriba.
+No lo descomprimas. `about:debugging` → **This Firefox** → **Load Temporary Add-on** → el zip.
+
+> [!NOTE]
+> El archivo no está firmado. Se carga como complemento temporal y desaparece al reiniciar
+> Firefox. Para una instalación que permanezca, usa Firefox Add-ons más arriba.
 
 ### Constrúyelo tú mismo
 
