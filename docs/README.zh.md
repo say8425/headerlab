@@ -19,21 +19,32 @@ Chrome 和 Firefox 都从各自的商店安装。Safari 在计划中。
 
 ### Chrome 网上应用店
 
-推荐从
-[Chrome 网上应用店](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)
-安装。
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="可在 Chrome 网上应用店获取" height="58"></a>
 
 ### Firefox Add-ons
 
-在 Firefox 上推荐从 [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) 安装。
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="获取 Firefox 附加组件" width="166" height="58"></a>
 
 ### 发布页面
 
-1.7.0 之后的每个 `extension-v*` 发布都附带三个压缩包：`headerlab-<version>-chrome.zip`、
-`headerlab-<version>-firefox.zip`，以及 Mozilla 审核者用来重新构建的源码包
-`headerlab-<version>-sources.zip` — 一并附上，让任何人都能看到他们拿到的是什么。1.7.0 及更早的发布只有 Chrome zip。在
-[发布页面](https://github.com/say8425/headerlab/releases)取下你要的版本的 Chrome 资源，解压，然后
-`chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的目录。
+到[发布页面](https://github.com/say8425/headerlab/releases)找标题以 `extension:` 开头的发布，
+取适合你浏览器的文件。`cli:` 是 CLI 包。
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+#### Chrome
+
+先解压。然后 `chrome://extensions` → **开发者模式** → **加载已解压的扩展程序** → 选择解压后的
+目录。
+
+#### Firefox
+
+不要解压。`about:debugging` → **This Firefox** → **Load Temporary Add-on** → 选那个 zip。
+
+> [!NOTE]
+> 这个压缩包没有签名。它作为临时附加组件加载，Firefox 重启后即消失。想要留得住的安装，用上面的
+> Firefox Add-ons。
 
 ### 自行构建
 
@@ -49,10 +60,9 @@ pnpm build               # → .output/chrome-mv3 和 .output/firefox-mv3
 
 ### Firefox
 
-想试自己构建的版本而不是商店里的签名版时，临时加载：`about:debugging`
-→ **This Firefox** → **Load Temporary Add-on** → 直接选发布页的 `headerlab-<version>-firefox.zip`，
-或者 `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。Firefox 重启后即消失。代理桥接不在
-Firefox 上提供 — 见限制表。
+自己构建的版本也用同样的方式加载：`about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `pnpm build` 之后的 `.output/firefox-mv3/manifest.json`。它同样在
+Firefox 重启后消失。代理桥接不在 Firefox 上提供 — 见限制表。
 
 ## AI
 

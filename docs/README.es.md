@@ -20,22 +20,33 @@ Chrome y Firefox desde sus tiendas. Safari está previsto.
 
 ### Chrome Web Store
 
-Se recomienda instalarla desde la
-[Chrome Web Store](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn).
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="Disponible en Chrome Web Store" height="58"></a>
 
 ### Firefox Add-ons
 
-En Firefox se recomienda instalarla desde [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/).
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Obtén el complemento para Firefox" width="166" height="58"></a>
 
 ### Página de releases
 
-Cada release `extension-v*` posterior a 1.7.0 adjunta tres archivos: `headerlab-<version>-chrome.zip`,
-`headerlab-<version>-firefox.zip` y `headerlab-<version>-sources.zip` — el archivo de
-fuentes que los revisores de Mozilla reconstruyen, adjunto para que cualquiera vea
-exactamente lo que recibieron. La 1.7.0 y las anteriores solo llevan el zip de Chrome. Descarga el asset de Chrome de la versión que quieras desde
-la [página de releases](https://github.com/say8425/headerlab/releases) y descomprímelo.
-Luego `chrome://extensions` → **Modo de desarrollador** → **Cargar descomprimida** → el
-directorio descomprimido.
+Descarga la build de tu navegador desde una release titulada `extension:` en la
+[página de releases](https://github.com/say8425/headerlab/releases). Las `cli:` son el paquete
+de la CLI.
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+#### Chrome
+
+Descomprímelo. Luego `chrome://extensions` → **Modo de desarrollador** →
+**Cargar descomprimida** → el directorio descomprimido.
+
+#### Firefox
+
+No lo descomprimas. `about:debugging` → **This Firefox** → **Load Temporary Add-on** → el zip.
+
+> [!NOTE]
+> El archivo no está firmado. Se carga como complemento temporal y desaparece al reiniciar
+> Firefox. Para una instalación que permanezca, usa Firefox Add-ons más arriba.
 
 ### Constrúyelo tú mismo
 
@@ -51,10 +62,10 @@ Se requiere Node 24 (`.nvmrc`). `pnpm build:firefox` construye solo `.output/fir
 
 ### Firefox
 
-Para probar una build propia en lugar de la firmada de la tienda, cárgala temporalmente:
-`about:debugging` → **This Firefox** → **Load Temporary Add-on** → el `headerlab-<version>-firefox.zip` de la
-release tal cual, o `.output/firefox-mv3/manifest.json` tras `pnpm build`. Dura hasta que
-Firefox se reinicie. El puente para agentes no se ofrece en Firefox — ver Limitaciones.
+Una build propia se carga igual: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `.output/firefox-mv3/manifest.json` tras `pnpm build`. También
+desaparece al reiniciar Firefox. El puente para agentes no se ofrece en Firefox — ver
+Limitaciones.
 
 ## AI
 

@@ -20,22 +20,32 @@ Chrome も Firefox もそれぞれのストアから。Safari は対応予定。
 
 ### Chrome ウェブストア
 
-[Chrome ウェブストア](https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn)からの
-インストールを推奨します。
+<a href="https://chromewebstore.google.com/detail/headerlab/kgapijlldieckifoenckgninnepafhnn"><img src="badges/chrome-web-store.png" alt="Chrome ウェブストアで利用可能" height="58"></a>
 
 ### Firefox Add-ons
 
-Firefox では [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/headerlab/) からのインストールを推奨します。
+<a href="https://addons.mozilla.org/firefox/addon/headerlab/"><img src="badges/firefox-add-ons.svg" alt="Firefox アドオンを入手" width="166" height="58"></a>
 
 ### リリースページ
 
-1.7.0 より後の `extension-v*` リリースには三つのアーカイブが添付されます: `headerlab-<version>-chrome.zip`、
-`headerlab-<version>-firefox.zip`、そして Mozilla のレビュアーが再ビルドするソースアーカイブ
-`headerlab-<version>-sources.zip` — 彼らが受け取ったものを誰でも見られるよう、一緒に添付します。
-1.7.0 以前のリリースには Chrome の zip だけがあります。
-[リリースページ](https://github.com/say8425/headerlab/releases)から必要なバージョンの
-Chrome アセットを取得して展開し、`chrome://extensions` → **デベロッパーモード** →
+[リリースページ](https://github.com/say8425/headerlab/releases)でタイトルが `extension:` の
+ものを開き、自分のブラウザー用のファイルを取得します。`cli:` は CLI パッケージです。
+
+- `headerlab-<version>-chrome.zip`
+- `headerlab-<version>-firefox.zip`
+
+#### Chrome
+
+展開します。そのあと `chrome://extensions` → **デベロッパーモード** →
 **パッケージ化されていない拡張機能を読み込む** → 展開したディレクトリ。
+
+#### Firefox
+
+展開しません。`about:debugging` → **This Firefox** → **Load Temporary Add-on** → zip を選びます。
+
+> [!NOTE]
+> このアーカイブには署名がありません。一時的なアドオンとして読み込まれ、Firefox を再起動すると
+> 消えます。残るインストールには、上の Firefox Add-ons を使ってください。
 
 ### 自分でビルドする
 
@@ -51,11 +61,10 @@ Node 24 が必要です（`.nvmrc`）。`pnpm build:firefox` は `.output/firefo
 
 ### Firefox
 
-ストアの署名済みビルドではなく自分でビルドしたものを試すときは、一時的に読み込みます:
-`about:debugging` → **This Firefox** → **Load Temporary Add-on** →
-リリースの `headerlab-<version>-firefox.zip` をそのまま、または `pnpm build` 後の
-`.output/firefox-mv3/manifest.json`。Firefox を再起動すると消えます。エージェントブリッジは
-Firefox では提供されません — 制限事項の表を参照。
+自分でビルドしたものも同じ手順で読み込みます: `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** → `pnpm build` 後の `.output/firefox-mv3/manifest.json`。こちらも
+Firefox を再起動すると消えます。エージェントブリッジは Firefox では提供されません —
+制限事項の表を参照。
 
 ## AI
 
