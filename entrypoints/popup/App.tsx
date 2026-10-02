@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
 import { hasBridge } from '@/lib/compile/capabilities';
+import { BRIDGE_REFRESH } from '@/lib/bridge/protocol';
 import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
@@ -279,6 +281,21 @@ export default function App() {
       cancelled = true;
       unwatch();
     };
+  }, []);
+
+  /**
+   * Opening the popup is a retry. Without it, a port that spent its connect
+   * budget before `headerlab bridge install` ran stayed `down` until the
+   * extension was reloaded — the remedy the row names did nothing visible.
+   * `[]`: once per opening, not per state write. A no-op when a port is open
+   * or the permission is not held (`refreshBridge`). The result arrives
+   * through the `bridgeStatus` watch above, not through this reply.
+   */
+  useEffect(() => {
+    if (!hasBridge(TARGET)) return;
+    browser.runtime.sendMessage({ type: BRIDGE_REFRESH }).catch((error: unknown) => {
+      console.error('[HeaderLab] could not ask the background worker to retry the bridge', error);
+    });
   }, []);
 
   useEffect(() => {

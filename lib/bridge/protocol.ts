@@ -117,3 +117,20 @@ export type Query = z.infer<typeof querySchema>;
 export function parseQuery(input: unknown): Query {
   return querySchema.parse(input);
 }
+
+/**
+ * The popup's one message to the background worker: "try the port again".
+ *
+ * Not a bridge command — it never reaches the native host, and it carries no
+ * payload. It exists because every other trigger `refreshBridge()` listens to
+ * (worker startup, extension install, a permission arriving or going away)
+ * is one a person who has just run `headerlab bridge install` cannot cause
+ * without reloading the extension or toggling the switch. Opening the popup to
+ * look at the row is what that person does next, so the look itself retries —
+ * against the same bounded budget, and only when no port is open.
+ */
+export const BRIDGE_REFRESH = 'headerlab:bridge-refresh';
+
+export function isBridgeRefresh(message: unknown): boolean {
+  return (message as { type?: unknown } | null)?.type === BRIDGE_REFRESH;
+}
