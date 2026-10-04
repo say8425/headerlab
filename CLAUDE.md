@@ -175,6 +175,12 @@ read the headers back are the strongest evidence in the repo — do not weaken t
   checks) and the two store badges under Install — `readmeLiterals.test.ts` resolves each badge's
   `src` from its own README's directory (the paths differ by depth) and pins the store it links.
   The shields.io row at the top and "Node 24" in words are shared too, and neither is checked.
+- **`docs/store/` is this repository's `CHROMEWEBSTORE.md`; never create one at the root.**
+  Chrome's AI guidance and the `chrome-extensions` skill ask for that file. Permission
+  justifications go in `docs/store/privacy.md`, which `storeListing.test.ts` holds to the
+  manifest, and the listing goes in `listing.md` and `description.en.md`. Template sections with
+  nothing to hold here stay out: release-please keeps version history, and `pnpm store:probe`
+  reads review status.
 - **Touching `packages/headerlab/` means reviewing
   `packages/plugin/skills/headerlab/SKILL.md` in the same change** (`.claude/rules/cli-bridge.md`).
 - Measure rather than recall: back every figure you write down with the command that

@@ -370,3 +370,40 @@ describe('the summary table in listing.md', () => {
     expect(shippedSummary().length, 'listing.md length column').toBe(row.length);
   });
 });
+
+describe('the permission justifications in privacy.md', () => {
+  /**
+   * The dashboard has one justification box per permission the package
+   * declares, and `privacy.md` holds the text for each. Nothing else ties the
+   * two together: `manifest.test.ts` pins the manifest, and a permission added
+   * there would reach the store with no prepared answer — or a removed one
+   * would leave an answer for a box that no longer exists.
+   *
+   * Reads the built manifest, as the summary table above does: the store is
+   * handed the build, not `wxt.config.ts`.
+   */
+  const justified = (): string[] => {
+    const text = readFileSync(path.join(STORE, 'privacy.md'), 'utf8');
+    const section = /^## Permission justifications\n([\s\S]*?)^## /m.exec(text);
+    if (!section) throw new Error('docs/store/privacy.md has no "## Permission justifications".');
+    // The first backticked token of each `###` heading is the permission; the
+    // rest of the heading says where the manifest declares it.
+    return [...section[1]!.matchAll(/^### [^`\n]*`([^`]+)`/gm)].map(([, name]) => name!);
+  };
+
+  const declared = (): string[] => {
+    const manifest = JSON.parse(readBuildFile('production', 'manifest.json'));
+    return [
+      ...(manifest.permissions ?? []),
+      ...(manifest.host_permissions ?? []),
+      ...(manifest.optional_permissions ?? []),
+      ...(manifest.optional_host_permissions ?? []),
+    ];
+  };
+
+  it('justifies exactly the permissions the package declares, each once', () => {
+    // Sorted on both sides so the order of headings is free; `toEqual` on the
+    // arrays rather than a set so a heading written twice fails too.
+    expect(justified().toSorted()).toEqual(declared().toSorted());
+  });
+});
