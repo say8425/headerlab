@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
 import { RulePanel } from '@/components/RulePanel';
 import { compile } from '@/lib/compile/compile';
 import { hasBridge } from '@/lib/compile/capabilities';
+import { BRIDGE_REFRESH } from '@/lib/bridge/protocol';
 import { isSuppressed } from '@/lib/compile/suppression';
 import { routeDiagnostics, ruleTally } from '@/lib/view/rules';
 import { resolveSingleProfile } from '@/lib/view/singleProfile';
@@ -24,6 +26,23 @@ import { bootstrapProfile, newRule } from '@/lib/model/defaults';
 import { TARGET } from '@/lib/target';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
+
+/**
+ * Asks the background worker to try the bridge port again. `false` means the
+ * retry did not run — logged, and said on screen by whoever shows a
+ * Retry button. What the retry achieved is not in the answer: it lands in
+ * `bridgeStatus`, which the popup already watches.
+ */
+async function retryBridge(): Promise<boolean> {
+  try {
+    // `true` only when the worker ran the retry; it answers `false` when
+    // `refreshBridge()` itself threw, and has already logged why.
+    return (await browser.runtime.sendMessage({ type: BRIDGE_REFRESH })) === true;
+  } catch (error) {
+    console.error('[HeaderLab] could not ask the background worker to retry the bridge', error);
+    return false;
+  }
+}
 
 export default function App() {
   const { state, valid, patch } = useAppState();
@@ -281,6 +300,19 @@ export default function App() {
     };
   }, []);
 
+  /**
+   * Opening the popup is a retry. Without it, a port that spent its connect
+   * budget before `headerlab bridge install` ran stayed `down` until the
+   * extension was reloaded — the remedy the row names did nothing visible.
+   * `[]`: once per opening, not per state write. A no-op when a port is open
+   * or the permission is not held (`refreshBridge`). The result arrives
+   * through the `bridgeStatus` watch above, not through this reply.
+   */
+  useEffect(() => {
+    if (!hasBridge(TARGET)) return;
+    void retryBridge();
+  }, []);
+
   useEffect(() => {
     // Nothing to probe for on a build with no bridge: the Firefox manifest
     // declares no nativeMessaging permission and the rail renders no row.
@@ -493,6 +525,8 @@ export default function App() {
                 : { reason: 'error', message: result.message },
           );
         }}
+        extensionId={browser.runtime.id}
+        onRetryBridge={retryBridge}
         onDisableBridge={async () => {
           // Turning it off answers whatever the last failed request was
           // saying, so the mark goes with it rather than outliving its

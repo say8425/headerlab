@@ -77,6 +77,20 @@ Grant (see below). Run `headerlab bridge status` first to see what is
 already installed and what is live before assuming an install is needed at
 all.
 
+### Getting a bridge running
+
+Read `headerlab bridge status --json` and act on the first line that matches:
+
+| `bridge status` says | What to do |
+|---|---|
+| `installed: false`, or `allowedOrigins` does not name the extension | Run `headerlab bridge install --extension-id <id>`. The Chrome Web Store build's id is `kgapijlldieckifoenckgninnepafhnn`. An unpacked build has its own id: ask the person for it, or pass `--load-path <dir>` instead. In the popup, clicking the word `down` or `idle` on the **Agent bridge** row shows this command with the right id and a Copy button. |
+| `launcherMissing: true` or `entryMissing: true` | The CLI that wrote the launcher was moved, upgraded or uninstalled. Run the same `bridge install` again. |
+| installed, but `liveBridges` is empty | Ask the person to open the HeaderLab popup. If the **Agent bridge** switch is off, they turn it on and approve Chrome's prompt. If it is on, opening the popup retries the connection. |
+| still empty after that | Ask them to reload the extension on `chrome://extensions`. Builds older than the popup retry need this after every install. |
+
+Then run `headerlab status` again. Do not loop on it: each step above needs
+something only the person can do.
+
 ## Commands
 
 All of these are subcommands of `headerlab`. The global flags may be inserted

@@ -79,6 +79,8 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     bridgeRequestError: null,
     onEnableBridge: vi.fn(),
     onDisableBridge: vi.fn(),
+    extensionId: 'kgapijlldieckifoenckgninnepafhnn',
+    onRetryBridge: vi.fn(async () => true),
     typeNote: null,
     ...over,
   };
