@@ -21,8 +21,9 @@ One judgment call in here is **not** mine to make and is marked as such — see
 
 ## Permission justifications
 
-The manifest declares two permissions at install and two more as optional. Each
-needs its own box filled in.
+Every permission the manifest declares, required or optional, needs its own box
+filled in. `tests/unit/storeListing.test.ts` holds the headings below to the
+built manifest.
 
 ### `storage`
 
