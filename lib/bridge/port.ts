@@ -49,6 +49,19 @@ export const NATIVE_HOST_NAME = 'com.headerlab.bridge';
  */
 export const MAX_CONNECT_ATTEMPTS = 3;
 
+/**
+ * How long a new port must survive before the bridge is recorded as connected.
+ *
+ * Chrome hands back a Port before it knows whether the host exists, and a
+ * missing manifest, a wrong id or a launcher that cannot start all arrive as a
+ * disconnect a moment later. Recording `connected: true` at once made every
+ * failing attempt paint the row `live` for that moment — and since opening the
+ * popup became a retry trigger, that flash happened in front of the person
+ * reading the guide, and unmounted it. A healthy port is unaffected once open;
+ * only the first second after a (re)connect reads as not yet live.
+ */
+export const CONNECT_SETTLE_MS = 1000;
+
 let port: chrome.runtime.Port | null = null;
 let attempts = 0;
 
@@ -133,21 +146,23 @@ function connect(): void {
     void handleMessage(current, message);
   });
 
+  // Not yet `connected: true` — see CONNECT_SETTLE_MS. The identity check
+  // means a port that died or was superseded in the meantime never claims it.
+  const settled = setTimeout(() => {
+    if (port !== current) return;
+    reportStatusFailure(patchBridgeStatus({ connected: true, lastError: null }));
+  }, CONNECT_SETTLE_MS);
+
   current.onDisconnect.addListener(() => {
     // Chrome's message is only readable inside this callback, and it is the
     // only account of the failure that exists — read it first, decide after.
     const message = chrome.runtime.lastError?.message ?? null;
+    clearTimeout(settled);
     if (port !== current) return;
     port = null;
     reportStatusFailure(patchBridgeStatus({ connected: false, lastError: message }));
     if (attempts < MAX_CONNECT_ATTEMPTS) connect();
   });
-
-  // Optimistic, and corrected within milliseconds by the listener above if the
-  // host is not really there. The alternative — waiting for a round trip
-  // before saying so — would leave the popup showing `idle` for every healthy
-  // bridge until someone happened to run a command.
-  reportStatusFailure(patchBridgeStatus({ connected: true, lastError: null }));
 }
 
 /**

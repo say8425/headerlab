@@ -29,14 +29,15 @@ import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
 
 /**
  * Asks the background worker to try the bridge port again. `false` means the
- * ask itself was not delivered — logged, and said on screen by whoever shows a
+ * retry did not run — logged, and said on screen by whoever shows a
  * Retry button. What the retry achieved is not in the answer: it lands in
  * `bridgeStatus`, which the popup already watches.
  */
 async function retryBridge(): Promise<boolean> {
   try {
-    await browser.runtime.sendMessage({ type: BRIDGE_REFRESH });
-    return true;
+    // `true` only when the worker ran the retry; it answers `false` when
+    // `refreshBridge()` itself threw, and has already logged why.
+    return (await browser.runtime.sendMessage({ type: BRIDGE_REFRESH })) === true;
   } catch (error) {
     console.error('[HeaderLab] could not ask the background worker to retry the bridge', error);
     return false;

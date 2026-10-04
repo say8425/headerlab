@@ -1,6 +1,11 @@
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { declaresRegexMode, disconnectBridge, refreshBridge } from '@/lib/bridge/port';
+import {
+  CONNECT_SETTLE_MS,
+  declaresRegexMode,
+  disconnectBridge,
+  refreshBridge,
+} from '@/lib/bridge/port';
 import { bridgeStatusItem, getBridgeStatus } from '@/lib/storage/session';
 import { setState } from '@/lib/storage/state';
 import { bootstrapProfile, DEFAULT_STATE } from '@/lib/model/defaults';
@@ -127,6 +132,52 @@ describe('opening the port', () => {
 
     expect(port!.disconnected).toBe(true);
     expect((await getBridgeStatus()).connected).toBe(false);
+  });
+});
+
+describe('connected is recorded only once the port survives', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is not live the instant Chrome hands back a port', async () => {
+    // Chrome returns a Port before it knows the host exists. Recording it as
+    // connected at once painted the row `live` for every attempt that was
+    // about to fail.
+    await refreshBridge();
+    await vi.advanceTimersByTimeAsync(CONNECT_SETTLE_MS - 1);
+    expect((await getBridgeStatus()).connected).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await getBridgeStatus()).toEqual({
+      connected: true,
+      lastCommandAt: null,
+      lastError: null,
+    });
+  });
+
+  it('never reads live across attempts that all fail', async () => {
+    const seen: boolean[] = [];
+    const unwatch = bridgeStatusItem.watch((value) => seen.push(value?.connected ?? false));
+    await refreshBridge();
+    for (let i = 0; i < 5; i += 1) {
+      await vi.advanceTimersByTimeAsync(CONNECT_SETTLE_MS / 10);
+      ports.at(-1)!.die('Specified native messaging host not found.');
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    await vi.advanceTimersByTimeAsync(CONNECT_SETTLE_MS * 3);
+    unwatch();
+
+    expect(connectNative).toHaveBeenCalledTimes(3);
+    // Absence of `true` across every write, not just the last one.
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.filter((connected) => connected)).toEqual([]);
+    expect((await getBridgeStatus()).lastError).toEqual(
+      'Specified native messaging host not found.',
+    );
   });
 });
 
@@ -407,8 +458,15 @@ describe('a bridge-status write can fail without breaking the bridge', () => {
     // being caught and the others left as unhandled rejections.
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(bridgeStatusItem, 'setValue').mockRejectedValueOnce(new Error('disk full'));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
-    await refreshBridge();
+    try {
+      await refreshBridge();
+      // The connect-time write now waits for the port to settle.
+      await vi.advanceTimersByTimeAsync(CONNECT_SETTLE_MS);
+    } finally {
+      vi.useRealTimers();
+    }
     await settle();
 
     expect(console.error).toHaveBeenCalledWith(expect.any(String), expect.any(Error));

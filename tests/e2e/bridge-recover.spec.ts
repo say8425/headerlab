@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
@@ -81,6 +81,7 @@ test('the guide behind "down" names this install and its Retry brings the bridge
     extensionId: unpackedExtensionId(extensionPath),
     socketDirPath: socketDir(),
   };
+  const origin = `chrome-extension://${paths.extensionId}/`;
   const context = await chromium.launchPersistentContext(profile, {
     channel: 'chromium',
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
@@ -114,10 +115,86 @@ test('the guide behind "down" names this install and its Retry brings the bridge
     if (!installed.ok) throw new Error(`bridge install failed: ${installed.error.message}`);
     await page.getByTestId('bridge-retry').click();
 
+    // A real host process, not only the row's word: `live` is the row's
+    // report, the registry entry is the host's.
+    await expect
+      .poll(() => findBridgePid(paths.socketDirPath, origin), { timeout: 15_000 })
+      .not.toBeNull();
     await expect(page.getByTestId('bridgestate')).toHaveAttribute('data-bridge', 'live');
-    // A live row has nothing to guide, so the way in and the guide are gone.
+    // A live row has nothing to guide, so the way in and the guide are gone —
+    // and stay gone once the port has outlived its settle window.
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId('bridgestate')).toHaveAttribute('data-bridge', 'live');
     await expect(page.getByTestId('bridge-guide-trigger')).toHaveCount(0);
     await expect(page.getByTestId('bridge-guide')).toHaveCount(0);
+  } finally {
+    try {
+      await context.close();
+    } finally {
+      await uninstallBridge(paths);
+      rmSync(profile, { recursive: true, force: true });
+    }
+  }
+});
+
+test('a Retry against a host that dies on start never reads live and keeps the guide open', async () => {
+  // The case the guide exists for: the person presses Retry and the host
+  // still fails. Chrome hands back a port before it knows, and recording that
+  // as connected flashed the row `live` — which also unmounted the guide
+  // being read. A host that exits 300ms after starting makes that window
+  // long enough to land in (a missing manifest fails too fast to render), and
+  // sampling catches a flash a single `toHaveAttribute` would miss.
+  const extensionPath = assertBuildFresh('bridge-e2e');
+  const profile = mkdtempSync(path.join(tmpdir(), 'headerlab-bridge-retry-'));
+  // Installed as the real host — `bridge install` starts it once to check —
+  // and only then made to die, the way an upgrade or a moved checkout breaks
+  // an install that worked.
+  const dyingEntry = path.join(profile, 'host-entry.mjs');
+  writeFileSync(
+    dyingEntry,
+    `import ${JSON.stringify(path.resolve('packages/headerlab/bin/headerlab-host.mjs'))};\n`,
+  );
+  const paths = {
+    manifestDir: path.join(profile, 'NativeMessagingHosts'),
+    launcherDir: path.join(profile, 'bin'),
+    entryPath: dyingEntry,
+    nodePath: process.execPath,
+    extensionId: unpackedExtensionId(extensionPath),
+    socketDirPath: socketDir(),
+  };
+  const installed = await installBridge(paths);
+  if (!installed.ok) throw new Error(`bridge install failed: ${installed.error.message}`);
+  writeFileSync(dyingEntry, 'setTimeout(() => process.exit(1), 300);\n');
+  const context = await chromium.launchPersistentContext(profile, {
+    channel: 'chromium',
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+  });
+  try {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 748, height: 600 });
+    await page.goto(`chrome-extension://${paths.extensionId}/popup.html`);
+    await expect(page.getByTestId('bridge-state')).toHaveText('down', { timeout: 10_000 });
+    await page.getByTestId('bridge-guide-trigger').click();
+    await expect(page.getByTestId('bridge-guide')).toBeVisible();
+
+    await page.getByTestId('bridge-retry').click();
+    const seen = await page.evaluate(async () => {
+      const out: string[] = [];
+      const end = Date.now() + 2500;
+      while (Date.now() < end) {
+        out.push(
+          document.querySelector('[data-testid="bridgestate"]')?.getAttribute('data-bridge') ?? '',
+        );
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return out;
+    });
+
+    expect(seen.length).toBeGreaterThan(50);
+    expect(seen.filter((mode) => mode !== 'idle')).toEqual([]);
+    await expect(page.getByTestId('bridge-guide')).toBeVisible();
+    await expect(page.getByTestId('bridge-retry')).toHaveText('Retry now');
+    await expect(page.getByTestId('bridge-retry-failed')).toHaveCount(0);
   } finally {
     try {
       await context.close();

@@ -203,7 +203,9 @@ const BRIDGE_NAME = 'Agent bridge';
  * on the detail span below already argued `down` over `unreachable` for a
  * budget that no longer applies; the argument is live again here, against a
  * smaller box, and `down` measures 31.24px — 34% headroom, against the 15%
- * this rail accepted for `Use a bare hostname`. Re-derive that budget if the
+ * this rail accepted for `Use a bare hostname`. Set semibold as the guide's
+ * trigger (2026-10-04, same popup, bridge-e2e build, nothing installed) it
+ * measures 31.97px of the same 47.48px: 33%. Re-derive that budget if the
  * label, the gap or the switch size moves: it is a leftover, not a property.
  */
 const BRIDGE_STATE = {
@@ -585,7 +587,10 @@ export function ScopeRail({
               geometry is unchanged: only its content becomes a button. It
               drops `aria-hidden` while it holds one — a focusable control
               inside a hidden subtree is unreachable to a screen reader — and
-              the button's name starts with the word it shows. */}
+              the button's name starts with the word it shows (`shown`, not
+              `spoken`: a name has to contain the visible label). Focus is a
+              fill and a solid underline rather than a ring, because the
+              span's `truncate` clips anything drawn outside its 16px line. */}
             <span
               id="bridge-state"
               data-testid="bridge-state"
@@ -599,7 +604,7 @@ export function ScopeRail({
                   <PopoverTrigger
                     data-testid="bridge-guide-trigger"
                     aria-label={`${bridgeState.shown}: how to connect the agent bridge`}
-                    className="cursor-pointer rounded-sm font-semibold text-pending underline decoration-dotted underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className="cursor-pointer rounded-sm font-semibold text-pending underline decoration-dotted underline-offset-2 focus-visible:bg-pending-bg focus-visible:decoration-solid focus-visible:outline-none"
                   >
                     {bridgeState.shown}
                   </PopoverTrigger>

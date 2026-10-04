@@ -48,18 +48,21 @@ export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(syncBridge);
   browser.permissions.onAdded.addListener(syncBridge);
   browser.permissions.onRemoved.addListener(syncBridge);
-  // Answered with a value rather than left unanswered: Chrome rejects the
-  // sender's promise when no listener replies, and the popup would then log
-  // a failure for a retry that ran. The outcome itself is not in the reply —
-  // it lands in `bridgeStatus`, which the popup already watches.
-  browser.runtime.onMessage.addListener((message) => {
-    if (!isBridgeRefresh(message)) return undefined;
-    return refreshBridge().then(
-      () => true,
-      (error) => {
+  // Always answered: Chrome rejects the sender's promise when no listener
+  // replies, and the popup would then say a retry "could not be sent" when it
+  // ran. `sendResponse` plus `return true` rather than returning a Promise,
+  // because Promise returns from `onMessage` are recent in Chrome and this
+  // manifest pins no minimum version. The outcome is not in the reply — it
+  // lands in `bridgeStatus`, which the popup already watches.
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!isBridgeRefresh(message)) return false;
+    refreshBridge().then(
+      () => sendResponse(true),
+      (error: unknown) => {
         console.error('[HeaderLab] bridge refresh failed', error);
-        return false;
+        sendResponse(false);
       },
     );
+    return true;
   });
 });

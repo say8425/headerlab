@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ScopeRail, type ScopeRailProps } from '@/components/ScopeRail';
@@ -1240,6 +1240,28 @@ describe('the guide behind a bridge that is not connected', () => {
     } finally {
       vi.restoreAllMocks();
     }
+  });
+
+  it('holds Retry while the ask is out, then offers it again with nothing to report', async () => {
+    let answer: (ran: boolean) => void = () => {};
+    const onRetryBridge = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    const user = await openGuide({ onRetryBridge });
+    await user.click(screen.getByTestId('bridge-retry'));
+    const retry = screen.getByTestId('bridge-retry') as HTMLButtonElement;
+    expect(retry.textContent).toEqual('Retrying…');
+    expect(retry.disabled).toBe(true);
+
+    await act(async () => answer(true));
+
+    expect(screen.queryByTestId('bridge-retry-failed')).toBeNull();
+    expect(retry.textContent).toEqual('Retry now');
+    expect(retry.disabled).toBe(false);
+    expect(onRetryBridge).toHaveBeenCalledTimes(1);
   });
 
   it('retries through the prop, and says so when the ask could not be sent', async () => {
