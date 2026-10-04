@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/say8425/headerlab/compare/extension-v1.8.0...extension-v1.9.0) (2026-10-04)
+
+
+### Features
+
+* "down" on the agent bridge row shows how to connect, and the bridge recovers after install ([#98](https://github.com/say8425/headerlab/issues/98)) ([6758636](https://github.com/say8425/headerlab/commit/67586363f738639751058c883a0ce182615e08f4))
+
 ## [1.8.0](https://github.com/say8425/headerlab/compare/extension-v1.7.0...extension-v1.8.0) (2026-09-18)
 
 
