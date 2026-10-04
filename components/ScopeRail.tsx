@@ -1,8 +1,10 @@
 import { ArrowUpDown, CircleHelp, Globe } from 'lucide-react';
 import { AddSiteField, type AddSiteResult } from './AddSiteField';
+import { BridgeGuide } from './BridgeGuide';
 import { GRANT_BUTTON_PROPS, SiteRow } from './SiteRow';
 import { OFFERED_TYPES, TypeChecklist } from './TypeChecklist';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeDomain, effectiveDomain } from '@/lib/permissions/origins';
@@ -99,6 +101,10 @@ export interface ScopeRailProps {
   bridgeRequestError: { reason: 'declined' } | { reason: 'error'; message: string } | null;
   onEnableBridge: () => void;
   onDisableBridge: () => void;
+  /** The id the browser assigned this install, for the command in {@link BridgeGuide}. */
+  extensionId: string;
+  /** Asks the background worker to retry the port; `false` if the ask was not delivered. */
+  onRetryBridge: () => Promise<boolean>;
   /** The `unsupported-resource-type` diagnostic for this rule set, or null — see TypeChecklist. */
   typeNote: { severity: 'error' | 'warning'; message: string } | null;
 }
@@ -300,6 +306,8 @@ export function ScopeRail({
   bridgeRequestError,
   onEnableBridge,
   onDisableBridge,
+  extensionId,
+  onRetryBridge,
   typeNote,
 }: ScopeRailProps) {
   const typeCount = resourceTypes.filter((t) => OFFERED_TYPES.includes(t)).length;
@@ -359,6 +367,8 @@ export function ScopeRail({
           : bridgeUnreachable
             ? BRIDGE_STATE.unreachable
             : BRIDGE_STATE.idle;
+  /** Whether the state word opens {@link BridgeGuide} — `idle`, with or without an error. */
+  const bridgeGuided = bridge === 'idle';
   const bridgeDetail =
     bridgeState === null
       ? ''
@@ -564,13 +574,46 @@ export function ScopeRail({
               `aria-hidden` because `bridge-detail` already says this word to
               the switch's description, at the length that has room for the
               whole sentence. Announcing both would say the state twice. */}
+            {/* In the two states a person can do something about from a
+              terminal — `idle` and its unreachable variant — the word is also
+              the way in to the remedy: a popover with the install command
+              (BridgeGuide). A popover and not a box in the rail, because the
+              rail has no height to give (see `bridgeUnreachable`), and the
+              popover floats over the site list instead of pushing it.
+
+              The span stays the flex item in every state, so the row's
+              geometry is unchanged: only its content becomes a button. It
+              drops `aria-hidden` while it holds one — a focusable control
+              inside a hidden subtree is unreachable to a screen reader — and
+              the button's name starts with the word it shows. */}
             <span
               id="bridge-state"
               data-testid="bridge-state"
-              aria-hidden="true"
+              {...(bridgeGuided ? {} : { 'aria-hidden': true })}
               className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-muted-foreground"
             >
-              {bridgeState === null ? '' : bridgeState.shown}
+              {bridgeState === null ? (
+                ''
+              ) : bridgeGuided ? (
+                <Popover>
+                  <PopoverTrigger
+                    data-testid="bridge-guide-trigger"
+                    aria-label={`${bridgeState.shown}: how to connect the agent bridge`}
+                    className="cursor-pointer rounded-sm font-semibold text-pending underline decoration-dotted underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    {bridgeState.shown}
+                  </PopoverTrigger>
+                  <PopoverContent align="start" collisionPadding={8} className="w-[264px]">
+                    <BridgeGuide
+                      extensionId={extensionId}
+                      error={bridgeError}
+                      onRetry={onRetryBridge}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                bridgeState.shown
+              )}
             </span>
             {bridge === 'unknown' ? null : (
               <Switch

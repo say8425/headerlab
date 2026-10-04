@@ -27,6 +27,22 @@ import { TARGET } from '@/lib/target';
 import { useAppState } from '@/lib/storage/useAppState';
 import type { HeaderRule, Profile, ResourceType } from '@/lib/model/types';
 
+/**
+ * Asks the background worker to try the bridge port again. `false` means the
+ * ask itself was not delivered — logged, and said on screen by whoever shows a
+ * Retry button. What the retry achieved is not in the answer: it lands in
+ * `bridgeStatus`, which the popup already watches.
+ */
+async function retryBridge(): Promise<boolean> {
+  try {
+    await browser.runtime.sendMessage({ type: BRIDGE_REFRESH });
+    return true;
+  } catch (error) {
+    console.error('[HeaderLab] could not ask the background worker to retry the bridge', error);
+    return false;
+  }
+}
+
 export default function App() {
   const { state, valid, patch } = useAppState();
 
@@ -293,9 +309,7 @@ export default function App() {
    */
   useEffect(() => {
     if (!hasBridge(TARGET)) return;
-    browser.runtime.sendMessage({ type: BRIDGE_REFRESH }).catch((error: unknown) => {
-      console.error('[HeaderLab] could not ask the background worker to retry the bridge', error);
-    });
+    void retryBridge();
   }, []);
 
   useEffect(() => {
@@ -510,6 +524,8 @@ export default function App() {
                 : { reason: 'error', message: result.message },
           );
         }}
+        extensionId={browser.runtime.id}
+        onRetryBridge={retryBridge}
         onDisableBridge={async () => {
           // Turning it off answers whatever the last failed request was
           // saying, so the mark goes with it rather than outliving its

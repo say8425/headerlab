@@ -51,6 +51,8 @@ function props(over: Partial<ScopeRailProps> = {}): ScopeRailProps {
     bridgeRequestError: null,
     onEnableBridge: vi.fn(),
     onDisableBridge: vi.fn(),
+    extensionId: 'kgapijlldieckifoenckgninnepafhnn',
+    onRetryBridge: vi.fn(async () => true),
     typeNote: null,
     ...over,
   };
@@ -1163,6 +1165,91 @@ describe('the bridge row', () => {
 
     expect(box({ bridge: 'off', bridgeRequestError: { reason: 'declined' } })).toEqual(
       box({ bridge: 'off' }),
+    );
+  });
+});
+
+describe('the guide behind a bridge that is not connected', () => {
+  const DOWN = { bridge: 'idle', bridgeError: 'Native host has exited.' } as const;
+  const COMMAND = 'headerlab bridge install --extension-id kgapijlldieckifoenckgninnepafhnn';
+
+  async function openGuide(over: Partial<ScopeRailProps> = {}) {
+    const user = userEvent.setup();
+    renderRail({ ...DOWN, ...over });
+    await user.click(screen.getByTestId('bridge-guide-trigger'));
+    return user;
+  }
+
+  it('is offered only where a terminal can fix it', () => {
+    // Absence first. `off` is fixed by the switch beside it, `live` needs no
+    // fixing, and `unknown` has not been established — a way in to an install
+    // command in any of them would be a remedy for the wrong problem.
+    for (const bridge of ['off', 'live', 'unknown'] as const) {
+      renderRail({ bridge });
+      expect(screen.queryByTestId('bridge-guide-trigger')).toBeNull();
+      cleanup();
+    }
+    renderRail({ bridge: 'idle', bridgeError: null });
+    expect(screen.getByTestId('bridge-guide-trigger').textContent).toEqual('idle');
+    cleanup();
+    renderRail(DOWN);
+    expect(screen.getByTestId('bridge-guide-trigger').textContent).toEqual('down');
+  });
+
+  it('keeps the state word reachable: no control inside a hidden subtree', () => {
+    renderRail(DOWN);
+    const state = screen.getByTestId('bridge-state');
+    expect(state.getAttribute('aria-hidden')).toBeNull();
+    expect(state.textContent).toEqual('down');
+    // The name starts with what the eye reads.
+    expect(
+      screen.getByTestId('bridge-guide-trigger').getAttribute('aria-label')!.startsWith('down'),
+    ).toBe(true);
+  });
+
+  it('shows the install command with this install’s id, and Chrome’s message last', async () => {
+    await openGuide({ extensionId: 'abcdefghijklmnopabcdefghijklmnop' });
+    expect(screen.getByTestId('bridge-command').textContent).toEqual(
+      'headerlab bridge install --extension-id abcdefghijklmnopabcdefghijklmnop',
+    );
+    expect(screen.getByTestId('bridge-chrome-error').textContent).toEqual(
+      'Chrome: Native host has exited.',
+    );
+  });
+
+  it('says Copied only after the clipboard took the exact command', async () => {
+    // After setup: user-event installs its own clipboard on `navigator`.
+    const user = await openGuide();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    try {
+      await user.click(screen.getByTestId('bridge-copy'));
+      expect(writeText.mock.calls).toEqual([[COMMAND]]);
+      expect(screen.getByTestId('bridge-copy').textContent).toEqual('Copied');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('says Selected, never Copied, when the clipboard refuses', async () => {
+    const user = await openGuide();
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+    try {
+      await user.click(screen.getByTestId('bridge-copy'));
+      expect(screen.getByTestId('bridge-copy').textContent).toEqual('Selected');
+      expect(window.getSelection()!.toString()).toEqual(COMMAND);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('retries through the prop, and says so when the ask could not be sent', async () => {
+    const onRetryBridge = vi.fn(async () => false);
+    const user = await openGuide({ onRetryBridge });
+    expect(screen.queryByTestId('bridge-retry-failed')).toBeNull();
+    await user.click(screen.getByTestId('bridge-retry'));
+    expect(onRetryBridge).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('bridge-retry-failed').textContent).toEqual(
+      'The retry could not be sent. Reopen this popup to try again.',
     );
   });
 });
