@@ -203,9 +203,10 @@ const BRIDGE_NAME = 'Agent bridge';
  * on the detail span below already argued `down` over `unreachable` for a
  * budget that no longer applies; the argument is live again here, against a
  * smaller box, and `down` measures 31.24px — 34% headroom, against the 15%
- * this rail accepted for `Use a bare hostname`. Set semibold as the guide's
- * trigger (2026-10-04, same popup, bridge-e2e build, nothing installed) it
- * measures 31.97px of the same 47.48px: 33%. Re-derive that budget if the
+ * this rail accepted for `Use a bare hostname`. The guide's trigger keeps
+ * this weight on purpose: set semibold (31.97px here on macOS) it clipped on
+ * CI's Linux fonts — the bridge-rail e2e caught it — so colour and the dotted
+ * underline say "clickable", and the word's width is the one measured above. Re-derive that budget if the
  * label, the gap or the switch size moves: it is a leftover, not a property.
  */
 const BRIDGE_STATE = {
@@ -604,7 +605,7 @@ export function ScopeRail({
                   <PopoverTrigger
                     data-testid="bridge-guide-trigger"
                     aria-label={`${bridgeState.shown}: how to connect the agent bridge`}
-                    className="cursor-pointer rounded-sm font-semibold text-pending underline decoration-dotted underline-offset-2 focus-visible:bg-pending-bg focus-visible:decoration-solid focus-visible:outline-none"
+                    className="cursor-pointer rounded-sm text-pending underline decoration-dotted underline-offset-2 focus-visible:bg-pending-bg focus-visible:decoration-solid focus-visible:outline-none"
                   >
                     {bridgeState.shown}
                   </PopoverTrigger>
