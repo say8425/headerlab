@@ -92,3 +92,6 @@ runbook.
   to a positional skeleton (no Markdown — the store renders none, so `**` reaches readers as
   itself) and lists by name every line the AMO copy adds. A skeleton cannot see two bullets
   swapping places.
+- The same file holds the `###` headings under "Permission justifications" in
+  `docs/store/privacy.md` to exactly the permissions the built manifest declares, so a permission
+  added or dropped without its dashboard answer fails CI.

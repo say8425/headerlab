@@ -18,8 +18,9 @@ import { REPO_ROOT, readBuildFile } from '../support/build';
  * a single element. What survives is every claim that was about the copy itself
  * rather than about agreement between copies.
  *
- * Reads sources rather than the build, with one exception marked below: none of
- * this ships in the extension.
+ * Reads sources rather than the build, with two exceptions marked below — both
+ * read the built manifest, because it is what the store receives: none of the
+ * rest ships in the extension.
  */
 
 const STORE = path.join(REPO_ROOT, 'docs', 'store');
@@ -335,8 +336,8 @@ describe('the summary table in listing.md', () => {
    * `public/_locales/en/messages.json`; it is now a string literal in
    * `wxt.config.ts`, and parsing TypeScript with a regex to find it would be a
    * worse guard than the one it replaces. So this reads the built manifest —
-   * the only exception to this file's source-only rule, and the value the store
-   * actually receives.
+   * one of this file's two exceptions to its source-only rule, and the value the
+   * store actually receives.
    */
   const rows = (): Array<{ locale: string; length: number; summary: string }> =>
     [
@@ -368,5 +369,45 @@ describe('the summary table in listing.md', () => {
     // UTF-16 units, matching the limit assertion in manifest.test.ts — the
     // reading that cannot under-report whichever way the store counts.
     expect(shippedSummary().length, 'listing.md length column').toBe(row.length);
+  });
+});
+
+describe('the permission justifications in privacy.md', () => {
+  /**
+   * The dashboard has one justification box per permission the package
+   * declares, and `privacy.md` holds the text for each. Nothing else ties the
+   * two together: `manifest.test.ts` pins the manifest, and a permission added
+   * there would reach the store with no prepared answer — or a removed one
+   * would leave an answer for a box that no longer exists.
+   *
+   * Reads the built manifest, as the summary table above does — the second
+   * exception to this file's source-only rule: the store is handed the build,
+   * not `wxt.config.ts`.
+   */
+  const justified = (): string[] => {
+    const text = readFileSync(path.join(STORE, 'privacy.md'), 'utf8');
+    // Ends at the next `## ` heading or at the end of the file, so moving the
+    // section last does not read as the heading having gone.
+    const section = /^## Permission justifications\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text);
+    if (!section) throw new Error('docs/store/privacy.md has no "## Permission justifications".');
+    // The first backticked token of each `###` heading is the permission; the
+    // rest of the heading says where the manifest declares it.
+    return [...section[1]!.matchAll(/^### [^`\n]*`([^`]+)`/gm)].map(([, name]) => name!);
+  };
+
+  const declared = (): string[] => {
+    const manifest = JSON.parse(readBuildFile('production', 'manifest.json'));
+    return [
+      ...(manifest.permissions ?? []),
+      ...(manifest.host_permissions ?? []),
+      ...(manifest.optional_permissions ?? []),
+      ...(manifest.optional_host_permissions ?? []),
+    ];
+  };
+
+  it('justifies exactly the permissions the package declares, each once', () => {
+    // Sorted on both sides so the order of headings is free; `toEqual` on the
+    // arrays rather than a set so a heading written twice fails too.
+    expect(justified().toSorted()).toEqual(declared().toSorted());
   });
 });
