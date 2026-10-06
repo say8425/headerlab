@@ -109,7 +109,7 @@ export function BridgeGuide({ extensionId, error, onRetry }: BridgeGuideProps) {
             <span
               key={state}
               aria-hidden={state === copy ? undefined : true}
-              className={`col-start-1 row-start-1 text-center ${state === copy ? '' : 'invisible'}`}
+              className={`col-start-1 row-start-1 text-center${state === copy ? '' : ' invisible'}`}
             >
               {label}
             </span>
