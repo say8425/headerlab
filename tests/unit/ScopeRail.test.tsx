@@ -1224,7 +1224,40 @@ describe('the guide behind a bridge that is not connected', () => {
     try {
       await user.click(screen.getByTestId('bridge-copy'));
       expect(writeText.mock.calls).toEqual([[COMMAND]]);
-      expect(screen.getByTestId('bridge-copy').textContent).toEqual('Copied');
+      // The accessible name, not `textContent`: every label is in the DOM to
+      // hold the button's width, and only the current one is named.
+      expect(screen.getByRole('button', { name: 'Copied' })).toBe(
+        screen.getByTestId('bridge-copy'),
+      );
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('lays out every copy label in every state, so the button never changes width', async () => {
+    // The width itself is measured in real Chrome (bridge-recover.spec.ts);
+    // jsdom has no layout. What it can see is the mechanism: all three words
+    // share the button's one grid cell, and only the current one is shown.
+    const user = await openGuide();
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    try {
+      const labels = () =>
+        [...screen.getByTestId('bridge-copy').children].map((el) => [
+          el.textContent,
+          el.classList.contains('invisible'),
+        ]);
+      expect(screen.getByRole('button', { name: 'Copy' })).toBe(screen.getByTestId('bridge-copy'));
+      expect(labels()).toEqual([
+        ['Copy', false],
+        ['Copied', true],
+        ['Selected', true],
+      ]);
+      await user.click(screen.getByTestId('bridge-copy'));
+      expect(labels()).toEqual([
+        ['Copy', true],
+        ['Copied', false],
+        ['Selected', true],
+      ]);
     } finally {
       vi.restoreAllMocks();
     }
@@ -1235,7 +1268,9 @@ describe('the guide behind a bridge that is not connected', () => {
     vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
     try {
       await user.click(screen.getByTestId('bridge-copy'));
-      expect(screen.getByTestId('bridge-copy').textContent).toEqual('Selected');
+      expect(screen.getByRole('button', { name: 'Selected' })).toBe(
+        screen.getByTestId('bridge-copy'),
+      );
       expect(window.getSelection()!.toString()).toEqual(COMMAND);
     } finally {
       vi.restoreAllMocks();

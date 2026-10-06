@@ -111,6 +111,42 @@ test('the guide behind "down" names this install and its Retry brings the bridge
       `headerlab bridge install --extension-id ${paths.extensionId}`,
     );
 
+    // Copying changes the button's word, not its box or the command's beside
+    // it. Sized to its word, `Copy` → `Copied` once narrowed the command and
+    // moved its line breaks. The clipboard is stubbed both ways so each word
+    // is measured, rather than whichever one headless Chrome's clipboard gives.
+    const copyBoxes = () =>
+      page.evaluate(() =>
+        ['bridge-command', 'bridge-copy'].map((id) => {
+          const r = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+          return [r.x, r.y, r.width, r.height];
+        }),
+      );
+    // The popover zooms in as it opens; measured mid-animation, every box is
+    // scaled. Only the popover's own animations: a page-wide wait would hang
+    // on any infinite one added elsewhere.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .querySelector('[data-slot="popover-content"]')!
+          .getAnimations({ subtree: true })
+          .map((a) => a.finished),
+      ),
+    );
+    const beforeCopy = await copyBoxes();
+    for (const [outcome, word] of [
+      ['resolve', 'Copied'],
+      ['reject', 'Selected'],
+    ] as const) {
+      await page.evaluate((how) => {
+        navigator.clipboard.writeText = () =>
+          how === 'resolve' ? Promise.resolve() : Promise.reject(new Error('denied'));
+      }, outcome);
+      await page.getByTestId('bridge-copy').click();
+      await expect(page.getByRole('button', { name: word, exact: true })).toBeVisible();
+      expect(await copyBoxes(), `after ${word}`).toEqual(beforeCopy);
+    }
+
     const installed = await installBridge(paths);
     if (!installed.ok) throw new Error(`bridge install failed: ${installed.error.message}`);
     await page.getByTestId('bridge-retry').click();
