@@ -18,6 +18,12 @@ export interface BridgeGuideProps {
 type CopyState = 'ready' | 'copied' | 'selected';
 type RetryState = 'ready' | 'retrying' | 'failed';
 
+const COPY_LABELS: ReadonlyArray<readonly [CopyState, string]> = [
+  ['ready', 'Copy'],
+  ['copied', 'Copied'],
+  ['selected', 'Selected'],
+];
+
 /**
  * What the Agent bridge row says when it cannot be reached: the command that
  * fixes the usual cause, with this install's id already in it, and what to do
@@ -92,9 +98,22 @@ export function BridgeGuide({ extensionId, error, onRetry }: BridgeGuideProps) {
           type="button"
           data-testid="bridge-copy"
           onClick={() => void onCopy()}
-          className="shrink-0 cursor-pointer rounded px-1.5 py-1 text-[11px] leading-none font-semibold text-background ring-background/40 hover:bg-background/15 focus-visible:ring-2 focus-visible:outline-none"
+          className="grid shrink-0 cursor-pointer rounded px-1.5 py-1 text-[11px] leading-none font-semibold text-background ring-background/40 hover:bg-background/15 focus-visible:ring-2 focus-visible:outline-none"
         >
-          {copy === 'copied' ? 'Copied' : copy === 'selected' ? 'Selected' : 'Copy'}
+          {/* Every label shares one grid cell, so the button is as wide as the
+              widest of them in every state. Sized to its current word, `Copy`
+              becoming `Copied` narrowed the command beside it and could move
+              where its lines break, under the pointer that just clicked. The
+              others are hidden from sight and from the button's name. */}
+          {COPY_LABELS.map(([state, label]) => (
+            <span
+              key={state}
+              aria-hidden={state === copy ? undefined : true}
+              className={`col-start-1 row-start-1 text-center ${state === copy ? '' : 'invisible'}`}
+            >
+              {label}
+            </span>
+          ))}
         </button>
       </div>
       <p className="text-muted-foreground">2. Then reopen this popup, or:</p>

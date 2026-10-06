@@ -111,6 +111,25 @@ test('the guide behind "down" names this install and its Retry brings the bridge
       `headerlab bridge install --extension-id ${paths.extensionId}`,
     );
 
+    // Copying changes the button's word, not its box or the command's beside
+    // it. Sized to its word, `Copy` → `Copied` once narrowed the command and
+    // moved its line breaks. Either outcome counts: the clipboard may refuse
+    // here, and `Selected` is the widest word.
+    const copyBoxes = () =>
+      page.evaluate(() =>
+        ['bridge-command', 'bridge-copy'].map((id) => {
+          const r = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+          return [r.x, r.y, r.width, r.height];
+        }),
+      );
+    // The popover zooms in as it opens; measured mid-animation, every box is
+    // scaled and the comparison is about the animation, not the button.
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    const beforeCopy = await copyBoxes();
+    await page.getByTestId('bridge-copy').click();
+    await expect(page.getByRole('button', { name: /^(Copied|Selected)$/ })).toBeVisible();
+    expect(await copyBoxes()).toEqual(beforeCopy);
+
     const installed = await installBridge(paths);
     if (!installed.ok) throw new Error(`bridge install failed: ${installed.error.message}`);
     await page.getByTestId('bridge-retry').click();
